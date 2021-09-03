@@ -1,0 +1,17 @@
+/**
+@name Get Supplier Company Name
+@api getSupplierCompanyName
+@summary Return the site's company name, aka supplier company name.
+@attribute _site_url
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-04|Tat.Leung            |Initial version
+*/
+siteUrl = _site_url;
+if (isnull(_site_url) or len(trim(_site_url)) == 0) {
+    siteUrl = "https://eatontest4.bigmachines.com/spring";
+}
+urlParts = split(siteUrl, ".");
+return substring(urlParts[0], 8, len(urlParts[0]));

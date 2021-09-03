@@ -1,0 +1,12 @@
+{
+  "name" : "Build Item XML",
+  "variableName" : "buildItemXML",
+  "description" : "Build an item XML for a line.",
+  "libraryFunctions" : [ "util.u_convertJSONToStringDictionary" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,12 @@
+{
+  "name" : "Is PSD Take Off Model",
+  "variableName" : "isPSDTakeOffModel",
+  "description" : "This util to verify the take of model is related to PSD or not",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "takeOffModelName",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

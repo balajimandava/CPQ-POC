@@ -1,0 +1,97 @@
+//************************************************************************************************************
+//** Function:    Function to update EndCustomer Arrayset From Vistex 
+//**
+//** Return type: String
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- --------------------------------------------------------------
+//**      	28-May-2020 	Rahul Uttarwar 	Initial version
+//**		11-Nov-2020	Ankit 		Filter on end customers PARVW=EN
+//************************************************************************************************************
+
+xpaths = string[] {"//EndCustomers/EndCustomer/No", "//EndCustomers/EndCustomer[PARVW='EN']/Primary"};
+endCustomerData = readxmlmultiple(qq_nt_EndCust_DataString_t, xpaths);
+print endCustomerData;
+endCustomerNumber = get(endCustomerData, xpaths[0]);  // End Customer Number Array
+isPrimaryEndCustomer = get(endCustomerData, xpaths[1]);  // End Customer Primary Flag Array
+
+numOfSAPCust = 0;
+if(NOT(isnull(isPrimaryEndCustomer)) ){	
+	numOfSAPCust = sizeofarray(isPrimaryEndCustomer); // Number of End Customers at Vistex	
+}
+rangevar = range(numOfSAPCust);
+
+noOfCPQEndCust = range(jsonarraysize(endCustomerArraySet2_t)); // Number of End Customers added in CPQ
+
+returnJsonArr = jsonarray();
+custNumbers = string[];
+retVal = "";
+primaryEndCust = "";
+
+
+if (numOfSAPCust > 0){ // if SAP/Vistex returned End Customers.
+	for eachEndCust in rangevar{
+		foundFlag = false;
+		endCustomerNum = endCustomerNumber[eachEndCust];
+		isPrimaryEndCust = isPrimaryEndCustomer[eachEndCust];
+		for eachCPQEndCust in noOfCPQEndCust{
+			cPQEndCustomer = jsonarrayget(endCustomerArraySet2_t, eachCPQEndCust, "json");
+			cPQEndCustNum = jsonget(cPQEndCustomer, "customer_EndCus2_t");
+			cPQEndCustPriFlg = jsonget(cPQEndCustomer, "primary_EndCus_t");
+	
+			if(cPQEndCustNum == endCustomerNum){
+				if(isPrimaryEndCust == "Yes"){
+					jsonpathset(cPQEndCustomer, "$.primary_EndCus_t", true);
+				}elif(isPrimaryEndCust == "No"){
+					jsonpathset(cPQEndCustomer, "$.primary_EndCus_t", false);
+				}
+				jsonarrayappend(returnJsonArr, cPQEndCustomer);
+				//print "found";
+				foundFlag = true;
+				break;
+			}
+		}
+		if(NOT foundFlag){
+			append(custNumbers,endCustomerNum);
+			if(isPrimaryEndCust == "Yes"){
+				primaryEndCust = endCustomerNum;
+			}
+		}
+	}
+}
+
+searchResultSet = bmql("SELECT NAME1, STRAS, KUNNR,ORT01, REGIO, LAND1,PSTLZ,KTOKD,LOEVM FROM ENDCUSMAS WHERE KUNNR in $custNumbers");
+
+for eachRow in searchResultSet {
+	jsonEndCustObj = json();
+	
+	if(get(eachRow, "KUNNR") == primaryEndCust){
+		jsonput(jsonEndCustObj, "primary_EndCus_t", true);
+		retVal = retVal + "1~endCustomerName_t~" + get(eachRow, "NAME1") + "|";
+		retVal = retVal + "1~endCustomerNo_t~" + get(eachRow, "KUNNR") + "|";
+	}else{
+		jsonput(jsonEndCustObj, "primary_EndCus_t", false);		
+	}
+	
+	jsonput(jsonEndCustObj, "customer_EndCus2_t", get(eachRow, "KUNNR"));
+	jsonput(jsonEndCustObj, "name_endCust2_t", get(eachRow, "NAME1"));
+	jsonput(jsonEndCustObj, "city_endCust2_t", get(eachRow, "ORT01"));
+	jsonput(jsonEndCustObj, "region_endCust2_t", get(eachRow, "REGIO"));
+	jsonput(jsonEndCustObj, "country_endCust2_t", get(eachRow, "LAND1"));
+	jsonput(jsonEndCustObj, "endCustomerType_endcust2_t", get(eachRow, "KTOKD"));
+	jsonput(jsonEndCustObj, "address1_EndCus2_t", get(eachRow, "STRAS"));
+	jsonput(jsonEndCustObj, "postalCode_EndCus2_t", get(eachRow, "PSTLZ"));
+	
+	jsonarrayappend(returnJsonArr, jsonEndCustObj);
+	
+	if(jsonarraysize(returnJsonArr) == 500){
+		break;
+	}
+}
+print returnJsonArr;
+//print jsonarraysize(returnJsonArr);
+if (jsonarraysize(returnJsonArr) > 0){
+	retVal =  "1~endCustomerArraySet2_t~" + jsonarraytostr(returnJsonArr) + "|";
+}
+
+return retVal;

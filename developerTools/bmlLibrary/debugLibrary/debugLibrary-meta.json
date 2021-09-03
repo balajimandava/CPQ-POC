@@ -1,0 +1,9 @@
+{
+  "name" : "Debug Library1",
+  "variableName" : "debugLibrary",
+  "description" : "",
+  "libraryFunctions" : [ "util.externalConfigurationSave", "util.getSupplierCompanyName", "util.updateTransactionREST" ],
+  "returnType" : "Boolean",
+  "parameters" : [ ],
+  "attributes" : [ "_supplier_company_name" ]
+}

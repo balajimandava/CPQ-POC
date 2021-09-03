@@ -1,0 +1,98 @@
+/**
+@name Get User Details
+@api getUserDetails
+@summary Retrieve the User details based on 
+ from CPQ via SOAP call. This is used to get the  details of the approvers 
+@param userList Json
+@return Json Object with User Details (First Name, Last Name, Email, Title) 
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+23/05/2017|PKhanal              |Initial version (EATON-136)
+07/09/2017|vhingorani           |Added Delegate value to it
+17/03/2020|Atul Jain			|Deleted commented code and added debug to the print statement
+*/
+
+errorJSON= json("{\"ERROR\":\"\"}");
+debugMode = false;
+approvers = jsonget(userList, "approvers");
+
+approverDict = dict("string");
+companyName = lower(jsonget(userList, "company"));
+soapURL = "https://" + companyName + ".bigmachines.com/v2_0/receiver/users"; // -----> USE THIS 
+soapResponse = "";
+if (debugMode) {
+print "Company: " + companyName;
+}
+users = bmql("SELECT FieldName, Value1, SiteID from Site_Specific");
+
+for row in users {
+	site = get(row, "SiteID");
+	if (debugMode) {
+	print site;
+	}
+	if (site == companyName) {
+		put(approverDict, "cpqWebApiUsername", get(row, "FieldName"));
+		if (debugMode) {
+		print get(row, "FieldName");
+		}
+		put(approverDict, "cpqWebApiPassword", get(row, "Value1"));
+		if (debugMode) {
+		print get(row, "Value1");
+		}
+	}
+}
+
+returnJSON = json();
+
+put(approverDict, "cpqWebApiLogin", approvers);
+
+templateFileLocation = "$BASE_PATH$/WebServices/UserDetailsSOAP.xml";
+
+soapRequest = applytemplate(templateFileLocation, approverDict);
+if (debugMode) {
+print soapRequest;
+}
+soapResponse = urldatabypost(soapURL, soapRequest, "ERROR"); 
+
+if (debugMode) {
+print soapResponse;
+}
+if (soapResponse == "ERROR") {
+  jsonput(errorJSON,"ERROR","Web Services Call for " + approvers);
+  jsonput(errorJSON,"soapXML",soapRequest);
+  return errorJSON;
+}
+xpaths = string[1];
+xpaths[0] = "//bm:userInfo/bm:email";
+xpaths[1]= "//bm:userInfo/bm:status";
+xpaths[2] = "//bm:userInfo/bm:first_name";
+xpaths[3]= "//bm:userInfo/bm:last_name";
+xpaths[4] = "//bm:userInfo/bm:job_title";
+xpaths[5] = "//bm:userInfo/bm:approval_delegate";
+if (debugMode) {
+print soapResponse;
+}
+
+	output = readxmlmultiple(soapResponse, xpaths);
+	status= get(output, "//bm:userInfo/bm:status");
+	  email = get(output, "//bm:userInfo/bm:email");
+	  fname = get(output,"//bm:userInfo/bm:first_name");
+	  lname = get(output,"//bm:userInfo/bm:last_name");
+	  title = get(output, "//bm:userInfo/bm:job_title");
+	  delegate = get(output,"//bm:userInfo/bm:approval_delegate");
+	  
+	  jsonput(returnJSON,"Email",email[0]);
+	  if (debugMode) {
+		 print fname;
+		 print title;
+	  }
+	  jsonput(returnJSON,"FName",fname[0]);
+	  jsonput(returnJSON,"LName",lname[0]);
+	  jsonput(returnJSON, "Title", title[0]);
+	  jsonput(returnJSON, "Delegate", delegate[0]);
+	if (debugMode) {
+	print returnJSON;
+	}
+
+return returnJSON;

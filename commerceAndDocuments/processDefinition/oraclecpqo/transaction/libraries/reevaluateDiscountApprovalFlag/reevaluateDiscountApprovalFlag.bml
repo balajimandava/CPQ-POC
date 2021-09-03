@@ -1,0 +1,88 @@
+/**
+@name Re-evaluate Discount Approval Flag
+@api reevaluateDiscountApprovalFlag
+@attribute _document_number
+@attribute approvalRequired_l
+@attribute customDiscountType_l
+@attribute discountString_l
+@attribute previousApprovedValues_t
+@function Boolean u_logJson(String category, Integer level, Json jsonObject, String label)
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@function String[] u_convertJsonArrayToStringArray(JsonArray jsonArr)
+@return Boolean
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-16|Tat.Leung            |QQ-322
+2018-02-10|Tat.Leung            |QQ-378
+2019.02.15|Tanya Arora          |Getting feedbackdiscount_l from Previously approved value and comparing with current discount for DE1811 By Tanya Arora
+*/
+oldValues = json();
+if (isnull(previousApprovedValues_t) or previousApprovedValues_t == "") {
+	return true;
+}
+oldValues = json(previousApprovedValues_t);
+
+// get approved line doc nums
+oldLineDocNums = jsonpathgetmultiple(oldValues, "$.items[*]._document_number");
+tmpStr =  jsonArrayToStr(oldLineDocNums);
+oldLineDocNumArray = split(replace(replace(tmpStr, "[", ""), "]", ""), ",");
+
+// check if discounts have been modified
+// -------------------------------------
+currentLineDocNums = string[];
+for line in transactionLine {
+    logStatus = util.u_logString("COM_APPROVAL", 4, line._document_number, ">>> _document_number");
+    path = "$..items[?(@._document_number==" + line._document_number + ")]";
+    oldLineValues = jsonpathgetsingle(oldValues, path, "json", json());
+    logStatus = util.u_logJson("COM_APPROVAL", 4, oldLineValues, "oldLineValues");
+
+    discountStringApproved = jsonget(oldLineValues, "discountString_l", "string", "");
+    if (isnull(discountStringApproved)) {
+        discountStringApproved = "";
+    }
+    logStatus = util.u_logString("COM_APPROVAL", 4, discountStringApproved, "discountStringApproved");
+    logStatus = util.u_logString("COM_APPROVAL", 4, line.discountString_l, "discountString_l");
+    
+    //Getting Previously Approved Netprice and Discount given by Feedback team and comparing it with current for DE1811 by Tanya Arora
+    feedbackdiscountStringApproved = jsonget(oldLineValues, "feedbackDiscount_l", "string", "");
+    if (isnull(feedbackdiscountStringApproved)) {
+        feedbackdiscountStringApproved = "";
+    }
+    logStatus = util.u_logString("COM_APPROVAL", 4, feedbackdiscountStringApproved, "feedbackdiscountStringApproved");
+    customDiscountTypeApproved = jsonpathgetsingle(oldLineValues, "$.customDiscountType_l.value", "string", "");
+    logStatus = util.u_logString("COM_APPROVAL", 4, customDiscountTypeApproved, "customDiscountTypeApproved");
+    logStatus = util.u_logString("COM_APPROVAL", 4, line.customDiscountType_l, "customDiscountType_l");
+
+    
+    if (findinarray(oldLineDocNumArray, line._document_number) > -1) {
+        // existing line is different and still need approval, return true 
+        if ((customDiscountTypeApproved <> line.customDiscountType_l or discountStringApproved <> line.discountString_l) and line.approvalRequired_l) {
+            return true;
+        }
+        //Comparing Current Price and Discounts and Feedback Price and Discounts for DE1811 by Tanya arora
+	elif(feedbackdiscountStringApproved <> line.discountString_l and line.approvalRequired_l) {
+            return true;
+        }        
+        append(currentLineDocNums, line._document_number);
+    } else {
+        // new line added and need approval, return true
+        if (line.approvalRequired_l) {
+            logStatus = util.u_logString("COM_APPROVAL", 4, string(line.approvalRequired_l), "New Line Added, approvalRequired_l");
+            return true;
+        }
+    }
+
+}
+logStatus = util.u_logString("COM_APPROVAL", 4, "are matching or does not require approval", "quote line values");
+
+// check if lines have been removed, approval evaluation is required if a line has been deleted.
+// ---------------------------------------------------------------------------------------------
+currentLineDocNums = sort(currentLineDocNums);
+newLineNums = join(sort(currentLineDocNums), ",");
+logStatus = util.u_logString("COM_APPROVAL", 4, newLineNums, "newLineNums");
+tmpStr = jsonarraytostr(oldLineDocNums);
+oldDocNumArray = split(substring(tmpStr, 1, len(tmpStr)-1), ","); 
+oldLineNums = join(sort(oldDocNumArray), ",");
+logStatus = util.u_logString("COM_APPROVAL", 4, oldLineNums, "oldLineNums");
+return newLineNums <> oldLineNums;

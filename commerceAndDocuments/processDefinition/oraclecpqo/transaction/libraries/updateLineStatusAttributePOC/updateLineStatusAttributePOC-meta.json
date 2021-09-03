@@ -1,0 +1,14 @@
+{
+  "name" : "Update Line status attribute",
+  "variableName" : "updateLineStatusAttributePOC",
+  "description" : "Update Line Item Status to Error POC",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputString",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ "_document_number" ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

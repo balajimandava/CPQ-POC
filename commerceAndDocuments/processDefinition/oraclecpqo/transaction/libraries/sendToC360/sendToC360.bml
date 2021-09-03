@@ -1,0 +1,140 @@
+/**
+@name Send to C360
+@api sendToC360
+@summary 
+@attribute _system_supplier_company_name
+@attribute _system_user_time_zone
+@function String buildC360QuoteXML(Json data)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-31|Tat.Leung            |Initial Version
+2018-04-08|michael.yeung        |
+2018-04-09|michael.yeung        |
+2018-04-19|michael.yeung        |
+2018-04-24|michael.yeung        |
+*/
+status = json();
+data = json();
+
+
+
+processPOST = TRUE;
+debugMode = FALSE;
+
+userDatePref = "yyyy/MM/dd HH:mm";
+
+userTimeZone = "Europe/Amsterdam";
+if (_system_user_time_zone <> "") {
+    userTimeZone = _system_user_time_zone;
+}
+
+dateTime = replace(datetostr(getdate(), userDatePref + " z", userTimeZone), "/", ".");
+
+CPQ_OUTBOUND_CONTROL = util.getEnvironmentVariable("CPQ_OUTBOUND_CONTROL", "DISABLE");
+
+//  If we are set to Disabled then return the date and time and status code
+
+if (find(CPQ_OUTBOUND_CONTROL, "DISABLE") <> -1) {
+    jsonput(status, "condaLastSentDate_t", dateTime);
+    jsonput(status, "condaStatusCode_t", "202");
+    jsonput(status, "condaMessageBody_t", "");
+    jsonput(status, "agreementErrorMessages_t", "");
+    jsonput(status, "condaHeader_t", "");
+    jsonput(status, "condaXML_t", "");
+    return status;
+}
+
+siteID = _system_supplier_company_name + "C360SOA";
+soaUserID = "";
+soaPassID = "";
+
+siteBMQL = bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+for eachSite in siteBMQL {
+    soaUserID = get(eachSite, "FieldName");
+    soaPassID = get(eachSite, "Value1");
+}
+jsonput(data, "CPQSOAC360", soaUserID);
+jsonput(data, "CPQSOAC360PW", soaPassID);
+
+requestHeader = dict("string");
+put(requestHeader, "Content-Type", "text/xml");
+put(requestHeader, "SOAPAction", "process");
+
+action = "Send to C360";
+
+
+if( NOT qqIsPrimary_t ) {
+    action = "Set as Primary";
+    jsonput(data, "resetAcctId", true);
+}
+
+
+
+createQuoteXml = commerce.buildC360QuoteXML(data);
+SOA_C360_URL = util.getEnvironmentVariable("SOA_C360_OPP_URL", "");
+if  (SOA_C360_URL == "") {
+	throwerror("SOA_C360_OPP_URL is not configured for " + _system_supplier_company_name, false);
+}
+print SOA_C360_URL ;
+if (not isnull(SOA_C360_URL) and SOA_C360_URL <> "") {
+    print "post xml to SOA: ";
+    print createQuoteXml;
+} else {
+    print createQuoteXml;
+}
+
+
+if (debugMode) {
+    print "***  REQUEST HEADERS  ***";
+    print requestHeader;
+    print "";
+    print "***  REQUEST BODY  ***";
+    print createQuoteXml;
+    print "";
+}
+
+responseD = dict("string");
+if (processPOST) {
+    put(responseD, "Status-Code", "999");
+    put(responseD, "Error-Message", "CPQ_OUTBOUND_CONTROL set to " + upper(CPQ_OUTBOUND_CONTROL));
+    if ((find(upper(CPQ_OUTBOUND_CONTROL), "ENABLE") <> -1)) {
+        responseD = urldata(SOA_C360_URL, "POST", requestHeader, createQuoteXml);
+    }
+}
+
+statusStr  = "SUCCESS";
+c360SyncPending = "false";
+statusCode = get(responseD, "Status-Code");
+messageBody = get(responseD, "Message-Body");
+errorMessage = get(responseD, "Error-Message");
+
+if (statusCode == "202") {
+    errorMessage = "Quote sent to C360 successfully";
+
+} elif (isnull(messageBody)) {
+    messageBody = "NO Message-Body";
+    errorMessage = "Status-Code: " + statusCode + " -- " + errorMessage;
+    statusStr = statusCode;
+    c360SyncPending = "true";
+}
+if(statusCode == "500") {
+    errorMessage = "Status: Sync to C360 Failed" + " -- SOA Error: " + errorMessage;
+    c360SyncPending = "true";
+}
+
+requestHeaderString = "";
+allHeaderKeys = keys(requestHeader);
+for eachKey in allHeaderKeys {
+    requestHeaderString = requestHeaderString + eachKey + ": " + get(requestHeader, eachKey) + "\n";
+}
+
+jsonput(status, "timestamp", getstrdate());
+jsonput(status, "action", action);
+jsonput(status, "message", errorMessage);
+jsonput(status, "status", statusStr);
+jsonput(status, "c360SyncPending", c360SyncPending);
+
+return status;

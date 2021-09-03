@@ -1,0 +1,14 @@
+{
+  "name" : "BLINE Approvals Backup",
+  "variableName" : "bLINEApprovalsBackup",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.getBlineApprovers", "util.getBLineThreshold", "util.getMAT01DetailsForMultipleItems", "util.stringToFloat", "util.u_getJsonDataFromTable" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputData",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "materialLineItem_l", "_document_number", "qqProductType_l", "priceIncluded_l", "materialPricingGroupFullText_l", "oldListPrice_l", "feedbackDiscountPercent_l", "discountPercent_l", "_sequence_number", "requirePMApproval_l", "discountString_l", "customDiscountType_l", "discountPercentNetApprovedString_l", "netFixedAmountString_l", "approvedNetFixedAmount_l" ],
+  "mainDocAttributes" : [ "salesOrg_t", "customerNumber_t", "transactionType_t", "agreementDeliveryTerms_t", "quoteSubmitter_t", "qqCountryRegion_t", "qqTotalValue_t", "bookPriceDate_t", "createdDate_t", "agreementValidFrom_t", "agreementValidTo_t", "endCustomerArraySet2_t", "endCustomerNumbers_t", "nt_selectedEndCustomerArrayset_t", "language_t", "distributionChannel_t", "status_t", "qqBusinessLineForSalesOrg_t", "transactionLineApprovalInformation_t", "previousApprovedValues_t", "previousAction_t", "currencySymbol_t", "currencyDecimalSeparator_t", "currencyThousandsSeparator_t" ],
+  "systemAttributes" : [ "_system_current_step_var" ]
+}

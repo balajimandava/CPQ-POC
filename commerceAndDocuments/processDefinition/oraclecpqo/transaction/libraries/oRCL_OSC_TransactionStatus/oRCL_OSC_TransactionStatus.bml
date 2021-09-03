@@ -1,0 +1,7 @@
+//default to starting status
+statusID = 1;
+status = status_t;
+statusOSC = "";
+
+//convert Status_t to ID via data table
+return statusOSC;

@@ -1,0 +1,14 @@
+{
+  "name" : "Transaction Details Json",
+  "variableName" : "transactionDetailsJson",
+  "description" : "Returns specific transaction details in Json formatted string of the buySide_ID",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "buySide_ID",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bs_id" ],
+  "systemAttributes" : [ ]
+}

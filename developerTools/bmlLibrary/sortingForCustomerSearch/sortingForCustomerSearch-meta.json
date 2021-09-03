@@ -1,0 +1,15 @@
+{
+  "name" : "Sorting for customer search",
+  "variableName" : "sortingForCustomerSearch",
+  "description" : "sorting for customer search query results",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "retRecordData",
+    "type" : "String"
+  }, {
+    "name" : "sortIndex",
+    "type" : "Integer"
+  } ],
+  "attributes" : [ ]
+}

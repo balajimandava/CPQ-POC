@@ -1,0 +1,17 @@
+{
+  "name" : "PSD Approval Required Check",
+  "variableName" : "pSDApprovalRequiredCheck",
+  "description" : "Project#49704|E9913664|22ndJuly2020|Function to check whether approval for a specific approval reason and level",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "Level",
+    "type" : "String"
+  }, {
+    "name" : "Condition",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionLineApprovalInformation_t" ],
+  "systemAttributes" : [ ]
+}

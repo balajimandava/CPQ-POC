@@ -1,0 +1,213 @@
+/**
+@name getDupilcateItems
+@api getDupilcateItems
+@attribute _model_variable_name
+@attribute _parent_doc_number
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute materialLineItem_l
+@attribute qqProductType_l
+@attribute scaleFrom_l
+@attribute transactionType_t
+@attribute validFrom_l
+@attribute validTo_l
+@return Boolean
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-10-22|michael.yeung        |
+2018-10-24|michael.yeung        |
+*/
+
+duplicateItems = string[];
+
+materialItemArr = string[];
+materialGroupArr = string[];
+materialGroupStartEndDateDict = dict("string[]");
+materialItemStartEndDateDict = dict("string[]");
+materialItemScaleFromDict = dict("string[]");
+
+found = false;
+
+
+
+for line in transactionLine {
+    if( line.qqProductType_l == "eto" OR line.qqProductType_l== "new" ) {
+        // ETO, NEWITEM product can be duplicate, skip check
+        continue;
+    }
+	
+    curDateStr = "";
+    if(  line._parent_doc_number <> "" ) {
+        // skip checking dupliate on child line
+		if( findinarray(materialGroupArr, line.materialLineItem_l)> -1 ) {
+			//print "Inside Find Items where Mat number is = ";
+			//print line.materialLineItem_l;
+			
+            if( transactionType_t == "RQ" OR transactionType_t == "CSP" OR transactionType_t == "DSP") {
+                // check for scale or different validation date
+                startEndDtArr = string [];
+                if (containskey(materialGroupStartEndDateDict, line.materialLineItem_l)) {
+                    startEndDtArr = get(materialGroupStartEndDateDict, line.materialLineItem_l);
+                }
+                if(findinarray(startEndDtArr, curDateStr)> -1 ) {
+                    // material's valid date already exist
+                    append( duplicateItems, line.materialLineItem_l);
+                    found = true;
+                }
+                append( startEndDtArr, curDateStr );
+                put( materialGroupStartEndDateDict, line.materialLineItem_l, startEndDtArr );
+
+            } else {
+                // quote transaction type, only need to check material Item number
+				//print "Inside else setting duplicate items";
+                append( duplicateItems, line.materialLineItem_l);
+                found = true;
+            }
+        } else {
+            // material group not seen before, should have no startEnd dictionary yet
+            append(materialGroupArr, line.materialLineItem_l);
+            if( transactionType_t == "RQ" OR transactionType_t == "CSP" OR transactionType_t == "DSP") {
+                startEndDtArr = string [];
+                append( startEndDtArr, curDateStr );
+                put( materialGroupStartEndDateDict, line.materialLineItem_l, startEndDtArr );
+            }
+        }
+        //continue;
+    }
+    if(  line._model_variable_name <> "" ) {
+        // configuration model line skip
+        continue;
+    }
+	
+	//Chandan - ALM 2632 - Below condition is to skip the cancelled line items
+	if(line.lineItemStatus_l == "cancelled" ) {
+        // cancelled line skip
+        continue;
+    }
+	//Chandan - ALM 2632 - Below condition is to skip the cancelled line items
+	
+    
+    if( transactionType_t == "RQ" OR transactionType_t == "CSP" OR transactionType_t == "DSP") {
+        curValidTo = replace(substring(agreementValidTo_t, 0, 10), "-", ""); 
+        if (line.validTo_l <> "" ) {
+            curValidTo= replace(substring(line.validTo_l, 0, 10), "-", "");
+        }
+        curValidFrom = replace(substring(agreementValidFrom_t, 0, 10), "-", "");
+        if (line.validFrom_l <> "" ) {
+            curValidFrom = replace(substring(line.validFrom_l, 0, 10), "-", "");
+        }
+        curDateStr = curValidFrom + "," + curValidTo;   // compare startDt,EndDate String
+    }
+    if( line.qqProductType_l == "group"  ) {
+
+        if( findinarray(materialGroupArr, line.materialLineItem_l)> -1 ) {
+
+            if( transactionType_t == "RQ" OR transactionType_t == "CSP" OR transactionType_t == "DSP") {
+                // check for scale or different validation date
+                startEndDtArr = string [];
+                if (containskey(materialGroupStartEndDateDict, line.materialLineItem_l)) {
+                    startEndDtArr = get(materialGroupStartEndDateDict, line.materialLineItem_l);
+                }
+                if(findinarray(startEndDtArr, curDateStr)> -1 ) {
+                    // material's valid date already exist
+					//print "Duplicate item 1 = ";
+					//print line.materialLineItem_l;
+                    append( duplicateItems, line.materialLineItem_l);
+                    found = true;
+                }
+                append( startEndDtArr, curDateStr );
+                put( materialGroupStartEndDateDict, line.materialLineItem_l, startEndDtArr );
+
+            } else {
+                // quote transaction type, only need to check material Item number
+				//print "Duplicate item group 2 = ";
+				//print line.materialLineItem_l;
+                append( duplicateItems, line.materialLineItem_l);
+                found = true;
+            }
+        } else {
+            // material group not seen before, should have no startEnd dictionary yet
+            append(materialGroupArr, line.materialLineItem_l);
+            if( transactionType_t == "RQ" OR transactionType_t == "CSP" OR transactionType_t == "DSP") {
+                startEndDtArr = string [];
+                append( startEndDtArr, curDateStr );
+                put( materialGroupStartEndDateDict, line.materialLineItem_l, startEndDtArr );
+            }
+        }
+    }
+
+    if( line.qqProductType_l == "normal"  ) {
+		//print "materialGroupArr = ";
+		//print materialGroupArr;
+		//print "line.qqProductType_l = ";
+		//print line.qqProductType_l;
+		//print "Material # = ";
+		//print line.materialLineItem_l;
+        if( findinarray(materialGroupArr, line.materialLineItem_l)> -1 ) {
+            foundMatchingDt = false;
+			//print "Found Matching materia = ";
+			//print line.materialLineItem_l;
+            if( transactionType_t == "RQ" OR transactionType_t == "CSP" OR transactionType_t == "DSP") {
+                // check for scale or different validation date
+                startEndDtArr = string [];
+                if (containskey(materialItemStartEndDateDict, line.materialLineItem_l)) {
+                    startEndDtArr = get(materialItemStartEndDateDict, line.materialLineItem_l);
+                }
+                if(findinarray(startEndDtArr, curDateStr)> -1 ) {
+                    // material's valid date already exist
+                    foundMatchingDt = true;
+                }
+                if( line.scaleFrom_l <> "") {
+                    // if scale is defined check scales;
+                    scaleFromArr = string [];
+                    if( foundMatchingDt ) {
+                        if (containskey(materialItemScaleFromDict, line.materialLineItem_l)) {
+                            scaleFromArr = get(materialItemScaleFromDict, line.materialLineItem_l);
+                        }
+                        if(findinarray(scaleFromArr, line.scaleFrom_l)> -1 ) {
+                            // material's scale From already exist
+							//print "Duplicate item normal 3= ";
+							//print line.materialLineItem_l;
+                            append( duplicateItems, line.materialLineItem_l);
+                            found = true;
+                        }
+                    }
+                    append( scaleFromArr, line.scaleFrom_l );
+                    put( materialItemScaleFromDict, line.materialLineItem_l, scaleFromArr );
+                } elif (foundMatchingDt) { 
+                    // no scale price define, if date match, it's a duplicate record.
+					//print "Duplicate item normal else 4= ";
+					//print line.materialLineItem_l;
+                    append( duplicateItems, line.materialLineItem_l);
+                    found = true; 
+                }
+                append( startEndDtArr, curDateStr );
+                put( materialItemStartEndDateDict, line.materialLineItem_l, startEndDtArr );
+
+            } else {
+				// Adding this condition for Push Button Pre-assembled (Parent-child) scenario 
+                if(line._parent_doc_number == ""){
+					append( duplicateItems, line.materialLineItem_l);
+				}
+                found = true;
+            }
+        } else {
+            // material group not seen before, should have no startEnd dictionary yet
+            append(materialGroupArr, line.materialLineItem_l);
+            if( transactionType_t == "RQ" OR transactionType_t == "CSP" OR transactionType_t == "DSP") {
+                startEndDtArr = string [];
+                append( startEndDtArr, curDateStr );
+                put( materialItemStartEndDateDict, line.materialLineItem_l, startEndDtArr );
+                if( line.scaleFrom_l <> "") {
+                    scaleFromArr = string [];
+                    append( scaleFromArr, line.scaleFrom_l );
+                    put( materialItemScaleFromDict, line.materialLineItem_l, scaleFromArr );
+                }
+
+            }
+        }
+    }
+
+}
+return duplicateItems;

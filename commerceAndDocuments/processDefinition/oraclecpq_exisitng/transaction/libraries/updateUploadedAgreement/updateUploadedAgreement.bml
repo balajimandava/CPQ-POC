@@ -1,0 +1,212 @@
+/**
+@name Update Uploaded Agreement
+@api updateUploadedAgreement
+@summary Update uploaded agreement data.
+@attribute _system_supplier_company_name
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|---------------------------------------------------------------------------------------
+2018.12.12|Harshit Mehta		| Initial Code
+**/
+
+startDate = getdate();
+
+// Declare variables
+delimiter = "_" ;
+columDelimiter = "$,$";
+rowDelimiter = "#@#";
+tableName = tableName_t;
+siteID = _system_supplier_company_name;
+updatedQuoteData = ""; // used for HTML table
+
+
+//GET API Username and password
+apiUserID = "";
+apiPassID = "";
+
+// API Username and password is stored in Site_Specific table so calling that table to fetch required information.
+  siteBMQL= bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+  for eachSite in siteBMQL {
+    apiUserID= get(eachSite,"FieldName");
+    apiPassID= get(eachSite,"Value1");
+  }
+
+//Basic authentication required in WebService API call.
+auth_val = "Basic " + encodebase64(apiUserID + ":" + apiPassID);
+
+
+//Get Uploaded existing transactions BS_ID from Data table..
+resultSet = BMQL("SELECT BS_ID from $tableName");
+
+//Extract all agreement data
+for result in resultSet 
+{
+	success = "SUCCESS"; //To track which record is failed/success.
+	transactionNumber = "";
+	//Create dictionary which will contain all lineItem data in key and value.
+	//Key = MPG_materialItem_docNumber,  Value = docNumber.
+	lineItemDict = dict("string");
+	customSequenceNumber = 1; //Set its default value to 1.
+	allSortedLineItemJson = json();
+	
+	/****************************** START - Line Item Sorting Code *************************************************************/
+	bs_id = get(result,"BS_ID");
+	//validFrom = get(result,"agreementValidFrom_t");	
+	sortedLineItemJsonArray = jsonarray();
+	lineItemsJson = json();
+	document = json();
+	jsonParams = json();
+
+    //Get transactionDetails from bs_id
+	transactionDetails = util.getUploadedTransactionDetailsJson(bs_id,jsonParams);
+	validFrom = jsonpathgetsingle(transactionDetails , "$..agreementValidFrom_t");
+	validfromDate = strtojavadate(validFrom, "yyyy-mm-dd");
+	//webservice URL for sorting
+	sortEndPointURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+bs_id+"/actions/apiSave_t";
+	
+	
+	//Get All Line Items
+	lineItems = jsonpathgetsingle(transactionDetails , "$..items");
+	lineItemsJsonArray = jsonarray(lineItems);
+	
+	lineRange = range(jsonarraysize(lineItemsJsonArray));
+	
+	//Loop over all lineitem to get MPG , document number, material item etc details.
+	for eachLine in lineRange
+	{
+		currentRow = jsonarrayget(lineItemsJsonArray , eachLine,"json");
+		MPG = jsonpathgetsingle(currentRow , "$.materialPricingGroup_l","String","");
+		docNumber = jsonpathgetsingle(currentRow , "$._document_number","String" , "");
+		materialItem = jsonpathgetsingle(currentRow , "$.materialLineItem_l","String", "");
+		
+		//prepare Key with delimiter for sort function input...
+		key = MPG + delimiter + materialItem + delimiter + docNumber;
+		put(lineItemDict,key,docNumber);
+	}
+	
+	//SORT all line items
+	sortedLineItemArray = sort(keys(lineItemDict));
+	
+	//Loop over  each line item in sortedLineItemArray 
+	for sortedLineItem in sortedLineItemArray
+	{
+		sortedLineItemJson = json();
+		docNumber = "2"; //default document number.
+		
+		//Get documentNumber for each lineItem/Group
+		if(containsKey(lineItemDict,sortedLineItem))
+		{
+			docNumber = get(lineItemDict,sortedLineItem);
+			
+		}
+		
+		
+		//Set line level fields into sortedLineItemJson to update those attribute on transaction.
+		jsonput(sortedLineItemJson,"_document_number",docNumber);
+		jsonput(sortedLineItemJson,"customSequenceNumber_l",string(customSequenceNumber));
+		
+		jsonarrayappend(sortedLineItemJsonArray, sortedLineItemJson);
+		
+		//increase customSequenceNumber variable by 1
+		customSequenceNumber = customSequenceNumber + 1;
+		
+	}
+	
+	jsonput(allSortedLineItemJson,"items",sortedLineItemJsonArray);
+	jsonput(document,"transactionLine",allSortedLineItemJson );
+	
+	jsonput(jsonParams,"documents",document);
+	
+	params = jsontostr(jsonParams);
+	headers = dict("string");  
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", auth_val);
+	
+	results = urldatabypost(sortEndPointURL, params, "ERROR", headers, true);
+	
+	if(find(results,"ERROR")<>-1){
+		success = "FAIL";
+	}
+	//Below attribute require to create transaction in new commerce process for tracking purpose.
+	transactionNumber = jsonget(json(results),"transactionNumber_t");
+	link = jsonget(json(results),"linkToDocument_t");
+	
+	/****************************** END - Line Item Sorting Code *************************************************************/
+	
+	/****************************** START - CALL Send to SAP action to move status Approved to SAP Complete ******************/
+	sendtoSAPURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+bs_id+"/actions/sAPComplete_t";
+	document = json();
+	jsonParams = json();
+	
+	jsonput(jsonParams,"documents",document);
+	params = jsontostr(jsonParams);
+	results = urldatabypost(sendtoSAPURL, params, "ERROR", headers, true);
+	
+	if(find(results,"ERROR")<>-1){
+		success = "FAIL";
+	}
+	/***************************** 	END - CALL Send to SAP action to move status Approved to SAP Complete ********************/
+	
+	/****************************** START - CALL Active action to move status SAP Complete to Active ******************/
+	
+	if(comparedates(validFromDate, getdate(TRUE)) <= 0){
+		sendtoActiveURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+bs_id+"/actions/active_t";
+		document = json();
+		jsonParams = json();
+		
+		jsonput(jsonParams,"documents",document);
+		params = jsontostr(jsonParams);
+		results = urldatabypost(sendtoActiveURL, params, "ERROR", headers, true);
+		
+		if(find(results,"ERROR")<>-1){
+		
+			success = "FAIL";
+		}
+	} 
+	/***************************** 	END - CALL Active action to move status SAP Complete to Active ********************/
+	
+	//Add HTML table data
+	if(len(updatedQuoteData)>0){
+		updatedQuoteData = updatedQuoteData + rowDelimiter;
+	}
+	updatedQuoteData = updatedQuoteData + bs_id + columDelimiter + transactionNumber + columDelimiter + link + columDelimiter + success;
+}
+
+endDate = getDate();
+// **************** CREATE RESULT TRANSACTION IN NEW COMMERCE PROCESS
+
+//1.> Create
+ createUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpq_exisitngTransaction";
+// Rest parameters
+jsonParams = json();
+params = jsontostr(jsonParams);
+// Rest Header
+headers = dict("string");  
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", auth_val);
+results = urldatabypost(createUrl, params, "ERROR", headers, true);
+
+id = jsonget(json(results),"_id");
+//print "ID ==" + id;
+
+//2.Save save_t
+saveUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpq_exisitngTransaction/"+id+"/actions/save_t";
+jsonParams = json();
+document = json();
+
+TNAME = transactionName_t;
+jsonput(document,"transactionName_t",TNAME);
+jsonput(document,"existingTableData_t",updatedQuoteData );
+//jsonput(document,"result_t",quoteResults);
+jsonput(document,"startTime_t",datetostr(startDate));
+jsonput(document,"endTim_te",datetostr(endDate));
+
+jsonput(jsonParams,"documents",document);
+//print document;
+params = jsontostr(jsonParams);
+results = urldatabypost(saveUrl, params, "ERROR", headers, true);
+//print results; 
+
+
+return "";

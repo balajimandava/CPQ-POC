@@ -1,0 +1,136 @@
+/**
+@name Process Agreement Response
+@api processAgreementResponse
+@param data Json
+@attribute _document_number
+@attribute _system_user_time_zone
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute qqSAPAgreementStatusMessage_t
+@attribute qqSAPAgreementStatus_t
+@attribute qqSAPResult_t
+@attribute sendDSPAsVistex_t
+@attribute transactionNumber_t
+@attribute vaKey_l
+@attribute validFrom_l
+@attribute validTo_l
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-09-13|michael.yeung        |
+2018-09-25|michael.yeung        |
+2018-09-27|michael.yeung        |
+2018-10-01|michael.yeung        |
+2018-10-18|michael.yeung        |Use VAKey for line lookup
+2018-10-22|michael.yeung        |
+*/
+
+retJson= json();
+
+userDatePref = "yyyy/MM/dd HH:mm";
+userTimeZone = "Europe/Amsterdam";
+if (_system_user_time_zone <> "") {
+    userTimeZone = _system_user_time_zone;
+}
+
+dateTime = replace(datetostr(getdate(), userDatePref + " z", userTimeZone), "/", ".");
+
+//  Handle SAP agreement Error
+if (qqSAPAgreementStatus_t == "E") {
+  jsonput(retJson,"fp_transactionNumber_t",transactionNumber_t);
+  jsonput(retJson, "condaLastSentDate_t", dateTime);
+  jsonput(retJson, "condaStatusCode_t", "SAP Agreement interface Error -- Status is '" + qqSAPAgreementStatus_t + "'");
+  jsonput(retJson, "agreementErrorMessages_t", "SAP Message: " + qqSAPAgreementStatusMessage_t);
+  return retJson;
+}
+
+//  Handle SAP Result is blank
+if (qqSAPResult_t == "") {
+  jsonput(retJson, "condaLastSentDate_t", dateTime);
+  jsonput(retJson, "condaStatusCode_t", "SAP Result EMPTY");
+  jsonput(retJson, "agreementErrorMessages_t", "SAP Message: " + qqSAPAgreementStatusMessage_t);
+  jsonput(retJson, "condaMessageBody_t","SAP Message: " + qqSAPAgreementStatusMessage_t);
+  return retJson;
+}
+
+jsonput(retJson,"fp_transactionNumber_t",transactionNumber_t);
+successfulMessage= jsonget(data,"conditionTypes_l");
+
+
+if( not isnull( successfulMessage) ) {
+  successfulMessage= replace(successfulMessage, "&lt;", "<");
+  successfulMessage= replace(successfulMessage, "&gt;", ">");
+
+}
+sapLines = json(qqSAPResult_t );
+	
+allItems= jsonget(sapLines ,"items","jsonarray",jsonarray());
+
+if (jsonArraySize(allItems) == 0) {
+  return retJson;
+}
+
+loopCtrl = range(jsonArraySize(allItems));
+allItemsJson= jsonarray();
+for idx in loopCtrl {
+
+    eachItem = jsonArrayGet(allItems, idx, "json");
+    sapMaterialItemNumber = jsonGet(eachItem, "MATNR");
+    sapProductHierarchy = jsonGet(eachItem, "PRODH");
+    sapCustomerNumber = jsonGet(eachItem, "KUNNR");
+    sapValuesKey = trim(jsonGet(eachItem, "VAKEY"));
+    sapConditionRecordNumber = jsonGet(eachItem, "KNUMH");
+    sapSalesOrg = jsonGet(eachItem, "VKORG");
+    sapDistiChannel = jsonGet(eachItem, "VTWEG");
+    sapDivision = jsonGet(eachItem, "SPART");
+    sapStartDate = jsonGet(eachItem, "DATAB");
+    sapEndDate = jsonGet(eachItem, "DATBI");
+  
+    for line in transactionLine {
+        docNumJson= json();
+        curDocNum = line._document_number;
+        curMaterialNum = line.materialLineItem_l;
+        curMaterialGroup = line.materialPricingGroup_l;
+        curVAKey =trim(line.vaKey_l);
+
+        DATE_FORMAT = "yyyy-MM-dd H:m:s";
+        headerValidFrom = strtojavadate(agreementValidFrom_t, DATE_FORMAT);
+        curFromDateStr =  datetostr(headerValidFrom, "yyyyMMdd");
+        headerValidTo = strtojavadate(agreementValidTo_t, DATE_FORMAT);
+        curToDateStr =  datetostr(headerValidTo, "yyyyMMdd");
+
+        if( line.validFrom_l <> "") {
+          lineValidFrom = strtojavadate(line.validFrom_l, DATE_FORMAT);
+          curFromDateStr =  datetostr(lineValidFrom, "yyyyMMdd");
+        }
+        if( line.validTo_l <> "") {
+          lineValidTo = strtojavadate(line.validTo_l, DATE_FORMAT);
+          curToDateStr =  datetostr(lineValidTo, "yyyyMMdd");
+        }
+        if( sendDSPAsVistex_t <> "" ) {
+          if( substring(curVAKey, 0,  len(curVAKey)-10 ) == substring(sapValuesKey,0,  len(sapValuesKey)-10) ) {
+            if( sapStartDate == curFromDateStr AND sapEndDate == curToDateStr ) {
+              jsonput(docNumJson,"sapConditionRecordNumber_l",sapConditionRecordNumber);
+              jsonput(docNumJson,"_document_number",curDocNum);
+              jsonarrayappend(allItemsJson,docNumJson);
+            }
+          }
+        } else {
+          if( substring(curVAKey, 10) == substring(sapValuesKey, 10) ) {
+            if( sapStartDate == curFromDateStr AND sapEndDate == curToDateStr ) {
+              jsonput(docNumJson,"sapConditionRecordNumber_l",sapConditionRecordNumber);
+              jsonput(docNumJson,"_document_number",curDocNum);
+              jsonarrayappend(allItemsJson,docNumJson);
+            }
+          }
+        }
+
+
+    }
+}
+jsonput(retJson,"items",allItemsJson);
+
+return retJson;

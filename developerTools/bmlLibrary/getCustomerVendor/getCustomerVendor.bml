@@ -1,0 +1,82 @@
+/**
+@name getCustomerVendor
+@api getCustomerVendor
+@summary get list of Vendor id given customer #
+@param data Json
+@return String[]
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-26|michael.yeung        | initial version
+2020-01-08|Komal Agrawal|INC000013160430 Vendor number equal to Z1 for Bline
+2020-04-20|Ali|INC000013457953	|commenting if condition and reverting it to original code as it affecting in providing access  
+2020-09-04|Dhananjay		|CPQ-2465: Incuded Z4 in the partnerFunction 
+2020-09-22|Ankush Singh		|CPQ-1018: Updated partnerfunction values for WD
+2021-03-16|Shardul S		|CPQ-4528 
+*/
+
+ret = string [];
+partnerFunction = string[];
+customerNumber = jsonget(data, "customerNumber", "string", "");
+salesOrg = jsonget(data, "salesOrg", "string", "");
+distributionChannel = jsonget(data, "distributionChannel", "string", "");
+businessLineSalesOrg = jsonget(data, "businessLineSalesOrg", "string", "");
+currentUserGroups = jsonget(data, "userGroups", "string", "");
+//partnerFunction = string[]{"Z1", "Z2", "Z3", "Z7"};
+partnerFunction = string[]{"Z1", "Z2", "Z3", "Z7","Z4"};
+//partnerFunctionECCE = string[]{"Z1","ZW"};
+
+//Added to restrict access to agents for WD users
+if(businessLineSalesOrg == "WD") {
+	//partnerFunction = string[]{"Z1", "Z2", "Z5"}; Paul confirmed only Z1 for Vendors for WD
+	partnerFunction = string[]{"Z1"};
+}
+//end for WD users
+
+//Added to identify for Bline Business|INC000013160430
+//commenting below condition and reverting it to original code as it affecting in providing access | INC000013457953
+/*
+if(businessLineSalesOrg == "B-LINE") {
+	partnerFunction = string[]{"Z1"};
+
+}
+else {
+	partnerFunction = string[]{"Z1", "Z2", "Z3", "Z7"};
+}
+*/
+//end|INC000013160430
+
+// neha : added separate block for EC/CE users for Project 51951
+
+if(find (currentUserGroups , "nonPricingCustomer") <> -1)
+{
+	partnerFunction = string[]{"Z1","ZW"};
+}
+
+/*if(find (currentUserGroups , "nonPricingCustomer") <> -1)
+{
+vendorRecords = bmql("SELECT KUNNR, KUNN2, KTOKD FROM CUSMAS WHERE VKORG = $salesOrg AND VTWEG=$distributionChannel AND KUNNR=$customerNumber AND (PARVW in $partnerFunctionECCE)");
+
+for eachCustomer in vendorRecords {
+        KUNNR = get(eachCustomer, "KUNNR");
+        KUNN2 = get(eachCustomer, "KUNN2");
+		if (KUNN2 <> "" AND findinarray(ret, KUNN2) == -1) {
+            	append(ret, KUNN2);
+        }
+}
+print "ret of getvendor is";
+print ret;
+}
+else{*/ //Commented by Shardul as part of CPQ-4528
+vendorRecords = bmql("SELECT KUNNR, KUNN2, KTOKD FROM CUSMAS WHERE VKORG = $salesOrg AND VTWEG=$distributionChannel AND KUNNR=$customerNumber AND (PARVW in $partnerFunction)");
+
+for eachCustomer in vendorRecords {
+        KUNNR = get(eachCustomer, "KUNNR");
+        KUNN2 = get(eachCustomer, "KUNN2");
+		if (KUNN2 <> "" AND findinarray(ret, KUNN2) == -1) {
+            	append(ret, KUNN2);
+        }
+}
+
+
+return ret;

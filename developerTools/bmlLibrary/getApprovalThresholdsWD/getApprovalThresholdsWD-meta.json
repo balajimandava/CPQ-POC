@@ -1,0 +1,12 @@
+{
+  "name" : "Get Approval Thresholds WD",
+  "variableName" : "getApprovalThresholdsWD",
+  "description" : "Queries approval threshold table and returns a json string with the thresholds for each material pricing group",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "approvalInputs",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

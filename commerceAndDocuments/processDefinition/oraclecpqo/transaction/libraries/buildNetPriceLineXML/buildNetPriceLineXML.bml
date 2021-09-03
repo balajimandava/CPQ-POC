@@ -1,0 +1,115 @@
+/**
+@name Build Net Price Line XML
+@api buildNetPriceLineXML
+@summary Build the quote line XML for the net price SOAP call.
+@param data Json
+@attribute SAPLineNumber_l
+@attribute _document_number
+@attribute aluminumSurcharge_l
+@attribute coperSurcharge_l
+@attribute discountString_l
+@attribute discountType_l
+@attribute externalConfigVCData_l
+@attribute lineNumber_l
+@attribute listPrice_l
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute newNetPrice_l
+@attribute quantity_l
+@attribute sAPDeletionFlag_l
+@attribute scaleFrom_l
+@attribute scaleTo_l
+@attribute scale_l
+@attribute silverSurcharge_l
+@attribute uOM_l
+@function Json u_getLineFromJson(Json data, String docNum)
+@function String buildVCDataItemsXML(Json quoteLine)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-26|Tat.Leung            |
+2018-04-19|Dave.Haizlip		|Added support for VCData XML, skip line if externalConfigVCData_l is blank
+2018-04-24|Dave.Haizlip		|Modified to use SAPLineNumber_l 90197152
+2018-04-30|Dave.Haizlip		|Modified to skip model lines per Andrew Wasmer email
+2018-06-22|michael.yeung        | do not make netprice call on existing lines
+2019-05-06|Smriti Chaturvedi 	| Added a condition for defect 2033
+2020-07-01|Shardul S		|Added condition to consider items for Residential
+2021-02-16|Shardul S		|Performance impv changes	
+2021-04-21|Shardul S		|PQSERV changes										   
+*/
+
+VCDataXML= jsonget(data,"VCDataXML","boolean",false);
+quoteLines = string[];
+existingDocNumbers = string[];
+refreshFlag = jsonget(data, "fp_refreshNetPrice", "boolean", false);
+//Logic for items selection from sapConditions by Shardul- this will create XML for only required items and not all
+	itemsToUpdate= jsonget(data,"itemsToUpdate","jsonarray",jsonarray());
+ 	itemsToUpdateStr = jsonarraytostr(itemsToUpdate);
+ 	itemsToUpdateStr = replace(itemsToUpdateStr ,"\"","");
+	itemsToUpdateStr = substring(itemsToUpdateStr , 1, len(itemsToUpdateStr )-1);
+ 	itemsToUpdateArr=split(itemsToUpdateStr,",");
+	
+if( NOT refreshFlag ) {
+    jsonget(data, "documentNumbersBeforeNewAdd_t", "string", documentNumbersBeforeNewAdd_t);
+    existingDocNumbers = split(documentNumbersBeforeNewAdd_t,"$,$");
+}
+
+for line in transactionLine {
+    if(findinarray(itemsToUpdateArr,line._document_number) <> -1) //Added by Shardul for performance impv
+    {	
+		currentLine = util.u_getLineFromJson(data, line._document_number);
+		
+		//  Skip the line if it's a VCData line
+		//if ( (line.externalConfigVCData_l <> "") OR (line.materialLineItem_l == "") ) {
+		if(line.qqProductType_l == "group" ) {
+		  continue;
+		}
+		//Added by Shardul to get Net Price for Residential and PushBut Configurations //Added PQSERV in this
+		if (line.qqProductType_l == "configuration" and line._parent_doc_number == "" AND (line.takeOffModel_l<>"PUSHBUT" AND line.takeOffModel_l<>"ATDERESI" AND line.takeOffModel_l<>"PQSERV")){
+			continue;
+		}
+		if( NOT refreshFlag AND findInArray(existingDocNumbers, line._document_number)>-1 ) {
+			// do not call SAP on existing lines
+			continue;
+		}
+		payload = dict("string");
+		put(payload, "_document_number", line._document_number);
+		put(payload, "materialLineItem_l", jsonget(currentline, "materialLineItem_l", "string", line.materialLineItem_l));
+		put(payload, "materialPricingGroup_l", jsonget(currentline, "materialPricingGroup_l", "string", line.materialPricingGroup_l));	
+		put(payload, "quantity_l", jsonget(currentline, "quantity_l", "string", string(line.quantity_l)));
+	 
+		//Smriti - ALM - 2033- commented the below condition specific to bline and price per as bline quote low value quotes
+		/*if(qqBusinessLineForSalesOrg_t == "B-LINE" and line.qqPerUOM_l <> 1 )
+		{
+			put(payload, "quantity_l", jsonget(currentline, "qqPerUOM_l", "string", string(line.qqPerUOM_l)));
+		}*/
+		put(payload, "scaleFrom_l", jsonget(currentline, "scaleFrom_l", "string", line.scaleFrom_l));
+		put(payload, "scaleTo_l", jsonget(currentline, "scaleTo_l", "string", line.scaleTo_l));
+		put(payload, "listPrice_l", jsonget(currentline, "listPrice_l", "string", string(line.listPrice_l)));
+		put(payload, "newNetPrice_l", jsonget(currentline, "newNetPrice_l", "string", string(line.newNetPrice_l)));
+		put(payload, "discountType_l", jsonget(currentline, "discountType_l", "string", line.discountType_l));
+		put(payload, "discountString_l", jsonget(currentline, "discountString_l", "string", line.discountString_l));
+		put(payload, "sAPDeletionFlag_l", jsonget(currentline, "sAPDeletionFlag_l", "string", string(line.sAPDeletionFlag_l)));
+		// put(payload, "atpIndictor_l", line.atpIndictor_l);
+		put(payload, "lineNumber_l", jsonget(currentline, "lineNumber_l", "string", string(line.SAPLineNumber_l)));
+		put(payload, "coperSurcharge_l", jsonget(currentline, "coperSurcharge_l", "string", string(line.coperSurcharge_l)));
+		put(payload, "silverSurcharge_l", jsonget(currentline, "silverSurcharge_l", "string", string(line.silverSurcharge_l)));
+		put(payload, "aluminumSurcharge_l", jsonget(currentline, "aluminumSurcharge_l", "string", string(line.aluminumSurcharge_l)));
+		put(payload, "uOM_l", jsonget(currentline, "uOM_l", "string", line.uOM_l));
+
+		if (line.externalConfigVCData_l <> "") {
+			jsonput(currentLine, "externalConfigVCData_l", line.externalConfigVCData_l);
+			jsonput(currentLine, "SAPLineNumber_l", line.SAPLineNumber_l);
+			vcData = commerce.buildVCDataItemsXML(currentLine);
+			put(payload, "VC_DATA", vcData);
+		}
+
+		lineXml = applytemplate("$BASE_PATH$/WebServices/net_price_quote_line_template.xml", payload, "");
+		lineXml = replace(lineXml, "&lt;", "<");
+		lineXml = replace(lineXml, "&gt;", ">");
+		append(quoteLines, lineXml);
+	}
+}
+
+return join(quoteLines, "");

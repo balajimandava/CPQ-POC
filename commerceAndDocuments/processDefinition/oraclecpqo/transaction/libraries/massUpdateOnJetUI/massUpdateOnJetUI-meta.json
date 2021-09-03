@@ -1,0 +1,11 @@
+{
+  "name" : "Mass Update On Jet UI",
+  "variableName" : "massUpdateOnJetUI",
+  "description" : "",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.convertDecimal" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_sequence_number", "materialPricingGroup_l", "materialPricingGroupShortDescription_l", "discountPercentString_l", "bonusGroup_l", "bonusGroupDiscount_t", "agreementNetDiscountRequested_l", "agreementNetPriceRequested_l", "agreementNetDiscount_l", "agreementNetPrice_l", "materialLineItem_l", "materialLineItemShortDescription_l", "customerPartNumber_l", "quantity_l", "oldListPrice_l", "currentNetPricePerUOM_l", "uOM_l", "netFixedAmountString_l", "newNetPrice_l", "approvalRequired_l", "qqProductType_l" ],
+  "mainDocAttributes" : [ "bonusTableDataString_t", "qqCustomTnCNotesJSON_t", "ntSelectedSalesOrg_t", "currencyDecimalSeparator_t", "currency_t", "filter_salesHistory_t", "openActionId_t", "processId_t", "documentId_t", "opportunityNumber_t", "transactionType_t", "salesOrg_t", "qq_selectedCustomerData_t", "qq_nt_EndCust_DataString_t", "salesHistoryData_t", "qq_CD_selectedShipTo_t", "qq_CD_SelectedSoldTo_t", "qq_ntSelectedShipTo_t", "qqDevOptShipTo_t", "selectedCustomerArraySet_t", "selectedCustomerData_t" ],
+  "systemAttributes" : [ "_system_user_groups", "_system_supplier_company_name" ]
+}

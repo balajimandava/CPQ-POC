@@ -1,0 +1,14 @@
+{
+  "name" : "Update Missing MPGs",
+  "variableName" : "updateMissingMPGs",
+  "description" : "This function will update missing pricing group description for uploaded ES-EMEA agreements using mass update function.\nThis function will be called only in mass update function.",
+  "libraryFunctions" : [ "commerce.updateUpdateDescription", "util.getBonus", "util.getBonusGroups", "util.getSiteSpecificData" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bs_id", "salesOrg_t", "transactionNumber_t", "customerNumber_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

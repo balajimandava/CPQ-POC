@@ -1,0 +1,19 @@
+retJSON= json();
+
+//  89757326
+  
+  date1= strtojavadate("12/13/2018 08:30", "MM/dd/yyyy HH:mm");
+  date2= strtojavadate("12/17/2018 23:59", "MM/dd/yyyy HH:mm");
+  
+  currenttimeinmillis= getcurrenttimeinmillis();
+  currenttimeinseconds= currenttimeinmillis / 1000;
+  
+  amillisecond= 1000.0;
+  secondsinaminute= 60.0;
+  minutesinaday= (24.0 * 60.0);  // This is 1440 minutes in a day
+  minutesinahour= 60.0;
+  secondsinaday= minutesinaday * secondsinaminute;
+  
+  millisecondsinaday= (amillisecond * minutesinahour * minutesinaday);
+  
+return retJSON;

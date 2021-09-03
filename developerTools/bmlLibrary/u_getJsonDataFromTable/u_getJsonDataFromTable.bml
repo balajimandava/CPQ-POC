@@ -1,0 +1,47 @@
+/**
+@name Get JSON Data From Table
+@api u_getJsonDataFromTable
+@summary Retrieve the data in JSON format from a data table based on the parameters pass to the function.
+@param columns String[] a list of column names that are in the data table.
+@param table String name of the table.
+@param whereClause String the where clause to use with 'conditions' to build the final where clause.  
+When whereClause is blank, all records from the table will be returned.
+@param conditions StringDictionary a map of variable in the where clause to the value.
+@return JsonArray A JSON array of records from the table.
+@package utils/Data Access
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-17|tleung               |Initial version
+*/
+// dummy dictionary needed for the dynamic BMQL statement.  It has no entry.
+contextOverride = dict("string");
+
+// concatenate the column names for the BMQL
+columnNames = join(columns, ",");
+
+// run the BMQL 
+resultSet = RecordSet();
+if (trim(whereClause) <> "") {
+    resultSet = bmql("select $columnNames from $table where $whereClause", contextOverride, conditions);
+} else {
+    resultSet = bmql("select $columnNames from $table");
+}
+
+// convert the RecordSet to JSON
+result = jsonArray();
+if (not hasError(resultSet)) {
+    for record in resultSet {
+        jsonRec = json();
+        for col in columns {
+            val = get(record, col);
+            jsonPut(jsonRec, col, val); 
+        }
+        jsonArrayAppend(result, jsonRec);
+    }
+} else {
+    throwError(getMessage(resultSet), false);
+}
+
+// done and return result
+return result;

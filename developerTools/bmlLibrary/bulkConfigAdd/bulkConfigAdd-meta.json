@@ -1,0 +1,12 @@
+{
+  "name" : "Bulk Config Add",
+  "variableName" : "bulkConfigAdd",
+  "description" : "47438 - Residential Configurator - POC to add multiple configurators at a time",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

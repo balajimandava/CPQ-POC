@@ -1,0 +1,74 @@
+//************************************************************************************************************
+//** Util:	  Get Remark
+//** Type:        BML Util
+//**
+//** Description: Returns remark in the user's language
+//** 
+//** Parameters:  RowIndx (string)
+//**		  language (string)      
+//**
+//** Return:	  [Remark column in Data Table RemarksByLang]
+//**
+//** History Log: Date		Author			Comment 
+//**		  2017.05.04	dHaizlip (PW)		Initial
+//**		  2017.06.06	dBO Haizlip		Only en and de can be used for now...we return en if
+//**							not de
+//**		  2021.01.12    Neha Singh		Updated the code for CPQ-3776
+//************************************************************************************************************
+retString= "";
+
+/*inLanguage= "en";
+if (language == "de") {
+  inLanguage= language;
+}
+
+itemBMQL= bmql("SELECT Remark " +
+	       "FROM RemarksByLang " +
+	       "WHERE RowIndx = $rowIndex AND Language = $inLanguage");
+for eachItem in itemBMQL {
+  retString= get(eachItem,"Remark");
+  // 1st Hit wins!!!
+  break;
+}
+if(retString == "")
+{
+itemBMQL= bmql("SELECT Remark " +
+	       "FROM RemarksByLang " +
+	       "WHERE RowIndx = $rowIndex AND Language = $inLanguage");
+for eachItem in itemBMQL {
+  retString= get(eachItem,"Remark");
+  // 1st Hit wins!!!
+  break;
+}
+
+}
+return retString;*/
+
+// Neha: 12 Jan 2021 : new code, same logic for CPQ-3776
+remarkString = "";
+remarkJson = json();
+langfound = false;
+
+remarksSet = bmql("SELECT Remark,Language FROM RemarksByLang WHERE RowIndx = $rowIndex and (Language = $language OR Language = 'en')");
+
+for remark in remarksSet{
+	remarkStr = get(remark,"Remark");
+	lang = get(remark,"Language");
+	if(lang == language)
+	{
+		remarkString = remarkStr;
+		langfound = true;
+		break;
+	}
+	elif(lang == "en"){
+		jsonput(remarkJson,lang,remarkStr);
+		remarkString = remarkStr;
+	}
+}
+if(langfound == false)
+{
+currLang = jsonkeys(remarkJson);
+remarkString = jsonget(remarkJson, "en", "string", "");
+}
+
+return remarkString;

@@ -1,0 +1,14 @@
+{
+  "name" : "Pricing - After Formulas",
+  "variableName" : "pricingAfterFormulas",
+  "description" : "Common post pricing commerce util for updating the agreements",
+  "libraryFunctions" : [ "commerce.transactionDetailsJson", "commerce.transactionLinesSaveJSON", "util.agreementStatus", "util.getStringDict", "util.stringToInteger", "util.transactionDiscounts", "util.u_logString" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "action",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ "_document_number", "materialLineItem_l", "discount_l", "scale_l", "scaleFrom_l", "lineItemStatus_l" ],
+  "mainDocAttributes" : [ "salesOrg_t", "headquartersNumber_t", "status_t", "soldToNumber_t", "customerNumber_t", "accountTypeKTOKD_t", "agreementValidFrom_t", "agreementValidTo_t", "transactionType_t", "bs_id", "salesOrgMPGPrefix_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ "_system_date" ]
+}

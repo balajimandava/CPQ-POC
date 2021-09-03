@@ -1,0 +1,1258 @@
+/**
+@name Send Agreement
+@api sendAgreement
+@summary Sends CPQ data to an external source (SOA)
+@param data Json
+@attribute _document_number
+@attribute _parent_doc_number
+@attribute _system_supplier_company_name
+@attribute _system_user_login
+@attribute _system_user_time_zone
+@attribute accountTypeKTOKD_t
+@attribute agreementDeliveryTerms_t
+@attribute agreementHierarchy_t
+@attribute agreementNetDiscount_l
+@attribute agreementNetPrice_l
+@attribute agreementPaymentTerms_t
+@attribute agreementPeriodOfInvoicing_t
+@attribute agreementPreviousValidTo_t
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute aluminiumValue_t
+@attribute aluminium_t
+@attribute bs_id
+@attribute companyCode_t
+@attribute copperValue_t
+@attribute copper_t
+@attribute currency_t
+@attribute customDiscountType_l
+@attribute customerName_t
+@attribute customerNumber_t
+@attribute customerRep_t
+@attribute discountString_l
+@attribute discount_l
+@attribute distributionChannel_t
+@attribute division_t
+@attribute eRecordID_t
+@attribute externalDescription_t
+@attribute initialLineItems_t
+@attribute lastSentLineDetails_t
+@attribute lineItemDelete_l
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute minimumOrderVolume_t
+@attribute nationalAccount_t
+@attribute newNetPrice_l
+@attribute owner_t
+@attribute previouslySentLineDetails_t
+@attribute qqAccountType_t
+@attribute qqApplication_t
+@attribute qqBusinessLineForSalesOrg_t
+@attribute qqCity_t
+@attribute qqCountry_t
+@attribute qqPricePerEditable_l
+@attribute qqProductType_l
+@attribute qqProjectName_t
+@attribute qqRegion_t
+@attribute qqSegment_t
+@attribute qqSubAccountType_t
+@attribute qqSubApplication_t
+@attribute qqSubSegment_t
+@attribute qq_CD_SelectedAdditionalShipTo_t
+@attribute qq_CD_SelectedAdditionalSoldTo_t
+@attribute qq_CD_selectedShipTo_t
+@attribute quantity_l
+@attribute releaseStatus_t
+@attribute salesGroup_t
+@attribute salesOffice_t
+@attribute salesOrg_t
+@attribute sapConditionRecordNumber_l
+@attribute scaleFrom_l
+@attribute scaleTo_l
+@attribute scale_l
+@attribute sendDSPAsVistex_t
+@attribute shipToNumber_t
+@attribute silverValue_t
+@attribute silver_t
+@attribute soldToNumber_t
+@attribute surchargeExemption_t
+@attribute transactionDescription_t
+@attribute transactionName_t
+@attribute transactionNumber_t
+@attribute transactionType_t
+@attribute uOM_l
+@attribute validFrom_l
+@attribute validTo_l
+@attribute vendorNumber_t
+@attribute vistexAgreement_t
+@function Boolean checkBizGroupCondition(String condition, String transactionType, String salesOrg)
+@function Float stringToFloat(String input)
+@function Json u_setCommerceAttribute(Json data, String docNum, String attribute, String value)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@function String getTableValue(String inputCol, String inputTable, String inputFieldValue, String language, String outputField)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017.07.25|dBo Haizlip          |Initial version (46888582)Z012 (47015470)Z001 (47015980) Z002 (47017656) CSP
+2017.08.30|dBo Haizlip	        |Removed sending Delivery, Payment or Period of Invoicing terms to SAP for Hierarchy (Z012) agreements
+2017.09.26|dBo Haizlip	        |Added division to VAKEY for Hierarchy and Sold To metal surcharge conditions
+2017.10.01|dBo Haizlip	        |Added check for zero (0) on MPG, Material Items and scales 
+2017.10.30|vhingorani           |Update Scale to NOT need a base line
+2017.10.30|vhingorani           |Added new condition for Minimum order value EATON-506
+2017.10.30|vhingorani           |Send Term value as '/'' ALM - 258
+2018-01-04|Tat.Leung            |_system_supplier_company_name
+2018-02-23|Tat.Leung            |
+2018-05-04|dBo Haizlip		|Added support for Rebate Quote (RQ) to be sent as a Vistex/CSP -- 90243599
+2018-05-10|dBo Haizlip		|Added support for Bussmann DSP's sent to SAP as Vistex based on Sales Org sendDSPAsVistex_t -- 90649984
+2018.05.15|dBo Haizlip		|Added multiple Sold Tos -- 90697815/90726412
+2018-05-23|michael.yeung        |
+2018-07-03|vhingorani		|Hotfix changes for INC000011358725
+2018-07-10|michael.yeung        | change allVistexSegmentVAKeys array to a Dict to prevent Segment value mismatch.
+
+2018-07-12|michael.yeung        | add segment for condition ZIEV for ship to customer
+2018-07-18|dBo Haizlip		| Changed scale to use the value in From instead of the scale_l flag
+2018-07-19|michael.yeung        |
+2018-08-08|dBo Haizlip		| Removed check for multiple customer selection on Metals Surcharges
+2018-09-10|michael.yeung        | QQ-820 use today's date if valid from is before today's date for bussmann and bline.
+2018-09-11|michael.yeung        | QQ-827 add vistex agreement# to vakey
+2018-09-17|shibaji.ganguly      | QQ-822, QQ-823, and QQ-824 related changes.
+2018-09-19|michael.yeung        | QQ-826 set block (releaseStatus = "A")
+2018-09-23|michael.yeung        |
+2018-09-25|E0484786             | Add ZBBA handling
+2018-09-25|michael.yeung        |
+2018-09-26|michael.yeung        |
+2018-09-27|michael.yeung        |
+2018-10-04|michael.yeung        |Add Z1 owner handling, do not send customer and owner on agreement update.
+2018-10-11|michael.yeung        |Handle regular DSP Cancelation
+2018-10-13|michael.yeung        |
+2018-10-16|Michael.Yeung        | change release status and do not send lines when cancel
+2018-10-18|michael.yeung        |
+2018-10-22|michael.yeung        |
+2018-10-23|michael.yeung        |  Set QUANTITY (SAP: KPEIN) to qqPricePerEditable_l
+2018-10-23|michael.yeung        |  Bussmann material group: Need to use display group (VPG) to lookup MPG group in Bussman_GroupDesc to send to SAP
+2018-10-24|michael.yeung        |
+2019-02-13|Ankit		| Defect 1715 Pass % only if Discount is given on Material items and appropriate table info and discount value
+2019-05-24 |Smriti Chaturvedi	|ALM -2061- Modified the logic to send Vistex Owner
+2019-06-28 |Balaji Konagalla	|Added bookPriceDateString to get latest prices from sap for ALM 730
+2020-02-28 |Rahul Uttarwar	|Project#49074 - Eagle Development - Modified the logic to send Vistex Owner
+2020-03-12 |Chandan A J		|ALM# 2719 - Created By should be passed as owner for ES-EMEA CSP agreements
+2020-08-21|Rahul		|Project#52469|Rahul|Updated Code to make logic dependent on data table
+2020-12-30|Dhananjay		|CPQ-3473:Enable Z300 Sold Tos
+2021-04-22|Neha			|CPQ-4595 : Deletion Flag
+2021-15-06|Gautam               |Changes for CPQ-4228, Display MPG 3 digits(all ES-EMEA countries)
+*/
+result = data;
+customernumber ="";
+partnerFunction="";
+vistexOwnerVal="";
+isResent = jsonget(data, "isResent", "boolean", false);
+//49704 - Eagle Development - 02-03-2020 - End Customer changes initialization
+finalEndCustArray = string[];
+vistexEndCustSegmentTableNumber = "";
+endCustNoArray = string[];
+valuesKey = "";
+//49704 - Eagle Development - 02-03-2020 - End Customer changes initialization
+
+
+//  Switch to turn off the POST command...it will execute in the debugger.
+processPOST = TRUE;
+debugMode = FALSE;
+userDatePref = "yyyy/MM/dd HH:mm";
+userTimeZone = "Europe/Amsterdam";
+if (_system_user_time_zone <> "") {
+    userTimeZone = _system_user_time_zone;
+}
+
+dateTime = replace(datetostr(getdate(), userDatePref + " z", userTimeZone), "/", ".");
+CPQ_OUTBOUND_CONTROL = util.getEnvironmentVariable("CPQ_OUTBOUND_CONTROL", "DISABLE");
+
+//  If we are set to Disabled then return the date and time and status code
+if (find(CPQ_OUTBOUND_CONTROL, "DISABLE") <> -1) {
+    // //  Return the results and info
+    jsonput(result, "condaLastSentDate_t", dateTime);
+    jsonput(result, "condaStatusCode_t", "202");
+    jsonput(result, "condaMessageBody_t", "");
+    jsonput(result, "agreementErrorMessages_t", "");
+    jsonput(result, "condaHeader_t", "");
+    jsonput(result, "condaXML_t", "");
+    return result;
+}
+
+siteID = _system_supplier_company_name + "SOA";
+soaUserID = "";
+soaPassID = "";
+
+siteBMQL = bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+for eachSite in siteBMQL {
+    soaUserID = get(eachSite, "FieldName");
+    soaPassID = get(eachSite, "Value1");
+}
+
+salesOrg = salesOrg_t;
+//old code
+//mpgPrefix = util.getTableValue("VKORG", "MPG_Prefix", salesOrg, "", "Prefix");
+//new code
+mpgPrefix = "";//CPQ- 4228 - mpgPrefix not required - util.getTableValue("VKORG", "MPG_Prefix", salesOrg, "", "Prefix");
+accountType = accountTypeKTOKD_t;
+transactionType = transactionType_t;
+
+hdqtrs= "";
+soldTo= "";
+shipTo= "";
+// first check if the json is empty. this is to account for old transactions where the field might not be present
+if (agreementHierarchy_t <> "") {
+    // using the hierarchy json to find the HQ, sold to and ship to information and setting it
+    agreementHierarchy = json(agreementHierarchy_t);
+    hdqtrs= jsonget(agreementHierarchy, "aLevel1");
+    soldTo= jsonget(agreementHierarchy, "aLevel2");
+    shipTo= jsonget(agreementHierarchy, "aLevel3");
+}
+
+cancelTransaction = jsonget(data, "fp_CancelTransaction", "boolean", false);
+// TAT
+releaseStatus = "";
+if( cancelTransaction ) {
+    releaseStatus = "A";    // block
+}
+
+typeOfSalesDeal = "ZALS";
+if( util.checkBizGroupCondition("ZBBAAgreement", transactionType_t, salesOrg_t)) {
+    typeOfSalesDeal = "ZBBA";
+}
+if( sendDSPAsVistex_t <> "" ) {
+    typeOfSalesDeal = "";   // This value should be ZSSA
+}
+useMPG = util.checkBizGroupCondition("materialGroupMPG", transactionType, salesOrg);
+usePH5 = util.checkBizGroupCondition("materialGroupPH5", transactionType, salesOrg);
+useMVGR5 = util.checkBizGroupCondition("materialGroupMG5", transactionType, salesOrg);
+if( util.checkBizGroupCondition("ZBBAAgreement", transactionType_t, salesOrg_t)) {
+    typeOfSalesDeal = "ZBBA";
+}
+
+validFromDateString = replace(substring(agreementValidFrom_t, 0, 10), "-", "");
+validToDateString = replace(substring(agreementValidTo_t, 0, 10), "-", "");
+allSelectedCustomers= string[];
+allSelectedShipTo= string[];
+isNew = "is New Agreement";
+isVistexAgreement = "";
+includeDeliveryTerms = "";
+includePaymentAndInvoicingTerms = "";
+conditionPrefix = "Hierarchy";
+if ( (transactionType == "CSP") OR (transactionType == "RQ") OR (sendDSPAsVistex_t <> "") ) {
+    conditionPrefix = "Vistex";
+    //  Override the transactionType if it's RQ
+    transactionType= "CSP";
+    //  By setting this to something other than NULL ("") the XML will render additional tags in the template
+    isVistexAgreement = "Create VISTEX type agreement XML message";
+    append(allSelectedCustomers,salesOrg_t+"-"+soldTo+"-"+customerNumber_t);
+//} elif (accountType == "Z001") {
+} elif (accountType == "Z001" OR accountType == "Z300") {//CPQ-3473:Enable Z300 Sold Tos
+    conditionPrefix= "SoldTo";
+    includeDeliveryTerms = "Include Delivery Terms for DSP SoldTo's (Z001)";
+    includePaymentAndInvoicingTerms = "Include Payment Terms and Invoicing Terms for DSP SoldTo's (Z001)";
+    append(allSelectedCustomers,salesOrg_t+"-"+soldTo+"-"+customerNumber_t);
+} elif (accountType == "Z002") {
+    conditionPrefix = "ShipTo";
+    includeDeliveryTerms = "Include Delivery Terms for DSP ShipTo's (Z002)";
+    append(allSelectedCustomers,salesOrg_t+"-"+hdqtrs+"-"+soldToNumber_t+"-"+customerNumber_t);
+} else {
+    append(allSelectedCustomers,salesOrg_t+"-"+hdqtrs);
+}
+//  Two different fields the additional sold to could be in so combine them, just in-case
+allSoldTo= split(qq_CD_SelectedAdditionalSoldTo_t,"#@#");
+for eachSoldTo in allSoldTo {
+  if ( (eachSoldTo <> "") AND (findinarray(allSelectedCustomers,eachSoldTo) == -1) ) {
+    append(allSelectedCustomers,eachSoldTo);
+  }
+}
+append(allSelectedShipTo,qq_CD_selectedShipTo_t);
+allShipTo = split(qq_CD_SelectedAdditionalShipTo_t,"#@#");
+for eachShipTo in allShipTo {
+  if ( (eachShipTo <> "") AND (findinarray(allSelectedShipTo,eachShipTo) == -1) ) {
+    append(allSelectedShipTo,eachShipTo+"-ShipTo");
+  }
+}
+
+
+
+allVAKeys= string[];
+allVistexSegmentVAKeys= string[];
+
+allVistexSegmentVAKeysDict = dict ("string");
+
+mainComment0 = "Date and Time: " + dateTime;
+mainComment1 = customerName_t + " (" + customerNumber_t + ")";
+mainComment2 = conditionPrefix + " " + transactionType + " (" + accountType + ")";
+
+mpgConditionTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "MVGR5ConditionTableNumber", "", "Value");
+if( usePH5 ) {
+    mpgConditionTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "PH5ConditionTableNumber", "", "Value");
+} elif ( useMPG ) {
+    mpgConditionTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "MPGConditionTableNumber", "", "Value");
+}
+
+mliConditionTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "MLIConditionTableNumber", "", "Value");
+if( sendDSPAsVistex_t <> "" ) {
+    mpgConditionTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "ZSSA" + "MVGR5ConditionTableNumber", "", "Value");
+    if( usePH5 ) {
+        mpgConditionTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "ZSSA" + "PH5ConditionTableNumber", "", "Value");
+    } elif ( useMPG ) {
+        mpgConditionTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "ZSSA" + "MPGConditionTableNumber", "", "Value");
+    }    
+    mliConditionTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "ZSSA" + "MLIConditionTableNumber", "", "Value");
+}
+percentConditionType = util.getTableValue("Name", "OutboundXMLDetails", "percentConditionType", "", "Value");
+amountConditionType = util.getTableValue("Name", "OutboundXMLDetails", "amountConditionType", "", "Value");
+vistexAgreementNumber= "";
+vistexSegmentTableNumber = "";
+vistexSegmentConditionType = "";
+vistexSegmentShipToConditionType = "";
+vistexSegmentValuesKey = "";
+vistexSegmentValidFrom = "";
+vistexSegmentValidTo = "";
+vistexRoleOwner = "";
+vistexOwner = "";
+vistexTransactionDescription = "";
+transactionName = transactionName_t;
+
+if (conditionPrefix == "Vistex") {
+    percentConditionType = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "MPGConditionType", "", "Value");
+    amountConditionType = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "MLIConditionType", "", "Value");
+    if( sendDSPAsVistex_t <> "" ) {
+        percentConditionType = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "ZSSA" + "MPGConditionType", "", "Value");
+        amountConditionType = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "ZSSA" + "MLIConditionType", "", "Value");
+    }
+
+    vistexSegmentTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "SegmentTableNumber", "", "Value");
+	//49704 - Eagle Development - 03-02-2020 - Added the below to fetch the End Customer Table Number - START
+	vistexEndCustSegmentTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "EndCustSegmentTableNumber", "", "Value");
+	//49704 - Eagle Development - 03-02-2020 - Added the above to fetch the End Customer Table Number - END
+    vistexSegmentConditionType = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "SegmentConditionType", "", "Value");
+    vistexSegmentShipToConditionType = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "SegmentShipToConditionType", "", "Value");
+    valuesKey0 = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "SegmentValuesKey", "", "Value");
+	
+    // 0000000000
+    //  1st Put the current customer on the list
+    if( vistexAgreement_t == "" ) {
+        valuesKey0 = replace(valuesKey0, "VISTEXNUMBER+", "0000000000");
+    } else {
+        valuesKey0 = replace(valuesKey0, "VISTEXNUMBER+", vistexAgreement_t);
+    }
+    valuesKey1 = replace(valuesKey0, "SALESORG+", salesOrg_t);
+    valuesKey2 = replace(valuesKey1, "DISTRIBUTIONCHANNEL+", distributionChannel_t);
+    vistexSegmentValuesKey= replace(valuesKey2, "CUSTOMERNUMBER", customerNumber_t);
+    put( allVistexSegmentVAKeysDict, customerNumber_t, vistexSegmentValuesKey);
+    
+    //  Now add the sold to(s) that were selected
+    for eachSoldTo in allSoldTo {
+      split3= split(eachSoldTo,"-");
+      eachSalesOrg= split3[0];
+      eachHierarchy= split3[1];
+      eachCustNumber= split3[2];
+      
+      valuesKey1 = replace(valuesKey0, "SALESORG+", eachSalesOrg);
+      valuesKey2 = replace(valuesKey1, "DISTRIBUTIONCHANNEL+", distributionChannel_t);
+      vistexSegmentValuesKey = replace(valuesKey2, "CUSTOMERNUMBER", eachCustNumber);
+      put( allVistexSegmentVAKeysDict, eachCustNumber, vistexSegmentValuesKey);
+    }
+    
+    vistexSegmentValidFrom = validFromDateString;
+    vistexSegmentValidTo = validToDateString;
+    vistexRoleOwner = "Z5";
+    vistexOwner = eRecordID_t;
+
+    //Project#49074|RahulU - Eagle Development - Modified the logic to send Vistex Owner - Start
+    if(qqBusinessLineForSalesOrg_t == "BUSSMANN" OR qqBusinessLineForSalesOrg_t == "B-LINE"){
+        if(transactionOwner_t == "salesContact"){
+            vistexRoleOwner = "Z5";
+            vistexOwner = salesContactNumber_t;
+        }elif(transactionOwner_t == "salesAgency"){
+            vistexRoleOwner = "Z1";
+            vistexOwner = salesAgencyNumber_t;
+        }
+    }elif(qqBusinessLineForSalesOrg_t == "ES-EMEA" AND transactionType <> "CSP"){//Chandan - ALM# 2719 - Created ID should be passed as owner for ES-EMEA CSP agreements
+        vistexRoleOwner = "Z5";
+        vistexOwner = salesContactNumber_t;		
+    }//- End
+
+    if( vistexAgreement_t <> "" ) {     // 10/04/2018 update should not send owner info.
+        vistexOwner = "";
+        isNew = "";
+    }
+    if (vistexOwner == "") {
+      vistexRoleOwner= "";
+    }
+    vistexTransactionDescription = transactionDescription_t;
+    vistexAgreementNumber= vistexAgreement_t;
+}
+
+
+//QQ-821 if header validTo date is changed  09/10/2018
+isSendAllLines = false; 
+if( vistexAgreementNumber <> "") {  // may set to true for revise and renewal quote
+    if( agreementPreviousValidTo_t<> "" and agreementValidTo_t<> "") {
+        DATE_FORMAT = "yyyy-MM-dd H:m:s";
+        validTo = strtojavadate(agreementValidTo_t, DATE_FORMAT);
+        previousValidTo = strtojavadate(agreementPreviousValidTo_t, DATE_FORMAT);
+        if (comparedates (previousValidTo, validTo ) > 0 ) {
+            isSendAllLines = true;
+        }
+    }
+} else {
+    isSendAllLines = true;
+}
+
+
+valuesKey0 = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "ValuesKey", "", "Value");
+if( sendDSPAsVistex_t <> "" ) {
+    valuesKey0 = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "ZSSAValuesKey", "", "Value");
+}
+
+//  1st Put the current customer on the list
+
+// qq-827 add vistexnumber to VAKey
+if (conditionPrefix == "Vistex") {
+    if( vistexAgreement_t == "" ) {
+        valuesKey0 = replace(valuesKey0, "VISTEXNUMBER+", "0000000000");
+    } else {
+        valuesKey0 = replace(valuesKey0, "VISTEXNUMBER+", vistexAgreement_t);
+    }
+}
+valuesKey1 = replace(valuesKey0, "SALESORG+", salesOrg_t);
+valuesKey2 = replace(valuesKey1, "DISTRIBUTIONCHANNEL+", distributionChannel_t);
+valuesKey3 = replace(valuesKey2, "SOLDTOCUSTOMERNUMBER+", soldToNumber_t);
+valuesKeyBase = replace(valuesKey3, "CUSTOMERNUMBER", customerNumber_t);
+append(allVAKeys,valuesKeyBase);
+
+customerNumberList= string[];
+  // 07/19/2018 skip primary sold to, should have already added
+  append(customerNumberList,customerNumber_t);
+  
+
+//  Now add the sold to(s) that were selected
+for eachSoldTo in allSoldTo {
+  if (eachSoldTo == "") {
+    continue;
+  }
+  splitArray= split(eachSoldTo,"-");
+  eachSalesOrg= splitArray[0];
+  eachHierarchy= splitArray[1];
+  eachCustNumber= splitArray[2];
+  
+  //  Skip it if its the same number of one we already did
+  if (findinarray(customerNumberList,eachCustNumber) <> -1) {
+    continue;
+  }
+      
+  append(customerNumberList,eachCustNumber);
+  valuesKey1 = replace(valuesKey0, "SALESORG+", eachSalesOrg);
+  valuesKey2 = replace(valuesKey1, "DISTRIBUTIONCHANNEL+", distributionChannel_t);
+  valuesKey3 = replace(valuesKey2, "SOLDTOCUSTOMERNUMBER+", eachCustNumber); 
+  valuesKeyBase = replace(valuesKey3, "CUSTOMERNUMBER", eachCustNumber);
+  append(allVAKeys,valuesKeyBase);
+}
+
+
+mainTemplate = "$BASE_PATH$/XMLOutbound/CPQ_to_SOA_Main.xml";
+mainTemplateSegmentCustomer= "$BASE_PATH$/XMLOutbound/CPQ_to_SOA_SegmentCustomer.xml";
+mainTemplateMPG = "$BASE_PATH$/XMLOutbound/CPQ_to_SOA_MainMPG.xml";
+mainTemplateMLI = "$BASE_PATH$/XMLOutbound/CPQ_to_SOA_MainMLI.xml";
+mainTemplateSCALE= "$BASE_PATH$/XMLOutbound/CPQ_to_SOA_MainScale.xml";
+mainTemplateSURCHARGES = "$BASE_PATH$/XMLOutbound/CPQ_to_SOA_MainSurcharges.xml";
+siteID = _system_supplier_company_name;
+
+SOA_URL_PRICING = util.getEnvironmentVariable("SOA_URL_PRICING", "");
+
+agreementDeliveryTerms = agreementDeliveryTerms_t;
+if (find(agreementDeliveryTerms, "_") <> -1) {
+    agreementDeliveryTerms = substring(agreementDeliveryTerms, 0, find(agreementDeliveryTerms, "_"));
+}
+
+
+// Set headers for request message
+requestHeader = dict("string");
+put(requestHeader, "Content-Type", "text/xml");
+put(requestHeader, "SOAPAction", "process");
+
+// Generate body of request message
+tagMainD = dict("string");
+put(tagMainD, "MAINCOMMENT0", mainComment0);
+put(tagMainD, "MAINCOMMENT1", mainComment1);
+put(tagMainD, "MAINCOMMENT2", mainComment2);
+put(tagMainD, "CPQSOASAP", soaUserID);
+put(tagMainD, "CPQSOASAPPW", soaPassID);
+put(tagMainD, "SOAURL", SOA_URL_PRICING);
+put(tagMainD, "AGREEMENTNUMBER", bs_id);
+put(tagMainD, "TRANSACTIONNAME", transactionName);
+put(tagMainD, "CUSTOMERNUMBER", customerNumber_t);
+put(tagMainD, "ACCOUNTTYPE", accountType);
+put(tagMainD, "AGREEMENTTYPE", transactionType);
+//  If sending this DSP as a Vistex agreement then force the Type to DSP
+if (sendDSPAsVistex_t <> "") {
+  put(tagMainD, "AGREEMENTTYPE", "DSP");
+}
+put(tagMainD, "COMPANYCODE", companyCode_t);
+put(tagMainD, "SALESORG", salesOrg_t);
+put(tagMainD, "DISTRIBUTIONCHANNEL", distributionChannel_t);
+put(tagMainD, "DIVISION", division_t);
+put(tagMainD, "CURRENCY", currency_t);
+put(tagMainD, "SALESOFFICE", salesOffice_t);
+put(tagMainD, "SALESGROUP", salesGroup_t);
+put(tagMainD, "PERIODOFINVOICING", "/"); //replace(agreementPeriodOfInvoicing_t,"blank",""));
+put(tagMainD, "DELIVERYTERMS", "/"); //agreementDeliveryTerms);
+put(tagMainD, "PAYMENTTERMS", "/"); //agreementPaymentTerms_t);
+put(tagMainD, "isVistexAgreement", isVistexAgreement);
+put(tagMainD, "includeDeliveryTerms", includeDeliveryTerms);
+put(tagMainD, "includePaymentAndInvoicingTerms", includePaymentAndInvoicingTerms);
+put(tagMainD, "ROLEOWNER", vistexRoleOwner);
+put(tagMainD, "OWNER", vistexOwner);
+put(tagMainD, "TRANSACTIONDESCRIPTION", vistexTransactionDescription);
+put(tagMainD, "SENDDSPASVISTEX",sendDSPAsVistex_t);
+put(tagMainD, "TRANSACTIONNUMBER",transactionNumber_t);
+put(tagMainD, "NATIONALAGREEMENT",string(nationalAccount_t));
+put(tagMainD, "VISTEXAGREEMENTNUMBER",vistexAgreementNumber);
+put(tagMainD, "EXTERNALDESCRIPTION",externalDescription_t);
+put(tagMainD, "RELEASESTATUS",releaseStatus);
+put(tagMainD, "QQSEGMENT",qqSegment_t);
+put(tagMainD, "QQSUBSEGMENT",qqSubSegment_t);
+put(tagMainD, "QQACCOUNTTYPE",qqAccountType_t);
+put(tagMainD, "QQSUBACCOUNTTYPE",qqSubAccountType_t);
+put(tagMainD, "QQAPPLICATION",qqApplication_t);
+put(tagMainD, "QQSUBAPPLICATION",qqSubApplication_t);
+put(tagMainD, "QQPROJECTNAME",qqProjectName_t);
+put(tagMainD, "QQCITY",qqCity_t);
+put(tagMainD, "QQREGION",qqRegion_t);
+put(tagMainD, "QQCOUNTRY",qqCountry_t);
+put(tagMainD, "TYPEOFSALESDEAL", typeOfSalesDeal);
+put(tagMainD, "isNew", isNew);
+
+
+segmentTagsD= dict("string");
+put(segmentTagsD, "SEGMENTTABLENUMBER", vistexSegmentTableNumber);
+put(segmentTagsD, "SEGMENTCONDITIONTYPE", vistexSegmentConditionType);
+put(segmentTagsD, "SEGMENTVALIDFROM", vistexSegmentValidFrom);
+put(segmentTagsD, "SEGMENTVALIDTO", vistexSegmentValidTo);
+put(segmentTagsD, "DISTRIBUTIONCHANNEL", distributionChannel_t);
+put(segmentTagsD, "DIVISION", division_t);
+put(segmentTagsD, "VALIDFROM", vistexSegmentValidFrom);
+put(segmentTagsD, "VALIDTO", vistexSegmentValidTo);
+
+segmentCustomerData= "";
+cnt= 0;
+customerNumberList= string[];
+
+if (isVistexAgreement <> "") {
+  //  Set the Primary Sold To at the header
+  put(tagMainD, "SEGMENTTABLENUMBER", vistexSegmentTableNumber);
+  put(tagMainD, "SEGMENTCONDITIONTYPE", vistexSegmentConditionType);
+  put(tagMainD, "SEGMENTVALIDFROM", vistexSegmentValidFrom);
+  put(tagMainD, "SEGMENTVALIDTO", vistexSegmentValidTo);
+  put(tagMainD, "DISTRIBUTIONCHANNEL", distributionChannel_t);
+  put(tagMainD, "DIVISION", division_t);
+  put(tagMainD, "VALIDFROM", vistexSegmentValidFrom);
+  put(tagMainD, "VALIDTO", vistexSegmentValidTo);
+  put(tagMainD, "CUSTOMERNUMBER",customerNumber_t);
+  put(tagMainD, "SEGMENTVALUESKEY", get(allVistexSegmentVAKeysDict, customerNumber_t));
+  put(tagMainD, "SALESORG", salesOrg);
+  for eachCustomer in allSelectedCustomers {
+    splitArray= split(eachCustomer,"-");
+    eachSalesOrg= splitArray[0];
+    eachHierarchy= splitArray[1];
+    eachCustNumber= splitArray[2];
+    
+    //  Skip it if its the same number of one we already did
+    if (findinarray(customerNumberList,eachCustNumber) <> -1 OR eachCustNumber == customerNumber_t ) {
+      continue;
+    }
+      
+    append(customerNumberList,eachCustNumber);
+    
+    put(segmentTagsD, "CUSTOMERNUMBER",eachCustNumber);
+    put(segmentTagsD, "SEGMENTVALUESKEY", get(allVistexSegmentVAKeysDict, eachCustNumber));
+    put(segmentTagsD, "SALESORG", eachSalesOrg);
+    cnt=cnt+1;
+  
+    segmentCustomerData= segmentCustomerData + applytemplate(mainTemplateSegmentCustomer, segmentTagsD);
+  }
+
+  shipToList= string[];
+  for eachCustomer in allSelectedShipTo {
+      eachSalesOrg = "";
+      eachHierarchy = "";
+      eachCustNumber = "";
+      eachShipTo = "";
+    splitArray= split(eachCustomer,"-");
+    if( not isnull(splitArray) AND sizeofarray(splitArray)>=4) {
+        eachSalesOrg= splitArray[0];
+        eachHierarchy= splitArray[1];
+        eachCustNumber= splitArray[2];
+        eachShipTo= splitArray[3];
+    } else {
+        continue;
+    }
+    //  Skip it if its the same number of one we already did
+    if (findinarray(shipToList,eachShipTo) <> -1 ) {
+      continue;
+    }
+    append(shipToList,eachShipTo);
+    put(segmentTagsD, "SEGMENTCONDITIONTYPE", vistexSegmentShipToConditionType);
+    put(segmentTagsD, "CUSTOMERNUMBER",eachShipTo);
+    put(segmentTagsD, "SEGMENTVALUESKEY", get(allVistexSegmentVAKeysDict, eachShipTo));
+    put(segmentTagsD, "SALESORG", eachSalesOrg);
+    cnt=cnt+1;
+  
+    segmentCustomerData= segmentCustomerData + applytemplate(mainTemplateSegmentCustomer, segmentTagsD);
+  }  
+}
+
+//49704 - Eagle Development - 03-02-2020 - Added the below to fetch the End Customers from Selected End Customers array set - START
+endCustArraySize = jsonarraysize(endCustomerArraySet2_t);
+loopArray = range(endCustArraySize);
+for eachEndCust in loopArray{
+	endCustRow = jsonarrayget(endCustomerArraySet2_t, eachEndCust, "json");
+	eachEndCustNo = jsonget(endCustRow, "customer_EndCus2_t");
+	append(endCustNoArray, eachEndCustNo);
+}
+//49704 - Eagle Development - 03-02-2020 - Added the above to fetch the  End Customers from Selected End Customers array set  - END
+//49704 - Eagle Development - 02-03-2020 - Added the below to add End Customer Data into XML - START
+for eachEndCustNo in endCustNoArray{
+	if (findinarray(finalEndCustArray, eachEndCustNo) <> -1 ) {
+	  continue;
+	}
+	if( vistexAgreement_t == "" ) {
+		valuesKey = "0000000000";
+	} 
+	else {
+		valuesKey = vistexAgreement_t;
+	}
+	
+	isPrimaryEndCustomer = "false";
+	if(endCustomerNo_t == eachEndCustNo AND primaryEndCustomerFlag_t){
+		isPrimaryEndCustomer = "true";
+	}
+	
+	valuesKey = valuesKey + salesOrg_t + distributionChannel_t + eachEndCustNo;
+	put(segmentTagsD, "SEGMENTTABLENUMBER", vistexEndCustSegmentTableNumber);
+	put(segmentTagsD, "SEGMENTCONDITIONTYPE", vistexSegmentShipToConditionType);
+	put(segmentTagsD, "CUSTOMERNUMBER", eachEndCustNo);
+	put(segmentTagsD, "PRIMARY_ENDCUSTOMER_FLAG", isPrimaryEndCustomer);
+	put(segmentTagsD, "SEGMENTVALUESKEY", valuesKey);
+	put(segmentTagsD, "SALESORG", salesOrg_t);
+	segmentCustomerData = segmentCustomerData + applytemplate(mainTemplateSegmentCustomer, segmentTagsD);
+}
+//49704 - Eagle Development - 02-03-2020 - Added the below to add End Customer Data into XML - END
+
+
+mpgLineCNT = 0;
+mpgTagsD = dict("string");
+put(mpgTagsD, "CONDITIONTABLENUMBER", mpgConditionTableNumber);
+put(mpgTagsD, "CONDITIONTYPE", percentConditionType);
+put(mpgTagsD, "HIERARCHYNUMBER", customerNumber_t);
+put(mpgTagsD, "SALESORG", salesOrg_t);
+put(mpgTagsD, "DISTRIBUTIONCHANNEL", distributionChannel_t);
+put(mpgTagsD, "DIVISION", division_t);
+
+validToDateString = replace(substring(agreementValidTo_t, 0, 10), "-", "");
+put(mpgTagsD, "UNIT", "%");
+
+lineCNT = 0;
+mliTagsD = dict("string");
+put(mliTagsD, "CONDITIONTABLENUMBER", mliConditionTableNumber);
+put(mliTagsD, "CUSTOMERNUMBER", customerNumber_t);
+put(mliTagsD, "SALESORG", salesOrg_t);
+put(mliTagsD, "DISTRIBUTIONCHANNEL", distributionChannel_t);
+put(mliTagsD, "DIVISION", division_t);
+put(mliTagsD, "UNIT", currency_t);
+hasSurchargeConditions = FALSE;
+surchargeConditions = "";
+minimumOrderConditions = "";
+valuesKeyBase= "";
+customerNumberList= string[];
+//  Check if Surcharge/Minimum Order conditions need be added
+if ( util.checkBizGroupCondition("SurCharge_MinOrderConds_SendAgr", transactionType_t, salesOrg_t) ) { // Project#52469|Rahul|Updated Code to make logic dependent on data table
+    surchargeConditionTableNumber = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "SurchargeConditionTableNumber", "", "Value");
+    silverConditionType = util.getTableValue("Name", "OutboundXMLDetails", "SilverSurchargeConditionType", "", "Value");
+    copperConditionType = util.getTableValue("Name", "OutboundXMLDetails", "CopperSurchargeConditionType", "", "Value");
+    aluminiumConditionType = util.getTableValue("Name", "OutboundXMLDetails", "AluminiumSurchargeConditionType", "", "Value");
+    minimumOrderConditionType = util.getTableValue("Name", "OutboundXMLDetails", "MinimumOrderSurchargeConditionType", "", "Value");
+
+
+    cnt= 0;
+    for eachCustomer in allSelectedCustomers {
+    
+      valuesKeyBase= allVAKeys[cnt];
+      cnt=cnt+1;
+      splitArray= split(eachCustomer,"-");
+      eachSalesOrg= splitArray[0];
+      eachHierarchy= splitArray[1];
+      eachCustNumber= splitArray[2];
+      
+      //  Removed since ES-EMEA can only select one customer
+      //  Skip it if its the same number of one we already did
+      
+      if (conditionPrefix == "Hierarchy") {
+        eachCustNumber= eachHierarchy;
+      }
+      append(customerNumberList,eachCustNumber);
+
+    surchargeVAKey = replace(valuesKeyBase, "+VAKEY", "");
+
+    if ((conditionPrefix == "Hierarchy") OR (conditionPrefix == "SoldTo") OR (conditionPrefix == "ShipTo")) {
+        surchargeVAKey0 = util.getTableValue("Name", "OutboundXMLDetails", conditionPrefix + "SurchargeValuesKey", "", "Value");
+        surchargeVAKey1 = replace(surchargeVAKey0, "SALESORG+", eachSalesOrg);
+        surchargeVAKey2 = replace(surchargeVAKey1, "DISTRIBUTIONCHANNEL+", distributionChannel_t);
+        surchargeVAKey3 = replace(surchargeVAKey2, "DIVISION+", division_t);
+        surchargeVAKey4 = replace(surchargeVAKey3,"SOLDTOCUSTOMERNUMBER+",soldToNumber_t);//Updated as part INC000011358725 by E995054
+		surchargeVAKey5 = replace(surchargeVAKey4,"SHIPTOCUSTOMERNUMBER",shipToNumber_t);//Updated as part INC000011358725 by E995054
+        surchargeVAKey  = replace(surchargeVAKey5, "CUSTOMERNUMBER", eachCustNumber);
+    }
+
+    silverAmount = "";
+    copperAmount = "";
+    aluminiumAmount = "";
+    if (surchargeExemption_t) {
+        silverAmount = "0.00";
+        copperAmount = "0.00";
+        aluminiumAmount = "0.00";
+        hasSurchargeConditions = TRUE;
+    } else {
+        if (silver_t == "fixed") {
+            silverAmount = string(silverValue_t);
+            hasSurchargeConditions = TRUE;
+        }
+        if (copper_t == "fixed") {
+            copperAmount = string(copperValue_t);
+            hasSurchargeConditions = TRUE;
+        }
+        if (aluminium_t == "fixed") {
+            aluminiumAmount = string(aluminiumValue_t);
+            hasSurchargeConditions = TRUE;
+        }
+    }
+
+    surTagsD = dict("string");
+    put(surTagsD, "CONDITIONTABLENUMBER", mliConditionTableNumber);
+    put(surTagsD, "CONDITIONTYPE", amountConditionType);
+    put(surTagsD, "CUSTOMERNUMBER", eachCustNumber);
+    put(surTagsD, "SALESORG", salesOrg_t);
+    put(surTagsD, "DISTRIBUTIONCHANNEL", distributionChannel_t);
+    put(surTagsD, "DIVISION", division_t);
+    put(surTagsD, "VALIDFROM", validFromDateString);
+    put(surTagsD, "VALIDTO", validToDateString);
+    put(surTagsD, "UNIT", currency_t);
+	
+	
+	//Add for defect 1368
+	for each in transactionLine {
+	put(surTagsD, "DELETIONFLAG", "");
+	// Neha : added status condition for CPQ-4595
+        if( each.lineItemDelete_l OR each.lineItemStatus_l== "cancelled") {
+        put(surTagsD, "DELETIONFLAG", "x");
+        }
+        if( cancelTransaction AND sendDSPAsVistex_t == "" AND transactionType == "DSP" ) {
+        put(surTagsD, "DELETIONFLAG", "X");
+        }
+	}
+
+    put(surTagsD, "TABLENUMBER", surchargeConditionTableNumber);
+    put(surTagsD, "VALUESKEY", surchargeVAKey);
+
+    put(surTagsD, "CONDITIONTYPE", silverConditionType);
+    put(surTagsD, "AMOUNT", silverAmount);
+
+    silverXML = "";
+    if ((silver_t == "fixed") OR(surchargeExemption_t)) {
+        silverXML = applytemplate(mainTemplateSURCHARGES, surTagsD);
+    }
+
+    put(surTagsD, "CONDITIONTYPE", copperConditionType);
+    put(surTagsD, "AMOUNT", copperAmount);
+
+    copperXML = "";
+    if ((copper_t == "fixed") OR(surchargeExemption_t)) {
+        copperXML = applytemplate(mainTemplateSURCHARGES, surTagsD);
+    }
+    put(surTagsD, "CONDITIONTYPE", aluminiumConditionType);
+    put(surTagsD, "AMOUNT", aluminiumAmount);
+    aluminiumXML = "";
+    if ((aluminium_t == "fixed") OR(surchargeExemption_t)) {
+        aluminiumXML = applytemplate(mainTemplateSURCHARGES, surTagsD);
+    }
+
+    surchargeConditions = surchargeConditions + silverXML + copperXML + aluminiumXML;
+    minimumOrderSalesOrgList = util.getEnvironmentVariable("MIN_ORDER_VALUE_SALESORG", "");
+    if (minimumOrderVolume_t <> ""
+        AND find(minimumOrderSalesOrgList, salesOrg_t) == -1) {
+        hasSurchargeConditions = TRUE;
+        put(surTagsD, "CONDITIONTYPE", minimumOrderConditionType);
+        put(surTagsD, "AMOUNT", minimumOrderVolume_t);
+        minimumOrderConditions = minimumOrderConditions + applytemplate(mainTemplateSURCHARGES, surTagsD);
+    }
+    
+    }
+}
+
+// Added for QQ-822, QQ-823 and QQ-824 - Start //
+docNumsToSendArr = string[];
+
+lastSentDetail = lastSentLineDetails_t;
+if( isResent and previouslySentLineDetails_t <> "" ) {
+    lastSentDetail = previouslySentLineDetails_t;
+}
+if( lastSentDetail == "" ) {
+    isSendAllLines = true;
+}  
+
+if(isSendAllLines == false) {
+        lastSentJson = json();
+        if(lastSentDetail <> "" AND NOT(isnull(lastSentDetail))) {
+            lastSentJson = json(lastSentDetail);
+        }
+        // Converting all null values in Items to blank
+        if(jsonpathcheck(lastSentJson,  "$.items")  ) {
+            lastSentItemsJson = jsonget(lastSentJson, "items", "jsonarray");
+            jsonArrSize = 0;
+            if(NOT isnull(lastSentJson)  ) {
+                jsonArrSize = jsonarraysize(lastSentItemsJson);
+            }
+
+            varRange = range(jsonArrSize);
+            for i in varRange {
+                itemJson = jsonarrayget(lastSentItemsJson, i, "json");
+                itemJsonKeys = jsonkeys(itemJson);
+                for key in itemJsonKeys{
+                    if(isjsonnull(itemJson, key)) {
+                        jsonput(itemJson, key, "");
+                    }
+                }
+            }
+            
+            for line in transactionLine {
+                docNum = line._document_number;
+                docPath = "$.items[?(@._document_number==" + docNum + ")]";
+                // For QQ-822 - Start //
+                if((NOT(jsonpathcheck(lastSentJson, docPath))) AND (findinarray(docNumsToSendArr, docNum) == -1)) {
+                    append(docNumsToSendArr, docNum);
+                }
+                // For QQ-822 - End //
+                // For QQ-823 - Start //
+                if((line.lineItemDelete_l OR line.lineItemStatus_l== "cancelled") AND (findinarray(docNumsToSendArr, docNum) == -1)) {
+                    append(docNumsToSendArr, docNum);
+                }
+                // For QQ-823 - End //
+                // For QQ-824 - Start //
+                if((jsonpathcheck(lastSentJson, docPath)) AND (findinarray(docNumsToSendArr, docNum) == -1)) {
+                    if(jsonpathgetsingle(lastSentJson, docPath+".customDiscountType_l.value", "string") <> line.customDiscountType_l) { 
+                        append(docNumsToSendArr, docNum);
+                    } elif(jsonpathgetsingle(lastSentJson, docPath+".agreementNetPrice_l.value", "float") <> line.agreementNetPrice_l) { 
+                        append(docNumsToSendArr, docNum);
+                    } elif(jsonpathgetsingle(lastSentJson, docPath+".agreementNetDiscount_l", "float") <> line.agreementNetDiscount_l) {
+                        append(docNumsToSendArr, docNum);
+                    } elif(jsonpathgetsingle(lastSentJson, docPath+".scaleFrom_l", "string") <> line.scaleFrom_l) {
+                        append(docNumsToSendArr, docNum);
+                    } elif(jsonpathgetsingle(lastSentJson, docPath+".scaleTo_l", "string") <> line.scaleTo_l) { 
+                        append(docNumsToSendArr, docNum);
+                    } 
+                    
+                    lastSentValidFrom = jsonpathgetsingle(lastSentJson, docPath+".validFrom_l", "string", "");
+                    validFrom = substring(line.validFrom_l, 0, 10);
+                    if((lastSentValidFrom <> validFrom) AND (findinarray(docNumsToSendArr, docNum) == -1)) { 
+                        append(docNumsToSendArr, docNum);
+                    } 
+                    
+                    lastSentValidTo = jsonpathgetsingle(lastSentJson, docPath+".validTo_l", "string", "");
+                    validTo = substring(line.validTo_l, 0, 10);
+                    if((lastSentValidTo <> validTo) AND (findinarray(docNumsToSendArr, docNum) == -1)) { 
+                        append(docNumsToSendArr, docNum);
+                    } 
+                }
+                // For QQ-824 - End //
+            }
+        }
+}
+
+// Added for QQ-822, QQ-823 and QQ-824 - Start //
+
+mpgNoDiscountD = dict("string");
+mpgXMLD = dict("string");
+mliXMLD = dict("string");
+mlsXMLD = dict("string");
+mliBaseScaleFrom = dict("float");
+
+sendLines = true;
+if ( cancelTransaction AND (sendDSPAsVistex_t <> "" OR transactionType <> "DSP")) {
+    sendLines = false;
+}
+if( sendLines ) {
+    for eachLine in transactionLine {
+
+        mpgNumber = eachLine.materialPricingGroup_l;
+        mliNumber = eachLine.materialLineItem_l;
+        vaMliNumber = mliNumber;
+        if( len( mliNumber ) < 18 ){
+            additionalSpace = 18 - len( mliNumber );
+            spaceCounter = range(additionalSpace);
+            for i in spaceCounter {
+                vaMliNumber = vaMliNumber + " ";
+            } 
+        } 
+
+        pDocNum = eachLine._parent_doc_number;
+		
+		//Added For CPQ-996
+		FixedNetDiscountType = util.getTableValue("Name", "OutboundXMLDetails", "FixedNetDiscountType", "", "Value");
+            
+            // QQ-821 revise/renewal if not isSendAllLines and line was not updated then no need to send to SAP.
+        // Added for QQ-822, QQ-823 and QQ-824 - Start //
+        if((isSendAllLines == false) AND (findinarray(docNumsToSendArr, eachLine._document_number) == -1)) {
+            // If isSendAllLines is false and the current Document Number is not in the list of the document number to send, then ignore this line.
+            continue;
+        }
+        // Added for QQ-822, QQ-823 and QQ-824 - End //
+
+        if (eachLine.qqProductType_l == "group") {       // 05/23/2018 group line, do we need to send the DIEN part#?
+            if(qqBusinessLineForSalesOrg_t == "BUSSMANN") {
+                grpBmql = BMQL("Select MPG From Bussman_GroupDesc Where VPG = $mpgNumber And SalesOrg = $salesOrg");    // need to send MPG to SAP instead
+                for eachRow in grpBmql {
+                    mpgNumber = get(eachRow, "MPG");
+                    break;
+                }
+            }
+            discountString = eachLine.discountString_l;
+            if (discountString <> "") {
+            cnt=0;
+            allMPGVAKey = "";
+            for eachVAKey in allVAKeys {
+                //old code 
+                //mpgVAKey= replace(eachVAKey, "+VAKEY", mpgPrefix + mpgNumber);
+                //new code  CPQ- 4228 - Removed mpgPrefix
+                mpgVAKey= replace(eachVAKey, "+VAKEY",mpgNumber);
+                put(mpgTagsD, "VALUESKEY", mpgVAKey);
+                //old code
+                //put(mpgTagsD, "MATERIALPRICINGGROUP", mpgPrefix + mpgNumber);
+                //new code // CPQ- 4228 - Removed mpgPrefix
+                put(mpgTagsD, "MATERIALPRICINGGROUP",mpgNumber);
+                put(mpgTagsD, "AMOUNT", string(eachLine.discount_l));
+                put(mpgTagsD, "DELETIONFLAG", "");
+                // Neha : added status condition for CPQ-4595
+                if( eachLine.lineItemDelete_l OR eachLine.lineItemStatus_l== "cancelled") {
+                    put(mpgTagsD, "DELETIONFLAG", "X");
+                }
+                if( cancelTransaction AND sendDSPAsVistex_t == "" AND transactionType == "DSP" ) {
+                    put(mpgTagsD, "DELETIONFLAG", "X");
+                }
+
+
+                put(mpgTagsD, "CONDITIONRECORDNUMBER", eachLine.sapConditionRecordNumber_l);  // TODO: Each VAKey has a different sapConditionNumber (i.e. multiple sapcondition number for the same CPQ line)
+
+
+                lineValidFrom= replace(substring(eachLine.validFrom_l, 0, 10), "-", "");
+                if (lineValidFrom == "") {
+                put(mpgTagsD, "VALIDFROM", validFromDateString);  // Use header Valid From Date
+                } else {
+                put(mpgTagsD, "VALIDFROM", lineValidFrom);   //  Line Valid From Date
+                }
+                lineValidTo= replace(substring(eachLine.validTo_l, 0, 10), "-", "");
+                if (lineValidFrom == "") {
+                put(mpgTagsD, "VALIDTO", validToDateString);  //  Use header Valid To Date
+                } else {
+                put(mpgTagsD, "VALIDTO", lineValidTo);  //  Use line Valid To date
+                }
+                mpgXML = applytemplate(mainTemplateMPG, mpgTagsD);
+                put(mpgXMLD, mpgVAKey, mpgXML);
+                mpgLineCNT = mpgLineCNT + 1;
+                allMPGVAKey = mpgVAKey;
+            }
+                result = util.u_setCommerceAttribute(result, eachLine._document_number, "vaKey_l", trim(allMPGVAKey));   // TODO: need to store all VAKey for each line item
+            } else {
+            for eachVAKey in allVAKeys {
+                //old code
+                //mpgVAKey= replace(eachVAKey, "+VAKEY", mpgPrefix + mpgNumber);
+                //new code CPQ-4228 
+                mpgVAKey = "";
+                if(qqBusinessLineForSalesOrg_t == "ES-EMEA"){
+    			mpgVAKey= replace(eachVAKey, "+VAKEY", mpgNumber);
+  		}else{
+    			mpgVAKey= replace(eachVAKey, "+VAKEY", mpgPrefix + mpgNumber);
+  		}
+                put(mpgNoDiscountD, mpgVAKey, mpgNumber);
+            }
+            }
+        } else {
+            scaleFrom= util.stringToFloat(eachLine.scaleFrom_l);
+            scaleLineItem= (scaleFrom > 0);
+            
+            if (NOT scaleLineItem) {
+            cnt=0;
+            mliVAKey = "";
+            for eachVAKey in allVAKeys {
+
+                eachMLIKey= replace(eachVAKey, "+VAKEY", vaMliNumber);
+                put(mliTagsD, "VALUESKEY", eachMLIKey);
+				if(eachLine.customDiscountType_l == "percent" AND (qqBusinessLineForSalesOrg_t == "BUSSMANN" OR qqBusinessLineForSalesOrg_t == "B-LINE")){// Defect 1715 Pass appropriate discount of requested value
+					put(mliTagsD, "CONDITIONTYPE", percentConditionType);
+				}
+				else{
+					put(mliTagsD, "CONDITIONTYPE", amountConditionType);
+				}
+				//Added For CPQ-996
+				if(qqBusinessLineForSalesOrg_t == "WD" AND transactionType_t == "PP"){
+					put(mliTagsD, "CONDITIONTYPE", fixedNetDiscountType);
+				}
+                put(mliTagsD, "MATERIALNUMBER", mliNumber);
+				if(eachLine.customDiscountType_l == "percent" AND (qqBusinessLineForSalesOrg_t == "BUSSMANN" OR qqBusinessLineForSalesOrg_t == "B-LINE")){// Defect 1715 Pass appropriate discount of requested value
+					put(mliTagsD, "AMOUNT", string(eachLine.discount_l));
+				}
+				else{
+					put(mliTagsD, "AMOUNT", string(eachLine.newNetPrice_l));
+				}
+                
+                if(eachLine.customDiscountType_l == "percent" AND (qqBusinessLineForSalesOrg_t == "BUSSMANN" OR qqBusinessLineForSalesOrg_t == "B-LINE")){// Defect 1715 Pass appropriate discount of requested value
+					put(mliTagsD, "UNIT", "%");
+				}
+				else{
+					put(mliTagsD, "UNIT", currency_t);
+				}
+
+                put(mliTagsD, "QUANTITY", string(eachLine.qqPricePerEditable_l));   // The editable price per. If user did not change this value, it should default to material item's price per
+
+
+                put(mliTagsD, "DELETIONFLAG", "");
+                // Neha : added status condition for CPQ-4595
+                if( eachLine.lineItemDelete_l OR eachLine.lineItemStatus_l== "cancelled") {
+                    put(mliTagsD, "DELETIONFLAG", "X");
+                }
+                if( cancelTransaction AND sendDSPAsVistex_t == "" AND transactionType == "DSP" ) {
+                    put(mliTagsD, "DELETIONFLAG", "X");
+                }
+
+                put(mliTagsD, "CONDITIONRECORDNUMBER", eachLine.sapConditionRecordNumber_l);    // TODO: Each VAKey has a different sapConditionNumber (i.e. multiple sapcondition number for the same CPQ line)
+
+                lineValidFrom= replace(substring(eachLine.validFrom_l, 0, 10), "-", "");
+                if (lineValidFrom == "") {
+                put(mliTagsD, "VALIDFROM", validFromDateString);  // Use header Valid From Date
+                } else {
+                put(mliTagsD, "VALIDFROM", lineValidFrom);   //  Line Valid From Date
+                }
+                lineValidTo= replace(substring(eachLine.validTo_l, 0, 10), "-", "");
+                if (lineValidFrom == "") {
+                put(mliTagsD, "VALIDTO", validToDateString);  //  Use header Valid To Date
+                } else {
+                put(mliTagsD, "VALIDTO", lineValidTo);  //  Use line Valid To date
+                }
+                mliUOM = "EA";
+                if (eachLine.uOM_l <> "") {
+                    mliUOM = eachLine.uOM_l;
+                }
+                put(mliTagsD, "UNITOFMEASURE", mliUOM);
+                mliXML = applytemplate(mainTemplateMLI, mliTagsD);
+                put(mliXMLD, eachMLIKey, mliXML);
+                mliVAKey = eachMLIKey;
+            }
+                result = util.u_setCommerceAttribute(result, eachLine._document_number, "vaKey_l", trim(mliVAKey));  // TODO: need to store all VAKey for each line item
+            } else {
+                // Entries for base line
+            cnt=0;
+            mliVAKey = "";
+            for eachVAKey in allVAKeys {
+                eachMLIKey= replace(eachVAKey, "+VAKEY", vaMliNumber);
+                put(mliTagsD, "VALUESKEY", eachMLIKey);
+				if(eachLine.customDiscountType_l == "percent" AND (qqBusinessLineForSalesOrg_t == "BUSSMANN" OR qqBusinessLineForSalesOrg_t == "B-LINE")){// Defect 1715 Pass appropriate discount of requested value
+					put(mliTagsD, "CONDITIONTYPE", percentConditionType);
+				}
+				else{
+					put(mliTagsD, "CONDITIONTYPE", amountConditionType);
+				}
+				//Added For CPQ-996
+				if(qqBusinessLineForSalesOrg_t == "WD" AND transactionType_t == "PP"){
+					put(mliTagsD, "CONDITIONTYPE", fixedNetDiscountType);
+				}
+                put(mliTagsD, "MATERIALNUMBER", mliNumber);
+				if(eachLine.customDiscountType_l == "percent" AND (qqBusinessLineForSalesOrg_t == "BUSSMANN" OR qqBusinessLineForSalesOrg_t == "B-LINE")){// Defect 1715 Pass appropriate discount of requested value
+					put(mliTagsD, "UNIT", "%");
+				}
+				else{
+					put(mliTagsD, "UNIT", currency_t);
+				}
+                 put(mliTagsD, "QUANTITY", string(eachLine.qqPricePerEditable_l));   // The editable price per. If user did not change this value, it should default to material item's price per
+                lineValidFrom= replace(substring(eachLine.validFrom_l, 0, 10), "-", "");
+                if (lineValidFrom == "") {
+                put(mliTagsD, "VALIDFROM", validFromDateString);  // Use header Valid From Date
+                } else {
+                put(mliTagsD, "VALIDFROM", lineValidFrom);   //  Line Valid From Date
+                }
+                lineValidTo= replace(substring(eachLine.validTo_l, 0, 10), "-", "");
+                if (lineValidFrom == "") {
+                put(mliTagsD, "VALIDTO", validToDateString);  //  Use header Valid To Date
+                } else {
+                put(mliTagsD, "VALIDTO", lineValidTo);  //  Use line Valid To date
+                }
+            mliUOM = "EA";
+                if (eachLine.uOM_l <> "") {
+                    mliUOM = eachLine.uOM_l;
+                }
+                put(mliTagsD, "UNITOFMEASURE", mliUOM);
+                put(mliTagsD, "DELETIONFLAG", "");
+                // Neha : added status condition for CPQ-4595
+                if( eachLine.lineItemDelete_l OR eachLine.lineItemStatus_l== "cancelled") {
+                    put(mliTagsD, "DELETIONFLAG", "x");
+                }
+                if( cancelTransaction AND sendDSPAsVistex_t == "" AND transactionType == "DSP" ) {
+                    put(mliTagsD, "DELETIONFLAG", "X");
+                }
+
+                put(mliTagsD, "CONDITIONRECORDNUMBER", eachLine.sapConditionRecordNumber_l);  // TODO: Each VAKey has a different sapConditionNumber (i.e. multiple sapcondition number for the same CPQ line)
+
+                // Logic for deciding base linesmriti
+
+                if (containskey(mliBaseScaleFrom, mliNumber)) {
+                    oldScaleFrom = get(mliBaseScaleFrom, mliNumber);
+                    currentScaleFrom = util.stringToFloat(eachLine.scaleFrom_l);
+                    if (currentScaleFrom < oldScaleFrom) {
+						if(eachLine.customDiscountType_l == "percent" AND (qqBusinessLineForSalesOrg_t == "BUSSMANN" OR qqBusinessLineForSalesOrg_t == "B-LINE")){
+							put(mliTagsD, "AMOUNT", string(eachLine.discount_l));
+						}
+						else{
+							put(mliTagsD, "AMOUNT", string(eachLine.newNetPrice_l));
+						}
+                        mliXML = applytemplate(mainTemplateMLI, mliTagsD);
+                        put(mliBaseScaleFrom, mliNumber, util.stringToFloat(eachLine.scaleFrom_l)); // store lowest Scale From
+                        put(mliXMLD, eachMLIKey, mliXML); // Update base line to mliXMLD
+                    }
+                } else {
+					if(eachLine.customDiscountType_l == "percent" AND (qqBusinessLineForSalesOrg_t == "BUSSMANN" OR qqBusinessLineForSalesOrg_t == "B-LINE")){
+							put(mliTagsD, "AMOUNT", string(eachLine.discount_l));
+						}
+						else{
+							put(mliTagsD, "AMOUNT", string(eachLine.newNetPrice_l));
+						}
+                    mliXML = applytemplate(mainTemplateMLI, mliTagsD);
+                    put(mliBaseScaleFrom, mliNumber, util.stringToFloat(eachLine.scaleFrom_l)); // store lowest Scale From
+                    put(mliXMLD, eachMLIKey, mliXML); // Add base line to mliXMLD
+                }
+
+                //Logic for Scale lines 
+                mlsString = "";
+                if (containskey(mlsXMLD, eachMLIKey)) {
+                    mlsString = get(mlsXMLD, eachMLIKey);
+                }
+                mlsTagsD = dict("string");
+                put(mlsTagsD, "SCALEFROM", eachLine.scaleFrom_l);
+                put(mlsTagsD, "AMOUNT", string(eachLine.newNetPrice_l));
+                mliXML = applytemplate(mainTemplateSCALE, mlsTagsD);
+                mlsString = mlsString + mliXML;
+                put(mlsXMLD, eachMLIKey, mlsString);
+                
+                mliVAKey = eachMLIKey;
+            }
+            result = util.u_setCommerceAttribute(result, eachLine._document_number, "vaKey_l", trim(mliVAKey));  // TODO: need to store all VAKey for each line item
+        }
+        lineCNT = lineCNT + 1;
+        }
+    }
+}
+
+allMLIKeys = keys(mliXMLD);
+for eachKey in allMLIKeys {
+    mliXML = get(mliXMLD, eachKey);
+    mliString = "";
+    mlsXML = "";
+    if (containskey(mlsXMLD, eachKey)) {
+        mlsXML = get(mlsXMLD, eachKey);
+    }
+    mliString = replace(mliXML, "ALLSCALEPRICING", mlsXML);
+    put(mliXMLD, eachKey, mliString);
+}
+
+// Removed *dBo Haizlip* 2017.09.30
+// //  This is where we check for any deleted pricing groups or material items for Ship To's ONLY
+
+hasPricingConditions = "";
+if ((lineCNT > 0) OR(mpgLineCNT > 0) OR(hasSurchargeConditions)) {
+    hasPricingConditions = "At least one line in the agreement";
+}
+
+mpgXMLList = string[];
+hasMPGCondition = "";
+if (mpgLineCNT > 0) {
+    hasMPGCondition = "At least one MPG discount in the agreement";
+    mpgXMLList = values(mpgXMLD);
+}
+
+mliXMLList = string[];
+hasMLICondition = "";
+
+if ((lineCNT > 0) OR(hasSurchargeConditions)) {
+    hasMLICondition = "At least one Material Line Item discount in the agreement";
+    mliXMLList = values(mliXMLD);
+}
+
+put(tagMainD, "hasPricingConditions", hasPricingConditions);
+put(tagMainD, "hasMPGCondition", hasMPGCondition);
+put(tagMainD, "hasMLICondition", hasMLICondition);
+//balaji- Added below code for ALM 730
+bookPriceDateString = jsonget(data, "bookPriceDate_t", "string", bookPriceDate_t);
+bookPriceDateString = replace(substring(bookPriceDateString, 0, 10), "-", "");
+if((qqBusinessLineForSalesOrg_t == "BUSSMANN" OR qqBusinessLineForSalesOrg_t == "B-LINE" ) AND bookPriceDate_t<>"")
+{
+	put(tagMainD, "pricingDate_t", bookPriceDateString);
+} //balaji- Added below code for ALM 730
+
+requestBody0 = applytemplate(mainTemplate, tagMainD);
+requestBody1 = replace(requestBody0, "ALLMATERIALPRICINGGROUPS", join(mpgXMLList, ""));
+requestBody2 = replace(requestBody1, "ALLMATERIALLINEITEMS", join(mliXMLList, "") + surchargeConditions + minimumOrderConditions);
+requestBody3 = replace(requestBody2, "SEGMENTCUSTOMERDATA", segmentCustomerData);
+requestBody  = replace(requestBody3, "ALLSCALEPRICING", "");
+
+// Send request message to service endpoint
+
+if (debugMode) {
+    print "***  REQUEST HEADERS  ***";
+    print requestHeader;
+    print "";
+    print "***  REQUEST BODY  ***";
+    print requestBody;
+    print "";
+}
+
+responseD = dict("string");
+if (processPOST) {
+    put(responseD, "Status-Code", "999");
+    put(responseD, "Error-Message", "CPQ_OUTBOUND_CONTROL set to " + upper(CPQ_OUTBOUND_CONTROL));
+    if ((find(upper(CPQ_OUTBOUND_CONTROL), "ENABLE") <> -1)) {
+        responseD = urldata(SOA_URL_PRICING, "POST", requestHeader, requestBody);
+    }
+}
+
+statusCode = get(responseD, "Status-Code");
+messageBody = get(responseD, "Message-Body");
+errorMessage = get(responseD, "Error-Message");
+if (statusCode == "202") {
+    errorMessage = "";
+} elif (isnull(messageBody)) {
+    messageBody = "NO Message-Body";
+    errorMessage = "Status-Code: " + statusCode + " -- " + errorMessage;
+}
+
+requestHeaderString = "";
+allHeaderKeys = keys(requestHeader);
+for eachKey in allHeaderKeys {
+    requestHeaderString = requestHeaderString + eachKey + ": " + get(requestHeader, eachKey) + "\n";
+}
+
+//  Return the results and info
+
+//  Just in-case, no Pipes or tilde characters
+payloadXML = replace(requestBody, "|", "^PIPE^");
+payloadXML = replace(payloadXML, "~", "^TILDE^");
+// put(retDict, "condaXML", payloadXML);
+
+jsonput(result, "condaLastSentDate_t", dateTime);
+jsonput(result, "condaStatusCode_t", statusCode);
+jsonput(result, "condaMessageBody_t", messageBody);
+jsonput(result, "agreementErrorMessages_t", errorMessage);
+jsonput(result, "condaHeader_t", requestHeaderString);
+jsonput(result, "condaXML_t", payloadXML);
+
+return result;

@@ -1,0 +1,11 @@
+{
+  "name" : "Zilliant Request Payload",
+  "variableName" : "zilliantRequestPayload",
+  "description" : "",
+  "libraryFunctions" : [ "util.getApprovalThresholds" ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "listPrice_l", "materialLineItem_l", "netPrice_l", "materialPricingGroup_l", "oldListPrice_l", "currentNetPricePerUOM_l", "qqProductType_l", "scaleFrom_l", "scaleTo_l", "oldDiscountString_l", "costSource_l", "cost_l" ],
+  "mainDocAttributes" : [ "customerCountry_t", "customerNumber_t", "currency_t", "endCustomerNo_t", "qqAccountType_t", "qqSubAccountType_t", "transactionType_t", "salesOrg_t", "qqCustomerGroup_t", "distributionChannel_t", "division_t", "salesOrgMPGPrefix_t", "revisionNumber_t", "approvalDate_t", "parent_transaction_id_createRenewal", "expireandrenew_t", "parent_transaction_id_qqCreateNewVersion_t", "qqTotalValue_t", "expectedVolume_t", "transactionNumber_t", "eRecordID_t", "selectedCustomerArraySet2_t", "selectedCustomerArraySet_t", "accountTypeKTOKD_t", "shipToNumber_t", "soldToNumber_t" ],
+  "systemAttributes" : [ ]
+}

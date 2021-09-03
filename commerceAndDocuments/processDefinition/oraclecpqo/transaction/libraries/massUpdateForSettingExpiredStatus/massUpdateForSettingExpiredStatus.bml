@@ -1,0 +1,46 @@
+returnStr = "";
+resp  = json();
+dateFormat= "yyyy-MM-dd";
+parmsDict = dict("string");
+//get the Current Date
+todaysDateString= substring(_system_date,0,10);
+todaysDate = strtojavadate(todaysDateString,dateFormat);
+print todaysDate;
+
+//get Yestarday Date
+yestDate = minusdays(todaysDate,1) ;
+print yestDate;
+//yestDateStr = datetostr(yestDate,"dd/MM/YYYY");
+//print yestDateStr;
+
+validToDate = agreementValidTo_t;
+validToStrToDate = strtojavadate(validToDate,dateFormat);
+//validToDateUpdate = adddays(validToStrToDate,2);
+
+print validToStrToDate;
+
+
+//get Date diff 
+
+//Valid to date is less than returns -1 else return 0 for equal else return 1 if second date is less than first date
+dateDiff = comparedates(validToStrToDate,yestDate);
+//print dateDiff;
+  
+
+//Valid to date is less than yesterday’s date then quote is expired
+If(lower(status_t) == lower("Active") AND dateDiff < 0){
+
+ print "true";
+ Put(parmsDict , "BSID",transactionID_t);
+ Put(parmsDict , "ACTION", "Save");
+ Put(parmsDict , "SiteName", "eatontest2");
+ resp = util.triggerAnyActionUsingRESTAPI(parmsDict);	
+ print resp;
+ 
+}
+else
+{
+  print "false";
+}
+
+return returnStr;

@@ -1,0 +1,12 @@
+{
+  "name" : "u_EncodeURIComponent",
+  "variableName" : "u_EncodeURIComponent",
+  "description" : "This utility function is to encode the url parameter value based on http url standard.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "parameter",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

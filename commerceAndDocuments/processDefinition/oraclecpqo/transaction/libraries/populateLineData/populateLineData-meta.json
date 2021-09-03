@@ -1,0 +1,11 @@
+{
+  "name" : "Populate Line Data",
+  "variableName" : "populateLineData",
+  "description" : "",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.extractValidNumericValue", "util.getCMI01Details", "util.getRemark" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "discountString_l", "discountNumericString_l", "discountType_l", "_sequence_number", "_parent_doc_number", "materialLineItem_l", "_model_variable_name", "_config_extra_info", "quantity_l", "minimumOrderQuantity_l", "roundingQuantity_l", "lineNumber_l", "qq_eto_MaterialItem_l", "customerPartNumber_l", "takeOffModel_l", "_config_attr_info", "brand_l", "qqTotal_l", "netFixedAmountString_l", "qqProductType_l" ],
+  "mainDocAttributes" : [ "currencySymbol_t", "currencyThousandsSeparator_t", "salesOrg_t", "distributionChannel_t", "customerNumber_t", "qqBusinessLineForSalesOrg_t", "endCustomerNo_t", "qq_ntTransactionType_t", "transactionType_t", "netFixedAmountWarningMsg_t", "softWarningMessageOnSave_t" ],
+  "systemAttributes" : [ "_system_current_user_language" ]
+}

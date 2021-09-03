@@ -1,0 +1,12 @@
+{
+  "name" : "Get Add from Catalog Action Destination URL",
+  "variableName" : "getAddFromCatalogActionDestinationURL",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputParamDict",
+    "type" : "Anytype Dictionary"
+  } ],
+  "attributes" : [ "_supplier_company_name" ]
+}

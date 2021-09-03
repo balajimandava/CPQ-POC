@@ -1,0 +1,11 @@
+{
+  "name" : "Test Remove",
+  "variableName" : "testRemove",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_parent_doc_number", "_document_number" ],
+  "mainDocAttributes" : [ "childItemDeleteValidation_t" ],
+  "systemAttributes" : [ "_system_selected_document_number" ]
+}

@@ -1,0 +1,14 @@
+{
+  "name" : "Scan Transactions",
+  "variableName" : "scanTransactions",
+  "description" : "Scans transactions that contain various values and return the transaction details",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.u_EncodeURIComponent" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "incomingJSON",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

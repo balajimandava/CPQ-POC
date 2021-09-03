@@ -1,0 +1,12 @@
+{
+  "name" : "Get Terms",
+  "variableName" : "getTerms",
+  "description" : "Return the options to populate the menu with for the specified term. Also returns the options that trigger approval (non-standard) and the default option.",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "termInfo",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

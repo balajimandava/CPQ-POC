@@ -1,0 +1,11 @@
+{
+  "name" : "test1",
+  "variableName" : "test1",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "doc_number", "_sequence_number" ],
+  "mainDocAttributes" : [ "lastSentLineDetails_t" ],
+  "systemAttributes" : [ ]
+}

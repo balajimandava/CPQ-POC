@@ -1,0 +1,118 @@
+/**
+@name 		Connect to Zilliant
+@api 		connectToZilliant
+@summary 	Connect to Zilliant and fetch guidance
+@param  	
+@return 	JsonArray
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+12/03/2020|Vijetha              |49501 - This util uses the OAuth token and connects to Zilliant to fetch guidance
+15-02-2021|Pooja					|49501 - Updated code for error handling
+01-03-2021|Gautam               |Cpq 68 Data extracts
+*/
+response = json();
+
+//url = "https://api-eatoneleurpiq-dev.zilliant.com/v1/FormulaEvaluation";
+
+//to check is response is from tagged guidance
+isTaggedGuidanceCalled = false;
+
+url = "";
+
+//Make dynamic by getting the URL from 
+if(NOT isnull(jsonget(inputParamJson,"APICall")))
+{
+	APICall = jsonget(inputParamJson,"APICall");
+	returnUrl = util.getEnvironmentVariable(APICall, "");
+	//returnUrl = "https://api-eatoneleurpiq-dev.zilliant.com/v2/LogicalEntityData/Contract/records";
+	if(returnUrl <> "")
+	{
+	    url  = returnUrl; 
+	}
+}
+
+if(NOT isnull(jsonget(inputParamJson,"IsTaggedGuidance")))
+{
+	isTaggedGuidanceCalled  = jsonget(inputParamJson,"IsTaggedGuidance","boolean");
+}
+
+oauthToken = globaldictget("Zilliant_Oath_Token");
+timeUpdated = atoi(globaldictget("Time_Of_Creation"));
+//print timeUpdated;
+currentTime = getcurrenttimeinmillis();
+//print currentTime;
+//print currentTime - timeUpdated;
+timeDifference = currentTime - timeUpdated;
+//Compare the timeUpdated against the system time. if the difference is more that 1hr 30 mins and less than 2 hrs call getAuthenticationToken again.
+if(timeDifference > 7200000){
+
+	oauthToken = util.getAuthenticationToken();//util to establish connection and return oauth token.//print oauthToken;
+}
+//print oauthToken ;
+//oauthToken ="OAuth dG9rZW4iOiIwMEQ1STAwMDAwMklmcHYhQVJzQVFIeFVyNU9rLmNhTW5JSHZ0eWFmZ280QVQuemNjWU0wYmFVcFRJeFppS0hzSDhPbTVYNXF2SkZ2WkVlZ0pjZnBsZi51bXpIc0Z5bHQ1SHNlMjd6a29aaWRXLnBKIiwiaW5zdGFuY2VfdXJsIjoiaHR0cHM6Ly9lYXRvbmVsZXVycGlxLWRldi1lZC5teS5zYWxlc2ZvcmNlLmNvbSIsImlkIjoiaHR0cHM6Ly9sb2dpbi5zYWxlc2ZvcmNlLmNvbS9pZC8wMEQ1STAwMDAwMklmcHZVQUMvMDA1NUkwMDAwMDFWSjBjUUFHIiwidG9rZW5fdHlwZSI6IkJlYXJlciIsImlzc3VlZF9hdCI6IjE2MTIyNDg4OTc5MDQiLCJzaWduYXR1cmUiOiJYVlBDRXcrTHRUSFZ6VUxiMFpKTUVCSFhQOG9ERU5Bam9YQWw5N00xZXdBPSJ9DQ";
+payload = jsonget(inputParamJson, "Req_Payload");
+
+if(oauthToken <> "" OR NOT(isnull(oauthToken))){
+	headerDict = dict("string");
+	put(headerDict, "Authorization", oauthToken);
+	put(headerDict, "zilliant-tenant-environment-id", "eatoneleurpiq.dev");
+	put(headerDict, "Content-Type", "application/json");
+	//res= urldata(url,"POST",headerDict,payload);
+	res= urldatabypost(url,payload,"ERROR",headerDict,true);
+	
+	/*since tagged guidance Json is wrapped in an Array the the Line
+	jsonput(response,"interfaceResponse",json(res)); throws String parse Error*/
+	if(isTaggedGuidanceCalled)
+	{
+	     resArray = jsonarray(res);
+	     if(NOT isnull(resArray))
+	     {
+	        indexArr = range(jsonarraysize(resArray));
+	        //responseJson = jsonarrayget(resArray ,0,"json");
+	        jsonput(response,"interfaceResponse",resArray);
+			jsonput(response,"errorMessage","");
+			errorMessage = "";
+			for index in indexArr{
+					responseJson = jsonarrayget(resArray,index,"json");
+					if(NOT(isnull(jsonget(responseJson,"errorMessage","String"))) AND jsonget(responseJson ,"errorMessage","String") <> "")
+	                {
+						
+						errorMessage = errorMessage + jsonget(responseJson,"errorMessage","String");
+						
+						if((jsonarraysize(resArray)) > 1)
+						{
+						  errorMessage = errorMessage + ",";
+						}
+					}
+					
+			}
+			
+			if(errorMessage <> "")
+			{
+	           jsonput(response,"errorMessage",errorMessage);
+			}
+	
+	    }
+	}else
+	{
+		if(startswith(res, "ERROR"))
+		{
+			jsonput(response,"interfaceError",res);
+		}
+		else
+		{
+			jsonput(response,"interfaceResponse",json(res));
+			jsonput(response,"interfaceError","");
+		}
+		
+	
+	
+     }
+}
+else
+{
+	jsonput(response,"interfaceError","Authentication Error");
+}
+
+return response;

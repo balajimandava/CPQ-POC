@@ -1,0 +1,122 @@
+//Project#49704|Eagle Development|RahulU|21stFeb2020|Defaults for Transaction Owner - Start
+//result = "";
+/*if(transactionNumber_t == "S00022860E"){
+   salesContactNum = "";
+   salesAgencyNum = "";
+
+   bussGroup = qqBusinessLineForSalesOrg_t;
+   parvw2 = "Z5";
+   if(bussGroup =="ES-EMEA" OR bussGroup =="BUSSMANN"){
+      parvw2 = "ZW";
+   }
+
+   parvw3 = "";
+   if(bussGroup =="B-LINE" OR bussGroup =="BUSSMANN"){
+      parvw3 = "Z1";
+   }
+
+   contact2Query1 = dict("string");
+   if(bussGroup =="ES-EMEA" AND transactionType_t=="WQ")
+   {
+      put(contact2Query1,"KUNNR",qq_customerReferenceShipTo);
+   }
+   else
+   {
+      put(contact2Query1,"KUNNR",customerNumber_t);
+   }
+   put(contact2Query1,"VKORG",salesOrg_t);
+   put(contact2Query1,"PARVW",parvw2);
+
+   contact2KUNN2 = util.getCUSMAS(contact2Query1);
+
+   KUNN2 = "";
+
+   loopCNT= range(jsonarraysize(contact2KUNN2));
+   for eachCust in loopCNT {
+      custJSON= jsonarrayget(contact2KUNN2,eachCust,"json");
+		
+      if (NOT(jsonpathcheck(custJSON,"$..totalcustomers"))) {
+         KUNN2 = jsonget(custJSON,"KUNN2");
+      }
+   }
+   salesContactNum = KUNN2;
+
+   contact3Query1 = dict("string");
+   cusNumber = "";
+   if(qq_customerReferenceShipTo<> ""){
+      cusNumber = qq_customerReferenceShipTo;
+   }else{
+      cusNumber = customerNumber_t;
+   }
+
+   put(contact3Query1,"KUNNR",cusNumber);
+   put(contact3Query1,"VKORG",salesOrg_t);
+   put(contact3Query1,"PARVW",parvw3);
+
+   contact3KUNN2 = util.getCUSMAS(contact3Query1);
+
+   KUNN2 = "";
+   // Get KUNN2
+   loopCNT= range(jsonarraysize(contact3KUNN2));
+   for eachCust in loopCNT {
+      custJSON= jsonarrayget(contact3KUNN2,eachCust,"json");
+		
+      if (NOT(jsonpathcheck(custJSON,"$..totalcustomers"))) {
+         KUNN2 = jsonget(custJSON,"KUNN2");
+      }
+   }
+   salesAgencyNum = KUNN2;
+
+   if(qqBusinessLineForSalesOrg_t  == "B-LINE"){
+      print "";
+      PARVWArr = string[]{"Z1", "ZW", "Z5"}; //PARVW to search for
+      ZWAgentArr = string[];
+
+      custID = "";
+      if(qq_customerReferenceShipTo <> ""){
+          custID =  qq_customerReferenceShipTo;
+      }
+      else{
+          custID =  customerNumber_t;
+      }
+      recordSet = bmql("select DISTINCT KUNN2, PARVW from CUSMAS where KUNNR = $custID and VKORG = $salesOrg_t and PARVW in $PARVWArr AND VKBUR = $salesOffice_t");
+      for records in recordSet{
+          KUNN2 = get(records, "KUNN2");
+          if(KUNN2 <> "" AND NOT(ISNULL(KUNN2))){
+            //comented by murali krishna for ALM 2059
+            if(get(records, "PARVW") == "ZW"){
+              append(ZWAgentArr, KUNN2); //Array having KUNN2 values for which PARVW = Z5
+            }
+          }
+      }
+      if(sizeofarray(ZWAgentArr) > 0){
+          //Fetch Agent details for Agents having PARVW as ZW and populate Agent arrayset
+          recordSet = bmql("select DISTINCT KUNNR, NAME1, SMTP_ADDR, TELF1 from CUSMAS where KUNNR in $ZWAgentArr AND VKORG = $salesOrg_t"); 
+          for records in recordSet{
+            //append(result, "1~salesContactNumber_t~" + get(records, "KUNNR") + "|");
+            result  = result  + "1~salesContactNumber_t~" + get(records, "KUNNR")+ "|";
+          }
+      }
+   }
+   else{
+      result  = result  + "1~salesContactNumber_t~" + salesContactNum + "|";
+   }
+   result  = result  + "1~salesAgencyNumber_t~" + salesAgencyNum + "|";
+}*/
+
+result = "";
+defaultFlag = false;
+
+salesContactNum = customerRep_t;
+salesAgencyNum = vendorNumber_t;
+
+if( find(vendorNumber_t, "$,$") > -1 ) {
+	vendors = split( vendorNumber_t, "$,$" );
+	salesAgencyNum = vendors[0];
+}
+
+result  = result  + "1~salesContactNumber_t~" + salesContactNum + "|";
+result  = result  + "1~salesAgencyNumber_t~" + salesAgencyNum + "|";
+result  = result  + "1~changeEatonContacts_t~" + string(defaultFlag) + "|";
+
+return result;

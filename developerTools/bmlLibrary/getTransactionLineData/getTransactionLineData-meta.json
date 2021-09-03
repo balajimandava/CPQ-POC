@@ -1,0 +1,15 @@
+{
+  "name" : "Get Transaction Line Data",
+  "variableName" : "getTransactionLineData",
+  "description" : "Get Transaction Line Data\nProject#49704-Eagle|RahulU|Created to get the line level attribute values.",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "bsId",
+    "type" : "String"
+  }, {
+    "name" : "xpaths_l",
+    "type" : "String[]"
+  } ],
+  "attributes" : [ ]
+}

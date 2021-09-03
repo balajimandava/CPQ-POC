@@ -1,0 +1,37 @@
+/***************************************************************************************************
+//** Description: Function to log status of transactions getting uploaded
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	27-Nov-2020	Rahul		Initial draft - Log upload status
+//***************************************************************************************************/
+index = 0;
+bs_ID = get(StrDict, "BS_ID");
+transNum = get(StrDict, "TransNum");
+tableName = get(StrDict, "TableName");
+status = get(StrDict, "Status");
+message = get(StrDict, "Message");
+index = atoi(get(StrDict, "Index"));
+
+messageLen = len(message);
+numOfRecords = messageLen/255; // number of entries to be created in table based on message length
+
+if(fmod(messageLen,255) > 0){
+	numOfRecords = numOfRecords + 1;
+}
+
+numOfErrLogRecRequired = range(numOfRecords);
+for eachRec in numOfErrLogRecRequired{
+	seqNum = string(eachRec + index);
+	messageForTable = substring(message, 254*eachRec,254*(eachRec+1));
+
+	results = bmql("INSERT INTO DATA_LOAD_STATUS (BS_ID, TransactionNum, SequenceNum, TableName, Status, Comment) values ($bs_ID, $transNum, $seqNum, $tableName, $status, $messageForTable)");
+
+	/*for result in results { // commenting code not in use
+		insert_count_integer = get(result, "records_inserted");
+		records_error_string = get(result, "records_error");
+	}*/
+}
+
+return "";

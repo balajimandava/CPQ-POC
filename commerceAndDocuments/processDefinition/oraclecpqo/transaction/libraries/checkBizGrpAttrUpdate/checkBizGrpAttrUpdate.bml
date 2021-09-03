@@ -1,0 +1,111 @@
+/*@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2021-03-17|Shardul S            | Initial Creation
+*/
+retJson = json();
+tbljson = json();
+cond = string[];
+//Constraint Rules
+append(cond,"constrain0and100onDiscountPercent");
+append(cond,"constraintPricePereditableto100");
+append(cond,"constrainTermsBySalesOrgs");
+append(cond,"constrainCoverLttrDeliveryMethod");
+append(cond,"onlyAllowPrimarySupportRepForDSPWholesale");
+append(cond,"constrainHeaderDiscount");
+append(cond,"constrainHeaderDiscAmtGTSubTot");
+append(cond,"hidePricingGroupTab");
+append(cond,"ESEMEACSPWholeSalerConstraint");
+append(cond,"constrainCrossReference");
+append(cond,"constrainTermsBySalesOrgforCHEMEA");
+//Hiding Rules
+append(cond,"showBonusVolume");
+append(cond,"showAdditionalSoldTo");
+append(cond,"showAdditionalShipTo");
+append(cond,"showCreateNewItemTab");
+append(cond,"showCustomDoc");
+append(cond,"showMaterialIndexEscalataionCustomNoteAttrs");
+append(cond,"hideShipToAddressEntry");
+append(cond,"hidePricingGroupTab");
+append(cond,"hideEditablePaymentTerms");
+append(cond,"hideEditableDeliveryTerms");
+append(cond,"hideEditablePeriodOfInvoicing");
+append(cond,"hideReadOnlyPaymentTerms");
+append(cond,"hideReadOnlyDeliveryTerms");
+append(cond,"hideReadOnlyPeriodOfInvoicing");
+append(cond,"hideDistibutorFields");
+append(cond,"hideDeliveryInOutputTab");
+append(cond,"hideOutputLanguageInOutputTab");
+append(cond,"hideNotesInOutputTab");
+append(cond,"hideSurchargesOutputTab");
+append(cond,"hideHeaderDiscountOutputTab");
+append(cond,"showNScaleRequestId");
+append(cond,"showPricePer");
+append(cond,"hideKeepOptyInfoWhenNotComingFromCopy");
+append(cond,"hideESEMEAfields");
+append(cond,"hideCurrencyToNonNatAccntUserOnNatAccnt");
+append(cond,"hideShipToAddressEntry");
+append(cond,"hideApproverAttribute");
+append(cond,"hideCustomerTerms");
+append(cond,"hideCustomerPriceList");
+append(cond,"hideTNCTab");
+append(cond,"hideShipToAddressCol");
+append(cond,"hideAssignedto");
+append(cond,"hideLaunchConfigurator");
+append(cond,"hideExpireOrRenewButon");
+append(cond,"hideCustomerConditionInAttribute");
+append(cond,"showSearchNAddButtonsToWQBAandDS");
+append(cond,"hideOutputType");
+append(cond,"hideSpecialConditionsTab");
+append(cond,"showSurcharges");
+append(cond,"showReadOnlySurcharge");
+append(cond,"hideMassPriceGroup");
+append(cond,"showCurrentCost");
+append(cond,"showStandardCost");
+append(cond,"hidePricePercolumn");
+append(cond,"showingLIGnewFieldsForFnMRole");
+append(cond,"hideForCreator");
+append(cond,"showingMultiplierAttrbForPSD");
+append(cond,"hideSalesHistoryTab");
+append(cond,"salesOrgsForCustomerPriceList");
+
+transactTyp = jsonget(inputJson, "transactTyp", "string", "");
+salesOrg = jsonget(inputJson, "salesOrg", "string", "");
+bussiness = jsonget(inputJson, "bussiness", "string", "");
+separator = "~";
+// Converting Transaction Type as per the Columns of BizGrpConditions table.
+if(transactTyp == "DSP") { 
+	transactTyp = "SA";
+} elif(transactTyp == "CSP") {
+	transactTyp = "RA";
+}
+
+transactTypSalesOrg = transactTyp + "SalesOrg";
+selectVar =  "Condition," + transactTyp + ", " + transactTypSalesOrg;
+
+// Extracting the business groups from the BizGrpConditions table.
+bizGrpCondRS = BMQL("Select $selectVar From BizGrpConditions Where Condition IN $cond");
+bizGrpFrmTbl = "";
+salesOrgFrmTbl = "";
+conditionFrmTbl  = "";
+for eachbizGrpCondRS in bizGrpCondRS {
+	conditionFrmTbl  = get(eachbizGrpCondRS, "Condition");
+	bizGrpFrmTbl = get(eachbizGrpCondRS, transactTyp);
+	salesOrgFrmTbl = get(eachbizGrpCondRS, transactTypSalesOrg);
+	bizGrpFrmTblArr = string[];
+	salesOrgFrmTblArr = string[];
+	if(bizGrpFrmTbl == "ALL") {
+		append(bizGrpFrmTblArr,bussiness);
+	} else {
+		bizGrpFrmTblArr = split(bizGrpFrmTbl, separator);
+	}
+	salesOrgFrmTblArr = split(salesOrgFrmTbl, separator);
+	if(findinarray(bizGrpFrmTblArr, bussiness) > -1 OR findinarray(salesOrgFrmTblArr, salesOrg) > -1)
+	{
+		jsonput(tbljson,transactTyp,bizGrpFrmTbl);
+		jsonput(tbljson,transactTypSalesOrg,salesOrgFrmTbl);		
+		jsonput(retJson,conditionFrmTbl,tbljson);
+	}
+}
+
+return jsontostr(retJson);

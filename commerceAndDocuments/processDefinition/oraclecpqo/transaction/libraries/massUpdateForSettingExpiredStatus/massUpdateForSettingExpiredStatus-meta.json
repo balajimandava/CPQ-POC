@@ -1,0 +1,11 @@
+{
+  "name" : "MassUpdate For Setting Expired Status",
+  "variableName" : "massUpdateForSettingExpiredStatus",
+  "description" : "This Mass update sets the Quoted to  Expired Status by checking the validTo Date",
+  "libraryFunctions" : [ "util.triggerAnyActionUsingRESTAPI" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "status_t", "agreementValidTo_t", "transactionID_t" ],
+  "systemAttributes" : [ "_system_date" ]
+}

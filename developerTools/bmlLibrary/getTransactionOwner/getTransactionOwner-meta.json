@@ -1,0 +1,12 @@
+{
+  "name" : "Get Transaction Owner",
+  "variableName" : "getTransactionOwner",
+  "description" : "Project#49704|Eagle Development|27Jan2020|RahulU - Added to determine transaction owner based on the input parameters.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "dictForTransactionOwner",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

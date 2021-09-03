@@ -1,0 +1,12 @@
+{
+  "name" : "Get Customer Part Number",
+  "variableName" : "getCustomerPartNumber",
+  "description" : "return the customer specific part number if it exists",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "customerNumber",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,14 @@
+{
+  "name" : "Build Create Quote Line XML",
+  "variableName" : "buildCreateQuoteLineXML",
+  "description" : "Build the quote line XML for the create quote SOAP call.",
+  "libraryFunctions" : [ "commerce.buildVCDataItemsXML", "util.u_getLineFromJson" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "materialLineItem_l", "materialPricingGroup_l", "quantity_l", "scaleFrom_l", "scaleTo_l", "scale_l", "listPrice_l", "newNetPrice_l", "discountType_l", "discountString_l", "sAPDeletionFlag_l", "coperSurcharge_l", "silverSurcharge_l", "aluminumSurcharge_l", "uOM_l", "externalConfigVCData_l", "overridePerUnit_l", "customDiscountType_l", "qqProductType_l", "_sequence_number", "qqPerUOM_l", "qqPricePerEditable_l", "materialLineItemShortDescription_l", "designation_l", "oldListPrice_l", "lineItemStatus_l", "materialStauts_l", "disctrictMinimumMultiplier_l", "pricingDate_l", "exchangeRate_l", "engineeringDesignStatus_l", "netFixedAmountString_l", "approvalDrawingLeadTime_l", "qqLeadTime_l", "_group_sequence_number", "customerPartNumber_l", "configNotes_l", "needVCPricing_l", "cost_l", "SAPLineNumber_l", "parentSAPLineNumber_l", "_parent_doc_number", "premium_l", "priceAtChildLine_l", "alternates_l", "itemCategory_l", "externalConfigData_l", "lineItemDelete_l" ],
+  "mainDocAttributes" : [ "qqBusinessLineForSalesOrg_t", "transactionType_t" ],
+  "systemAttributes" : [ ]
+}

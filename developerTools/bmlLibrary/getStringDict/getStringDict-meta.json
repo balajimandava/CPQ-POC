@@ -1,0 +1,18 @@
+{
+  "name" : "getStringDict",
+  "variableName" : "getStringDict",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  }, {
+    "name" : "key",
+    "type" : "String"
+  }, {
+    "name" : "default",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,21 @@
+{
+  "name" : "Sort 2-D Array",
+  "variableName" : "u_sort2DArray",
+  "description" : "Sort a 2-dimensional array based on a set of sorting criteria.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String[][]",
+  "parameters" : [ {
+    "name" : "strArray",
+    "type" : "String[][]"
+  }, {
+    "name" : "sortFields",
+    "type" : "Integer[]"
+  }, {
+    "name" : "sortOrder",
+    "type" : "String"
+  }, {
+    "name" : "sortType",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

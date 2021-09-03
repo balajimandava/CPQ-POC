@@ -1,0 +1,70 @@
+/*********************************************************************************************************************
+Function:	To determine transaction owner based on the input parameters for Power Systems, 
+		Bussmann, B-Line and ES-EMEA
+		
+Description:	Project#49704|Eagle Development|RahulU|27Jan2020
+
+//** History: Date          Author          Comment 
+//**          ------------- --------------- --------------------------------------------------------------
+//**	      12thFeb2020   Rahul Uttarwar  Project#49704|Eagle Development| Added logic for ESEMEA
+//**		  12thMar2020	Chandan			ALM# 2719 - Removing ES-EMEA condition, so that Transaction owner will be set to blank for ES-EMEA
+//**		26August2020 	Subha	JIRA#CPQ-2456	-Added the condition for Upper Case in comparision of the Creator
+//**		09September2020	Subha	Added the condition for Sales Agency for PSD Quote for CR#2571
+//**		11September2020	Subha	Removed the condition for Sales Agency for PSD Quote for CR#2571
+**************************************************************************************************************/
+
+qqBusinessLineForSalesOrg_t = get(dictForTransactionOwner, "qqBusinessLineForSalesOrg_t");
+transactionType_t 	= get(dictForTransactionOwner, "transactionType_t");
+isVendorQuote_t		= get(dictForTransactionOwner, "isVendorQuote_t");
+contact2Name 		= get(dictForTransactionOwner, "contact2Name");
+createdBy_t 		= get(dictForTransactionOwner, "createdBy_t");
+nationalAccount_t 	= get(dictForTransactionOwner, "nationalAccount_t");
+contact3Name 		= get(dictForTransactionOwner, "contact3Name");
+transactionOwner 	= "";
+print isVendorQuote_t;
+print "final";
+if (qqBusinessLineForSalesOrg_t == "PSD")
+{
+   if (transactionType_t == "BA"){
+      transactionOwner = "customerSupport";
+   }
+   elif (transactionType_t == "WQ" AND (contact2Name == createdBy_t OR contact2Name == UPPER(createdBy_t)) AND isVendorQuote_t=="false"){//Added the upper case for the defect JIRA#2456
+      transactionOwner = "salesContact";
+   }
+   elif (transactionType_t == "WQ" AND contact2Name <> createdBy_t AND isVendorQuote_t=="false"){
+      transactionOwner = "customerSupport";
+   }
+   /*//Commenting the below condition if it is a vendor quote then the default should be sales agency for CR#2571
+    elif((transactionType_t == "WQ" OR transactionType_t == "BA") AND isVendorQuote_t== "true"){
+      transactionOwner = "salesAgency";
+	  print "here";
+   }*/
+  // print transactionOwner;
+}elif (qqBusinessLineForSalesOrg_t == "BUSSMANN"){
+   if (nationalAccount_t == "true"){
+      transactionOwner = "salesContact";
+   }
+   else {
+      if (contact3Name <> ""){
+         transactionOwner = "salesAgency";
+      }else {
+         transactionOwner = "salesContact";
+      }
+   }		
+}elif (qqBusinessLineForSalesOrg_t == "B-LINE"){
+   if (nationalAccount_t == "true"){
+      transactionOwner = "salesContact";
+   }
+   else{
+      transactionOwner = "salesAgency";
+   }
+}
+
+//added temp by gautam under review
+
+//Chandan - ALM# 2719 - Commenting ES-EMEA condition as there will be no value set in case of ES-EMEA
+/*elif (qqBusinessLineForSalesOrg_t == "ES-EMEA"){
+      transactionOwner = "salesContact";
+}*/
+   
+return transactionOwner;

@@ -1,0 +1,1037 @@
+/**********************************************************************************
+
+	@name Get BLine Product Hierarchy and PLM Approver
+	@api get_BLineProductHierarchyAndPLMApprover
+
+	@summary : Determine BLine Product hierarchy and PLM Approver
+
+	@attribute : _document_number
+	@attribute : materialLineItem_l
+	@attribute : agreementNetDiscountRequested_l
+	@attribute : salesOrg_t
+	@attribute : transactionType_t
+	@attribute : materialPricingGroup_l
+	@attribute : materialPricingGroupFullText_l
+	@attribute : distributionChannel_t
+
+	@function : Dict commerce.getBLineThreshold(lookupValueArray, agencyAssignment, transactionType, stringDictParam);
+
+	@return : String
+
+	@Revision
+
+	Rev Date		| Developer Name    | Notes/Comments
+	12-April-2018		| Harshit Mehta	    | Initial Code
+	30-May-2018	    	| Harshit Mehta	    | Updating logic to set approvalRequired_l value
+	02-July-2018   		| Harshit Mehta	    | ALM# 857 : Skip Level2 Quote Rep approver if Quote submitter is Quote Rep.
+	20-Feb-2019			| Vasundhara 		| ALM# 1882 : Removing the red highlight for Line item when the discount is more than threshold and the submitted user belongs to Bussmann Inside Sales group.
+	05-Apr-2019		|Ankit		    		|ALM 1819 : Condtion changed to add mpg correctly to dict
+	12-Apr-2019		|Smriti Chaturvedi		|ALM- 1105 - Revise functionality approval should not be triggerd
+    18-Apr-2019     |Pooja Gupta            |ALM -1551-  Added  code to add approver name
+	23-Apr-2019     |Smriti Chaturvedi 		|ALM- 1023- Bline WF changes for payment term, total value and Territory
+	24-Apr-2019		|Smriti Chaturvedi		|ALM- 1852- Bline approval check for obsolete Material
+	06-May-2019		|Smriti Chaturvedi		|ALM - 1833 - implemented the require PM functionality
+    22-May-2019     |Pooja Gupta            |ALM -  2034- Changed mapping from PRODH to PH5 to fetch product heirarchy fields
+	22-May-2019 	|Smriti Chaturvedi		|ALM - 2049- Approval not showing as required for Pricing Manager other than PLM, but sending to Quotes Rep
+	27-May-2019		|Smriti Chaturvedi		|ALM- 1833- B-Line:  Escalate to PM functionality
+	04-June-2019	|Smriti Chaturvedi		|ALM-2049- Approval not showing as required for Pricing Manager other than PLM, but sending to Quotes Rep
+	13-June-2019	|Sharath K A	  	    | ALM :2147 - To set the Discount Approver for required Line item
+	13-June-2019	|Smriti Chaturvedi		|ALM- 2160:- Updated Delivery term logic needed for approval and removed the logic to query on Delivery terms table
+	13-June-2019	|Smriti Chaturvedi		|ALM -1473 - Updated the logic of submitter and Quote REp in case of New item approval
+	14-June-2019	|Balaji Konagalla		|ALM -2155 - Bypass in case of Pricing Manager submit the quote
+	18-June-2019	|Smriti Chaturvedi		|ALM -  2276- Added distribution channel condition in the where clause of the below query
+	27-June-2019	|Smriti Chaturvedi		|ALM- 1473 -Modified conditions in order to handle the logic based on F&M Group 
+	09-Sept-2019	|Smriti Chaturvedi		| ALM-2406- Added a logic to set and reset approvername properly
+	19-Sept-2019	|Smriti Chaturvedi		|ALM-2539 - PH7 hierarchy change
+	23-Sept-2019	|Smriti Chaturvedi		|ALM- 2544- to set and reset flag so that LIG in the email notifcation is aligned properly with data
+	14-Nov-2019	|Pooja Gupta			ALM-2579-New Validity Period Workflow
+	09-Apr-2020	|Johnny Lin			|INC000013444057 adjust the total transaction value from less than $1000 to greater than $25,000 for all B-Line
+	17-April-2020	|Rahul Uttarwar			Eagle Development - End Customer update(add/remove) approval for Bline
+	15-Feb-2021     |Nithin                         |CPQ-3669 - materials should be exempt from the Zero List Price approval workflow triggering if price included flag True.
+	**********************************************************************************/
+
+	//Start- Local Variable declaration
+	result = "";
+	zeroListPriceApproval =false;
+	materialItemDict = dict("dict<string>");  //Dict of Dictionary and will contain key as documentNumber and value as dict which contains data of line Items.
+	materialItemsArray = string[];
+	prodHDict = dict("string[]");
+	ph3Array = String[];
+	quoteRepApprovalRequired = false;
+	quoteManagerApprovalRequired = false;
+	pricingManagerApprovalRequired = false;
+	feedbackflag= false;
+	currencyflag= false;
+	pLMApproverArray = jsonarray();	
+	lookupValueArray = String[]; //Contains LookupValue which needs to search in Thresholds_BLine table under Lookup_Value column.
+	notificationMessage = ""; // E0422424:- Added for notification messages
+	notificationsArray = string[]; // E0422424:- Added for notification messages.
+	discountApprovers = ""; // E0422424:- Added for notification messages.
+	plmname=""; // E0422424:- Added for notification messages
+	quoteManagerName=""; // E0422424:- Added for notification messages
+	quoteRepName = ""; // E0422424:- Added for notification messages
+	quoteRepENum = "";
+	transactionType = "";
+	deliveryApproval = "";
+	newItemApproval = false;
+	approvalValue = false;
+	lookupDict = dict("dict<string>");
+	outerDict = dict("dict<string>");
+	stringDictParam = dict("string");
+	emailSubjectStatus="";
+	transitionstepvalue=_system_current_step_var;
+	requireTotalValueApproval = false;
+	//Smriti -Defect 1852- Parameters for Util function.
+	inputJson=json();
+	materialItemArr = jsonarray();
+	materialLineItemMapping=json();
+	message ="";
+	distributionChannel=jsonput(inputJson, "distributionChannel", distributionChannel_t);
+	salesOrg=jsonput(inputJson, "salesOrg", salesOrg_t);
+	language=jsonput(inputJson, "language", _system_current_user_language);
+	businessgroup=jsonput(inputJson, "businessgroup", qqBusinessLineForSalesOrg_t);
+	
+	//Smriti - ALM- 1105- Added the below lines to check values on revise
+	previouslyApprovedMaterialitems=String[];
+	previouslyApprovedLine= false;
+	additionalItemFlag=false;
+	isRevise= (previousAction_t == "revise");
+	previouslyApproved= false;
+	previousApprovedValues= json();
+	termLevelApproval = "";
+	paymentTermApprovalRequired="";
+	deliveryTermApprovalRequired= "";
+	territoryFlag = false;
+	territoryFlagVal="";
+	//Smriti - ALM- 2049 - Variable used for alm 2049
+	discountApproval= false;
+	// Smriti - ALM - 1833 - Variable to be used against alm 1833
+	lineData = json();
+	item = json();
+	requirePMApproval = false;
+	oldplmname="";
+	//2579
+	validityApproval=false;
+	if (previousApprovedValues_t <> "") {
+	  previousApprovedValues= json(previousApprovedValues_t);
+	  previouslyApproved= true;
+	}
+	// End : Local Variable declaration
+
+	//Line loop to loop over all items
+	pH3DocumentNumberMapping=dict("string");
+	materialDocNumberMap=dict("string");
+	if(containsKey(stringDict,"quoteRepName"))
+	{
+		quoteRepName = get(stringDict,"quoteRepName");
+	}
+	
+	if(containsKey(stringDict,"quoteManagerName"))
+	{
+		quoteManagerName = get(stringDict,"quoteManagerName");
+	}
+	approverNameLineNum=String[]; //ALM:2147
+	for line in transactionLine
+	{
+		innerDict = dict("string");
+		approvalValue = false; // E0422424:- added the flag against 1833
+		/************START COPY/REVISE/VERSION logic for line item***************************************************************************/
+		previouslyApprovedLine=false;
+		currencySymbol = currencySymbol_t;
+		currencydecimalseparatorval=currencyDecimalSeparator_t;
+		discountNetAmount= util.stringToFloat(replace(replace(replace(line.discountString_l, currencySymbol, ""), "%", ""), currencydecimalseparatorval, "."));
+		path= "$..[?(@.materialLineItem_l=='" + line.materialLineItem_l + "')]";	  
+		previousApprovalManyJsonPath= jsonpathgetmultiple(previousApprovedValues,path,true);	
+		discountType = line.customDiscountType_l;
+		
+		 if (previouslyApproved)
+		{
+			loopCNT= range(jsonarraysize(previousApprovalManyJsonPath));
+			previouslyApprovedItemFound= false;
+			eachItemJson= json();
+			for eachPathIdx in loopCNT 
+			{ 
+			 pathName= jsonarrayget(previousApprovalManyJsonPath,eachPathIdx,"string");
+			 eachItemJson= jsonpathgetsingle(previousApprovedValues,pathName,"json");
+			 previouslyApprovedItemFound= true;		  
+			 previouslyApprovedDiscountType= jsonpathgetsingle(eachItemJson,"$.customDiscountType_l.value","string","");
+			 previouslyApprovedDiscountNetValueString= jsonget(eachItemJson,"discountString_l","string","0.0");	
+			
+			 //Getting feedback values to compare with current discount 
+			 previouslyApprovedFeedbackValue= jsonget(eachItemJson,"feedbackDiscount_l","string","0.0");	
+			 previouslyApprovedMaterial= jsonpathgetsingle(eachItemJson,"$.materialLineItem_l","string","");
+			 if (NOT(ISNULL(previouslyApprovedMaterial)))
+			 {
+			 
+				 append(previouslyApprovedMaterialitems,previouslyApprovedMaterial);
+			 }
+				 
+			if(isnull(previouslyApprovedDiscountNetValueString)) 
+			{
+				previouslyApprovedDiscountNetValueString = "";
+			}	
+			if(isnull(previouslyApprovedFeedbackValue)){
+				previouslyApprovedFeedbackValue = "";
+			}
+			previouslyApprovedDiscountNetValue= util.stringToFloat(replace(replace(replace(previouslyApprovedDiscountNetValueString, currencySymbol, ""), "%", ""), currencydecimalseparatorval, "."));		
+			feedbackAmount= util.stringToFloat(replace(replace(replace(previouslyApprovedFeedbackValue, currencySymbol, ""), "%", ""), currencydecimalseparatorval, "."));		
+			
+			  // If this is a new verion (isVersion) and the row discountType=amt then approval is required again
+				if (previouslyApprovedItemFound) 
+				{  //  Only check if we found the item
+					if (isRevise) 
+					{
+					  // No approval needed if the previous approval was a percent and the current discount is less or equal
+					 if (previouslyApprovedDiscountType == "percent" AND discountNetAmount <= previouslyApprovedDiscountNetValue AND discountType == "percent"
+						AND feedbackAmount == discountNetAmount)
+						{	
+							previouslyApprovedLine= true;
+						}
+					// If it was an amount and the amount is lowered then approval is needed
+					  elif (previouslyApprovedDiscountType == "amt" AND discountNetAmount >= previouslyApprovedDiscountNetValue AND discountType == "amt" 
+							AND feedbackAmount == discountNetAmount)
+						{
+						  previouslyApprovedLine= true;
+						}
+					//Comparing Feedback Values and current values for DE1811 by Tanya Arora
+						elif(feedbackAmount <> discountNetAmount){
+							// If feedback values is not same as current discount values then needs to be approved
+						   previouslyApprovedLine = false;
+						}
+					}
+				}
+				
+			} 
+			if(findinarray(previouslyApprovedMaterialitems,line.materialLineItem_l)==-1)
+			{
+					additionalItemFlag=true;
+			}
+			
+		//  Skip the rest of the checks if this is a previously approved line
+		if (previouslyApprovedLine AND NOT(additionalItemFlag)) {
+		  // set the variable that determines if an approval is required for that item in the line item grid
+				approvalValue = false;
+		  // set the variable that contains what level of approval is required for that item in the line item grid	  
+		  continue;
+		}	
+			
+		}	
+		 
+		/************END COPY/REVISE/VERSION logic for line item***************************************************************************/
+		
+		//Smriti -Defect 1852- Parameters for Util function.
+		part = line.materialLineItem_l;	
+		lineNum=line._sequence_number;		
+		if(line.qqProductType_l == "normal"){
+		jsonarrayappend(materialItemArr, part);
+		jsonput(materialLineItemMapping,part,lineNum);
+		}
+		//If Quote is in pending Approval status then requested discount needs to consider as feedback discount.
+		//For all other status check discountPercent_l value.
+		if(transitionstepvalue == "pendingApproval")
+		{
+			put(innerDict,"requestedDiscount",string(line.feedbackDiscountPercent_l));
+			
+		}
+		else
+		{
+			put(innerDict,"requestedDiscount",string(line.discountPercent_l));
+			
+		}	
+		// Smriti - ALM- 1833 - Added the below logic to identify for which line item Require PM is trye 
+		if(line.requirePMApproval_l)
+		{
+			jsonput(item,"requirePMApproval",line.requirePMApproval_l);
+			jsonput(lineData,line._document_number,item);			
+			approvalValue = true;
+			
+		}
+		put(innerDict,"requirePMApproval",string(line.requirePMApproval_l));				
+		listPrice = line.oldListPrice_l;
+		linediscountval=line.discountPercent_l;
+		feedbackval=line.feedbackDiscountPercent_l;
+		if(line.qqProductType_l <> "group") //This condition is required to skip any group item.
+		{
+			//Data will be added in below format
+			/********************************************
+			innerDict
+				Key => constant "materialItemORPricingGroup"
+				Value => String current material item #
+			
+			*********************************************/
+			
+			//Add material Item in material Item array which will require to find material informaiton in MAT01 table.
+			materialLine=line.materialLineItem_l;
+			append(materialItemsArray,materialLine);
+			put(innerDict,"materialItemORPricingGroup",materialLine);
+			
+			if(containsKey(materialDocNumberMap,materialLine))
+			{
+				line_num=get(materialDocNumberMap,materialLine);
+				line_num=line_num+"#@#"+line._document_number;
+				put(materialDocNumberMap,materialLine,line_num);
+			}
+			else
+			{
+				put(materialDocNumberMap,materialLine,line._document_number);
+			}
+		}
+		else //Item is Pricing Group
+		{
+			//Data will be added in below format
+			/********************************************
+			innerDict
+				Key => Constant "materialItemORPricingGroup"
+				Value => String current pricing group
+			
+			outerDict	
+				Key => String current line pricing group
+				Value => Array of ph3, ph4, ph5 which will extract by splitting prodHierarchy
+			*********************************************/
+			
+			put(innerDict,"materialItemORPricingGroup",line.materialPricingGroup_l);
+			
+			//materialPricingGroupFullText_l is 12 character value and every set of character represent specific value and require to redirect approval workflow
+			//materialPricingGroupFullText_l will split into different set to get desired PH5, PH4, PH3 value.
+			prodHierarchy = line.materialPricingGroupFullText_l;
+			prodHArray = String[];
+			
+			//For Pricing Group no need to look for MAT01 table to find Product Hierarchy as first 12 digit of Product Hierarchy is reflect in Pricing Group full text.
+			
+			PH5 = substring(prodHierarchy,9,12);
+			append(prodHArray,"PH5_" + PH5);
+			
+			if(findinarray(lookupValueArray,PH5) == -1)
+			{
+				append(lookupValueArray,PH5);
+			}
+			
+			
+			PH4 = substring(prodHierarchy,6,9);
+			append(prodHArray,"PH4_" + PH4);
+			
+			if(findinarray(lookupValueArray,PH4) == -1)
+			{
+				append(lookupValueArray,PH4);
+			}
+			
+			PH3 = substring(prodHierarchy,4,6);  //PH3 will identify B Line PLM Approver.
+			append(prodHArray,"PH3"); // NOTE: Don't change sequence of string PH3 and value for PH3 while adding values in prodHArray.
+			append(prodHArray,PH3);
+		
+			
+			/*****************
+			 prodHDict 
+				Key =>String materialItem if current line is material
+					  String pricing group if current line prcing group
+				
+				Value => Array prodHArray
+				
+			*****************/
+			
+			if(containsKey(pH3DocumentNumberMapping,PH3))
+			{
+				line_num=get(pH3DocumentNumberMapping,PH3);
+				line_num=line_num+"#@#"+line._document_number;
+				put(pH3DocumentNumberMapping,PH3,line_num);
+			}
+			else
+			{
+				put(pH3DocumentNumberMapping,PH3,line._document_number);
+			}
+			
+			put(prodHDict, line.materialPricingGroup_l,prodHArray);
+		}
+		
+		put(outerDict,line._document_number,innerDict);
+		
+		// E0424242:- added the code for NewItemApproval
+		//If New item added on transaction then materialLineItem_l attribute will contains static string "NEWITEM"
+		//Smriti - Below condition is modified in order to handle the condition based on F&M Group in case of New item against ALM- 1473
+		if(line.materialLineItem_l =="NEWITEM" AND (find(quoteSubmitter_t,"approverWithMarginBline") == -1))
+		{
+			newItemApproval = true;
+			approvalValue = true;
+            //E0406772- Added below code to add New Item approver name
+            result = result + line._document_number + "~approverName_l~" + quoteRepName + "|";
+			append(approverNameLineNum,line._document_number); //ALM:2147
+		}
+		// E0424242:- added the code for zerolistpriceapproval
+		//If Pricing Group is added then qqProductType_l will contains value as group.
+		
+		productType= line.qqProductType_l;
+		//Smriti - Below condition is modified in order to handle the condition based on F&M Group in case of New item against ALM- 1473
+		if(listPrice == 0.0 AND line.materialLineItem_l <> "" AND productType <>"group" AND (find(quoteSubmitter_t,"approverWithMarginBline") == -1) AND NOT(line.priceIncluded_l))  
+		{
+			zeroListPriceApproval = true;
+			approvalValue = true;
+            //E0406772- Added below code to add zero list price approver name
+        	result = result + line._document_number + "~approverName_l~" + quoteRepName + "|";
+			append(approverNameLineNum,line._document_number); //ALM:2147
+
+		}
+		if((linediscountval <> feedbackval OR ((line.netFixedAmountString_l <> line.approvedNetFixedAmount_l) AND line.oldListPrice_l == 0)) AND NOT(line.priceIncluded_l)) //Added by vasundhara for ALM-2007 - If list price is zero and Approved net price is more than 0 then also feedback has to be applied
+		{
+			feedbackflag=true; // TO identify if feedback is applied.
+		}
+		
+	//15 Feb- Pooja Gupta - Added below code to return status of transaction conditionally.This is used in Subject of 1.(Multi) Transaction Approved Template,2.(Multi) Transaction Approved Template - Delegate Notification Email Templates. 
+	if(feedbackflag==false)
+	{
+		if(_system_current_user_language == "de")
+		{
+			emailSubjectStatus="Genehmigt";
+		}
+		else
+		{
+			emailSubjectStatus="Approved";
+		}
+	}
+	else
+	{
+		if(_system_current_user_language == "de")
+		{
+			emailSubjectStatus="Ausstehendes Feedback";
+		}
+		else
+		{
+			 emailSubjectStatus="Pending Feedback";
+		}
+
+	}
+		
+		put(innerDict,"approvalValue",string(approvalValue)); //add current approval value in innerDict to refer it later.
+		
+		/************Currency Profile Check ****************/
+		currencyflag=false;
+		feedbackvalue= line.discountPercentNetApprovedString_l;	
+		currencyThousandseparatorval=currencyThousandsSeparator_t;
+		feedbackdecimal=find(feedbackvalue,currencydecimalseparatorval);
+		feedbackthousandval=find(feedbackvalue,currencyThousandseparatorval);
+		if((feedbackdecimal == -1) AND (feedbackthousandval== -1))
+		{
+			currencyflag = false;
+			
+		}
+		elif (feedbackdecimal == -1)
+		{
+			currencyflag = true;
+		}	
+		result = result + line._document_number + "~currencyflag_l~" + string(currencyflag) + "|";
+		/************END of Currency Profile Check ****************/
+		
+	} // End of Line Item Loop.
+
+	jsonput(inputJson, "materialitem", materialItemArr);
+	jsonput(inputJson,"materialLineItemMapping",materialLineItemMapping);
+
+	//Smriti -Defect 1486-  Util function invocation
+if(jsonarraysize(materialItemArr) >0){
+	retJson = util.getMAT01MultipleDetails(inputJson);		
+	message =jsonget(retJson, "message");		
+	}
+	/********************************* START - Get productHierarchy AND different levels*************************************************/
+
+	// Find all productHierarchy associated with material item added on transaction
+    //Pooja - ALM -  2034- Changed mapping from PRODH to PH5 to fetch product heirarchy fields
+	//Smriti - ALM -  2276- Added distribution channel condition in the where clause of the below query
+	phRecordSet = BMQL("Select DISTINCT PH5,MATNR from MAT01 WHERE MATNR IN $materialItemsArray AND VKORG = $salesOrg_t AND VTWEG = $distributionChannel_t");
+
+
+	for phRecord in phRecordSet
+	{
+		prodHierarchy = get(phRecord,"PH5");  // 18 character long and will use to drive PH6PH7, PH7, PH5, PH4, PH3
+		materialItem = get(phRecord,"MATNR");
+		prodHArray = String[];
+		/*********
+		 prodHArray will contain data in below format and sequence :
+			Material_Material#, PH6PH7_PH6PH7Value,PH7_PH7Value, PH5_PH5Value, PH4_PH4Value, PH3_PH3Value
+		**********/
+		
+		/*********
+			lookupValueArray will contain data in below sequence :
+				materialItem#, PH6PH7, PH7, PH5, PH4, PH3
+			data will added in array if it is not already present.
+		**********/
+		
+		append(prodHArray,"Material_" + materialItem);
+		if(findinarray(lookupValueArray,materialItem) == -1)
+		{
+			append(lookupValueArray,materialItem);
+		}
+		
+		PH6PH7 = substring(prodHierarchy,12,18);
+		append(prodHArray,"PH6PH7_" + PH6PH7);
+		if(findinarray(lookupValueArray,PH6PH7) == -1)
+		{
+			append(lookupValueArray,PH6PH7);
+		}
+		
+		//Smriti - ALM-2539- PH7 hierarchy change
+		PH7 = substring(prodHierarchy,15,18);
+		append(prodHArray,"PH7_" + PH7);
+		if(findinarray(lookupValueArray,PH7) == -1)
+		{
+			append(lookupValueArray,PH7);
+		}
+		
+		
+		PH5 = substring(prodHierarchy,9,12);
+		append(prodHArray,"PH5_" + PH5);
+		if(findinarray(lookupValueArray,PH5) == -1)
+		{
+			append(lookupValueArray,PH5);
+		}
+		
+		
+		PH4 = substring(prodHierarchy,6,9);
+		append(prodHArray,"PH4_" +PH4);
+		
+		if(findinarray(lookupValueArray,PH4) == -1)
+		{
+			append(lookupValueArray,PH4);
+		}
+		
+		
+		PH3 = substring(prodHierarchy,4,6);  //PH3 will identify B Line PLM Approver.
+		append(prodHArray,"PH3");   // NOTE: Don't change sequence of string PH3 and value for PH3 while adding values in prodHArray.
+		append(prodHArray,PH3);
+		/*****************
+		 prodHDict 
+			Key =>String materialItem if current line is material
+				  String pricing group if current line prcing group
+			
+			Value => Array prodHArray
+				
+		*****************/
+		if(containsKey(materialDocNumberMap,materialItem))
+		{
+			line_number=get(materialDocNumberMap,materialItem);
+			if(containsKey(pH3DocumentNumberMapping,PH3))
+			{
+				line_num=get(pH3DocumentNumberMapping,PH3);
+				line_num=line_num+"#@#"+line_number;
+				put(pH3DocumentNumberMapping,PH3,line_num);
+			}
+			else
+			{
+				put(pH3DocumentNumberMapping,PH3,line_number);
+			}
+		}
+		
+		put(prodHDict,materialItem,prodHArray);
+	}
+	/****************************END : Get productHierarchy AND different levels****************************************************/
+
+	/************************* START : Extract Transaction Type *************************/
+	bLineTransactionTypeRecordSet = BMQL("SELECT BLine_TransactType from TransationTypeCode WHERE TransactionType = $transactionType_t");
+	for bLineTransactionTypeRecord in bLineTransactionTypeRecordSet
+	{
+		transactionType = get(bLineTransactionTypeRecord,"BLine_TransactType");
+		//Expected value is Quote OR Agreement.
+		break; //only one record is expected.
+	}
+
+	/************************* END : Extract Transaction Type *************************/
+
+	//Get Threshold Data
+
+	lookupDict = util.getBLineThreshold(lookupValueArray, agencyAssignment, transactionType, stringDictParam);
+
+
+	outerDictKeyArray = keys(outerDict);
+
+	// Loop over all outerDict Key i.e. all document numbers.
+	discountApprovalLineNum=String[]; //ALM : 2147
+	for outerDictKey in outerDictKeyArray
+	{
+		if(containsKey(outerDict,outerDictKey))
+		{
+		 innerDict = get(outerDict,outerDictKey);
+		
+		if(containsKey(innerDict,"materialItemORPricingGroup"))
+		{
+		   materialItemORPricingGroup = get(innerDict,"materialItemORPricingGroup");
+		
+		requestedDiscount = 0.0;
+		if(containsKey(innerDict,"requestedDiscount") AND isNumber(get(innerDict,"requestedDiscount")))
+		{
+			requestedDiscount = atof(get(innerDict,"requestedDiscount"))/100; //In BLine_Threshold table data in decimal so dividing it by 100.
+		}
+		
+
+		//Initialize variables
+		salesAgentThreshold = 0.0;
+		quoteRepsThreshold = 0.0;
+		quoteManagerThreshold = 0.0;
+		pricingManagerThreshold  = 0.0;
+		productManagerThreshold  = 0.0;
+		
+		//This check is required as ETO item may not available in prodHDict.
+		if(containsKey(prodHDict,materialItemORPricingGroup))
+		{
+			
+			prodHArray = get(prodHDict,materialItemORPricingGroup);
+		
+		//prodHArray will contain data in sequence  i.e for materialItem  0 => Material, 1 => PH6PH7, 2 => PH7, 3 => PH5, 4 => PH4 , 5 => PH3
+		//					    					i.e.for pricing group 0 => PH5 , 1 => PH4
+		
+		if ( NOT isNULL( prodHArray) ) {
+			for prodH in prodHArray
+			{
+				if(containsKey(LookupDict,prodH))
+				{
+					thresholdDataDict = get(LookupDict,prodH);
+					
+					if(isNumber(get(thresholdDataDict,"Sales_Agents")))
+					{
+						salesAgentThreshold = atof(get(thresholdDataDict,"Sales_Agents"));
+					}
+					if(isNumber(get(thresholdDataDict,"Quotes_Reps")))
+					{
+						quoteRepsThreshold = atof(get(thresholdDataDict,"Quotes_Reps"));
+					}
+					if(isNumber(get(thresholdDataDict,"Quotes_Manager")))
+					{
+						quoteManagerThreshold = atof(get(thresholdDataDict,"Quotes_Manager"));
+					}
+					if(isNumber(get(thresholdDataDict,"Pricing_Manager")))
+					{
+						pricingManagerThreshold = atof(get(thresholdDataDict,"Pricing_Manager"));
+					
+					}
+					if(isNumber(get(thresholdDataDict,"Product_Manager")))
+					{
+						productManagerThreshold = atof(get(thresholdDataDict,"Product_Manager"));
+					}
+					//Only First Matching record is required so preferences can be preserve.
+					break;
+				}
+			}
+		}
+		
+		/// Below code to identify threshold level
+		//Smriti - ALM-1833 Added the below logic to get the requirePmApproval flag value
+		if(containsKey(innerDict,"requirePMApproval"))
+		{
+			requirePMApproval = (get(innerDict,"requirePMApproval") == "true");
+		}
+		if(containsKey(innerDict,"approvalValue"))
+		{
+			approvalValue = (get(innerDict,"approvalValue") == "true");
+		}
+		if(requestedDiscount > (salesAgentThreshold) AND find(quoteSubmitter_t,"bussmannInsideSales") > -1){ // Changes are part of ALM-1882 - Added by Vasundhara - If discount is more than sales threshold making approvalValue flag as false so it wont show the line item highlighted in red
+			approvalValue= false;
+		}elif(requestedDiscount > (salesAgentThreshold) AND (find(quoteSubmitter_t,"approverWithMarginBline") == -1) ) // condition is modified in order to handle the condition based on F&M Group in case of Thresholds
+		{
+		    quoteRepApprovalRequired = true;
+			approvalValue= true;
+            //E0406772- Added below code to add approver name
+			result = result + outerDictKey  +"~approverName_l~" + quoteRepName + "|";
+			append(approverNameLineNum,outerDictKey); //ALM:2147
+		}
+		// Smriti - May 22-2019- ALM - 2049-Added below code to idenitfy if quote rep approval for discounting is needed or not
+		if(quoteRepApprovalRequired AND approvalValue) 
+		{
+			discountApproval= true;
+		}
+		
+		//Smriti - ALM-1833 Modified the below logic to get the requirePmApproval flag value
+		if(requestedDiscount > pricingManagerThreshold OR (requirePMApproval))
+		{
+			approvalValue= true;  //ALM- 2544- to set and reset flag so that LIG in the email notifcation is aligned properly with data
+			// Smriti - ALM 2406- moved the logic above from the below if condition.
+			append(discountApprovalLineNum, outerDictKey); //ALM:2147
+			//productManager (PLM) approval is required
+			ph3Location = findinarray(prodHArray,"PH3");		
+			if(ph3Location > 0 AND findinarray(ph3Array, prodHarray[ph3Location + 1]) == -1)
+			{
+				append(ph3Array, prodHarray[ph3Location + 1]);
+				
+			}
+		result = result + outerDictKey + "~pricingManagerThreshold_l~" + string(pricingManagerThreshold*100) + "|";
+		}		
+		elif(requestedDiscount > quoteManagerThreshold)
+		{
+			if(pricingManagerThreshold == quoteManagerThreshold)
+			{
+				approvalValue= true; //ALM- 2544- to set and reset flag so that LIG in the email notifcation is aligned properly with data
+				quoteManagerApprovalRequired = true;
+                //E0406772- Added below code to add approver name
+				result = result + outerDictKey + "~approverName_l~" + quoteManagerName + "|";
+				append(approverNameLineNum,outerDictKey); //ALM:2147
+			}
+			else
+			{
+				approvalValue= true;  //ALM- 2544- to set and reset flag so that LIG in the email notifcation is aligned properly with data
+				pricingManagerApprovalRequired = true;
+                //E0406772- Added below code to add approver name
+				result = result + outerDictKey + "~approverName_l~Pricing Manager Group|";
+				append(approverNameLineNum,outerDictKey); //ALM:2147
+				
+			}
+		}
+		elif(requestedDiscount > quoteRepsThreshold)
+		{
+			approvalValue= true;   //ALM- 2544- to set and reset flag so that LIG in the email notifcation is aligned properly with data
+			quoteManagerApprovalRequired = true;
+            //E0406772- Added below code to add approver name
+			result = result + outerDictKey + "~approverName_l~" + quoteManagerName + "|";
+			append(approverNameLineNum,outerDictKey); //ALM:2147
+		}
+		//Smriti - ALM -2406- Added a condition to null the approvename when discount is changed from PLM to quoterep or its very low
+		if((NOT(requirePMApproval)) AND NOT(quoteRepApprovalRequired) AND NOT (approvalValue))
+		{
+			
+			result = result + outerDictKey + "~approverName_l~"+ "|";
+		}
+		result = result + outerDictKey + "~level2ThresholdVal~" + string(quoteRepsThreshold *100) + "|";
+		result = result + outerDictKey + "~quoteManagerThreshold_l~" + string(quoteManagerThreshold*100) + "|";
+		// set the variable that determines if an approval is required for that item in the line item grid
+		result = result + outerDictKey  +"~approvalRequired_l~" + string(approvalValue) + "|";
+		
+		
+	} // end of if(containsKey(prodHDict,materialItemORPricingGroup)
+	} // end of if(containsKey(innerDict,"materialItemORPricingGroup")
+	} // end of if(containsKey(outerDict,outerDictKey))
+	} //end of for loop
+	/****************************INCOTERM CODE **********************************************************/
+
+	if(containsKey(stringDict,"deliveryTermApprovalRequired"))
+	{
+		deliveryTermApprovalRequired = get(stringDict,"deliveryTermApprovalRequired");
+	}
+	// set delivery term variable
+	if ((agreementDeliveryTerms_t <> "") AND (deliveryTermApprovalRequired <> "")) {
+		deliveryApproval = "CSM";
+	}
+	// Smriti - ALM - 2160 Commented the below code so that the table approval for incoterm is not based on data Table.
+
+	
+	result= result+ "1~whatLevelOfDeliveryTermsApprovalRequired_t~" + deliveryApproval + "|";
+
+	//***************************Validity Approval*****************************/
+	approvalTriggers = bmql("select value from ApprovalTriggers where salesOrg=$salesOrg_t AND TransactionType=$transactionType_t AND key='agreementValidDays'");
+	for record in approvalTriggers 
+	{
+		days=get(record ,"value");
+		agreementValidDays = atoi(days);
+	}
+	
+	validDays = getdiffindays(strtojavadate(agreementValidFrom_t, "yyyy-MM-dd HH:mm:ss"), strtojavadate(agreementValidTo_t, "yyyy-MM-dd HH:mm:ss"));
+	
+	if(validDays>agreementValidDays AND (find(quoteSubmitter_t,"approverWithMarginBline") == -1))
+	{
+		validityApproval=true;
+	}
+	
+	
+	
+	/****************************END INCOTERM CODE ******************************************************/
+	
+	/****START  Conditions  for notifications ***********************************************************/
+	//Warning messages code
+	userLanguage = _system_current_user_language;
+	WARNING_MESSAGE_1 = util.getRemark("WARNING_MESSAGE_1", userLanguage);
+	WARNING_MESSAGE_Discount = util.getRemark("WARNING_MESSAGE_2", userLanguage);
+	WARNING_MESSAGE_NonStandardTnC = util.getRemark("WARNING_MESSAGE_9", userLanguage);
+	WARNING_MESSAGE_NewItem=util.getRemark("WARNING_MESSAGE_7", userLanguage);
+	WARNING_MESSAGE_26=util.getRemark("WARNING_MESSAGE_26", userLanguage);
+	WARNING_MESSAGE_TotalValueApproval = util.getRemark("WARNING_MESSAGE_16", userLanguage);
+	WARNING_MESSAGE_Territory=util.getRemark("WARNING_MESSAGE_TERRITORY", userLanguage);
+	WARNING_MESSAGE_BookPriceDate=util.getRemark("WARNING_MESSAGE_BOOKPRICEDATE", userLanguage);
+	WARNING_MESSAGE_15=util.getRemark("WARNING_MESSAGE_15",userLanguage);
+	
+	WARNING_MESSAGE_EndCust=util.getRemark("WARNING_MESSAGE_EndCust", userLanguage);
+	///////////////////////Superuserlogic//////////////////////////////////////////
+	superUser="";
+	superUserRecordSet = BMQL("SELECT SuperUserEnumber from SuperUser WHERE BusinessGroup = $qqBusinessLineForSalesOrg_t");
+	for superUserRecord in superUserRecordSet
+	{
+		superUserValue = get(superUserRecord,"SuperUserEnumber");
+		if(len(superUser) > 0)
+		{
+			superUser=superUser+"#@#"+superUserValue;
+		}
+		else
+		{
+			superUser =superUserValue;
+		}
+			
+		
+	}
+	result= result+ "1~superUserEmail_t~" + superUser + "|";
+
+	/************************* END : Super user logic *************************/
+
+	//Harshit : Start Changes for ALM# 857 :: To skip Quote Rep approval if Quote submitter is quote rep.
+
+	if(containsKey(stringDict,"quoteRepENum"))
+	{
+		quoteRepENum = get(stringDict,"quoteRepENum");
+	}
+	if(containsKey(stringDict,"paymentTermApprovalRequired"))
+	{
+		paymentTermApprovalRequired = get(stringDict,"paymentTermApprovalRequired");
+	}
+	/*********************Payment Term Approval And  Book Price Date*****************************/
+
+	if(paymentTermApprovalRequired == "CSM")
+	{
+		termLevelApproval = "CSM";
+	} 
+	else
+	{
+		termLevelApproval = "";
+	}
+	
+	/*Adding Book Price Date approval [ALM :2026]
+	 * Quotes:  If Book Price date precede Create date - trigger routing to Quotes Manager
+     * Agreements:  If Book Price Date is populated at all - trigger routing to Quotes Manager
+	 */  
+	if(bookPriceDate_t <> "" AND (transactionType_t == "WQ" OR transactionType_t == "RQ" OR transactionType_t == "DS"))
+	{
+	    createdDate = strtojavadate(createdDate_t,"yyyy-MM-dd");
+		bookPriceDate = strtojavadate(bookPriceDate_t,"yyyy-MM-dd");
+		if(comparedates(bookPriceDate, createdDate ) == -1)
+		{
+			termLevelApproval = "BPD";
+		}
+	}
+	if(bookPriceDate_t <> "" AND (transactionType_t == "CSP" OR transactionType_t == "DSP"))
+	{
+		  termLevelApproval = "BPD";
+	}   
+	
+	result = result + "1~whatLevelOfTermsApprovalRequired_t~" + termLevelApproval + "|"; 
+
+	/***************End Payment Term Approval ***************************/
+	
+	/*********************Territory  Approval*****************************/
+	if(containsKey(stringDict,"territoryFlag"))
+	{
+		territoryFlagval = get(stringDict,"territoryFlag");
+	}
+	if(territoryFlagval == "CSM")
+	{
+		//quoteRepApprovalRequired = true;      // ALM -2544 - commented the line as it was impactinng Email notification
+		territoryFlag=true;
+	} 
+
+	/***************End Territory Approval ***************************/
+	//Smriti - ALM-1023 Below condition is modified in order to handle the condition based on F&M Group in case of total value
+	if((qqTotalValue_t > 25000) AND  (find(quoteSubmitter_t,"approverWithMarginBline") == -1))
+	{
+		quoteRepApprovalRequired = true;
+		requireTotalValueApproval = true;
+	}
+
+	if (find(quoteSubmitter_t, "bLinePricingManagerTeam") <> -1)//Bypass in case of Pricing Manager submit the quote ALM#2155
+	{
+		quoteRepApprovalRequired= false;
+		newItemApproval= false;
+		requireTotalValueApproval= false;
+		quoteManagerApprovalRequired= false;
+		pricingManagerApprovalRequired= false;
+	}
+
+	//Harshit : End Changes for ALM# 857 :: To skip Quote Rep approval if Quote submitter is quote rep.
+
+	//////////17April-Rahul-Eagle Development- End Customer update(add/remove) approval for Bline - Start//////////
+	endCustomerUpdatedFlag = false;
+	isSubmitteByFnMUser = false;
+
+	submitterDetails = split(quoteSubmitter_t, "@#@");
+	submitterGroups = submitterDetails[1];
+
+	isSubmitteByFnMUser = (find(submitterGroups, "approverWithMarginBline") <> -1); // True for FnM user
+
+	if(endCustomerNumbers_t <> "" AND NOT isSubmitteByFnMUser)
+	{
+		jsonOldEndCustList = jsonarray(endCustomerNumbers_t);
+
+		if(jsonarraysize(jsonOldEndCustList) <> jsonarraysize(endCustomerArraySet2_t))
+		{
+			endCustomerUpdatedFlag = true;
+		}
+		else
+		{
+			vRang = range(jsonarraysize(endCustomerArraySet2_t)); // get range of end customers 
+
+			for eachCustomer in vRang
+			{
+				endCustJson = json();
+				eachEndCustomer = jsonarrayget(endCustomerArraySet2_t, eachCustomer, "json"); // get each end customer
+				customer_EndCus2_t = jsonget(eachEndCustomer, "customer_EndCus2_t","string"); // get customer number
+
+				if (find (endCustomerNumbers_t, customer_EndCus2_t) == -1)
+				{
+					endCustomerUpdatedFlag = true;
+					break;
+				}
+			}
+		}
+	}elif((endCustomerNumbers_t == "" AND NOT isSubmitteByFnMUser) AND (jsonarraysize(endCustomerArraySet2_t) > 0 OR jsonarraysize(nt_selectedEndCustomerArrayset_t) > 0) AND (transactionType_t == "RQ" OR transactionType_t == "CSP")){ // This is for new Transactions
+		endCustomerUpdatedFlag = true;
+	}
+
+	result = result + "1~endCustomerUpdateApprovalRequired_t~" + string(endCustomerUpdatedFlag) + "|";
+
+	//////////17April-Rahul-Eagle Development- End Customer update(add/remove) approval for Bline - End//////////
+
+	////// Start  Quote Rep Notification
+	if((endCustomerUpdatedFlag) AND (len(quoteRepName)>0)) //17April-Rahul-Eagle Development- End user update(add/remove) for Bline - Start
+	{		
+		append(notificationsArray, "<b>" + WARNING_MESSAGE_EndCust + "</b> " + WARNING_MESSAGE_1 + " " + quoteRepName);
+	}//17April-Rahul-Eagle Development- End user update(add/remove) for Bline - End
+	if((zeroListPriceApproval) AND (len(quoteRepName)>0))
+	{
+		append(notificationsArray, "<b>" + WARNING_MESSAGE_26 + "</b> " + WARNING_MESSAGE_1 + " " + quoteRepName);
+	}
+	// ALM - 2049- Modified the below condition in order to display notification only for discount approval
+	if (quoteRepApprovalRequired AND discountApproval)
+	{
+		discountApprovers = quoteRepName +" " + "(Quote Rep)" ;   // E0422424:- Added for notification messages.	
+	}
+	// Total Quote Value Related Msgs
+	if(requireTotalValueApproval) {
+		append(notificationsArray, "<b>" + WARNING_MESSAGE_TotalValueApproval + "</b> " + WARNING_MESSAGE_1 + " " + quoteRepName);
+	}
+	if(newItemApproval)
+		{
+			newItemApprover = ""; 
+			newItemApprover = newItemApprover +","+ quoteRepName +" " + "(Quote Rep)" ;   // E0422424:- Added for notification messages.	
+			append(notificationsArray, "<b>" + WARNING_MESSAGE_NewItem + "</b> " + WARNING_MESSAGE_1 + " " + newItemApprover);
+		}
+
+	////// End  Quote Rep Notification
+
+	///// Start Quote Manager Notification
+	if (quoteManagerApprovalRequired)
+	{
+		if (len(discountApprovers) > 0)
+		{
+			discountApprovers = discountApprovers +","+ quoteManagerName +" " + "(Quote Manager)" ;   // E0422424:- Added for notification
+           
+		}
+		else
+		{
+		discountApprovers = quoteManagerName +" " + "(Quote Manager)" ;   // E0422424:- Added for notification messages.	
+		}
+	}
+	///// End Quote Manager Notification
+
+	///// Start Pricing Manager Notification
+	if (pricingManagerApprovalRequired)
+	{
+		discountApprovers = discountApprovers + " , " + " (Pricing Manager Group)";   // E0422424:- Added for notification messages.	
+	}
+	///// End Pricing Manager Notification
+
+	/**** END Conditions  for notifications ****************************************************************/
+
+	/**************************** START CODE FOR PLM *******************************************************/
+	print ph3Array;
+	pLMRecordSet = BMQL("SELECT DISTINCT PH3,PLM_E_Num, PLM_Name FROM BLine_Approver_Table WHERE PH3 IN $ph3Array");
+	pH3PLMApprover= dict("string");
+	for pLMRecord in pLMRecordSet
+	{
+		jsonarrayappend(pLMApproverArray,get(pLMRecord,"PLM_E_Num"));		
+		plmname = get(pLMRecord,"PLM_Name");		
+        PH3=get(pLMRecord,"PH3");
+
+        if(containsKey(pH3DocumentNumberMapping,PH3))
+		{
+			line_number=get(pH3DocumentNumberMapping,PH3);
+			linenumber=split(line_number,"#@#");
+			strArr1 = jsonkeys(lineData); 
+
+			for line in linenumber
+			{
+				//ALM :2147 Added by Sharath. 
+				//To set the Discount Approver for required Line item 	  
+				if(findinarray(discountApprovalLineNum,line) <> -1)
+				{
+					result = result + line + "~approverName_l~" + plmname + "|";
+					append(approverNameLineNum,line);
+				}
+				//To Set the Blank for the Approvar Name which LIG don't require any Approval
+				if(findinarray(approverNameLineNum,line) == -1)
+				{
+					result = result + line + "~approverName_l~"+ "|";				  
+				}
+				//Smriti - ALM-1833 Modified the below logic to get the PLM value
+				if(findinarray(strArr1,line) > -1)
+				{
+					if(oldplmname <> plmname)
+					{
+						result = result + line + "~approver_l~" + plmname + "|";						
+						oldplmname = plmname;		
+					}
+				}
+			}
+		}
+		if(plmname <> "")
+		{
+			discountApprovers = discountApprovers +","+ plmname +" " + "(Product Manager)" ;   // E0422424:- Added for notification messages.
+		}
+	}
+	/***************************** END CODE FOR PLM *********************************************************/
+	
+	
+	//Sharath- ALM- 2003 Added the below condition to handle the notification error message in case of T&C scenario(Non-Standard)				
+	if(deliveryApproval == "CSM" OR paymentTermApprovalRequired == "CSM" OR qqTnC_t == "nonStandard") 
+	{ 
+		append(notificationsArray, "<b>" + WARNING_MESSAGE_NonStandardTnC + "</b> " + WARNING_MESSAGE_1 + " " + quoteManagerName); // E0422424:- Added for notification messages.	
+	}
+	//Sharath : ALM - 2026 Added the below condition to handle the Book Price Date notification error message. 				
+	if(termLevelApproval == "BPD")
+	{
+	    append(notificationsArray, "<b>" + WARNING_MESSAGE_BookPriceDate + "</b> " + WARNING_MESSAGE_1 + " " + quoteManagerName);
+	}
+			
+	if(territoryFlag)
+	{
+		append(notificationsArray, "<b>" + WARNING_MESSAGE_Territory + "</b> " + WARNING_MESSAGE_1 + " " + quoteRepName); // E0422424:- Added for notification messages.	
+	}	
+	if(len(discountApprovers) > 0)
+	{
+		append(notificationsArray, "<b>" + WARNING_MESSAGE_Discount + "</b> " + WARNING_MESSAGE_1 + " " + discountApprovers);
+	}
+	//2579
+	if(validityApproval)
+	{
+		append(notificationsArray,"<b>" + WARNING_MESSAGE_15 + "</b> " + WARNING_MESSAGE_1 + " " + quoteRepName);
+	}
+	// For approved and rejected status no need to show notification message.
+
+	if (sizeofarray(notificationsArray) > 0 AND status_t <> "approved" AND status_t <> "rejected")
+		 
+	{
+		notificationMessage = join(notificationsArray, "/n");
+	  
+	}
+	//Added by Shardul for Reporting changes
+	prodApprovers = jsonarraytostr(pLMApproverArray);
+	
+	if(productApprovers_t <> "[]" AND productApprovers_t <> "")
+	{
+		prodApprovers = productApprovers_t;	
+	}
+
+	// Set all values in commerce attributes.
+	result  = result  + "1~agreementWarningMessages_t~" + notificationMessage + "|"
+					  + "1~quoteRepThresholdApprovalRequired_t~" + string(quoteRepApprovalRequired) + "|"
+					  + "1~quoteManagerThresholdApprovalRequired_t~" + string(quoteManagerApprovalRequired) + "|"
+					  + "1~pricingManagerThresholdApprovalRequired_t~" + string(pricingManagerApprovalRequired) + "|"
+					  + "1~productApprovers_t~" + prodApprovers + "|"
+					  + "1~qqNewItemApprovalRequired_t~" + string(newItemApproval) + "|"
+					  + "1~feedbackApplied_t~" + string(feedbackflag) + "|"
+					  + "1~zeroListPriceApprovalRequired_t~" + string(zeroListPriceApproval) + "|"
+					  + "1~obsoleteMaterialMessage_t~" + message + "|"
+					  + "1~totalValueApprovalRequired_t~" + string(requireTotalValueApproval) + "|"
+					  + "1~overallTermsApprovalLevel_t~" + string(territoryFlag) + "|"
+					  + "1~emailSubjectStatus_t~" + emailSubjectStatus + "|"
+					  + "1~validityPeriodApprovalRequired_t~" + string(validityApproval) + "|"
+					  +"1~evaluateDiscountApproval_t~"+string(evaluateDiscountApproval_t)+"|";
+	return result;

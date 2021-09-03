@@ -1,0 +1,14 @@
+{
+  "name" : "Update Line attributes/",
+  "variableName" : "updateLineAttributes_POC",
+  "description" : "Update Line attributes - Chandan - Residential Configuration POC",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputString",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ "_document_number", "_parent_doc_number", "_line_item_comment", "lineItemStatus_l" ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

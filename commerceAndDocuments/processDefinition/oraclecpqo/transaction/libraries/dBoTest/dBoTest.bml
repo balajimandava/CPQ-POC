@@ -1,0 +1,13 @@
+siteID = "eatontest2";
+apiUserID= "";
+apiPassID= "";
+
+siteBMQL = bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+for eachSite in siteBMQL {
+    apiUserID = get(eachSite, "FieldName");
+    apiPassID = get(eachSite, "Value1");
+}
+
+print apiUserID + " / " + apiPassID;
+
+return "";

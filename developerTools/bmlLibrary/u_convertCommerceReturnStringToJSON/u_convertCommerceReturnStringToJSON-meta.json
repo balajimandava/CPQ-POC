@@ -1,0 +1,12 @@
+{
+  "name" : "Convert Commerce Return String to JSON",
+  "variableName" : "u_convertCommerceReturnStringToJSON",
+  "description" : "Convert the commerce return string to JSON format.  This function should be used to convert the result for existing function for compatibility with the JSON API.",
+  "libraryFunctions" : [ "util.u_getLineFromJson" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "returnString",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

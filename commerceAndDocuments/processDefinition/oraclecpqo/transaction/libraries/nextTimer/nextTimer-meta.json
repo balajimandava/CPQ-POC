@@ -1,0 +1,14 @@
+{
+  "name" : "Next Timer",
+  "variableName" : "nextTimer",
+  "description" : "Returns a String Dictionary containing the Next Timer and # of days to the timer",
+  "libraryFunctions" : [ "util.getEnvironmentVariable" ],
+  "returnType" : "Date",
+  "parameters" : [ {
+    "name" : "parmsDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "agreementValidFrom_t", "agreementValidTo_t", "extendCurrentListPrices_t", "priceListFrom_t", "priceListTo_t", "active_Timer_t" ],
+  "systemAttributes" : [ ]
+}

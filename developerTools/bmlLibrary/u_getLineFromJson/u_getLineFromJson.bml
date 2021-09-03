@@ -1,0 +1,49 @@
+/**
+@name Get Line From JSON
+@api u_getLineFromJson
+@summary Get an item from a quote json object.  The function will always return a valid line item 
+with _document_number populated.  The structure of the JSON is as follows.  It is the 
+same JSON from the CPQ REST API.
+
+    { 
+        "quoteNumber_t": 123,
+        "quoteLevelAttribute_t": "value",
+        ...
+     	"items": [
+             {
+                 "_document_number": 2,
+                 "aQuoteLineAttr_l": "value",
+                 ...
+             },
+             {
+                 "_document_number": 3,
+                 "aQuoteLineAttr_l": "value1",
+                 ...
+             }
+             ...
+        ]
+    }
+@param data Json the JSON object confirming to the structure above.
+@param docNum String the document number of the line to be retrieved.
+@return Json a JSON representation of the line object
+@package utils/Commerce
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-11|tleung               |Initial version
+*/
+// try getting the line from "data" using the json path
+linePath = "$.items[?(@._document_number=='" + docNum + "')]";
+theLine = jsonPathGetSingle(data, linePath, "json");
+
+// if we didn't get it, create the new line and add the _document_number attribute
+if (isNull(theLine)) {
+    items = jsonGet(data, "items", "JsonArray", jsonArray());
+    theLine = json();
+    jsonPut(theLine, "_document_number", docNum);
+    jsonArrayAppend(items, theLine);
+    jsonput(data, "items", items);
+}
+
+// return the line
+return theLine;

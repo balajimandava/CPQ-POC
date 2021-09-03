@@ -1,0 +1,14 @@
+{
+  "name" : "Update All Agreements",
+  "variableName" : "updateAllAgreements",
+  "description" : "Utility to update All Agreements CPQ data table.",
+  "libraryFunctions" : [ "util.getEnvironmentVariable" ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "headquartersNumber_t", "soldToNumber_t", "shipToNumber_t", "bs_id", "customerNumber_t", "status_t", "agreementValidFrom_t", "agreementValidTo_t", "customerRecordKey_t", "preparedBySalesOrg_t", "salesOrg_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

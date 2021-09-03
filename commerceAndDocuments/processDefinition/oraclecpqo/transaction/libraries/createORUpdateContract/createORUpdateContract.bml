@@ -1,0 +1,67 @@
+/**************************************************************************************************************
+@name Create OR Update Contract
+@api createORUpdateContract
+@param inputValues -- Json
+@Description: This is used to invoke the Create/Update Contract based on the qqSAPQuoteNumber_t 
+
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2021-01-20|Dhananjay		|initial version
+************************************************************************************************************/
+
+userDatePref = "yyyy/MM/dd HH:mm";
+
+userTimeZone = "Europe/Amsterdam";
+if (_system_user_time_zone <> "") {
+    userTimeZone = _system_user_time_zone;
+}
+
+dateTime = replace(datetostr(getdate(), userDatePref + " z", userTimeZone), "/", ".");
+result = json();
+headers = dict("string");
+siteID 	= "SOA";
+company = util.getSupplierCompanyName();
+siteID = company + siteID;
+envData = util.getSiteSpecificData(siteID);
+soaUserID = jsonget(envData, "FieldName","string","");
+soaPassID = jsonget(envData, "Value1","string","");
+endpointURL = util.getEnvironmentVariable("SOA_OAG_CREATE_CONTRACT_URL", "");
+
+//If qqSAPQuoteNumber_t  is not empty then invoke update contract 
+if(qqSAPQuoteNumber_t <> ""){
+	endpointURL = util.getEnvironmentVariable("SOA_OAG_UPDATE_CONTRACT_URL", "");
+}
+
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", "Basic " + encodebase64(soaUserID + ":" + soaPassID));
+inputValues = json();
+createContractPayload = commerce.generateCreateORUpdateContractPayload(inputValues);
+
+responseData = urldata(endpointURL , "POST", headers, jsontostr(createContractPayload));
+print responseData;
+
+statusCode = get(responseData, "Status-Code");
+messageBody= get(responseData, "Message-Body");
+errorMessage = get(responseData, "Error-Message");
+if (statusCode == "202") { //  Get the results of the call to refresh Net Prices
+	errorMessage = "";
+}else{ // Set all the values to a blank because the POST failed
+	throwerror("SOA_OAG_CREATE_CONTRACT_URL failed " + _system_supplier_company_name + " Status-Code: " + statusCode + " Error-Message" + errorMessage, false);
+}
+jsonput(result, "condaStatusCode_t", statusCode);
+jsonput(result, "condaLastSentDate_t", dateTime);
+jsonput(result, "condaMessageBody_t", messageBody);
+if (errorMessage <> "") {
+	jsonput(result, "agreementErrorMessages_t", errorMessage);
+}
+requestHeaderString = "";
+allHeaderKeys= keys(headers);
+for eachKey in allHeaderKeys {
+	requestHeaderString = requestHeaderString + eachKey + ": " + get(headers, eachKey) + "\n";
+}
+jsonput(result, "condaHeader_t", requestHeaderString);
+jsonput(result, "condaXML_t", createContractPayload);
+
+return result;

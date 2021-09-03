@@ -1,0 +1,156 @@
+attributeJson = json();
+
+if(findinarray(attributeName,"userDecimalSeparator_t") <> -1){
+	//print commerce.captureSearchAllValues();
+	jsonput(attributeJson,"userDecimalSeparator_t",replace(_system_user_number_format, "#", ""));
+}
+
+if(findinarray(attributeName,"searchAggreement_t") <> -1){
+	//print commerce.captureSearchAllValues();
+	jsonput(attributeJson,"searchAggreement_t",commerce.captureSearchAllValues());
+}
+
+if(findinarray(attributeName,"hideNetPriceColumnsOutputDoc_t") <> -1){
+	flag1 = false;
+	if(netPricingOutputTab_t == "subtotalOnly"){
+		flag1 = true;
+	}
+	jsonput(attributeJson,"hideNetPriceColumnsOutputDoc_t",flag1);
+}
+
+if(findinarray(attributeName,"materialGroupsInArrangementJson_t") <> -1){
+	inputParams = dict("string");
+	agreementLineDetails = commerce.determineSelectedMaterialGroupsAndItems(inputParams);
+	
+	// Format results and return
+	materialGroupsInTransaction = jsonget(agreementLineDetails, "materialGroups", "jsonarray");
+	jsonput(attributeJson,"materialGroupsInArrangementJson_t",jsonarraytostr(materialGroupsInTransaction));
+	
+}
+
+if(findinarray(attributeName,"materialItemsInArrangementJson_t") <> -1){
+	inputParams = dict("string");
+	agreementLineDetails = commerce.determineSelectedMaterialGroupsAndItems(inputParams);
+	
+	// Format results and return
+	materialItemsInTransaction = jsonget(agreementLineDetails, "materialItems", "jsonarray");
+	jsonput(attributeJson,"materialItemsInArrangementJson_t",jsonarraytostr(materialItemsInTransaction));
+	
+}
+
+if(findinarray(attributeName,"c360User_t") <> -1){
+	jsonput(attributeJson,"c360User_t",commerce.getC360User(""));
+
+}
+
+if(findinarray(attributeName,"hideSyncToC360Button_t") <> -1){
+	flag = false;
+	// only Drop Ship and Warehouse Quote can sync to 360
+	if (transactionType_t <> "DS" and transactionType_t <> "WQ") {
+		flag = true;
+	}
+	
+	// can't sync if no c360 user
+	if (c360User_t == "") {
+		flag = true;
+	}
+	
+	// can't sync if quote is not primary
+	if (opportunityNumber_t <> "" and qqKeepOpportunityInformation_t == true){ //Commented By Sharath on 01/15/2019 to fix ALM # 1822
+		flag = true;
+	}
+	
+	
+	// non-primary quotes are not sync
+	/*if (not qqIsPrimary_t) {
+		return true;
+	}*/
+	
+	// can't sync again if another sync is pending
+	if (c360SyncPending_t) {
+		flag = true;
+	}
+	
+	// otherwise, allow sync
+	jsonput(attributeJson,"hideSyncToC360Button_t",flag);
+
+}
+
+if(findinarray(attributeName,"hideListOutputDocBoolean_t") <> -1){
+	jsonput(attributeJson,"hideListOutputDocBoolean_t",commerce.hideOutputLineTableColumns("hideList"));
+
+}
+
+if(findinarray(attributeName,"hideDiscountOutputDocBoolean_t") <> -1){
+	jsonput(attributeJson,"hideDiscountOutputDocBoolean_t",commerce.hideOutputLineTableColumns("hideDiscount"));
+
+}
+
+if(findinarray(attributeName,"hideUnitOutputDocBoolean_t") <> -1){
+	jsonput(attributeJson,"hideUnitOutputDocBoolean_t",commerce.hideOutputLineTableColumns("hideUnit"));
+
+}
+
+if(findinarray(attributeName,"hidePricePerOutputDocBoolean_t") <> -1){
+	jsonput(attributeJson,"hidePricePerOutputDocBoolean_t",commerce.hideOutputLineTableColumns("hidePricePer"));
+
+}
+
+if(findinarray(attributeName,"hideTotalLineItemOutputDocBoolean_t") <> -1){
+	jsonput(attributeJson,"hideTotalLineItemOutputDocBoolean_t",commerce.hideOutputLineTableColumns("hideTotalLineItem"));
+
+}
+
+if(findinarray(attributeName,"hideSrchrgLItemOutputDocBool_t") <> -1){
+	jsonput(attributeJson,"hideSrchrgLItemOutputDocBool_t",commerce.hideOutputLineTableColumns("hideSurchgeLnItm"));
+
+}
+
+if(findinarray(attributeName,"hideFrghtLItenOutputDocBool_t") <> -1){
+	jsonput(attributeJson,"hideFrghtLItenOutputDocBool_t",commerce.hideOutputLineTableColumns("hideFrghtLnItm"));
+
+}
+
+if(findinarray(attributeName,"hideTotalsSectionOutputDocBool_t") <> -1){
+	jsonput(attributeJson,"hideTotalsSectionOutputDocBool_t",commerce.hideOutputLineTableColumns("hideEntireTotals"));
+
+}
+
+if(findinarray(attributeName,"hideFrghtTotlsSecOutputDocBool_t") <> -1){
+	jsonput(attributeJson,"hideFrghtTotlsSecOutputDocBool_t",commerce.hideOutputLineTableColumns("hideFrghtTotals"));
+
+}
+
+if(findinarray(attributeName,"hideMetalSrchrgTotlsSecOutputDocBool_t") <> -1){
+	jsonput(attributeJson,"hideMetalSrchrgTotlsSecOutputDocBool_t",commerce.hideOutputLineTableColumns("hideMetlSrchrgTotals"));
+
+}
+
+if(findinarray(attributeName,"hideTotlsSecExcptTotalOutputDocBool_t") <> -1){
+	jsonput(attributeJson,"hideTotlsSecExcptTotalOutputDocBool_t",commerce.hideOutputLineTableColumns("TotlsExcpEntireTotal"));
+
+}
+
+surcharge = 0.0;
+price = 0.0;
+if(jsonget(forLoopRequired,"lineLoopRequired") == "true"){
+	for line in transactionLine{
+		if(findinarray(attributeName,"sumofMetalSurchargesOutputDoc_t") <> -1){
+			surcharge = surcharge + line.coperSurcharge_l + line.aluminumSurcharge_l + line.silverSurcharge_l;
+			jsonput(attributeJson,"sumofMetalSurchargesOutputDoc_t",surcharge);
+	
+		}
+		if(findinarray(attributeName,"subTotalPriceOutputDoc_t") <> -1){
+			if(headerDiscountOrPercentOff_t == "amt"){
+				jsonput(attributeJson,"subTotalPriceOutputDoc_t",totalPriceOutputDoc_t);
+		
+			}
+			else {
+				price = price + line.currentNetPrice_l;	
+				jsonput(attributeJson,"subTotalPriceOutputDoc_t",price);
+			}
+		}
+	}
+}
+
+return attributeJson;

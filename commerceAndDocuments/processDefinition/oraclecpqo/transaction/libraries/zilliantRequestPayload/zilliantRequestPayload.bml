@@ -1,0 +1,217 @@
+/**
+@name 		Zilliant Request Payload
+@api 		zilliantRequestPayload
+@summary 	Prepares Zilliant Request Payload
+@param  	action
+@return 	String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+25/01/2021|Vijetha              |49501 - Commerce function to return request payload.
+01/02/2021|Pooja		 49501 - Updated payload
+2021-06-16|Gautam               |Cpq - 5545 Pricing group types (all countries)
+*/
+selectedCustArrJson = json();
+//Commented this code as it is fialing in copy scenario. Changed the attribute mapping in below code
+sold_To_Country = customerCountry_t;
+primary_Customer_No = customerNumber_t;
+primary_Customer_Type = "";
+associated_Customer_No="";
+associated_Customer_Type="";
+if(NOT(ISNULL(selectedCustomerArraySet2_t))){
+jsonput(selectedCustArrJson,"selectedCustArr",selectedCustomerArraySet2_t);//print selectedCustArrJson;
+sold_To_Country = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust2_t==true)].country_selctdCust2_t");
+primary_Customer_No = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust2_t==true)].customer_selctdCust2_t");
+primary_Customer_Type = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust2_t==true)].type_selctdCust2_t");
+associated_Customer_No = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust2_t==true)].shipToCustomer_selctdCust2_t");
+associated_Customer_Type = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust2_t==true)].associated_selctdCust2_t");
+}
+elif(NOT(ISNULL(selectedCustomerArraySet_t))){
+jsonput(selectedCustArrJson,"selectedCustArr",selectedCustomerArraySet_t);//print selectedCustArrJson;
+sold_To_Country = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust_t==true)].country_selctdCust_t");
+primary_Customer_No = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust_t==true)].customer_selctdCust_t");
+primary_Customer_Type = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust_t==true)].type_selctdCust_t");
+associated_Customer_No = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust_t==true)].shipToCustomer_selctdCust_t");
+associated_Customer_Type = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust_t==true)].associated_selctdCust_t");
+}
+else{
+	sold_To_Country = customerCountry_t;
+	primary_Customer_No = customerNumber_t;
+}
+
+//added by gautam on 20-07-2021
+
+if(primary_Customer_Type == "SoldTo")
+{
+
+   primary_Customer_Type  = "Sold to";
+
+}
+
+//added by gautam on 20-07-2021
+If(accountTypeKTOKD_t == "Z002" AND primary_Customer_Type == "Sold to")
+{
+
+	primary_Customer_No = ShipToNumber_t;
+	primary_Customer_Type = "Ship to";
+	associated_Customer_No = SoldToNumber_t;
+	associated_Customer_Type = "Sold to";
+
+}
+primary_End_Customer = endCustomerNo_t;
+account_Type = qqAccountType_t;
+sub_Account_Type = qqSubAccountType_t;
+transaction_Type = transactionType_t;
+currency = currency_t;
+customerGroup = qqCustomerGroup_t;
+requestJson = json();
+quoteLineDetailsJsonArr = jsonarray();
+formulasJsonArr = jsonarray();
+responseDetailsArr = jsonarray();
+jsonarrayappend(responseDetailsArr,"none");
+linesArr = jsonarray();
+zilliantGuidanceEnable = "No";
+payloadJson=json();
+docNumberJson=json();
+costSourceJson = json();
+materialPricingGroupJson = json();
+productTypeJson = json();
+costJson = json();
+editType = "New";
+//thresholdData = util.getApprovalThresholds(json("{\"salesOrg\": \"" + salesOrg_t + "\", \"customerGroup\": \"" + customerGroup + "\"}"));
+//mpgsInThresholdsJSON = jsonkeys(thresholdData);
+
+//check transaction type
+isRevise = false;
+if(revisionNumber_t>1 AND approvalDate_t <> "")
+{
+	editType = "Revise";
+	isRevise = true;
+}
+if(parent_transaction_id_createRenewal<>""AND expireandrenew_t=="true" AND NOT(isRevise))
+{
+	editType = "Renewal";
+}
+if(parent_transaction_id_createRenewal<>""AND expireandrenew_t<>"true" AND NOT(isRevise))
+{
+	editType = "ExpireAndRenewal";
+}
+if(parent_transaction_id_qqCreateNewVersion_t <> "" AND NOT(isRevise))
+{
+	editType = "Version";
+}
+
+/*approvalTriggers = bmql("select key, value from ApprovalTriggers where salesOrg=$salesOrg_t");
+for row in approvalTriggers{
+	key = get(row, "key");
+	if(key == "ZilliantGuidanceEnable"){
+		zilliantGuidanceEnable = get(row, "value");//"Yes"
+	}
+}*/
+
+//if(zilliantGuidanceEnable == "Yes"){
+		count=0;
+		for line in transactionLine{
+		docNum = line._document_number;
+		materialNum = line.materialLineItem_l;
+		listPrice = line.oldListPrice_l;
+		netPrice = line.currentNetPricePerUOM_l;
+		mpg = line.materialPricingGroup_l;
+		//print mpgsInThresholdsJSON;
+		//print mpg;
+			productType = line.qqProductType_l;
+			jsonput(docNumberJson,docNum,docNum);
+			jsonput(costSourceJson,docNum,line.costSource_l);
+			jsonput(materialPricingGroupJson,docNum,line.materialPricingGroup_l);
+			jsonput(productTypeJson,docNum,productType);
+			jsonput(costJson,docNum,line.cost_l);
+
+		/*if(findinarray(mpgsInThresholdsJSON, mpg) <> -1){
+			mpgData = jsonget(thresholdData, mpg);
+			mpgAPIEnable = jsonget(json(mpgData), "PriceScopeAPI","string","Y"); 
+			print "mpg";
+			print mpgAPIEnable ;*/
+			//if(mpgAPIEnable=="Y"){
+				lineJson = json();
+				jsonput(lineJson, "Doc_No", docNum);
+				//old code
+				//jsonput(lineJson, "Product_Group", salesOrgMPGPrefix_t+line.materialPricingGroup_l);
+				//new code
+				//Cpq 5545 remove Prefix
+				jsonput(lineJson, "Product_Group",line.materialPricingGroup_l);
+				jsonput(lineJson, "Master_Product_Number", materialNum);
+				jsonput(lineJson,"old_net_pct",line.oldDiscountString_l);
+				jsonput(lineJson, "List_Price", listPrice);
+				jsonput(lineJson, "Net_Price", netPrice);
+				jsonput(lineJson, "Product_Group_Type", productType);
+				jsonput(lineJson, "Scale_From", line.scaleFrom_l);
+				jsonput(lineJson, "Scale_To", line.scaleTo_l);
+				jsonarrayappend(quoteLineDetailsJsonArr, lineJson);
+				count= count+1;
+			//}
+		//}
+	}
+	formulasRS = bmql("SELECT Formulas FROM Zilliant_Formulas");
+	for eachRec in formulasRS{
+		formula = get(eachRec, "Formulas");
+		jsonarrayappend(formulasJsonArr,formula);
+	}
+	linesJson = json();
+	quoteHeaderJson = json();
+	//jsonput(quoteHeaderJson, "Transaction #",transactionNumber_t);
+	jsonput(quoteHeaderJson, "Transaction_No",transactionNumber_t);
+	
+	jsonput(quoteHeaderJson, "Created_By_ID",eRecordID_t);
+	jsonput(quoteHeaderJson, "Sales_Org", salesOrg_t);
+	jsonput(quoteHeaderJson, "Channel", distributionChannel_t);
+	jsonput(quoteHeaderJson, "Division", division_t);
+	jsonput(quoteHeaderJson, "Sold_To_Country", sold_To_Country);
+	jsonput(quoteHeaderJson, "Primary_Customer_No", primary_Customer_No);
+	jsonput(quoteHeaderJson, "Primary_Customer_Type", primary_Customer_Type);
+	jsonput(quoteHeaderJson, "Associated_Customer_No", associated_Customer_No);
+	jsonput(quoteHeaderJson, "Associated_Customer_Type", associated_Customer_Type);
+	jsonput(quoteHeaderJson, "Primary_End_Customer", primary_End_Customer);
+	jsonput(quoteHeaderJson, "Account_Type", account_Type);
+	jsonput(quoteHeaderJson, "Sub_Account_Type", sub_Account_Type);
+	if(transactionType_t == "CSP")
+	{
+		jsonput(quoteHeaderJson, "Transaction_Type", "CSP Rebate");
+	}
+	if(transactionType_t == "DSP")
+	{
+		jsonput(quoteHeaderJson, "Transaction_Type", "DSP");
+	}
+	if(transactionType_t == "RQ")
+	{
+		jsonput(quoteHeaderJson, "Transaction_Type", "TSP Rebate");
+	}
+	if(transactionType_t == "BA")
+	{
+		jsonput(quoteHeaderJson, "Transaction_Type", "Blanket");
+	}
+	jsonput(quoteHeaderJson, "Currency", currency);
+	if(transactionType_t == "WQ" OR transactionType_t == "DS")
+	{
+		jsonput(quoteHeaderJson, "OrderValueCommitment", qqTotalValue_t);
+		jsonput(quoteHeaderJson, "Transaction_Type", "TSP Invoice");
+	}
+	else
+	{
+		jsonput(quoteHeaderJson, "OrderValueCommitment", expectedVolume_t);
+	}
+	jsonput(quoteHeaderJson,"Edit_type",editType);
+	jsonput(quoteHeaderJson, "quoteLineDetails", quoteLineDetailsJsonArr);
+	jsonput(linesJson, "quoteHeaderDetails", quoteHeaderJson);
+	jsonarrayappend(linesArr, linesJson);
+	jsonput(requestJson, "formulas", formulasJsonArr);
+	jsonput(requestJson, "responseDetails", responseDetailsArr);
+	jsonput(requestJson, "lines", linesArr);
+//}
+jsonput(payloadJson,"Payload",requestJson);
+jsonput(payloadJson,"lineItemCount",count);
+jsonput(payloadJson,"docNumberJson",docNumberJson);
+jsonput(payloadJson,"costSourceJson",costSourceJson);
+jsonput(payloadJson,"materialPricingGroupJson",materialPricingGroupJson);
+jsonput(payloadJson,"productTypeJson",productTypeJson);
+jsonput(payloadJson,"costJson",costJson);
+return payloadJson;

@@ -1,0 +1,11 @@
+{
+  "name" : "Create Bussmann Agreement",
+  "variableName" : "createBussmannAgreement",
+  "description" : "",
+  "libraryFunctions" : [ "util.customerHierarchyLookup", "util.getCUSMASDetails", "util.getDummyCustomer" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "tableName_t", "transactionName_t" ],
+  "systemAttributes" : [ "_system_company_name" ]
+}

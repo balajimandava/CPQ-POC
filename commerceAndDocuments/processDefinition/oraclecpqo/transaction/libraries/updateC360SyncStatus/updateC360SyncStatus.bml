@@ -1,0 +1,40 @@
+/**
+@name Update C360 Sync Status
+@api updateC360SyncStatus
+@attribute bs_id
+@attribute c360LatestSyncStatus_t
+@attribute opportunityNumber_t
+@attribute qqRootTransactionNumber_t
+@function JsonArray getListOfTransactionsForQuery(Json params)
+@function String updateTransactionSOAP(String template, String Dictionary payload)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-31|Tat.Leung            |
+2018-02-01|Tat.Leung            |
+*/
+status = json();
+
+// [EAISyncDate]#@#[EAISyncErrorText]#@#[EAISyncStatusCode]
+
+result = split(c360LatestSyncStatus_t, "#@#" );
+
+if( sizeofarray(result) >= 3) {
+	if( result[0] == "" ) {
+		jsonput(status, "timestamp", getstrdate());
+	} else {
+		jsonput(status, "timestamp", result[0]);
+	}
+	jsonput(status, "timestamp", getstrdate());
+	jsonput(status, "action", "C360 Response");
+	jsonput(status, "message", result[1]);
+	jsonput(status, "status", result[2]);
+} else {
+	jsonput(status, "timestamp", getstrdate());
+	jsonput(status, "action", "C360 Response");
+	jsonput(status, "message", "No Message");
+	jsonput(status, "status", "Success");
+}
+
+return status;

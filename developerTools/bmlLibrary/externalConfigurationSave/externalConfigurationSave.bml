@@ -1,0 +1,56 @@
+/**
+@name External Configuration Save
+@api externalConfigurationSave
+@summary invokes _externalConfigurationSave API call  and returns the status.
+@attribute 
+		requestBodyPayload
+		endpointParameter 
+			-- this is any type of dict to holds the end point url params, like ProductFamily,ProductLine and Model
+			
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+29-04-2020|Dhananjay            |Initial version
+*/
+
+company = util.getSupplierCompanyName();
+
+productFamily = "bidManager";
+productLine= "bidManager";
+model= "takeOff";
+status = "";
+
+if(containskey(endpointParameter,"ProductFamily")){
+	productFamily = get(endpointParameter,"ProductFamily","string");
+}
+if(containskey(endpointParameter,"ProductLine")){
+	productLine = get(endpointParameter,"ProductLine","string");
+}
+
+if(containskey(endpointParameter,"Model")){
+	model = get(endpointParameter,"Model","string");
+}
+
+url = "https://"+company+".bigmachines.com/rest/v3/productFamilies/"+productFamily+"/productLines/"+productLine+"/models/"+model+"/actions/_externalConfigurationSave";
+
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+if (isnull(login) or isnull(password) or login == "" or password == "") {
+    throwerror("No API User is configured for this environment, please check data in Site_Specific data table", false);
+}
+
+headers = dict("string");
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+response = urldata(url, "POST", headers, jsontostr(requestBodyPayload));
+statusCode = get(response, "Status-Code");
+if(statusCode == "200") {
+	resBody = json(get(response, "Message-Body"));
+	status = jsonget(resBody,"status","string","");
+}else{
+	throwerror("_externalConfigurationSave has failed..");
+}
+
+return status;

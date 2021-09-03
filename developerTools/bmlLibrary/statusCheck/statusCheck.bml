@@ -1,0 +1,71 @@
+/*************************************************
+@Revision
+
+Date(YYYY/MM/DD)		Name			Comments
+2018/07/18			Harshit Mehta		Adding authorization headers.
+2020/03/18			Atul Jain			Added debug mode to print statements
+
+*************************************************/
+
+retString= "";
+debugMode = false;
+  allAgreementsStatus= dict("string");
+  tranIDSPacked= "51339747:-:51619973:-:51633387:-:51671100:-:51744258:-:52071683:-:52868395:-:54241145:-:55783662:-:55799561:-:55952362:-:56384978:-:56420102:-:56516957:-:56596429:-:57047955:-:57140212:-:57217423:-:57384708:-:57501868:-:60142364:-:60152749:-:60187549:-:60209605:-:60236067:-:60243459:-:60298885:-:60331706:-:60336621:-:60341824:-:60346726:-:60348980:-:60361884:-:60383404:-:60385658:-:60386492:-:60393176:-:60402465:-:60407956:-:60426952:-:60436611:-:60456651:-:67675097:-:69720293:-:69736322:-:70087627:-:70248594:-:70249507:-:70251744:-:70454625:-:70466398:-:70499883:-:70544021:-:70544815:-:70566657:-:70594412:-:71199581:-:71205446:-:71235040:-:71244401:-:71246014:-:71246888:-:71277626:-:71438131:-:71441250:-:71453104:-:71474036:-:71509619:-:71518441";
+
+  siteID= "eaton";
+  triggerList= split(tranIDSPacked,":-:");
+  
+  //Get API Username and Password.
+	user = util.getSiteSpecificData(siteID);
+	login = jsonget(user, "FieldName", "string", "");
+	password = jsonget(user, "Value1", "string", "");
+	
+  allAgreementsBMQL= bmql("SELECT AgreementNumber,Status FROM AllAgreements WHERE AgreementNumber IN $triggerList");
+  for eachAgreement in allAgreementsBMQL {
+    agreementNumber= get(eachAgreement,"AgreementNumber");
+    agreementStatus= get(eachAgreement,"Status");
+    put(allAgreementsStatus,agreementNumber,agreementStatus);
+  }
+  
+  for eachTranID in triggerList {
+
+	getURL= "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+eachTranID;
+	if (debugMode) {
+		print getUrl;
+	}
+	// Rest parameters
+	jsonParams = json();
+	params = jsontostr(jsonParams);
+
+	// Rest Header  
+	headers = dict("string");
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+	
+	results = urldata(getUrl,"GET",headers,params);
+	resultJson = get(results,"Message-Body");
+	statusCode = get(results,"Status-Code");
+	
+	if(statusCode<>"200"){
+		if (debugMode) {
+			print "\tStatus Code: " + statusCode;
+		}
+		continue;	
+	}
+	
+	transactionStatus=  jsonget(json(resultJson),"status_t");
+	transactionStep= jsonget(json(resultJson),"cPQStep_t");
+	logStatus= get(allAgreementsStatus,eachTranID);
+	
+	if (logStatus <> transactionStep) {
+		if (debugMode) {
+		  print eachTranID;
+		  print "\tStatus_t: " + transactionStatus;
+		  print "\tCPQStep_t: " + transactionStep;
+		  print "\tAgreement Status: " + logStatus;
+		}
+	}
+	
+  }
+
+return retString;

@@ -1,0 +1,59 @@
+/**
+@name Build VC Data Items XML
+@api buildVCDataItemsXML
+@param quoteLine Json
+@attribute externalConfigVCData_l
+@attribute lineNumber_l
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-26|Tat.Leung            |Initial Version
+2018-04-23|Dave.Haizlip		|Added code to look for <POSTEX/> and changed to SAPLineNumber_l
+2018-06-15|dBo Haizlip		|Update POSEX, CONFIG_ID, and other quote, quote line specific fields
+2018-06-27|dBo Haizlip		|Added checks for a space before />
+2020-03-20|Nithin           | Project#49074 - CPQ53 It has been agreed to remove SAP Line # from CPQ and its integrations 
+*/
+// get current line data
+vcDataXml = jsonget(quoteLine, "externalConfigVCData_l", "string", "");
+vcDataXml = replace(vcDataXml, "&lt;", "<");
+vcDataXml = replace(vcDataXml, "&gt;", ">");
+// return empty string if there is no VC Data
+if (trim(vcDataXml) == "") {
+    return "";
+}
+
+vcDataXmlUpdates= json();
+//  These tags need to be removed
+jsonput(vcDataXmlUpdates,"<VCData_Type>","<VCData>");
+jsonput(vcDataXmlUpdates,"</VCData_Type>","</VCData>");
+
+//  Get both potential formats
+
+jsonput(vcDataXmlUpdates,"<POSEX/>","<POSEX>" + jsonget(quoteLine, "SAPLineNumber_l", "string", "") + "</POSEX>");
+jsonput(vcDataXmlUpdates,"<POSEX />","<POSEX>" + jsonget(quoteLine, "SAPLineNumber_l", "string", "") + "</POSEX>");
+jsonput(vcDataXmlUpdates,"<POSEX></POSEX>","<POSEX>" + jsonget(quoteLine, "SAPLineNumber_l", "string", "") + "</POSEX>");
+
+jsonput(vcDataXmlUpdates,"<PO_ITM/>","<PO_ITM>" + jsonget(quoteLine, "SAPLineNumber_l", "string", "") + "</PO_ITM>");
+jsonput(vcDataXmlUpdates,"<PO_ITM />","<PO_ITM>" + jsonget(quoteLine, "SAPLineNumber_l", "string", "") + "</PO_ITM>");
+jsonput(vcDataXmlUpdates,"<PO_ITM></PO_ITM>","<PO_ITM>" + jsonget(quoteLine, "SAPLineNumber_l", "string", "") + "</PO_ITM>");
+
+
+jsonput(vcDataXmlUpdates,"<ITM_QTY/>","<ITM_QTY>" + jsonget(quoteLine, "quantity_l", "string", "1") + "</ITM_QTY>");
+jsonput(vcDataXmlUpdates,"<ITM_QTY />","<ITM_QTY>" + jsonget(quoteLine, "quantity_l", "string", "1") + "</ITM_QTY>");
+jsonput(vcDataXmlUpdates,"<ITM_QTY></ITM_QTY>","<ITM_QTY>" + jsonget(quoteLine, "quantity_l", "string", "1") + "</ITM_QTY>");
+jsonput(vcDataXmlUpdates,"<CONFIG_ID/>","<CONFIG_ID>" + jsonget(quoteLine, "_sequence_number", "string", "") + "</CONFIG_ID>");
+jsonput(vcDataXmlUpdates,"<CONFIG_ID />","<CONFIG_ID>" + jsonget(quoteLine, "_sequence_number", "string", "") + "</CONFIG_ID>");
+jsonput(vcDataXmlUpdates,"<CONFIG_ID></CONFIG_ID>","<CONFIG_ID>" + jsonget(quoteLine, "_sequence_number", "string", "") + "</CONFIG_ID>");
+jsonput(vcDataXmlUpdates,"<item>","<item><CONFIG_ID>" + jsonget(quoteLine, "_sequence_number", "string", "") + "</CONFIG_ID>");
+jsonput(vcDataXmlUpdates,"<MATERIAL/>","<MATERIAL>" + jsonget(quoteLine, "materialLineItem_l", "string", "") + "</MATERIAL>");
+jsonput(vcDataXmlUpdates,"<MATERIAL />","<MATERIAL>" + jsonget(quoteLine, "materialLineItem_l", "string", "") + "</MATERIAL>");
+jsonput(vcDataXmlUpdates,"<MATERIAL></MATERIAL>","<MATERIAL>" + jsonget(quoteLine, "materialLineItem_l", "string", "") + "</MATERIAL>");
+
+newVcDataXml= vcDataXml;
+allKeys= jsonkeys(vcDataXmlUpdates);
+for eachKey in allKeys {
+  eachValue= jsonget(vcDataXmlUpdates,eachKey);
+  newVcDataXml= replace(newVcDataXml,eachKey,eachValue);
+}
+return newVcDataXml;

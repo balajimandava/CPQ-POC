@@ -1,0 +1,2 @@
+isVendor = startswith(upper(_system_company_name), "V");
+return isVendor;

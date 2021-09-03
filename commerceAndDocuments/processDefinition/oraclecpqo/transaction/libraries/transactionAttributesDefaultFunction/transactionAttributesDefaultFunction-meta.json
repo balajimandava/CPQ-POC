@@ -1,0 +1,17 @@
+{
+  "name" : "Transaction level Attributes Default Function",
+  "variableName" : "transactionAttributesDefaultFunction",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.captureSearchAllValues", "commerce.determineSelectedMaterialGroupsAndItems", "commerce.getC360User", "commerce.hideOutputLineTableColumns" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "attributeName",
+    "type" : "String[]"
+  }, {
+    "name" : "forLoopRequired",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "coperSurcharge_l", "aluminumSurcharge_l", "silverSurcharge_l", "currentNetPrice_l" ],
+  "mainDocAttributes" : [ "transactionType_t", "c360User_t", "opportunityNumber_t", "qqKeepOpportunityInformation_t", "c360SyncPending_t", "totalPriceOutputDoc_t", "headerDiscountOrPercentOff_t", "netPricingOutputTab_t" ],
+  "systemAttributes" : [ "_system_user_number_format" ]
+}

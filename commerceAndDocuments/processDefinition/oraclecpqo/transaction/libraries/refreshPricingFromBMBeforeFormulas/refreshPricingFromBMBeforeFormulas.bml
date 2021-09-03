@@ -1,0 +1,101 @@
+ret = "";
+messageStr = "";
+rowSep = "#@#";
+colSep = "$,$";
+inParams = dict("string");
+put(inParams ,"selectedDocNumber", "0");
+put(inParams ,"configExtraInfo", "");
+put(inParams ,"modelPath", "");
+put(inParams ,"bsId", bs_id);
+put(inParams ,"searchResult", "");
+put(inParams ,"bmProcess", "CPQ.PSD.LPMGet");
+print "-------------------+++++++++++++++----------------";
+print inParams;
+LPMIntData = json(util.commonCallToBM(inParams));
+print LPMIntData;
+print "-------------------+++++++++++++++----------------";
+
+//So we will have only one line items loop and we can combine the below logic too..
+externalConfigBOMDict = dict("anytype");
+brands_array = string[];
+productHierarchy_array = string[];
+leadTimeIndicators_array = string[];
+materialNumbers_array = string[];
+keysToSetValues= dict("string");
+language = salesRepLanguage_t;
+salesOrg = salesOrg_t;
+distributionChannel = distributionChannel_t;
+for line in transactionLine{
+	doc_number = line._document_number;
+	parent_doc_number= line._parent_doc_number;
+	
+	//nithin : Project#49074 - lineItemGrid changes - LPM Response Start
+	LPMIntRec = jsonpathgetsingle(LPMIntData , "$..items[?(@.item_id =='"+ doc_number + "')]","json",json());
+	multiplier = jsonget(LPMIntRec, "multiplier","string","0.0");
+	MinPer = jsonget(LPMIntRec, "min_pc","string","0.0");
+	SalesFloor = jsonget(LPMIntRec, "sales_floor","string","0.0");
+	/*ret = ret + line._document_number + "~multiplier_l~" + string(multiplier)  + "|";
+	ret = ret + line._document_number + "~disctrictMinimumMultiplier_l~" + string(MinPer)  + "|";
+	ret = ret + line._document_number + "~salesFloorMultiplier_l~" + string(SalesFloor)  + "|";
+	ret = ret + line._document_number + "~pricingDate_l~" + _system_date  + "|";*/
+	ret = ret + line._document_number + "~multiplier_l~" + multiplier  + "|";
+	ret = ret + line._document_number + "~disctrictMinimumMultiplier_l~" + MinPer  + "|";
+	ret = ret + line._document_number + "~salesFloorMultiplier_l~" + SalesFloor  + "|";
+	ret = ret + line._document_number + "~pricingDate_l~" + _system_date  + "|";
+	
+	//nithin : Project#49074 - lineItemGrid changes - LPM Response End
+	
+	qqProductType = line.qqProductType_l;
+	line_bom_id = line._line_bom_id;
+	item = line.materialLineItem_l;
+	brand = line.brand_l;
+	leadTimeIndicator = line.leadTimeIndicator_l;
+	productHierarchy = line.productHierarchy_l;
+	//higherProductLine = "Transformers";
+
+	append(brands_array,brand);
+	append(materialNumbers_array,item);
+	
+	if(qqProductType == "configuration"){
+		//put(keysToSetValues,doc_number,higherProductLine+brand+leadTimeIndicator);
+		put(keysToSetValues,doc_number,brand+leadTimeIndicator);
+		//append(higherLevelProducts_array,higherProductLine);
+		append(leadTimeIndicators_array,leadTimeIndicator);
+	}else{
+		put(keysToSetValues,doc_number,productHierarchy+brand);
+		append(productHierarchy_array,productHierarchy);
+	}
+}
+
+inputData = dict("anytype");
+put(inputData ,"brands",brands_array);
+put(inputData ,"productHierarchy",productHierarchy_array);
+put(inputData ,"leadTimeIndicators",leadTimeIndicators_array);
+put(inputData ,"materialNumbers",materialNumbers_array);
+put(inputData ,"keysToSetValues",keysToSetValues);
+//put(inputData ,"standardItems",false);
+leadTimeData = util.getLeadTime(inputData);
+
+document_numbers = keys(keysToSetValues);
+restStrBuilder = stringbuilder();
+for eachDocNum in document_numbers{
+	if(containskey(leadTimeData,eachDocNum)){
+		leadTime = get(leadTimeData,eachDocNum);
+		sbappend(restStrBuilder,eachDocNum,"~qqLeadTime_l~",leadTime,"|");
+	}
+}
+
+
+inputData = dict("anytype");
+put(inputData, "baseCurrency","USD");
+put(inputData, "targetCurrency",currency_t);
+newExchangeVal = util.getExchangeRate(inputData);
+oldExchangeVal = oldExchangeRate_t;
+if(newExchangeRate_t <> newExchangeVal){
+	oldExchangeVal = newExchangeRate_t;
+}
+sbappend(restStrBuilder,"1~newExchangeRate_t~",string(newExchangeVal),"|");
+sbappend(restStrBuilder,"1~oldExchangeRate_t~",string(oldExchangeVal),"|");
+ret = ret + sbtostring(restStrBuilder);
+
+return ret ;

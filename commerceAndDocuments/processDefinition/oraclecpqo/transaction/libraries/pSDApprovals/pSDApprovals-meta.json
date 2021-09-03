@@ -1,0 +1,11 @@
+{
+  "name" : "PSD Approvals",
+  "variableName" : "pSDApprovals",
+  "description" : "Project#49704|E9913664|22ndJuly2020|Function for approval process of PSD.",
+  "libraryFunctions" : [ "commerce.pSDBrandTotalApprovals", "commerce.pSDGetApproverDetails", "commerce.pSDGetBannerTextAndCurrentApprovalLevel", "util.formatNumber", "util.getMAT01MultipleDetails" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "productLineName_l", "brand_l", "_document_number", "qqMarginString", "quantity_l", "oldListPrice_l", "brandTotal_l", "pSDOldRequestedMargin_l", "qqProductType_l", "materialLineItem_l", "_sequence_number", "salesFloor_l", "newNetPrice_l", "lineItemStatus_l", "priceIncluded_l", "oldDiscountString_l", "discountPercentNetApprovedString_l", "customDiscountType_l", "pSDOldBrandTotal_l" ],
+  "mainDocAttributes" : [ "psd_liquidatedDamages_t", "salesOffice_t", "psd_warranty_t", "agreementDeliveryTerms_t", "customerDefaultPaymentTerms_t", "qqTnC_t", "transactionType_t", "qqTotalValue_t", "salesOrg_t", "salesDistrict_t", "agreementValidFrom_t", "agreementValidTo_t", "bidDate_t", "bidExpirationDate_t", "agreementPaymentTerms_t", "pSDTransactionApprovalHistoryInfo_t", "qqBusinessLineForSalesOrg_t", "_transaction_document_number", "distributionChannel_t", "isCopyOrVersion_t", "currency_t" ],
+  "systemAttributes" : [ "_system_current_user_language", "_system_user_groups" ]
+}

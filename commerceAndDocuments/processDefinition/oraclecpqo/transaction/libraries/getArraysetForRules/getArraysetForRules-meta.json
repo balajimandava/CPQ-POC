@@ -1,0 +1,14 @@
+{
+  "name" : "Get Arrayset for Rules",
+  "variableName" : "getArraysetForRules",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "ArraySet",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "endCustomerArraySet2_t", "nt_selectedEndCustomerArrayset_t" ],
+  "systemAttributes" : [ ]
+}

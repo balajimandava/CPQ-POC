@@ -1,0 +1,11 @@
+{
+  "name" : "Check for DSP",
+  "variableName" : "checkForDSP",
+  "description" : "This checks to see if a DSP is in SAP Complete or Active within the valid from date of a CSP agreement",
+  "libraryFunctions" : [ "util.agreementStatus" ],
+  "returnType" : "Boolean",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "agreementValidFrom_t", "agreementValidTo_t", "customerNumber_t", "salesOrg_t", "bs_id", "agreementHierarchy_t" ],
+  "systemAttributes" : [ ]
+}

@@ -1,0 +1,12 @@
+{
+  "name" : "Set Empy For Null String",
+  "variableName" : "setEmpyForNullString",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputStr",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

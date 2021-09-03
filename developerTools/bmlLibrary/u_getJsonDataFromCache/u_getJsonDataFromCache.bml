@@ -1,0 +1,34 @@
+/**
+@name Get JSON Data From Cache
+@api u_getJsonDataFromCache
+@summary Get the data from the user session cache for a given cache key.  The data will be refreshed
+if the query parameter is provided.
+@param cacheKey String the cache key to retrieve the data
+@param query String the BMQL statement to retrieve the data and cache in the key cacheKey.  
+Data will be refreshed from data table if query is not blank.
+@function JsonArray u_getJsonDataForQuery(String query)
+@return JsonArray the data recorded retrieved from the cache
+@package utils/Data Access
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-171|tleung               |Initial version
+*/
+result = jsonArray();
+
+statement = trim(replace(query, "\n", " "));
+if (statement == "") {
+    temp = userSessionGet(cacheKey, "json");
+    if (not isNull(temp)) {
+        result = jsonGet(temp, "root", "jsonArray", jsonArray());
+    } else {
+        throwError("No data found in cache for key " + cacheKey, false);
+    }
+} else {
+    result = util.u_getJsonDataForQuery(statement);
+    temp = json();
+    jsonPut(temp, "root", result);
+    userSessionSet(cacheKey, temp);
+}
+
+return result;

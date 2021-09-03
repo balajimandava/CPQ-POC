@@ -1,0 +1,35 @@
+/**
+@name Set Commerce Attribute
+@api u_setCommerceAttribute
+@summary Set/update a commerce attribute in "data"
+@param data Json
+@param docNum String
+@param attribute String
+@param value String
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-21|Tat.Leung            |Initial version
+*/
+result = data;
+
+if (docNum == "1") {
+    // set the quote level attribute
+    jsonput(result, attribute, value);
+} else {
+    path = "$.items[?(@._document_number=='" + docNum + "')]";
+
+    // create the line if it does not exist yet
+    if (not jsonpathcheck(result, path)) {
+        line = util.u_getLineFromJson(result, docNum);
+    }
+
+    // get the line from the jsonResult object
+    line = jsonpathgetsingle(result, path, "json");
+
+    // set the value for the attribute.
+    jsonput(line, attribute, value);
+}
+
+return result;

@@ -1,0 +1,11 @@
+{
+  "name" : "massUpdate_transactionID",
+  "variableName" : "massUpdate_transactionID",
+  "description" : "set transactionNumber_t to bs_id for existing agreements",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionNumber_t", "bs_id", "qqRootTransactionNumber_t" ],
+  "systemAttributes" : [ ]
+}

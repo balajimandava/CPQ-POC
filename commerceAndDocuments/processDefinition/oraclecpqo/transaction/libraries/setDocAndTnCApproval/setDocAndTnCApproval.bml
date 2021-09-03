@@ -1,0 +1,31 @@
+notificationMessage = "";
+notificationsArray = string[];
+
+userLanguage = _system_current_user_language;
+
+WARNING_MESSAGE_1 = util.getRemark("WARNING_MESSAGE_1", userLanguage); // required by
+WARNING_MESSAGE_CustomDoc = util.getRemark("WARNING_MESSAGE_8", userLanguage);
+WARNING_MESSAGE_NonStandardTnC = util.getRemark("WARNING_MESSAGE_9", userLanguage);
+WARNING_MESSAGE_Documentation = util.getRemark("WARNING_MESSAGE_10", userLanguage);
+WARNING_MESSAGE_Legal = util.getRemark("WARNING_MESSAGE_11", userLanguage);
+WARNING_MESSAGE_AdditionalTnC = util.getRemark("WARNING_MESSAGE_12", userLanguage);
+
+if(((qqCustomDocument1_t <> "") AND (qqCustomDocumentNotes_t <> "")) OR ((qqCustomDocument2_t <> "") AND (qqCustomDocumentNotes2_t <> "")) OR ((qqCustomDocument3_t <> "") AND (qqCustomDocumentNotes3_t <> "")) OR ((qqCustomDocument4_t <> "") AND (qqCustomDocumentNotes4_t <> "")) OR ((qqCustomDocument5_t <> "") AND (qqCustomDocumentNotes5_t <> ""))) {
+	append(notificationsArray, "<b>" + WARNING_MESSAGE_CustomDoc + "</b> " + WARNING_MESSAGE_1 + " " + WARNING_MESSAGE_Documentation);
+}
+
+if(qqTnC_t == "nonStandard" AND (qqNonStandardTnCAttachment_t <> "" AND NOT(isnull(qqNonStandardTnCAttachment_t)))){
+	append(notificationsArray, "<b>" + WARNING_MESSAGE_NonStandardTnC + "</b> " + WARNING_MESSAGE_1 + " " + WARNING_MESSAGE_Legal);
+}
+
+
+
+if((qqCustomTermsAndConditionsNote2_t <> "" AND NOT(isnull(qqCustomTermsAndConditionsNote2_t))) OR (qqMaterialIndexEscalation_t <> "")) {
+	append(notificationsArray, "<b>" + WARNING_MESSAGE_AdditionalTnC + "</b> " + WARNING_MESSAGE_1 + " " + WARNING_MESSAGE_Legal);
+}
+
+if (sizeofarray(notificationsArray) > 0) {
+    notificationMessage = join(notificationsArray, "/n");
+}
+
+return notificationMessage;

@@ -1,0 +1,16 @@
+/**
+@name Is Customer A Vendor
+@api isCustomerAVendor
+@summary Check if a customer number is a vendor
+@param vendorNumber String
+@return Boolean
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-14|Tat.Leung            |
+*/
+rs = bmql("select LIFNR from VENDOR where LIFNR = $vendorNumber");
+for r in rs {
+    return true;
+}
+return false;

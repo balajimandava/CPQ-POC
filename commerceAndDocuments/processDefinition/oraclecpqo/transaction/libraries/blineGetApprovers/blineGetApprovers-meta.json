@@ -1,0 +1,14 @@
+{
+  "name" : "BLINE Get Approvers",
+  "variableName" : "blineGetApprovers",
+  "description" : "Using to populate the approvers for each approver node.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputData",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionLineApprovalInformation_t", "superUserEmail_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

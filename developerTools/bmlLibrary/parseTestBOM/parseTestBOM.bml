@@ -1,0 +1,90 @@
+/**
+@name parseBidManBOM
+@api parseBidManBOM
+@summary parse Bid manager BOM into parent line and array of child line items.
+@param bom String
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-02|michael.yeung        |
+2018-07-18|michael.yeung        |
+2018-10-03|michael.yeung        |  Update based on 08/27/2018 meeting notes
+2018-10-10|michael.yeung        |
+2020-03-24|Atul Jain			|Removed commented code, and added debug mode to print statements.
+
+*/
+result = json();
+debugMode = false;
+
+xpathItems = string [];
+xpathItems[0] = "//TakeoffDataAccess.TakeoffSaveItem";
+
+xpathItemDetail = string [];
+xpathItemDetail[0] = "//ParentIndicator";
+xpathItemDetail[1] = "//ItemID";
+xpathItemDetail[2] = "//ParentItemID";
+xpathItemDetail[3] = "//CatalogNumber";
+xpathItemDetail[4] = "//SAPCatalogNumber";
+xpathItemDetail[5] = "//Quantity";
+xpathItemDetail[6] = "//ListPrice";
+xpathItemDetail[7] = "//BaseCurrency";
+xpathItemDetail[8] = "//ProductID";
+xpathItemDetail[9] = "//Designation";
+xpathItemDetail[10] = "//ProductLine";
+xpathItemDetail[11] = "//ProductCode";
+
+allItems = readxmlmultiple(bom, xpathItems);
+
+ allItemsArray = get(allItems, xpathItems[0]);
+
+ for eachItemXML in allItemsArray {
+		eachItem = readxmlsingle(eachItemXML, xpathItemDetail);
+		if(debugMode)
+		{
+			print eachItem;
+
+		}
+        parentIndicator = util.getStringDict(eachItem, xpathItemDetail[0], "");
+        itemID = util.getStringDict(eachItem, xpathItemDetail[1], "");
+        parentItemID = util.getStringDict(eachItem, xpathItemDetail[2], "");
+        catalogNumber = util.getStringDict(eachItem, xpathItemDetail[3], "");	// material #
+        SAPCatalogNumber = util.getStringDict(eachItem, xpathItemDetail[4], ""); // Catalog #
+        quantity = util.getStringDict(eachItem, xpathItemDetail[5], "");	// quantity
+        listPrice = util.getStringDict(eachItem, xpathItemDetail[6], "");	// listPrice
+        baseCurrency = util.getStringDict(eachItem, xpathItemDetail[7], "");
+        productID = util.getStringDict(eachItem, xpathItemDetail[8], "");	// description
+        designation = util.getStringDict(eachItem, xpathItemDetail[9], "");	// customer part #
+        productLine = util.getStringDict(eachItem, xpathItemDetail[10], "");
+        productCode = util.getStringDict(eachItem, xpathItemDetail[11], "");
+		if( parentIndicator == "C") {
+			childItem = json();
+			jsonput(childItem, "itemID", itemID);
+			jsonput(childItem, "parentItemID", parentItemID);
+			jsonput(childItem, "catalogNumber", catalogNumber);
+			jsonput(childItem, "SAPCatalogNumber", SAPCatalogNumber);
+			jsonput(childItem, "quantity", quantity);
+			jsonput(childItem, "listPrice", listPrice);
+			jsonput(childItem, "baseCurrency", baseCurrency);
+			jsonput(childItem, "productID", productID);
+			jsonput(childItem, "designation", designation);
+			jsonput(childItem, "productCode", productCode);
+			childrenJsonArray= jsonget(result,"children","jsonarray",jsonarray());
+			jsonarrayappend(childrenJsonArray, childItem);
+			jsonput(result, "children", childrenJsonArray);
+		} else {
+			jsonput(result, "itemID", itemID);
+			jsonput(result, "parentItemID", parentItemID);
+			jsonput(result, "parentMaterialItem", catalogNumber);
+			jsonput(result, "catalogNumber", catalogNumber);
+			jsonput(result, "SAPCatalogNumber", SAPCatalogNumber);
+			jsonput(result, "quantity", quantity);
+			jsonput(result, "listPrice", listPrice);
+			jsonput(result, "baseCurrency", baseCurrency);
+			jsonput(result, "productID", productID);
+			jsonput(result, "designation", designation);
+			jsonput(result, "productCode", productCode);
+		}
+ }
+return result;

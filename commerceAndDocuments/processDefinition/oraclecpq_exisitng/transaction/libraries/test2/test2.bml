@@ -1,0 +1,523 @@
+//************************************************************************************************************
+//** Function:    Create Quote 
+//** Type:        Commerce Library Function   
+//**
+//** Description: This will run REST calls to create exisitng agreements
+//** 
+//** Return type: String  
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------------
+//**              02/05/2017    vhingorani      Initial version 
+//**		  	  03/07/2017	vhingorani		Read data form existing agreements and build multiple agreements
+//**		 	  05/07/2017	vhingorani		Add header attributes from data in data tables		
+//**		  	  09/07/2017	vhingorani		Add Lines
+//**		  	  10/07/2017	vhingorani		Modified header to include terms
+//**		  	  10/07/2017	vhingorani   	Added data for Creating HTML data agreements created	
+//**		 12/07/2017	vhignorani	Added terms for Ship to agreement
+//**		13/07/2017	vhingorani	Added some checks on json get to have default values and skip step 2 onwards if customer OR salesOrg is blank
+//**			  19/07/2017	vhignorani      add sorting to groups and eNumber
+//******************************************************************************************************************
+startDate = getdate();
+startTime = getcurrenttimeinmillis();
+//********************** Read all agreement data from ExitingAgreements Table
+quoteResults = "";
+columDelimiter = "$,$";
+rowDelimiter = "#@#";
+createdQuoteData = ""; // used for HTML table
+surchargeConditions = string[]{"ZMAG","ZMTK","ZMTA"};
+
+columns = "KUNNR,BUKRS,VKORG,VTWEG,SPART,DATAB,DATBI,AccountType,VistexAgreement,INCO1,ZTERM,PERFK,PLTYP,KOTABNR,KSCHL,HIENR,MVGR5,KBETR,KONWA,MATNR,KPEIN,KSTBM,KSTB";
+
+allAgreementDict = dict("string");
+
+allAgreementData = bmql("Select $columns from ExistingAgreements where KUNNR='0000747662'");
+//print allAgreementData;
+for agreementData in allAgreementData{
+	
+	// Get Column values
+	KUNNR = get(agreementData,"KUNNR");
+	BUKRS = get(agreementData,"BUKRS");
+	VKORG = get(agreementData,"VKORG");
+	VTWEG = get(agreementData,"VTWEG");
+	SPART = get(agreementData,"SPART");
+	
+	DATAB = get(agreementData,"DATAB");
+	DATBI = get(agreementData,"DATBI");
+	AccountType = get(agreementData,"AccountType");
+	VistexAgreement = get(agreementData,"VistexAgreement");
+	INCO1 = get(agreementData,"INCO1");
+	
+	ZTERM = get(agreementData,"ZTERM");
+	PERFK = get(agreementData,"PERFK");
+	PLTYP = get(agreementData,"PLTYP");
+	KOTABNR = get(agreementData,"KOTABNR");
+	KSCHL = get(agreementData,"KSCHL");
+	
+	HIENR = get(agreementData,"HIENR");
+	MVGR5 = substring(get(agreementData,"MVGR5"),1);
+	KBETR = get(agreementData,"KBETR");
+	KONWA = get(agreementData,"KONWA");
+	MATNR = get(agreementData,"MATNR");
+	
+	KPEIN = get(agreementData,"KPEIN");
+	KSTBM = get(agreementData,"KSTBM");
+	KSTB = get(agreementData,"KSTB");
+	
+	ENUMBER = get(agreementData,"ENUMBER"); // get enumber
+
+	//Build Uniqyue key
+	key = KUNNR + DATAB + DATBI; // unique key for same agreement data
+	
+	// Save column values in Line Json
+	columnDetailsJson = json();
+	
+	jsonput(columnDetailsJson,"KOTABNR",KOTABNR); //line
+	jsonput(columnDetailsJson,"KSCHL",KSCHL); //line
+	
+	jsonput(columnDetailsJson,"HIENR",HIENR);
+	jsonput(columnDetailsJson,"MVGR5",MVGR5); // line
+	jsonput(columnDetailsJson,"discountString",KBETR); // line
+	jsonput(columnDetailsJson,"discountType",KONWA); // line
+	jsonput(columnDetailsJson,"item",MATNR); //line
+	
+	jsonput(columnDetailsJson,"KPEIN",KPEIN); // line
+	jsonput(columnDetailsJson,"scaleTo",KSTBM); //line
+	jsonput(columnDetailsJson,"scaleFrom",KSTB); //line
+	
+	rowJson = json();
+	
+	//if(KOTABNR == "678"){ //Surcharge Line
+	if(findinarray(surchargeConditions,KSCHL)<>-1){ //Surcharge Line
+		// Intialize for new
+		currentAgreementDataJson = json();
+		surchargeJson = json();
+
+		//If already exiting agreement
+		if(containskey(allAgreementDict,key)){
+			currentAgreementDataJson = json(get(allAgreementDict,key));
+			if(jsonpathcheck(currentAgreementDataJson,"surcharge")){ //if surcharge entry exists
+				surchargeJson = json(jsonget(currentAgreementDataJson,"surcharge"));
+			}
+			
+		}
+ 		// TO handle agreement with no lines and just surcharges
+		headerDetailsJson = json();
+		jsonput(headerDetailsJson,"KUNNR",KUNNR);
+		jsonput(headerDetailsJson,"BUKRS",BUKRS);
+		jsonput(headerDetailsJson,"VKORG",VKORG);
+		jsonput(headerDetailsJson,"VTWEG",VTWEG);
+		jsonput(headerDetailsJson,"SPART",SPART);
+		
+		jsonput(headerDetailsJson,"DATAB",DATAB);
+		jsonput(headerDetailsJson,"DATBI",DATBI);
+		jsonput(headerDetailsJson,"AccountType",AccountType);
+		jsonput(headerDetailsJson,"VistexAgreement",VistexAgreement);
+		jsonput(headerDetailsJson,"INCO1",INCO1);
+		
+		jsonput(headerDetailsJson,"ZTERM",ZTERM);
+		jsonput(headerDetailsJson,"PERFK",PERFK);
+		jsonput(headerDetailsJson,"PLTYP",PLTYP);
+
+		jsonput(headerDetailsJson,"ENUMBER",ENUMBER);
+
+		jsonput(currentAgreementDataJson,"header",headerDetailsJson);
+		
+		jsonput(surchargeJson,KSCHL,KBETR); //entry for surcharge
+		jsonput(currentAgreementDataJson,"surcharge",surchargeJson);//enter surcharge in currentAgreement
+		put(allAgreementDict,key,jsontostr(currentAgreementDataJson));
+
+	}else{
+		if(containskey(allAgreementDict,key)){ // if agreement exists
+			currentAgreementData = get(allAgreementDict,key);
+			currentAgreementDataJson = json(currentAgreementData);
+			
+			rowCount =  jsonget(currentAgreementDataJson,"rowCount","integer");
+			rowCount = rowCount+1;
+			
+			jsonput(currentAgreementDataJson,"rowCount",rowcount);
+			jsonput(currentAgreementDataJson,"row"+string(rowcount),columnDetailsJson);
+		
+			put(allAgreementDict,key,jsontostr(currentAgreementDataJson));
+			//print "currentAgreementDataJson";print currentAgreementDataJson; 
+		}else{ // If first line of new agreement
+			rowcount = 1;
+			jsonput(rowJson,"rowCount",rowcount);
+			jsonput(rowJson,"row"+string(rowcount),columnDetailsJson);
+			
+			headerDetailsJson = json();
+			jsonput(headerDetailsJson,"KUNNR",KUNNR);
+			jsonput(headerDetailsJson,"BUKRS",BUKRS);
+			jsonput(headerDetailsJson,"VKORG",VKORG);
+			jsonput(headerDetailsJson,"VTWEG",VTWEG);
+			jsonput(headerDetailsJson,"SPART",SPART);
+			
+			jsonput(headerDetailsJson,"DATAB",DATAB);
+			jsonput(headerDetailsJson,"DATBI",DATBI);
+			jsonput(headerDetailsJson,"AccountType",AccountType);
+			jsonput(headerDetailsJson,"VistexAgreement",VistexAgreement);
+			jsonput(headerDetailsJson,"INCO1",INCO1);
+			
+			jsonput(headerDetailsJson,"ZTERM",ZTERM);
+			jsonput(headerDetailsJson,"PERFK",PERFK);
+			jsonput(headerDetailsJson,"PLTYP",PLTYP);
+
+			jsonput(headerDetailsJson,"ENUMBER",ENUMBER);
+	
+			jsonput(rowJson,"header",headerDetailsJson);
+			
+			put(allAgreementDict,key,jsontostr(rowJson));
+		}
+	}
+}
+
+agreementNos = keys(allAgreementDict);
+
+siteID = "eatontest1";
+
+
+agreementCount = 1;
+for agreement in agreementNos{
+	//if(agreementCount==7){print get(allAgreementDict,agreement);}
+	if(agreementCount<510){
+	//print "********Agreement " +string(agreementCount) + " ***********";
+	quoteResults = quoteResults + "\n";
+	quoteResults = quoteResults + "********Agreement " +string(agreementCount) + " ***********" + "\n";
+	
+	data =  get(allAgreementDict,agreement);
+	dataJson = json(get(allAgreementDict,agreement));
+	
+	success = "No Customer"; // for last column in HTML
+	id = "NOT FOUND";
+	link = "eatontest1.bigmachines.com";
+	//print dataJson;
+	//Extract Header Json
+	header = jsonget(dataJson,"header","json",json());
+	//print "Header =="; print header;
+	customerNumber = jsonget(header,"KUNNR","string","");
+	salesOrg = jsonget(header,"VKORG","string","");
+	
+	if(customerNumber<>"" AND salesOrg<>""){// 
+	
+	validFrom = replace(jsonget(header,"DATAB","string",""),".","-");
+	validTo = replace(jsonget(header,"DATBI","string",""),".","-");
+	agreementType = jsonget(header,"AccountType","string","");
+	vistexAgreement = jsonget(header,"VistexAgreement","string","");
+	invoicingTerms = jsonget(header,"PERFK","string","");
+	paymentTerms = jsonget(header,"ZTERM","string","");
+	deliveryTerms = jsonget(header,"INCO1","string","");
+	eNumber = jsonget(header,"ENUMBER","string","");
+	if(invoicingTerms == ""	){
+		invoicingTerms = "blank";
+	}
+	
+	//Handle user access
+	//if(eNumber == "" OR eNumber=="null"){
+		eNumber = "E3506636"; //Marco as default
+	//}
+	
+	//Get sales data
+	salesRS=BMQL("SELECT SORT2, VKORG, SMTP_ADDR, NAME1, TELF1, KUNNR FROM CUSMAS WHERE SORT2=$eNumber");	
+	
+	salesENum="";
+	name1= "";
+	usersalesOrg= "";
+	telf1= "";
+	email1="";
+	eRecID="";
+	for eachUser in salesRS{
+		salesENum=get(eachUser, "SORT2");
+		name1= get(eachUser,"NAME1");
+		usersalesOrg= get(eachUser,"VKORG");
+		telf1= get(eachUser,"TELF1");
+		email1=get(eachUser, "SMTP_ADDR");
+		eRecID=get(eachUser, "KUNNR");
+	}
+
+	//Customer Hieararhy
+	aLevel1 = "";
+	aLevel2 = "";
+	aLevel3 = "";
+	
+	hierarcyArray = util.customerHierarchyLookup(customerNumber, salesOrg);
+	print "Hierarchy==";print hierarcyArray;
+	firstElement = jsonarrayget(hierarcyArray,0,"json");
+	if(jsonget(firstElement,"Hierarchy","string","")<>""){
+		aLevel1 = jsonget(firstElement,"Hierarchy");
+	}elif(jsonget(firstElement,"SoldTo","string","")<>""){
+		aLevels = split(jsonget(firstElement,"SoldTo"),".");
+		aLevel1 = aLevels[0];
+		aLevel2 = aLevels[1];
+	}elif(jsonget(firstElement,"ShipTo","string","")<>""){
+		aLevels = split(jsonget(firstElement,"ShipTo"),".");
+		aLevel1 = aLevels[0];
+		aLevel2 = aLevels[1];
+		aLevel3 = aLevels[2];
+	}
+	
+	//Surcharge
+	silver = "";
+	copper = "";
+	aluminium = "";
+	if(jsonpathcheck(dataJson,"$..surcharge")){
+		surchargeJson = jsonget(dataJson,"surcharge","json",json());
+		silver = jsonget(surchargeJson,"ZMAG","string","");
+		copper = jsonget(surchargeJson,"ZMTK","string","");
+		aluminium = jsonget(surchargeJson,"ZMTA","string","");
+		
+		
+		
+	}
+	//********************** STEP 1:CREATE Transaction
+	
+	
+	createUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction";
+
+	// Rest parameters
+	jsonParams = json();
+	jsonput(jsonParams,"_currency_pref","EUR");
+	params = jsontostr(jsonParams);
+
+
+	// Rest Header
+	headers = dict("string");  
+	put(headers, "Content-Type", "application/json");
+	//put(headers, "Authorization", auth_val);
+	
+	results = urldatabypost(createUrl, params, "ERROR", headers, true);
+
+	//Add success
+	if(find(results,"ERROR")<>-1){
+		success = "FAIL";
+	}
+
+	print "Link to Quote "+ string(agreementCount)+"===" + jsonget(json(results),"linkToDocument_t");
+	link = jsonget(json(results),"linkToDocument_t");
+	quoteResults = quoteResults + "Link to Quote "+ string(agreementCount)+"===" + jsonget(json(results),"linkToDocument_t","string") + "\n";
+
+	id = jsonget(json(results),"_id");
+	//print "Quote bs_id ===" + id;
+
+	quoteResults = quoteResults + "Quote bs_id ===" + id + "\n";
+	
+	session_id = jsonget(json(results),"sessionId_t");
+	//print "Session Id ==== " + session_id;
+	
+	
+	//********************** STEP 2:UPDATE Transaction (Click Save to move from Start Step to Pending)
+
+	updateUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/cleanSave_t";
+
+	//Header level attributes
+	document = json();
+	jsonput(document,"customerRecordKey_t",customerNumber);
+	//jsonput(document,"agreementHierarchy_t","{\"aLevel1\": \"0000737134\", \"aLevel2\": \"0000737134\", \"aLevel3\": \"\"}"); //TODO: Figure logic for Levels based on customer number(discuss with Dave)
+	jsonput(document,"agreementHierarchy_t","{\"aLevel1\": \""+aLevel1+"\", \"aLevel2\": \""+aLevel2+"\", \"aLevel3\": \""+aLevel3+"\"}"); //TODO: Figure logic for Levels based on customer number(discuss with Dave)
+	jsonput(document,"backupName_t","Vivek");
+	jsonput(document,"transactionType_t",agreementType);
+	jsonput(document,"transactionName_t","Test 2 - " + string(agreementCount)); //TODO: Decription with date and Time
+	jsonput(document,"vistexAgreement_t",vistexAgreement);
+	jsonput(document,"agreementValidFrom_t",validFrom); // TODO:Get rid of constraint
+	jsonput(document,"agreementValidTo_t",validTo);
+	
+	//Terms
+	jsonput(document,"agreementPeriodOfInvoicing_t",invoicingTerms);
+	jsonput(document,"agreementPaymentTerms_t",paymentTerms);
+	jsonput(document,"agreementDeliveryTerms_t",deliveryTerms);
+	jsonput(document,"periodOfInvoicingShipTo_t",invoicingTerms);
+	jsonput(document,"paymentTermsShipTo_t",paymentTerms);
+
+	//user details
+	jsonput(document,"owner_t",eNumber);
+	jsonput(document,"adminSalesLogin_t",eNumber);
+	jsonput(document,"preparedBySalesOrg_t",salesOrg);
+	jsonput(document,"preparedByName_t",name1);
+	jsonput(document,"preparedByPhone_t",telf1);
+	jsonput(document,"preparedByEmail_t",email1);
+	jsonput(document,"eRecordID_t",eRecID);
+	print "Header Details =====";print document;
+
+	//Surcharges TODO : Not to make defaults run for Exisiting 
+	if(silver<>""){
+		jsonput(document,"silver_t","fixed");
+		jsonput(document,"silverValue_t",silver);
+	}
+	if(copper<>""){
+		jsonput(document,"copper_t","fixed");
+		jsonput(document,"copperValue_t",copper);
+	}
+	if(aluminium<>""){
+		jsonput(document,"aluminium_t","fixed");
+		jsonput(document,"aluminiumValue_t",aluminium);
+	}
+	//surcharge exemption
+	if(silver=="0" AND copper=="0" AND aluminium=="0"){
+		jsonput(document,"surchargeExemption_t","true");
+	}
+	
+	//jsonput(document,"minimumOrderVolume_t","100"); //TODO
+
+	jsonput(document,"existingQuoteData_t",data);//"0000736533$,$4007$,$4942$,$30$,$10$,$2017.10.01$,$2018.09.30$,$DSP#@#");
+	jsonput(document,"uploadedAgreement_t","true");
+
+	//jsonput(document,"quickItem_t","Y7-187175,Y7-187174,Y7-187174,Y7-187174"); // TODO: Figure logic for sending line items with discounts and scale when configure API is run
+
+	//TODO: Add a flag for autocreate and CSV info in text area
+
+	// Rest parameters
+	jsonParams = json();
+	jsonput(jsonParams,"documents",document);
+	params = jsontostr(jsonParams);
+
+
+	// Rest Header  
+	headers = dict("string");
+	put(headers, "Content-Type", "application/json");
+	//put(headers, "Authorization", auth_val);
+	
+	results = urldatabypost(updateUrl, params, "ERROR", headers, true);
+	//Add success
+	if(find(results,"ERROR")<>-1){
+		success = "FAIL";
+	}print "FIRST SAVE===";
+	print results;
+	//********************** STEP 3:ADD ITEMS (Using Quick Items Add text area to fill items and call Add Items action)
+	if(jsonpathcheck(dataJson,"$..rowCount")){
+		//Loop for lines for eixting agreement
+		rowcount = jsonget(dataJson,"rowCount","integer"); // get number of rows
+	
+		rowRange = range(rowCount);
+		mpgDict = dict("string");
+		mpgDetails = dict("string");
+		matDict = dict("string"); // with key as the group store all lines as a string (item)
+	
+		for i in rowRange{
+			rowNo = i + 1; //since row no's starts from 1
+			rowJson = jsonget(dataJson,"row"+string(rowNo),"json");
+			MVGR5 = jsonget(rowJson,"MVGR5","string","");
+			MATNR = jsonget(rowJson,"item","string","");
+			KBETR = jsonget(rowJson,"discountString","string","");
+	
+	
+			//MPG Line
+			if(MVGR5<>""){
+				mpgdetilsJson = json();
+				jsonput(mpgdetilsJson,"discountString",KBETR);
+				jsonput(mpgdetilsJson,"discountType","percent");
+				
+				put(mpgDict,MVGR5,MVGR5); //store mpg's to be added 
+				put(mpgDetails,MVGR5,jsontostr(mpgdetilsJson)); // storempg details as json
+			}	
+	
+			 //TODO:Items
+			// MAT line
+			if(MATNR<>""){
+				/*
+					1. Get group for item in MAT01
+					2. Lookup item dictonary(keyed by group no) to append/add item info to dictonary 	
+				*/
+				//print "Found Item ==" +MATNR;
+				// Get Group
+				mpg = "";
+				matBMQL= bmql("SELECT MATNR,MVGR5,LVORM FROM MAT01 WHERE VKORG = $salesOrg AND MATNR=$MATNR");
+				for result in matBMQL{
+					mpg = substring(get(result,"MVGR5"),1);
+				}
+				//print "Group == " + mpg;
+	
+				//LookupDictionary
+				jsonput(rowJson,"discountType","amt");
+				packedString = MATNR + "^&^" + jsontostr(rowJson);
+				if(containskey(matDict,mpg)){
+					packedString = get(matDict,mpg);
+					packedString = packedString + "$,$" + MATNR + "^&^" + jsontostr(rowJson);
+				}
+				
+				//Add back to dictionary
+				put(matDict,mpg,packedString);	
+				put(mpgDict,mpg,mpg);	// MPG to be added 
+			}	
+		}
+		
+		// get unique groups
+		groupsArray = sort(keys(mpgDict));
+		
+		count = 1;
+		//loop to add groups
+		for group in groupsArray{
+			packedItems = "";
+			if(containskey(matDict,group)){
+				//print "Items ***************"; print get(matDict,group);
+				packedItems = get(matDict,group);
+			}
+			
+			
+			inputDict = dict("string");
+			//Add Groups
+			put(inputDict,"sessionID",session_id);
+			put(inputDict,"bsID",id);
+			put(inputDict,"siteID","eatontest1");
+			put(inputDict,"mpgID",group);
+			put(inputDict,"documentNumber","");
+			put(inputDict,"mpgLineDetails",get(mpgDetails,group));
+			put(inputDict,"materialItemsList",packedItems);
+			
+
+			addGroupService = util.addMPG(inputDict);
+
+			count = count + 1;
+		}	
+		
+		//Update Line Items
+		addItemsurl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/updateLineItems_t";
+	
+		// Rest parameters
+		jsonParams = json();
+		params = jsontostr(jsonParams);
+	
+		// Rest Header  
+		headers = dict("string");
+		put(headers, "Content-Type", "application/json");
+		//put(headers, "Authorization", auth_val);
+		
+		results = urldatabypost(addItemsurl, params, "ERROR", headers, true);
+		
+		//Add success
+		if(find(results,"ERROR")<>-1){
+			success = "FAIL";
+		}
+	}
+	
+	if(success<>"FAIL"){
+		success = "Success";
+	}
+
+
+	//********************** STEP 4:Move quote from Pending to Approved Steps
+	approveQuoteurl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/moveToApproveStep_t";
+
+	// Rest parameters
+	jsonParams = json();
+	params = jsontostr(jsonParams);
+
+	// Rest Header  
+	headers = dict("string");
+	put(headers, "Content-Type", "application/json");
+
+	results = urldatabypost(approveQuoteurl, params, "ERROR", headers, true);
+	}
+	//Add HTML table data
+	if(len(createdQuoteData)>0){
+		createdQuoteData = createdQuoteData + rowDelimiter;
+	}
+	createdQuoteData = createdQuoteData + agreement + columDelimiter + id + columDelimiter + link + columDelimiter + success;
+	}else{
+		break;
+	}
+	agreementCount = agreementCount + 1;
+}
+endTime = getcurrenttimeinmillis();
+endDate =  getdate();
+
+
+return "";

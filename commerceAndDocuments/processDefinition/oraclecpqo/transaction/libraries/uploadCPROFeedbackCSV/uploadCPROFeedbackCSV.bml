@@ -1,0 +1,598 @@
+/**
+@name Upload CPRO Feedback CSV
+@api uploadCPROFeedbackCSV
+@summary Called by Upload CPRO Feedback action to parse and upload CPRO discount feedback.
+@param inputJSON Json
+@attribute _document_number
+@attribute _parent_doc_number
+@attribute _system_current_user_language
+@attribute _system_supplier_company_name
+@attribute cPROFeedbackUpload_t
+@attribute currencyDecimalSeparator_t
+@attribute currencySymbol_t
+@attribute customDiscountType_l
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute scaleFrom_l
+@attribute scaleTo_l
+@attribute userDecimalSeparator_t
+@function String getRemark(String rowIndex, String language)
+@function String[][] parseCSV(String fileLocation, String quoteCurrencyDecimalSeparator)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017.11.07|Shansen (PW)         |Initial
+2017.11.15|Shansen (PW)         |Removed weak match functionality - only match on disc type/scale
+2018-01-04|Tat.Leung            |_system_supplyer_company_name
+2018-08-28|Shibaji.Ganguly      |QQ-793 Related changes.
+2021-02-18|Anita Thakur		|CPQ-76 changes
+*/
+
+retString = "";
+diffFormatRemark="";
+
+DEBUG = jsonget(inputJSON, "DEBUG", "boolean", FALSE);
+DEBUG_SEP = "------------------------------";
+DEBUG_SPACER = "";
+
+errorRemarks = string[]; //only errors that break the upload
+warningRemarks = string[]; //things that cause the row to be skipped
+successRemarks = string[];
+
+//use for  errors
+userLanguage = _system_current_user_language;
+userDecimalDifferent = (userDecimalSeparator_t <> currencyDecimalSeparator_t);
+colNames = string[] {
+    "Line #",
+    "SAP Line #",
+    "Group #",
+    "Pricing Group",
+    "Pricing Group Description",
+    "Catalog #",
+    "Material #",
+    "Material Description",
+    "Customer Part #",
+    "Alternative Item #",
+    "Qty",
+    "UOM",
+    "Min Order Qty",
+    "Rounding Qty",
+    "List Price",
+    "Net Price",
+    "Net Fixed Amount",
+    "Discount Percent",
+	"Premium",
+    "Requested Price",
+    "Price Per",
+    "Net List % Diff",
+    "Total",
+    "Margin Value",
+    "Margin %",
+    "Plant",
+    "Approved Discount % / Net",
+	"Approved Net Fixed Amount",
+	"Approved Discount %",
+	"Approved Premium",
+	"Approved Margin %",
+    "Approved Net Amount",
+    "Approved Total",
+    "Notes",
+    "Bonus Group",
+    "Final Discount (Requested)",
+    "Final Price (Requested)"
+};
+
+// Error messages we may need in the user's language
+//Invalid data at row
+print "==============userLanguage=========";
+print userLanguage;
+CSV_UPLOAD_ERR0 = util.getRemark("ERROR_CSV_UPLOAD_0", userLanguage) + " ";
+//duplicate row found
+CSV_UPLOAD_ERR5 = " " + util.getRemark("ERROR_CSV_UPLOAD_5", userLanguage);
+//cannot be less than zero
+CSV_UPLOAD_ERR10 = " " + util.getRemark("ERROR_CSV_UPLOAD_10", userLanguage);
+//Please use the BROWSE button to upload the CSV file to this agreement
+CSV_UPLOAD_ERR11 = util.getRemark("ERROR_CSV_UPLOAD_11", userLanguage);
+//is not valid for
+CSV_UPLOAD_ERR16 = " " + util.getRemark("ERROR_CSV_UPLOAD_16", userLanguage);
+//must be between 0 and 100%
+CSV_UPLOAD_ERR22 = " " + util.getRemark("ERROR_CSV_UPLOAD_22", userLanguage);
+//not found
+CSV_UPLOAD_ERR23 = " " + util.getRemark("ERROR_CSV_UPLOAD_23", userLanguage);
+//with discount type
+CSV_UPLOAD_ERR24 = " " + util.getRemark("ERROR_CSV_UPLOAD_24", userLanguage) + " \"";
+//scale from
+CSV_UPLOAD_ERR28 = ", " + util.getRemark("ERROR_CSV_UPLOAD_28", userLanguage) + " \"";
+//scale to
+CSV_UPLOAD_ERR29 = "\", " + util.getRemark("ERROR_CSV_UPLOAD_29", userLanguage) + " \"";
+//Line is incorrectly formatted for Upload
+CSV_UPLOAD_ERR21 = " " + util.getRemark("ERROR_CSV_UPLOAD_21", userLanguage);
+//ITEMS ADDED SUCCESSFULLY WITH WARNINGS
+CSV_UPLOAD_WARN4 = " " + util.getRemark("WARNING_CSV_UPLOAD_4", userLanguage);
+//Unexpected format at row
+CSV_UPLOAD_WARN1 = " " + util.getRemark("WARNING_CSV_UPLOAD_1", userLanguage);
+//detected as
+CSV_UPLOAD_WARN2 = " " + util.getRemark("WARNING_CSV_UPLOAD_2", userLanguage);
+//using
+CSV_UPLOAD_WARN3 = " " + util.getRemark("WARNING_CSV_UPLOAD_3", userLanguage);
+//Total Material Price Groups Updated:
+CSV_UPLOAD_ERR25 = " " + util.getRemark("ERROR_CSV_UPLOAD_25", userLanguage);
+//Total Material Line Items Updated:
+CSV_UPLOAD_ERR26 = " " + util.getRemark("ERROR_CSV_UPLOAD_26", userLanguage);
+//no header row
+CSV_UPLOAD_ERR27 = " " + util.getRemark("ERROR_CSV_UPLOAD_27", userLanguage);
+//missing // Added for QQ-793.
+CSV_UPLOAD_WARN5 = " " + util.getRemark("WARNING_CSV_UPLOAD_5", userLanguage);
+// in transaction // Added for QQ-793.
+CSV_UPLOAD_WARN6 = " " + util.getRemark("WARNING_CSV_UPLOAD_6", userLanguage);
+// not matching with transaction // Added for QQ-793.
+CSV_UPLOAD_WARN7 = " " + util.getRemark("WARNING_CSV_UPLOAD_7", userLanguage);
+
+
+if (cPROFeedbackUpload_t == "") {
+	errormsg = json();
+	jsonput(errormsg,"Errors",CSV_UPLOAD_ERR11);
+	return "1~uploadErrorMessages_t~" + jsontostr(errormsg)+ "|";
+	//return "1~uploadErrorMessages_t~" + CSV_UPLOAD_ERR11 + "|";
+
+}
+
+//store current lines with their designation
+linesJSON = json();
+//keys = MPGS
+//Each MPGKey is a json of its items
+//Item JSON keys = docNum - #, discType -%/Amt, scaleFrom - string scameTo - string
+//Item JSON will be nested if multiple of the same item are present
+
+for line in transactionLine {    
+    // Added for QQ-793 - Start //
+    // Put all the details of the line item which will be used later in linesJSON.
+    lineDetailsJson = json();
+    jsonput(lineDetailsJson, "docNum", line._document_number);
+    jsonput(lineDetailsJson, "item", line.materialLineItem_l);
+    jsonput(lineDetailsJson, "MPG", line.materialPricingGroup_l);
+    jsonput(lineDetailsJson, "netFixedAmount", line.netFixedAmountString_l);
+    jsonput(lineDetailsJson, "discountPercent", line.discountPercentString_l);
+    jsonput(lineDetailsJson, "productType", line.qqProductType_l);
+	jsonput(lineDetailsJson, "premium", line.premium_l);						//CPQ-76
+	jsonput(lineDetailsJson, "approvedMargin", line.approvedMarginPer_l);		//CPQ-76
+    jsonput(linesJSON, string(line._sequence_number), lineDetailsJson);
+    // Added for QQ-793 - End //
+}
+
+// SOME PROPERTIES
+SITE_NAME = lower(_system_supplier_company_name);
+
+// PARSE THE FILE THAT YOU WILL BE LOADING INTO THE ATTACHMENT ATTRIBUTE USING THE UTIL FUNCTION
+//file = "https://" + SITE_NAME + ".bigmachines.com/servlet/ImageServer?&file_type=cmAttachmentAttr&file_id=" + cPROFeedbackUpload_t;
+
+dataRows = util.parseCSV("", getattachmentdata(cPROFeedbackUpload_t));
+
+//dataRows = util.parseCSV(file, ""); //second param obsolete
+
+if (DEBUG) {
+    print "************ Upload CPRO Feedback CSV - Start ************";
+    print "PROCESSING DATA: " + string(sizeofarray(dataRows)) + " rows";
+    print "dataRows: "; print dataRows;
+    print DEBUG_SEP;
+}
+
+//now go through all rows, evaluate each
+rowCount = 0;
+colCount = 0;
+mpgUpdates = 0;
+mliUpdates = 0;
+rowHeaders = string[]; //hold names within col headers of CSV
+
+// Added for QQ-793 - Start //
+totalColCounts = 19; // No. of columns displayed if transaction is neither quote nor agreement;
+if(isQuote_t) {
+    totalColCounts = totalColCounts + 6; // 6 Additional columns Quote transaction (Transaction Type = Warehouse Quote or Drop-Ship Quote).
+} elif(isAgreement_t) {
+    totalColCounts = totalColCounts + 14; // 14 Additional columns Quote transaction (Transaction Type = Into Stock Agreement, Rebate Quote, or Rebate Agreement).
+}
+// Added for QQ-793 - End //
+
+//constant indices - these should always be there
+ mpgIdx = -1; 
+ mliIdx = -1;  
+cproFeedbackIdx = -1;  // Added for QQ-793.
+ lineIdx = -1; 
+ netAmtIdx = -1; 
+ discPrcntIdx = -1;
+ premiumIdx = -1; 			//CPQ-76
+ feedbackPerecnttIdx = -1; 
+ feedbackamtIdx = -1;
+ feedbackPremiumIdx = -1;	//CPQ-76
+ feedbackMarginIdx = -1; 	//CPQ-76
+lineNumArr = string[]; // Added for QQ-793.
+mpgID = "";
+
+// Added for QQ-793 - Start //
+proceedAheadBool = true;
+// Dynamic Indices population.
+for dataRow in dataRows {
+    colCount = sizeofarray(dataRow);
+    rowCount = rowCount + 1;
+    rowStr = string(rowCount) + " -";
+    if (rowCount == 1) {
+        rowHeaders = dataRow;
+        colCount = sizeofarray(rowHeaders);
+        if (colCount < totalColCounts) {
+			print "========ONE===";
+            append(errorRemarks, CSV_UPLOAD_ERR0 + rowStr + CSV_UPLOAD_ERR27);
+            proceedAheadBool = false;
+            break;
+        }
+        print "=============rowHeaders=============";
+        print rowHeaders;
+        print findinarray(rowHeaders, "﻿Line #");
+		//lineIdx = findinarray(rowHeaders, "Line #");
+		lineIdx = findinarray(rowHeaders, "﻿Line #");
+        mpgIdx = findinarray(rowHeaders, "Pricing Group");
+        mliIdx = findinarray(rowHeaders, "Material #");
+        netAmtIdx = findinarray(rowHeaders, "Net Fixed Amount");
+        discPrcntIdx = findinarray(rowHeaders, "Discount Percent");
+		premiumIdx = findinarray(rowHeaders, "Premium");							//CPQ-76
+        cproFeedbackIdx = findinarray(rowHeaders, "Approved Discount % / Net");
+		feedbackamtIdx=findinarray(rowHeaders, "Approved Net Fixed Amount");
+		feedbackPercentIdx=findinarray(rowHeaders, "Approved Discount %"); 
+		feedbackMarginIdx = findinarray(rowHeaders, "Approved Margin %");			//CPQ-76
+		feedbackPremiumIdx = findinarray(rowHeaders, "Approved Premium");			//CPQ-76
+    }	
+    
+    
+    if(lineIdx <> -1) {
+        if(findinarray(lineNumArr, dataRow[lineIdx]) == -1) {
+            append(lineNumArr, dataRow[lineIdx]);
+        } else {
+            // If any duplicate Line #s available, then exit and display the error message.
+            proceedAheadBool = false;
+			print "========2===";
+            append(errorRemarks, CSV_UPLOAD_ERR0 + rowStr + CSV_UPLOAD_ERR5);
+            break;
+        }
+    }
+}
+
+// If any of the column headers are not initialized properly, then exit and display the error message.
+print "ALL DETAILS=====================";
+print lineIdx;
+print mpgIdx;
+print mliIdx;
+print netAmtIdx;
+print discPrcntIdx;
+print premiumIdx;
+print feedbackamtIdx;
+print feedbackPercentIdx;
+print feedbackMarginIdx;
+print feedbackPremiumIdx;
+if(lineIdx == -1 OR mpgIdx == -1 OR mliIdx == -1 OR netAmtIdx == -1 OR discPrcntIdx == -1 OR premiumIdx == -1 OR feedbackamtIdx == -1 OR feedbackPercentIdx == -1 OR feedbackMarginIdx == -1 OR feedbackPremiumIdx == -1) {
+	print "========3===";
+    append(errorRemarks, CSV_UPLOAD_ERR0 + CSV_UPLOAD_ERR27);
+	print CSV_UPLOAD_ERR0;
+	print CSV_UPLOAD_ERR27;
+    proceedAheadBool = false;
+}
+// Added for QQ-793 - End //
+
+if(proceedAheadBool) { // Added for QQ-793.
+    rowCount = 0;
+    for dataRow in dataRows {
+        colCount = sizeofarray(dataRow);
+        rowCount = rowCount + 1;
+        rowStr = string(rowCount) + " -";
+        if (rowCount == 1) {
+            
+            // Skip the header row.
+            continue;
+        }
+        if (colCount <= totalColCounts) { // Added for QQ-793.
+            //skip this row to avoid errors
+            //ERRROR COMMENT
+            append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + CSV_UPLOAD_ERR16);
+            continue;
+        }
+        docNum = "";
+        rowLineNum = trim(dataRow[lineIdx]);
+        rowMPG = trim(dataRow[mpgIdx]);
+        rowMLI = trim(dataRow[mliIdx]);
+
+        // Added for QQ-793 - Start //
+        rowDiscNetAmt = trim(dataRow[netAmtIdx]);
+        rowDiscPrcnt = trim(dataRow[discPrcntIdx]);
+		rowDiscPremium = trim(dataRow[premiumIdx]);
+        rowDiscType = "";
+        if(rowDiscNetAmt <> "") {
+            rowDiscType = "Amt";
+        } elif(rowDiscPrcnt <> "") {
+            rowDiscType = "%";
+        } elif(rowDiscPremium <> ""){		//CPQ-76 
+			rowDiscType = "Premium";
+		}
+        if(rowDiscType == "") {
+            //skip this row to avoid errors
+            //ERRROR COMMENT
+            append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + rowHeaders[netAmtIdx] + " And " + rowHeaders[discPrcntIdx] + " " + CSV_UPLOAD_ERR23);
+            continue;
+        }
+	
+        // Added for QQ-793 - End //
+        cproStrVal = ""; // to format in ATOF safe manner
+        cproFloat = 0.0; // for validation checks
+		feedbackamtString=replace(dataRow[feedbackamtIdx], currencySymbol_t, "");
+		feedbackPercentString=replace(dataRow[feedbackPercentIdx], currencySymbol_t, "");
+		feedbackMarginString = replace(dataRow[feedbackMarginIdx], currencySymbol_t, "");		//CPQ-76
+		feedbackPremiumString = replace(dataRow[feedbackPremiumIdx], currencySymbol_t, "");		//CPQ-76
+
+        if (DEBUG) {
+            print "Checking data row " + string(rowCount);
+            // print "DiscType: " + rowDiscType + " | Scale from : " + rowScaleFrom + " | Scale to : " + rowScaleTo; // Commented for QQ-793.
+           // print "DiscType: " + rowDiscType; // Added for QQ-793.
+           // print "CPRO VALUES IN CSV";
+           // print "Original : " + cproString;
+			//print "FeedbackAmt : " + feedbackamtString;
+			//print "Feedbackpercent : " + feedbackPercentString;
+			//print rowHeaders[cproFeedbackIdx];
+			
+        }
+        //scrub cproValue for formatting differences - same algorithm in commerce.uploadCSV
+		userDecimalIndexPercent = find(feedbackPercentString, userDecimalSeparator_t);
+		userDecimalIndexAmt = find(feedbackamtString, userDecimalSeparator_t);
+		userDecimalIndexPremium = find(feedbackPremiumString, userDecimalSeparator_t);		//CPQ-76
+		
+        if (userDecimalDifferent AND (userDecimalIndexPercent <> -1 OR userDecimalIndexAmt <> -1 OR userDecimalIndexPremium <> -1)) {
+			if(rowDiscType == "Amt")
+			{
+				diffFormatRemark = CSV_UPLOAD_WARN1 + " " + rowStr + rowHeaders[feedbackamtIdx] + CSV_UPLOAD_WARN2 + " " + feedbackamtString + " " + CSV_UPLOAD_WARN3 + " ";
+			}
+			elif(rowDiscType == "%")
+			{
+			   diffFormatRemark = CSV_UPLOAD_WARN1 + " " + rowStr + rowHeaders[feedbackPercentIdx] + CSV_UPLOAD_WARN2 + " " + feedbackPercentString + " " + CSV_UPLOAD_WARN3 + " ";	
+			}
+			elif(rowDiscType == "Premium")				//CPQ-76
+			{
+			   diffFormatRemark = CSV_UPLOAD_WARN1 + " " + rowStr + rowHeaders[feedbackPremiumIdx] + CSV_UPLOAD_WARN2 + " " + feedbackPremiumString + " " + CSV_UPLOAD_WARN3 + " ";	
+			}
+		    currencyDecimalAmtIndex = find(feedbackamtString, currencyDecimalSeparator_t);
+			currencyDecimalPercentIndex = find(feedbackPercentString, currencyDecimalSeparator_t);
+			currencyDecimalPremiumIndex = find(feedbackPremiumString, currencyDecimalSeparator_t);		//CPQ-76
+            if ((currencyDecimalAmtIndex == -1) OR  (currencyDecimalPercentIndex == -1 )) {
+                feedbackPercentString = replace(feedbackPercentString, userDecimalSeparator_t, currencyDecimalSeparator_t);
+                feedbackPercentStringVal = replace(feedbackPercentString, currencyDecimalSeparator_t, ".");
+				feedbackamtString = replace(feedbackamtString, userDecimalSeparator_t, currencyDecimalSeparator_t);
+                feedbackamtVal = replace(feedbackamtString, currencyDecimalSeparator_t, ".");
+				feedbackamtString = replace(feedbackamtString, userDecimalSeparator_t, currencyDecimalSeparator_t);	//CPQ-76
+                feedbackamtVal = replace(feedbackamtString, currencyDecimalSeparator_t, ".");						//CPQ-76
+            } else {
+                //both are found, use whatever ocurs last as the decimal
+                cellDecimalSep = currencyDecimalSeparator_t;
+              //  if (userDecimalIndex > currencyDecimalIndex) {
+				  if(userDecimalIndexPercent >currencyDecimalPercentIndex OR userDecimalIndexAmt >currencyDecimalAmtIndex OR userDecimalIndexPremium > currencyDecimalPremiumIndex){
+                    cellDecimalSep = userDecimalSeparator_t;
+                }
+				if(rowDiscType == "Amt")
+				{
+                //digitChars = split(cproString, "");
+				digitChars = split(feedbackamtString, "");
+                feedbackamtString = "";
+                for digitChar in digitChars {
+                    if (isnumber(digitChar) OR digitChar == cellDecimalSep) {
+                        feedbackamtString = feedbackamtString + digitChar;
+                    }
+                }
+                feedbackamtString = replace(feedbackamtString, cellDecimalSep, currencyDecimalSeparator_t);
+                feedbackamtVal = replace(feedbackamtString, currencyDecimalSeparator_t, ".");
+				 append(warningRemarks, diffFormatRemark + feedbackamtString);
+				}
+				
+				if(rowDiscType == "%")
+				{
+                //digitChars = split(cproString, "");
+				digitChars = split(feedbackPercentString, "");
+                feedbackPercentString = "";
+                for digitChar in digitChars {
+                    if (isnumber(digitChar) OR digitChar == cellDecimalSep) {
+                        feedbackPercentString = feedbackPercentString + digitChar;
+                    }
+                }
+                feedbackPercentString = replace(feedbackPercentString, cellDecimalSep, currencyDecimalSeparator_t);
+                feedbackamtVal = replace(feedbackPercentString, currencyDecimalSeparator_t, ".");
+				 append(warningRemarks, diffFormatRemark + feedbackPercentString);
+				}
+				//CPQ-76
+				if(rowDiscType == "Premium")
+				{
+                //digitChars = split(cproString, "");
+				digitChars = split(feedbackPremiumString, "");
+                feedbackPremiumString = "";
+                for digitChar in digitChars {
+                    if (isnumber(digitChar) OR digitChar == cellDecimalSep) {
+                        feedbackPremiumString = feedbackPremiumString + digitChar;
+                    }
+                }
+                feedbackPremiumString = replace(feedbackPremiumString, cellDecimalSep, currencyDecimalSeparator_t);
+                feedbackamtVal = replace(feedbackPremiumString, currencyDecimalSeparator_t, ".");
+				 append(warningRemarks, diffFormatRemark + feedbackPremiumString);
+				}
+			}
+           
+        } else {
+			if(rowDiscType == "%")
+			{
+				cproStrVal = feedbackPercentString;
+			}
+			elif(rowDiscType == "Amt")
+			{
+				cproStrVal = feedbackamtString;
+			}
+			elif(rowDiscType == "Premium")		//CPQ-76
+			{
+				cproStrVal = feedbackPremiumString;
+			}
+        }
+        if (cproStrVal <> ""
+            AND isnumber(cproStrVal)) {
+            cproFloat = atof(cproStrVal);
+        }
+
+        //first check that the csv data is not out of range
+        if (rowDiscType == "%") {
+            if (cproFloat < 0 OR cproFloat > 100) {
+                //ERRROR COMMENT
+                append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + " " + rowHeaders[feedbackPercentIdx] + " " + CSV_UPLOAD_ERR22);
+                continue;
+            }
+        } elif (rowDiscType == "Amt") {
+            if (cproFloat < 0) {
+                //ERRROR COMMENT
+                append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + " " + rowHeaders[feedbackamtIdx] + " " + CSV_UPLOAD_ERR10);
+                continue;
+            }
+        } elif (rowDiscType == "Premium") {			//CPQ-76
+            if (cproFloat < 0) {
+                //ERRROR COMMENT
+                append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + " " + rowHeaders[feedbackPremiumIdx] + " " + CSV_UPLOAD_ERR10);
+                continue;
+            }
+        }
+        
+        
+        // Added for QQ-793. Matching Line Item and updating the value logic - Start //
+        //now check the csv vs agreement lines
+        if (rowLineNum <> "") {
+            if (jsonpathcheck(linesJSON, rowLineNum)) {
+                //rowLineNum is always unique. so as long as it's present on the quote then add the value.
+                thisLineDataJSON = jsonget(linesJSON, rowLineNum, "json");
+                prodType = jsonget(thisLineDataJSON, "productType", "string");
+                mpgID = jsonget(thisLineDataJSON, "MPG", "string");
+                itemID = jsonget(thisLineDataJSON, "item", "string");                
+                docNum = jsonget(thisLineDataJSON, "docNum", "string");
+                netFixedAmount = jsonget(thisLineDataJSON, "netFixedAmount", "string");
+                discountPercent = jsonget(thisLineDataJSON, "discountPercent", "string");
+				premiumVal = jsonget(thisLineDataJSON, "premium", "string");					//CPQ-76
+				approvedMargin = jsonget(thisLineDataJSON, "approvedMargin", "string");			//CPQ-76
+			//CPQ-76
+			if(approvedMargin <> ""){
+	        	approvedMarginF = atof(approvedMargin);
+	        }else{
+	        	approvedMarginF = 0.0;
+	        }
+                if(mpgID == rowMPG) {
+                    setBool = false;                    
+                    if(itemID == rowMLI) {
+                        //if (cproString <> "") {
+							if (feedbackPercentString <> "" OR feedbackamtString <> "" OR feedbackPremiumString <> "") {
+                            setBool = true;
+                            if(prodType <> "group") {
+                                mliUpdates = mliUpdates + 1;
+                            } else {
+                                mpgUpdates = mpgUpdates + 1;
+                            }
+							
+							//CPQ-76
+                            if(feedbackMarginString <> ""){				
+                            	feedbackMargin = atof(feedbackMarginString);
+                            }else{
+                            	feedbackMargin = 0.0;
+                            }
+                            
+                            if(	approvedMarginF <> feedbackMargin )	{			//CPQ-76
+								retString = retString + docNum + "~approvedMarginPer_l~" + feedbackMarginString + "|";
+							}else{   
+											
+								if(rowDiscType == "Amt")
+							   {
+								retString = retString + docNum + "~approvedNetFixedAmount_l~" + feedbackamtString + "|";
+								 retString = retString + docNum + "~discountPercentNetApprovedString_l~" + feedbackamtString + "|";
+							   }
+							   elif(rowDiscType == "%")
+							   {
+								retString = retString + docNum + "~approvedDiscount_l~" + feedbackPercentString + "|";
+								retString = retString + docNum + "~discountPercentNetApprovedString_l~" + feedbackPercentString + "|";
+							   }
+							   elif(rowDiscType == "Premium")			//CPQ-76
+							   {
+								retString = retString + docNum + "~approvedPremium_l~" + feedbackPremiumString + "|";
+								 retString = retString + docNum + "~discountPercentNetApprovedString_l~" + feedbackPremiumString + "|";
+							   }
+							}
+                        }                        
+                    } else {
+                        // WARNING COMMENT: Material # <rowMLI> not matching with transaction <itemID> (Line # <Line Num>).
+                        append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + " " + rowHeaders[mliIdx] + " - " + rowMLI + CSV_UPLOAD_WARN7 + " " + itemID + " (" + rowHeaders[lineIdx] + ": " + rowLineNum + ")");
+                    }
+
+                    if(setBool) {
+                        if(netFixedAmount <> rowDiscNetAmt) {
+                            // WARNING COMMENT: Net Fixed Amount <rowDiscNetAmt> not matching with transaction <mpgID> (Line # <Line Num>).
+                            append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + " " + rowHeaders[netAmtIdx] + " - " + rowDiscNetAmt + CSV_UPLOAD_WARN7 + " " + netFixedAmount + " (" + rowHeaders[lineIdx] + ": " + rowLineNum + ")");
+                        } elif(discountPercent <> rowDiscPrcnt) {
+                            // WARNING COMMENT: Discount Percent <rowDiscPrcnt> not matching with transaction <mpgID> (Line # <Line Num>).
+                            append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + " " + rowHeaders[discPrcntIdx] + " - " + rowDiscPrcnt + CSV_UPLOAD_WARN7 + " " + discountPercent + " (" + rowHeaders[lineIdx] + ": " + rowLineNum + ")"); 
+                        } elif(premiumVal <> rowDiscPremium) {					//CPQ-76
+                            // WARNING COMMENT: Premium <rowDiscPremium> not matching with transaction <mpgID> (Line # <Line Num>).
+                            append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + " " + rowHeaders[premiumIdx] + " - " + rowDiscPremium + CSV_UPLOAD_WARN7 + " " + premiumVal + " (" + rowHeaders[lineIdx] + ": " + rowLineNum + ")"); 
+                        }						
+                    }
+                } else {
+                    // WARNING COMMENT: Pricing Group <rowMPG> not matching with transaction <mpgID> (Line # <Line Num>).
+                    append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + " " + rowHeaders[mpgIdx] + " - " + rowMPG + CSV_UPLOAD_WARN7 + " " + mpgID + " (" + rowHeaders[lineIdx] + ": " + rowLineNum + ")");
+                }
+            } else {
+                //WARNING COMMENT: Line # <rowLineNum> not found in transaction
+                append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + " " + rowHeaders[lineIdx] + ": " + rowLineNum + CSV_UPLOAD_ERR23 + CSV_UPLOAD_WARN6);
+            }            
+        } else {
+            //WARNING COMMENT: Line # missing.
+            append(warningRemarks, CSV_UPLOAD_ERR0 + rowStr + " " + rowHeaders[lineIdx] + CSV_UPLOAD_WARN5);
+        }
+        // Added for QQ-793. Matching Line Item and updating the value logic - End //
+    }
+} // Added for QQ-793.
+//add totals
+
+append(successRemarks, CSV_UPLOAD_ERR25 + " " + string(mpgUpdates));
+append(successRemarks, CSV_UPLOAD_ERR26 + " " + string(mliUpdates));
+
+//update the header with information regarding success/warning/errors
+uploadErrorsStr = "";
+warningRemarksStr = "";
+uploadWarningsStr = "";
+uploadSuccessStr = "";
+
+if (sizeofarray(errorRemarks) > 0) {
+    uploadErrorsStr = " " + util.getRemark("ERROR_MESSAGE_5", userLanguage);
+}
+if (sizeofarray(warningRemarks) > 0) {
+    //if there are warnings add the header for the section
+    //ITEMS ADDED SUCCESSFULLY WITH WARNINGS
+    warningRemarksStr = CSV_UPLOAD_WARN4 + "/n" + join(warningRemarks, "/n");
+    uploadWarningsStr = " " + util.getRemark("WARNING_MESSAGE_5", userLanguage);
+}
+
+//display success if no errors or warnings
+if (warningRemarksStr == ""
+    AND uploadErrorsStr == "") {
+    uploadSuccessStr = " " + util.getRemark("SUCCESS_MESSAGE_1", userLanguage);
+}
+
+errormsg = json();
+jsonput(errormsg,"Errors",join(errorRemarks, "/n"));
+//check remarks
+//retString = retString + "1~uploadErrorMessages_t~" + join(errorRemarks, "/n") +
+print "=====TEST=======";
+print errormsg;
+retString = retString + "1~uploadErrorMessages_t~" + jsontostr(errormsg) +
+    "|1~uploadWarningMessages_t~" + warningRemarksStr +
+    "|1~uploadSuccessMessages_t~" + join(successRemarks, "/n") +
+    "|1~agreementErrorMessages_t~" + uploadErrorsStr +
+    "|1~agreementSuccessMessages_t~" + uploadSuccessStr +
+    "|1~agreementWarningMessages_t~" + uploadWarningsStr + "|";
+
+if (DEBUG) {
+    print "************ Upload CPRO Feedback CSV - End ************";
+}
+    
+return retString;

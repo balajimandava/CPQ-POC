@@ -1,0 +1,55 @@
+/**
+@name Outbound - CPQ
+@api outboundCPQ
+@summary Sends CPQ data to an external source (SOA)
+@param parmsDict StringDictionary
+@attribute transactionType_t
+@function Json sendAgreement(Json data)
+@function Json sendQuote(Json data)
+@return String Dictionary
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017.07.25|dBo Haizlip          |Initial version (46888582)Z012 (47015470)Z001 (47015980) Z002 (47017656) CSP
+2017.08.30|dBo Haizlip	        |Removed sending Delivery, Payment or Period of Invoicing terms to SAP for Hierarchy (Z012) agreements
+2017.09.26|dBo Haizlip	        |Added division to VAKEY for Hierarchy and Sold To metal surcharge conditions
+2017.10.01|dBo Haizlip	        |Added check for zero (0) on MPG, Material Items and scales 
+2017.10.30|vhingorani           |Update Scale to NOT need a base line
+2017.10.30|vhingorani           |Added new condition for Minimum order value EATON-506
+2017.10.30|vhingorani           |Send Term value as '/'' ALM - 258
+2018-01-04|Tat.Leung            |_system_supplier_company_name
+2018-02-23|Tat.Leung            |Refactor inot sendQuote and sendAgreement functions to support Quotes
+2018-10-18|michael.yeung        |
+*/
+print "************ Outbound CPQ Util - Start ************";
+transactionTypesForQuote = string[] {  // Rebate Quote (RQ) gets sent to SAP exactly like a CSP.
+    "DS",
+    "WQ"
+};
+
+result = json();
+if (containskey(parmsDict, "CancelTransaction")) {
+    jsonput(result, "fp_CancelTransaction", true);
+}
+if (containskey(parmsDict, "isResent")) {
+    jsonput(result, "isResent", true);
+}
+
+if (findinarray(transactionTypesForQuote, transactionType_t) > -1) {
+    result = commerce.sendQuote(result);
+}elif(transactionType_t == "BA" AND qqBusinessLineForSalesOrg_t == "PSD"){
+	result = commerce.createORUpdateContract();
+}else {
+    result = commerce.sendAgreement(result);
+}
+
+retDict = dict("string");
+put(retDict, "dateTime", jsonget(result, "condaLastSentDate_t", "string"));
+put(retDict, "statusCode", jsonget(result, "condaStatusCode_t", "string"));
+put(retDict, "messageBody", jsonget(result, "condaMessageBody_t", "string"));
+put(retDict, "errorMessage", jsonget(result, "agreementErrorMessages_t", "string"));
+put(retDict, "requestHeader", jsonget(result, "condaHeader_t", "string"));
+put(retDict, "condaXML", jsonget(result, "condaXML_t", "string"));
+put(retDict, "resultJSON", jsontostr(result) );
+
+return retDict;

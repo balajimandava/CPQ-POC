@@ -1,0 +1,11 @@
+{
+  "name" : "Re-evaluate Terms Approval Flag",
+  "variableName" : "reevaluateTermsApprovalFlag",
+  "description" : "",
+  "libraryFunctions" : [ "util.u_logString" ],
+  "returnType" : "Boolean",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "previousApprovedValues_t", "choosePricelist_t", "minimumOrderVolume_t", "bs_id", "agreementValidFrom_t", "silver_t", "agreementPeriodOfInvoicing_t", "aluminium_t", "agreementDeliveryTerms_t", "paymentTermsShipTo_t", "surchargeExemption_t", "agreementValidTo_t", "expectedVolume_t", "agreementPaymentTerms_t", "copper_t", "periodOfInvoicingShipTo_t", "extendCurrentListPrices_t", "bonusTableDataString_t", "bonusArraySet_t" ],
+  "systemAttributes" : [ ]
+}

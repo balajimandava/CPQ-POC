@@ -1,0 +1,14 @@
+{
+  "name" : "PSD Get Approver Details",
+  "variableName" : "pSDGetApproverDetails",
+  "description" : "Project#49704|E9913664|22ndJuly2020|Function to get approver Group/Emp Id and type 1/2, will be used in approval tree.",
+  "libraryFunctions" : [ "util.getRemark" ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "approverString",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

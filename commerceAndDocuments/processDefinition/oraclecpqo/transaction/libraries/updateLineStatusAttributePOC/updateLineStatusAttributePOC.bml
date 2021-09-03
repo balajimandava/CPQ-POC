@@ -1,0 +1,7 @@
+returnValue = "";
+for line in transactionLine{
+	lineItemStatus  = "ERROR";
+	returnValue = returnValue + line._document_number + "~lineItemStatus_l~" + lineItemStatus + "|";
+
+}
+return returnValue;

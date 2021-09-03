@@ -1,0 +1,11 @@
+{
+  "name" : "Mass update for SuperUserGroups",
+  "variableName" : "massUpdateForSuperUserGroups",
+  "description" : "Mass update on all legacy quotes to update the new user groups",
+  "libraryFunctions" : [ "util.getSiteSpecificData" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "previousStep_t", "bs_id" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

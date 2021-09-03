@@ -1,0 +1,28 @@
+retBoo= FALSE;
+
+  //  If it is NOT a DSP then there is nothing to check
+  transactionType= jsonget(parms,"transactionType","string","");
+  if (transactionType <> "DSP") {
+    return retBoo;
+  }
+  
+  
+  salesOrg= jsonget(parms,"salesOrg","string","");
+  
+  //print transactionType;
+  //print salesOrg;
+  
+  conditionKey= "sendDSPAsVistex";
+  
+  //  Check if this sales org requires these to be sent as Vistex/CSPs
+  rs= bmql("SELECT SASalesOrg FROM BizGrpConditions WHERE Condition = $conditionKey");
+  
+  for each in rs {
+    SASalesOrg= get(each,"SASalesOrg");
+    splitSalesOrgs= split(SASalesOrg,"~");
+    if (findinarray(splitSalesOrgs,salesOrg) <> -1) {
+      retBoo= TRUE;
+    }
+  }
+
+return retBoo;

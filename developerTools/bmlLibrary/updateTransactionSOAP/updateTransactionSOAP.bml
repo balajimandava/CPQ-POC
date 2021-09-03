@@ -1,0 +1,38 @@
+/**
+@name Update Transaction SOAP
+@api updateTransactionSOAP
+@param template String
+@param payload StringDictionary
+@function Json getSiteSpecificData(String siteID)
+@function String getSupplierCompanyName()
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-01|Tat.Leung            |Initial Version
+*/
+// build request
+company = util.getSupplierCompanyName();
+put(payload, "COMPANY", company);
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+put(payload, "USERNAME", login);
+put(payload, "PASSWORD", password);
+request = applytemplate(template, payload);
+
+// build url, header, 
+url = "https://" + company + ".bigmachines.com/v2_0/receiver/commerce/oraclecpqo";
+headers = dict("string");
+
+// send request
+response = urldata(url, "POST", headers, request);
+
+// check response
+body = get(response, "Message-Body");
+status = get(response, "Status-Code");
+if (atoi(status) >= 300) {
+    throwerror(body, true);
+}
+
+return body;

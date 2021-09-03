@@ -1,0 +1,12 @@
+{
+  "name" : "Get CMI01 Details Multiple",
+  "variableName" : "getCMI01DetailsMultiple",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "partJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

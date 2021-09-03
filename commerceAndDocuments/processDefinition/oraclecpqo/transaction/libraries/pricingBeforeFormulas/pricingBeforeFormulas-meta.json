@@ -1,0 +1,14 @@
+{
+  "name" : "Pricing - Before Formulas",
+  "variableName" : "pricingBeforeFormulas",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "action",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ "materialLineItem_l", "_parent_doc_number" ],
+  "mainDocAttributes" : [ "salesOrg_t" ],
+  "systemAttributes" : [ "_system_date" ]
+}

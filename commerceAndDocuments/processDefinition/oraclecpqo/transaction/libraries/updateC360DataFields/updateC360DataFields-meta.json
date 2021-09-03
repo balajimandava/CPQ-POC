@@ -1,0 +1,11 @@
+{
+  "name" : "Update C360 Data Fields",
+  "variableName" : "updateC360DataFields",
+  "description" : "reset related C360 transaction to non-primary.",
+  "libraryFunctions" : [ "util.getListOfTransactionsForQuery", "util.updateTransactionSOAP" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qqRootTransactionNumber_t", "bs_id", "opportunityNumber_t", "opportunityAccountID_t" ],
+  "systemAttributes" : [ ]
+}

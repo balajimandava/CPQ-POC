@@ -1,0 +1,116 @@
+/**
+@name Get ES-EMEA Groups
+@api getESEMEAGroups
+@summary Return the ES-EMEA groups that should have access to the quote
+@param data Json
+@function Json getTransactionData(String bsId, String[] xpaths)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-13|Tat.Leung            |QQ-575 Initial Version
+2018-07-25|Vivek.Hingorani      |QQ-575 Added logic for Managers as per Agreements in Prod 
+2018-07-25|Vivek.Hingorani      |Changed return to be json 
+2018-07-26|Vivek.Hingorani      |Added logic for Sales user backup & CSP group
+2019-01-17|Ankit				|Level2 and Owner are same then dont assign Manager profile. CPRO accept and send change(INC000012144118)
+2020-03-19|Atul Jain			|Deleted commented code
+2021-03-24|Shardul				|Perf impv for Adv Fwd rule
+*/
+retJson = json();
+
+bsId = jsonget(data, "id", "string", "");
+system_user_ship_first_name = jsonget(data, "_system_user_ship_first_name", "string", "");
+salesPerson = jsonget(data, "salesPerson", "string", "");
+
+// import data needed for forwarding rules, add more xpath expression here if additional fields are needed
+/*xpaths = string[] {
+    "//transaction/owner_t",
+    "//transaction/backupSalesENumber_t",
+    "//transaction/level2Email_t",
+    "//transaction/level3Email_t",
+    "//transaction/cSMEmail_t",
+    "//transaction/level2Delegate_t",
+    "//transaction/level3Delegate_t",
+    "//transaction/level4Delegate_t",
+    "//transaction/cSMDelegate_t",
+    "//transaction/wholesaler_t",
+    "//transaction/salesOrg_t"
+};
+
+headerData = util.getTransactionData(bsId, xpaths);
+backupSalesENumber = jsonget(headerData, "backupSalesENumber_t", "string", "");
+owner = jsonget(headerData, "owner_t", "string", "");
+level2Email = jsonget(headerData, "level2Email_t", "string", "");
+level3Email = jsonget(headerData, "level3Email_t", "string", "");
+cSMEmail = jsonget(headerData, "cSMEmail_t", "string", "");
+level2Delegate = jsonget(headerData, "level2Delegate_t", "string", "");
+level3Delegate = jsonget(headerData, "level3Delegate_t", "string", "");
+level4Delegate = jsonget(headerData, "level4Delegate_t", "string", "");
+cSMDelegate = jsonget(headerData, "cSMDelegate_t", "string", "");
+wholesaler = jsonget(headerData, "wholesaler_t", "boolean", false);
+salesOrg = jsonget(headerData, "salesOrg_t","string","");*/
+backupSalesENumber = jsonget(data, "backupSalesENumber_t", "string", "");
+owner = jsonget(data, "owner_t", "string", "");
+level2Email = jsonget(data, "level2Email_t", "string", "");
+level3Email = jsonget(data, "level3Email_t", "string", "");
+cSMEmail = jsonget(data, "cSMEmail_t", "string", "");
+level2Delegate = jsonget(data, "level2Delegate_t", "string", "");
+level3Delegate = jsonget(data, "level3Delegate_t", "string", "");
+level4Delegate = jsonget(data, "level4Delegate_t", "string", "");
+cSMDelegate = jsonget(data, "cSMDelegate_t", "string", "");
+wholesaler = jsonget(data, "wholesaler_t", "boolean", false);
+salesOrg = jsonget(data, "salesOrg_t","string","");
+managers = jsonarray();
+salesUsers = jsonarray();
+
+//********** Sales User Logic ********************
+outOfOfficeFlag = false;
+result = bmql("Select eNumber, OutOfOffice from SalesTeams where eNumber = $salesPerson OR eNumber=$backupSalesENumber");
+for r in result {
+
+    outOfOffice = get(r, "OutOfOffice");
+    eNumber = get(r, "eNumber");
+
+    if (eNumber == salesPerson OR eNumber == system_user_ship_first_name) {
+        // Commenting out to let Users acting as Sales Rep(eNumber in Ship To) get quotes approved
+        outOfOfficeFlag = (outOfOffice == "Y");
+    }
+
+    //Return Backup Sales user
+    if (eNumber == backupSalesENumber AND backupSalesENumber <> "") {
+        jsonarrayappend(salesUsers, backupSalesENumber);
+    }
+
+}
+
+//when wholesales give access to cspWholesaler group
+
+/*if (wholesaler AND salesOrg=="4942") {
+    jsonarrayappend(salesUsers, "cSPWholesalerAccess"); // pass the group name
+}*/
+
+//********** Approver Logic ********************
+
+if( trim(level2Email) <> "" AND  level2Email <> owner ) {
+	jsonarrayappend(managers, level2Email);
+}
+if( trim(level3Email) <> "" ) {
+	jsonarrayappend(managers, level3Email);
+}
+
+//Approver Delegates
+if (trim(level2Delegate) <> "" ) {
+    jsonarrayappend(managers, level2Delegate);
+}
+if (trim(level3Delegate) <> "" ) {
+    jsonarrayappend(managers, level3Delegate);
+}
+if (trim(cSMDelegate) <> "" ) {
+    jsonarrayappend(managers, cSMDelegate);
+}
+
+// **** Add to return Json ********************
+jsonput(retJson, "Sales User", salesUsers);
+jsonput(retJson, "Manager", managers);
+
+return retJson;

@@ -1,0 +1,103 @@
+/**
+@name Build VC Pricer Line XML
+@api buildVCPricerLineXML
+@summary Build the quote line XML for the VC Pricer SOAP call.
+@param data Json
+@attribute _document_number
+@attribute _sequence_number
+@attribute aluminumSurcharge_l
+@attribute coperSurcharge_l
+@attribute discountString_l
+@attribute discountType_l
+@attribute externalConfigVCData_l
+@attribute lineNumber_l
+@attribute listPrice_l
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute newNetPrice_l
+@attribute qqProductType_l
+@attribute quantity_l
+@attribute sAPDeletionFlag_l
+@attribute scaleFrom_l
+@attribute scaleTo_l
+@attribute scale_l
+@attribute silverSurcharge_l
+@attribute uOM_l
+@function Json u_getLineFromJson(Json data, String docNum)
+@function String buildVCDataItemsXML(Json quoteLine)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-04-23|Dave.Haizlip         |Initial Build
+
+2018-06-21|michael.yeung        |
+2018-06-25|michael.yeung        | skip non configuration line.
+2018-06-26|michael.yeung        |
+2020-03-20|Nithin               | Project#49074 - CPQ53 It has been agreed to remove SAP Line #,parentSAPLineNumber_l from CPQ and its integrations 
+2020-08-13|Dhananjay            | Project#49074 - CPQ-2350 included group sequence number in the payload instead of SAP Line Number 
+*/
+
+VCDataXML= jsonget(data,"VCDataXML","boolean",false);
+quoteLines = string[];
+nonVCModels = string[];
+parentSeqNumJson = json(); 
+for line in transactionLine {
+    currentLine = util.u_getLineFromJson(data, line._document_number);
+    if( line._parent_doc_number == "" ) {
+        if ( (line.qqProductType_l <> "configuration") ) {
+            continue;    // exclude non-configuration lines
+        } elif (line.externalConfigVCData_l == "")  {
+            append( nonVCModels, line._document_number );
+            continue;   // exclude configuration with no vc data
+        }
+        jsonput(parentSeqNumJson,line._document_number,line._group_sequence_number);
+    } else {
+        if( findinarray(nonVCModels, line._parent_doc_number) > -1) {
+            continue;   // exclude configuration child lines  with no vc data   
+        }
+    }
+    
+    payload = dict("string");
+    put(payload, "_document_number", line._document_number);
+    put(payload, "materialLineItem_l", jsonget(currentline, "materialLineItem_l", "string", line.materialLineItem_l));
+    put(payload, "materialPricingGroup_l", jsonget(currentline, "materialPricingGroup_l", "string", line.materialPricingGroup_l));
+    put(payload, "quantity_l", jsonget(currentline, "quantity_l", "string", string(line.quantity_l)));
+    put(payload, "scaleFrom_l", jsonget(currentline, "scaleFrom_l", "string", line.scaleFrom_l));
+    put(payload, "scaleTo_l", jsonget(currentline, "scaleTo_l", "string", line.scaleTo_l));
+    put(payload, "listPrice_l", jsonget(currentline, "listPrice_l", "string", string(line.listPrice_l)));
+    put(payload, "newNetPrice_l", jsonget(currentline, "newNetPrice_l", "string", string(line.newNetPrice_l)));
+    put(payload, "discountType_l", jsonget(currentline, "discountType_l", "string", line.discountType_l));
+    put(payload, "discountString_l", jsonget(currentline, "discountString_l", "string", line.discountString_l));
+    put(payload, "sAPDeletionFlag_l", jsonget(currentline, "sAPDeletionFlag_l", "string", string(line.sAPDeletionFlag_l)));
+    put(payload, "coperSurcharge_l", jsonget(currentline, "coperSurcharge_l", "string", string(line.coperSurcharge_l)));
+    put(payload, "silverSurcharge_l", jsonget(currentline, "silverSurcharge_l", "string", string(line.silverSurcharge_l)));
+    put(payload, "aluminumSurcharge_l", jsonget(currentline, "aluminumSurcharge_l", "string", string(line.aluminumSurcharge_l)));
+    put(payload, "uOM_l", jsonget(currentline, "uOM_l", "string", line.uOM_l));
+    
+    //Sending Group Sequence number
+    put(payload, "lineNumber_l", line._group_sequence_number);
+    parentSeqNum = jsonget(parentSeqNumJson,line._parent_doc_number,"string","");
+    //Sending parent line group sequence number
+    put(payload, "parentSAPLineNumber_l", parentSeqNum);
+	
+    if ( (line.externalConfigVCData_l <> "") AND (line.qqProductType_l == "configuration") ) {
+        jsonput(currentLine, "externalConfigVCData_l", line.externalConfigVCData_l);
+        jsonput(currentLine, "SAPLineNumber_l", line._group_sequence_number);
+        jsonput(currentLine, "quantity_l", "1");
+        jsonput(currentLine, "_sequence_number", line._sequence_number);
+        jsonput(currentLine, "materialLineItem_l", line.materialLineItem_l);
+        vcData = commerce.buildVCDataItemsXML(currentLine);
+        
+        put(payload, "VC_DATA", vcData);
+    }
+
+    lineXml = applytemplate("$BASE_PATH$/WebServices/vc_pricer_line_template.xml", payload, "");
+    lineXml = replace(lineXml, "&lt;", "<");
+    lineXml = replace(lineXml, "&gt;", ">");
+    
+    //  Remove the duplicate tags
+    append(quoteLines, lineXml);
+}
+
+return join(quoteLines, "");

@@ -1,0 +1,131 @@
+/**
+@name Parse CSV
+@api parseCSV
+@param fileLocation String
+@param quoteCurrencyDecimalSeparator String
+@attribute _user_number_format
+@function Integer countOccurrences(String data, String match)
+@return String[][]
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-10-25|michael.yeung        |
+2020-03-16|Atul Jain		| Added debug mode to print statements
+*/
+arr = string[][];
+fileContentFromDict = get(fileContentDict,"filecontent","string");
+raw = decodebase64(fileContentFromDict);
+//raw = urldatabyget(fileLocation, "", "ERROR");
+debugMode = false;
+
+if (raw == "ERROR") {
+  return arr;
+}
+csvSep= ",";
+//if (debugMode) {
+//print "Number Format = " + _user_number_format;
+//print "CSVSEP= " + csvSep;
+//}
+
+rowId=0;
+colId=0;
+goodLines = 0;
+knownColumns = 0;
+
+//apple has to be different so some macs will use \r instead of \n
+raw=replace(raw, "\r", "\n");
+rawLines = split(raw,"\n");
+//determine separator - could be comma or semicolon
+semiColonCount=util.countOccurrences(raw, ";");
+commaCount=util.countOccurrences(raw, ",");
+if (debugMode) {
+	print semiColonCount;
+	print commaCount;
+}
+
+if(semiColonCount>commaCount){
+	csvSep=";";
+}
+
+for rl in rawLines{
+        if (trim(rl) == "") {
+          continue;
+        }
+	rawCols = split(rl,csvSep);
+	if(rowId == 0){
+		if(startswith(lower(rl), "sep")){
+			//csv metadata to force read the separator from file when opening through excel, ignore it for parsing
+			continue;
+		}
+		knownColumns = 0;//sizeofarray(rawCols);
+		//make sure extra columns weren't added on accident
+		for rawCol in rawCols{
+			if(trim(rawCol)<>""){
+				knownColumns=knownColumns+1;
+			}
+		}
+	}
+	if(sizeofarray(rawCols) <> knownColumns){
+		//handle quoted values (if present), else its a bad line
+		quoteCount=0.0;
+		colId=0;
+		rawLineChars=split(rl, "");
+		cellData="";
+		colQuotesFound=false;
+		for rawLineChar in rawLineChars{
+			if(colId>=knownColumns){
+				break;
+			}
+			if(rawLineChar=="\""){
+				if(fmod(quoteCount, 2.0)==0.0){
+					quoteCount=quoteCount+1;
+				}
+				else{
+					quoteCount=quoteCount-1;
+				}
+				colQuotesFound=true;
+			}
+			if(quoteCount==0.0 AND rawLineChar==csvSep){
+				if(colQuotesFound){
+					arr[rowId][colId]=substring(replace(cellData, "\"\"", "\""),1,-1);
+				}
+				else{
+					arr[rowId][colId]=cellData;
+				}
+				colQuotesFound=false;
+				colId=colId+1;
+				//if (debugMode) {
+				//print cellData;
+				//}
+				cellData="";
+			}
+			else{
+			 cellData=cellData+rawLineChar;
+			}
+		}
+		if(cellData<>"" OR colId<=knownColumns){
+			//handle last column
+			//if (debugMode) {
+			//print cellData;
+			//}
+			if(colQuotesFound){
+				arr[rowId][colId]=substring(replace(cellData, "\"\"", "\""),1,-1);
+			}
+			else{
+				arr[rowId][colId]=cellData;
+			}
+		}
+	}
+	else{
+		colId=0;
+		for rawCol in rawCols{
+			if(colId>=knownColumns){
+				break;
+			}
+			arr[rowId][colId]=rawCol;
+			colId=colId+1;	
+		}
+	}
+	rowId=rowId+1;
+}
+return arr;

@@ -1,0 +1,18 @@
+{
+  "name" : "Currency Formatter",
+  "variableName" : "currencyFormatter",
+  "description" : "Returns a string with the currency formatted to number of places (right of the decimal) and padded to 2 places",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "numberToFormat",
+    "type" : "String"
+  }, {
+    "name" : "CurrencyIn",
+    "type" : "String"
+  }, {
+    "name" : "CurrencyOut",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

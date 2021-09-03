@@ -1,0 +1,14 @@
+{
+  "name" : "Refresh Guidance",
+  "variableName" : "refreshGuidance",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.zilliantRequestPayload", "util.connectToZilliant", "util.formatZilliantResponse", "util.getApprovalThresholds", "util.getAuthenticationToken", "util.getExchangeRate", "util.getRemark", "util.stringToFloat" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "qqProductType_l", "cost_l", "costSource_l", "materialPricingGroup_l" ],
+  "mainDocAttributes" : [ "salesOrg_t", "marketingInformationValue_t", "qqCustomerGroup_t", "currency_t", "qqAccountType_t", "qqSubAccountType_t", "guidanceEnableFlag_t", "currencyDecimalSeparator_t" ],
+  "systemAttributes" : [ "_system_current_step_var", "_system_current_user_language" ]
+}

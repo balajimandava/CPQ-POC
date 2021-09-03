@@ -1,0 +1,14 @@
+{
+  "name" : "Mass Update Customer Search",
+  "variableName" : "massUpdateCustomerSearch",
+  "description" : "",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.customerHierarchyLookupNew", "util.getCUSMAS", "util.getRegionsForSalesOrg", "util.getStringDict" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "search_CusTab",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qq_customerSearchField_t", "ntSelectedSalesOrg_t", "isDistiQuote_t", "isVendorQuote_t", "qq_ntTransactionType_t", "ntDistributionChannel_t", "owner_t" ],
+  "systemAttributes" : [ "_system_current_step_var", "_system_company_name", "_system_user_groups" ]
+}

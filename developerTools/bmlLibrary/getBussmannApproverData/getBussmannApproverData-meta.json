@@ -1,0 +1,21 @@
+{
+  "name" : "Get Bussmann Approver Data",
+  "variableName" : "getBussmannApproverData",
+  "description" : "Fetches Bussmann Approver data",
+  "libraryFunctions" : [ "util.lookupDAG", "util.u_getJsonDataForQuery", "util.u_logJson" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "mpgList",
+    "type" : "String[]"
+  }, {
+    "name" : "salesGroup",
+    "type" : "String"
+  }, {
+    "name" : "salesOrg",
+    "type" : "String"
+  }, {
+    "name" : "stringDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

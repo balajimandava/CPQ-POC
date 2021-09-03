@@ -1,0 +1,24 @@
+{
+  "name" : "Build Bid Manager Model URL",
+  "variableName" : "buildBidManagerModelURL",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.getTransactionData", "util.u_logString" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "selectedDocNumber",
+    "type" : "String"
+  }, {
+    "name" : "configExtraInfo",
+    "type" : "String"
+  }, {
+    "name" : "modelPath",
+    "type" : "String"
+  }, {
+    "name" : "bsId",
+    "type" : "String"
+  }, {
+    "name" : "searchResult",
+    "type" : "String"
+  } ],
+  "attributes" : [ "_site_url", "_company_name" ]
+}

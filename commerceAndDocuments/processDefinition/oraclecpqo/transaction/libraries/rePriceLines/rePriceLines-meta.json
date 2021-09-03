@@ -1,0 +1,14 @@
+{
+  "name" : "Re-Price Lines",
+  "variableName" : "rePriceLines",
+  "description" : "Iterates through the agreement's lines to retrieve the list prices.  The pricelist could've been changed which would invalidate the prices brought in from config.",
+  "libraryFunctions" : [ "util.getRemark", "util.getStringDict", "util.parseBidManBOM", "util.stringToFloat" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ "materialLineItem_l", "uOM_l", "_sequence_number", "_parent_doc_number", "roundingQuantity_l", "quantity_l", "externalConfigVCData_l", "externalConfigBOM_l", "qqProductType_l", "priceAtChildLine_l", "isBOMPricing_l", "roundingProfile_l", "_document_number", "lineItemStatus_l", "_config_attr_info", "externalConfigData_l" ],
+  "mainDocAttributes" : [ "extendCurrentListPrices_t", "choosePricelist_t", "priceListHPL_t", "salesOrg_t", "currency_t", "lastUsedPricelist_t", "transactionType_t", "qqTnC_t", "customerPriceList_t", "qqBusinessLineForSalesOrg_t", "agreementUploadDetails_t", "distributionChannel_t", "bookPriceDate_t", "agreementValidFrom_t", "newExchangeRate_t" ],
+  "systemAttributes" : [ "_system_current_step_var", "_system_current_user_language", "_system_user_time_zone" ]
+}

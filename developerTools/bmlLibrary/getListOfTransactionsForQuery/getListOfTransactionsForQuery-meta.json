@@ -1,0 +1,12 @@
+{
+  "name" : "Get List of Transactions for Query",
+  "variableName" : "getListOfTransactionsForQuery",
+  "description" : "Get a list of transaction for a given query.",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "params",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

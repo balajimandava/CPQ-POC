@@ -1,0 +1,12 @@
+{
+  "name" : "Scan Transactions",
+  "variableName" : "scanTransactions",
+  "description" : "Scans transactions that contain various values and return the bs_id and status",
+  "libraryFunctions" : [ "util.getStringDict", "util.u_EncodeURIComponent" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "incomingJSON",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

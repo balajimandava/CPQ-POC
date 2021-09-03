@@ -1,0 +1,108 @@
+/**
+@name Transaction Lines Save - JSON
+@api transactionLinesSaveJSON
+@summary Returns all of a transactions line data in a JSON Array
+@param inputDict StringDictionary
+@attribute _document_number
+@attribute _parent_doc_number
+@attribute customDiscountType_l
+@attribute discountString_l
+@attribute discount_l
+@attribute lineNumber_l
+@attribute materialLineItemShortDescription_l
+@attribute materialLineItem_l
+@attribute materialPricingGroupShortDescription_l
+@attribute materialPricingGroup_l
+@attribute newListPrice_l
+@attribute oldListPrice_l
+@attribute quantity_l
+@attribute scaleFrom_l
+@attribute scaleTo_l
+@attribute scale_l
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-05-23|michael.yeung        |
+*/
+retJSON= json();
+//  38124387
+mpgJSON= json();
+mliJSON= json();
+
+  for line in transactionLine {
+  
+    docNum= line._document_number;
+    pdocNum= line._parent_doc_number;
+    if (pdocNum == "") {
+      mpg= line.materialPricingGroup_l;
+      disc= line.discount_l;
+		if ( line.qqProductType_l == "group") {
+			jsonput(mpgJSON,"mpg",mpg);
+			jsonput(mpgJSON,"discountString",line.discountString_l);
+			jsonput(mpgJSON,"docnum",docNum);
+			jsonput(mpgJSON,"lineType","part");
+			
+			if (line.discountString_l == "") {
+				jsonput(mpgJSON,"discount","");
+			} 
+			else {
+				jsonput(mpgJSON,"discount",line.discount_l);
+			}
+	        jsonput(retJSON,docNum,mpgJSON);
+		} 
+		elif (line.qqProductType_l == "configuration") {
+			jsonput(mliJSON,"item",line.materialLineItem_l);
+			jsonput(mliJSON,"desc",line.materialLineItemShortDescription_l);
+			jsonput(mliJSON,"listPrice",line.oldListPrice_l);
+			jsonput(mliJSON,"newListPrice",line.newListPrice_l);
+			jsonput(mliJSON,"discount",line.discountString_l);
+			jsonput(mliJSON,"discountType",line.customDiscountType_l);
+			jsonput(mliJSON,"qty",line.quantity_l);
+			jsonput(mliJSON,"scaleFrom",line.scaleFrom_l);
+			jsonput(mliJSON,"scaleTo",line.scaleTo_l);
+			jsonput(mliJSON,"scale",string(line.scale_l));
+			jsonput(mliJSON,"docnum",docNum);
+			jsonput(mliJSON,"lineType","model");
+			jsonput(mliJSON,"mpgMaterialLine",line.materialPricingGroup_l);
+	        jsonput(retJSON,docNum,mliJSON);
+		} 
+		else {
+			jsonput(mliJSON,"item",line.materialLineItem_l);
+			jsonput(mliJSON,"desc",line.materialLineItemShortDescription_l);
+			jsonput(mliJSON,"listPrice",line.oldListPrice_l);
+			jsonput(mliJSON,"newListPrice",line.newListPrice_l);
+			jsonput(mliJSON,"discount",line.discountString_l);
+			jsonput(mliJSON,"discountType",line.customDiscountType_l);
+			jsonput(mliJSON,"qty",line.quantity_l);
+			jsonput(mliJSON,"scaleFrom",line.scaleFrom_l);
+			jsonput(mliJSON,"scaleTo",line.scaleTo_l);
+			jsonput(mliJSON,"scale",string(line.scale_l));
+			jsonput(mliJSON,"docnum",docNum);
+			jsonput(mliJSON,"lineType","part");
+			jsonput(mliJSON,"mpgMaterialLine",line.materialPricingGroup_l);
+	        jsonput(retJSON,docNum,mliJSON);
+		}      
+    } 
+	else {
+      parentMPG= jsonpathgetsingle(retJSON, "$..[?(@.docnum == '"+pdocNum+"')]","json");
+      
+      jsonput(mliJSON,"item",line.materialLineItem_l);
+      jsonput(mliJSON,"desc",line.materialLineItemShortDescription_l);
+      jsonput(mliJSON,"listPrice",line.oldListPrice_l);
+      jsonput(mliJSON,"newListPrice",line.newListPrice_l);
+      jsonput(mliJSON,"discount",line.discountString_l);
+      jsonput(mliJSON,"discountType",line.customDiscountType_l);
+      jsonput(mliJSON,"qty",line.quantity_l);
+      jsonput(mliJSON,"scaleFrom",line.scaleFrom_l);
+      jsonput(mliJSON,"scaleTo",line.scaleTo_l);
+      jsonput(mliJSON,"scale",string(line.scale_l));
+      jsonput(mliJSON,"docnum",docNum);
+      jsonput(mliJSON,"lineType","part");
+      jsonput(mliJSON,"mpgMaterialLine",line.materialPricingGroup_l);
+      jsonput(parentMPG,docNum,mliJSON);
+      jsonput(retJSON,pdocNum,parentMPG);
+    }
+  }
+  
+return retJSON;

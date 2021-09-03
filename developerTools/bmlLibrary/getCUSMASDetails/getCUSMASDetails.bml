@@ -1,0 +1,146 @@
+//************************************************************************************************************
+//** Function:    Get CUSMAS Details Updated
+//** Type:        Util Library Function   
+//**
+//** Description:  	Returns a single Customer Master record in a JSON structure
+//** 
+//** Return type: String  
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------------
+//**          07/05/2019    	Ali		Modified input for getCUSMASDetails lib to pass the Distribution channel as part of INC000012102739
+//**	      17/03/2020	Atul Jain	Removed commented code, and added debug mode to print statements.
+
+//******************************************************************************************************************
+debugMode = false;
+VKORG = jsonget(getCusmasDetail, "VKORG");
+VTWEG = jsonget(getCusmasDetail, "VTWEG");
+CustomerNumber = jsonget(getCusmasDetail, "CustomerNumber");
+KTOKD = jsonget(getCusmasDetail, "KTOKD");
+PARVW = jsonget(getCusmasDetail, "PARVW");
+KUNN2 = jsonget(getCusmasDetail, "KUNN2");
+
+//Chandan - 49704 - Added the below conditions to handle the null values in input paramentes
+if(ISNULL(KTOKD)){
+	KTOKD = "";
+}
+if(ISNULL(PARVW)){
+	PARVW = "";
+}
+//Chandan - 49704 - Added the above conditions to handle the null values in input paramentes
+//Added by Shardul
+if(ISNULL(KUNN2)){
+	KUNN2 = "";
+}
+
+retJSON= json();
+
+  if (CustomerNumber == "") {
+    jsonput(retJSON,"customercount",0);
+    return retJSON;
+    }
+
+  siteID= util.getSupplierCompanyName();
+  columnNames= string[];
+  headers= dict("string");
+  
+  apiUserID= "";
+  apiPassID= "";
+
+  siteBMQL= bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+  for eachSite in siteBMQL {
+    apiUserID= get(eachSite,"FieldName");
+    apiPassID= get(eachSite,"Value1");
+  }
+  
+  auth_val = "Basic " + encodebase64(apiUserID + ":" + apiPassID);
+  if (debugMode) {
+  print auth_val;
+  }
+  
+  put(headers, "Authorization", auth_val);
+  put(headers, "Content-Type", "application/json");
+
+  //  https://eatontest1.bigmachines.com/rest/v3/customCUSMAS
+  //  Host and custom<TABLENAME> must be changed...
+  getURL= "https://" + siteID + ".bigmachines.com/rest/v3/metadata-catalog/customCUSMAS";
+  if (debugMode) {
+  print getURL;
+  }
+  responseD= urldata(getURL, "GET", headers);
+  if (debugMode) {
+  print responseD;
+  }
+  
+  //  Status-Code=200 means it was successful and Message-Body will contain the JSON formatted response
+  if (get(responseD,"Status-Code") == "200") {
+    
+    tableJSON= json(get(responseD,"Message-Body"));
+    columnsList= jsonpathgetmultiple(tableJSON,"$.definitions.customCUSMAS.properties[*]");
+    if (debugMode) {
+	print columnsList;
+	}
+    
+    myRange= range(jsonarraysize(columnsList));
+    
+    for eachCol in myRange {
+      eachColJSON= json(jsonarrayget(columnsList,eachCol));
+      if (debugMode) {
+	  print jsonkeys(eachColJSON);
+	  }
+      
+      title= jsonget(eachColJSON,"title");
+      if (title == "id") {continue;}
+      type= jsonget(eachColJSON,"type");
+      //  !Important -- CPQ data table import requires 1 character to be uppercase
+      type= upper(substring(type,0,1)) + substring(type,1,len(type));
+      description= jsonget(eachColJSON,"description");
+      
+      append(columnNames,title);
+      
+      if (debugMode) {
+	  print title + " / " + type + " / " + description;
+	  }
+    }
+  }
+
+  cols= join(columnNames,",");
+
+  cusmasBMQL= recordset();
+  if ( (KTOKD == "") AND (PARVW == "") AND (KUNN2 == "")) {
+    cusmasBMQL = bmql("SELECT $cols FROM CUSMAS WHERE KUNNR=$CustomerNumber AND VKORG=$VKORG AND VTWEG=$VTWEG");
+  } elif (KTOKD == "Z012") {
+    cusmasBMQL = bmql("SELECT $cols FROM CUSMAS WHERE KUNNR=$CustomerNumber AND KTOKD=$KTOKD AND VKORG=$VKORG AND VTWEG=$VTWEG");
+  } elif (KUNN2 <> "" AND PARVW <> "" AND KTOKD <> "") { 
+    cusmasBMQL = bmql("SELECT $cols FROM CUSMAS WHERE KUNNR=$CustomerNumber AND KTOKD=$KTOKD AND PARVW=$PARVW AND VKORG=$VKORG AND VTWEG=$VTWEG AND KUNN2=$KUNN2");
+  }
+  else {
+    cusmasBMQL = bmql("SELECT $cols FROM CUSMAS WHERE KUNNR=$CustomerNumber AND KTOKD=$KTOKD AND PARVW=$PARVW AND VKORG=$VKORG AND VTWEG=$VTWEG");
+  }
+  if (debugMode) {
+  print cusmasBMQL;
+  }
+  
+  customerCount= 0;
+  for eachCustomer in cusmasBMQL {
+    customerCount=customerCount+1;
+    for eachColumn in columnNames {
+      eachValue= get(eachCustomer,eachColumn);
+      jsonput(retJSON,eachColumn,eachValue);
+      if (debugMode) {
+	  print eachColumn + " / " + eachValue;
+	  }
+    }
+  }
+  
+  hCurrency= "EUR";
+  if ( (KTOKD == "Z012") AND (customercount > 0) ) {
+    cusmas2BMQL= bmql("SELECT Currency FROM HierarchyDetails WHERE CustomerNumber = $CustomerNumber AND SalesOrg = $VKORG");
+    for eachRow in cusmas2BMQL {
+      hCurrency= get(eachRow,"Currency");
+    }
+    jsonput(retJSON,"WAERS",hCurrency);
+  }
+  jsonput(retJSON,"customercount",string(customerCount));
+
+return retJSON;

@@ -1,0 +1,14 @@
+{
+  "name" : "Update Transaction Attributes",
+  "variableName" : "updateTransaction",
+  "description" : "",
+  "libraryFunctions" : [ "util.u_addToDate" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "agreementValidTo_t", "agreementValidFrom_t" ],
+  "systemAttributes" : [ "_system_user_time_zone" ]
+}

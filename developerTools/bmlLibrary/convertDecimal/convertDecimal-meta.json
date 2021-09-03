@@ -1,0 +1,15 @@
+{
+  "name" : "Convert Decimal",
+  "variableName" : "convertDecimal",
+  "description" : "Used for having proper number of decimal places and converting into Currency Decimal Separator.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputNum",
+    "type" : "String"
+  }, {
+    "name" : "currencyDecimalSeprator",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

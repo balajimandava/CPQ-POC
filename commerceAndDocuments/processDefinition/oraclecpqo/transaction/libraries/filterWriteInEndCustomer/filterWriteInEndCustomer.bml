@@ -1,0 +1,36 @@
+//************************************************************************************************************
+//** Function:    Search and Remove Write-in customers form End Customer arrayset
+//**
+//** Return type: String
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              20-March-2020 Rahul Uttarwar  Initial version
+//************************************************************************************************************
+
+returnVal = "";
+jsonArrayObj = endCustomerArraySet2_t;
+rng = integer[];
+if(NOT ISNULL(jsonArrayObj)){
+	rng = range(jsonarraysize(jsonArrayObj));
+}
+
+removeIndex = -1;
+
+//travers through all the customers in the arrayset to get the index of write-in customer, break the loop 
+//once the index is found
+for r in rng{
+    jobj = jsonarrayget(jsonArrayObj, r, "json"); // get each End Customer json obj
+    custNumber = jsonget(jobj,"customer_EndCus2_t","string",""); // get the customer number
+    if(custNumber == "" or isnull(custNumber)){ // This is write-in customer, get the index
+        removeIndex = r;
+        break; // exit the for loop.
+    }
+}
+
+if(removeIndex >=0){ // write-in customer found
+    jsonarrayremove(jsonArrayObj, removeIndex); // remove write-in customer
+    returnVal = "1~endCustomerArraySet2_t~" + jsonarraytostr(jsonArrayObj) + "|";
+}
+
+return returnVal;

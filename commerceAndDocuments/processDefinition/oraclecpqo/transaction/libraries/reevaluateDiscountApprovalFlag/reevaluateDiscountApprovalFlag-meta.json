@@ -1,0 +1,11 @@
+{
+  "name" : "Re-evaluate Discount Approval Flag",
+  "variableName" : "reevaluateDiscountApprovalFlag",
+  "description" : "",
+  "libraryFunctions" : [ "util.u_convertJsonArrayToStringArray", "util.u_logJson", "util.u_logString" ],
+  "returnType" : "Boolean",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "approvalRequired_l", "customDiscountType_l", "discountString_l" ],
+  "mainDocAttributes" : [ "previousApprovedValues_t" ],
+  "systemAttributes" : [ ]
+}

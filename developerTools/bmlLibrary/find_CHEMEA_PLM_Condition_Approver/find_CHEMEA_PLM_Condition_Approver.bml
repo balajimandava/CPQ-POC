@@ -1,0 +1,53 @@
+/**
+@name Find CHEMEA PLM Approver Condition
+@api find_CHEMEA_PLM_Approver_Condition
+@param 
+	findDataFor String
+	approverSequence Integer
+	productApprovers String
+	Optional stringDict StringDictionary 
+	Optional floatDict FloatDictionary   
+	Optional intDict IntegerDictionary
+	
+@function 
+	util.getSupplierCompanyName()
+@return String
+@revision
+Rev. Date   	|	Developer         |Notes / Comments
+----------------|-------------------------|-------------------------------------------------------------------------
+26-Mar-2018 	| Harshit Mehta        	  |Initial Version
+*/
+
+productApproversJSON = jsonArray();
+companyName = util.getSupplierCompanyName();
+
+if(productApprovers <> "")
+{
+	productApproversJSON = jsonarray(productApprovers);
+}
+
+//Below code for Condition
+if(findDataFor == "CONDITION")
+{
+		if( jsonarraysize(productApproversJSON ) >= approverSequence) {
+			return "true";
+		}
+		return "false";
+}
+
+//Below Code to find approver
+if(findDataFor == "APPROVER")
+{
+	cSMApprover = "";
+	if(containsKey(stringDict,"CSM"))
+	{
+		cSMApprover = "|1~"+get(stringDict,"CSM") + "~" + companyName ;
+	}
+	if(jsonarraysize(productApproversJSON ) >= approverSequence)
+	{
+		return "1~" + jsonarrayget(productApproversJSON, approverSequence-1, "string" ) + "~" + companyName + cSMApprover ;
+	}
+	
+}
+
+return "";

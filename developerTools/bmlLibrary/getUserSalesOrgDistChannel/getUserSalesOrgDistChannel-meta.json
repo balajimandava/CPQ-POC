@@ -1,0 +1,12 @@
+{
+  "name" : "getUserSalesOrgDistChannel",
+  "variableName" : "getUserSalesOrgDistChannel",
+  "description" : "returns list of sales Org and distributor channel for the given userid and company",
+  "libraryFunctions" : [ ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "parmsDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

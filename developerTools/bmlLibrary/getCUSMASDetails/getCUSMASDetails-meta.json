@@ -1,0 +1,12 @@
+{
+  "name" : "Get CUSMAS Details",
+  "variableName" : "getCUSMASDetails",
+  "description" : "Returns a single Customer Master record in a JSON structure",
+  "libraryFunctions" : [ "util.getSupplierCompanyName" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "getCusmasDetail",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

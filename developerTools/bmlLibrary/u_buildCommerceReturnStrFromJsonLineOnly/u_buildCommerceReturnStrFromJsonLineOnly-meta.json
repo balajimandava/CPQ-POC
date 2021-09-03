@@ -1,0 +1,12 @@
+{
+  "name" : "Build Commerce Return Str From Json (Line Only)",
+  "variableName" : "u_buildCommerceReturnStrFromJsonLineOnly",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,14 @@
+{
+  "name" : "Hide Output Line Table columns",
+  "variableName" : "hideOutputLineTableColumns",
+  "description" : "This commerce function returns boolean values to hide/show line item table columns in output document",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "hideParam",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "netPricingOutputTab_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ ]
+}

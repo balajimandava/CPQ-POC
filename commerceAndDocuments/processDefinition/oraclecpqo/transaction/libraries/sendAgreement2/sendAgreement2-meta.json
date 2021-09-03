@@ -1,0 +1,14 @@
+{
+  "name" : "Send Agreement 2",
+  "variableName" : "sendAgreement2",
+  "description" : "",
+  "libraryFunctions" : [ "util.getEnvironmentVariable", "util.getTableValue" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "salesOrg_t", "accountTypeKTOKD_t", "transactionType_t", "agreementValidFrom_t", "agreementValidTo_t" ],
+  "systemAttributes" : [ "_system_user_time_zone", "_system_supplier_company_name" ]
+}

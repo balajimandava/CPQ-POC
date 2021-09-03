@@ -1,0 +1,33 @@
+//2020-03-18| Atul Jain	| Removed commented code.
+
+jobj= json();
+findinjson= "Automation Micro";
+debugMode = false;
+//Read all the names from the BonusGroupMappings table
+bonusgroupBMQL= BMQL("SELECT Name FROM BonusGroupMappings");
+
+//Build a simple JSON object with the name as the key and a count as the value...
+cnt=0;
+for eachName in bonusgroupBMQL {
+  bonusgroupname= get(eachName, "Name");
+  jsonput(jobj,bonusgroupname,cnt);
+  cnt=cnt+1;
+}
+//  Show me the JSON structure
+if (debugMode) {
+print jobj;print " ";
+}
+
+//  Be sure to wrap your find string in ['KEYSTRINGHERE'] or things like spaces will cause a runtime failure
+findstr="$..['"+findinjson+"']";
+//  Did it find one?  If so then print the result
+
+if (jsonpathcheck(jobj,findstr)) {
+  if (debugMode) {
+	print findinjson + " found on Row " + jsonpathgetsingle(jobj,findstr);
+  }
+}
+
+retJSONarr= jsonarray();
+  
+return retJSONarr;

@@ -1,0 +1,738 @@
+/**
+@name setApprovalRequired_CHEMEA
+@api setApprovalRequired_CHEMEA
+@summary CHEMEA: 
+Determine if approval is required based on the new item and/or new item discount.
+@attribute _document_number
+@attribute _part_number
+@attribute _system_current_user_language
+@attribute _transaction_document_number
+@attribute accountTypeKTOKD_t
+@attribute agreementDeliveryTerms_t
+@attribute agreementNetDiscountRequested_l
+@attribute agreementNetDiscount_l
+@attribute agreementPaymentTerms_t
+@attribute agreementPeriodOfInvoicing_t
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute aluminiumApproval_t
+@attribute aluminium_t
+@attribute approvalRequired_l
+@attribute approver_l
+@attribute bonusApprovalRequired_t
+@attribute bonusGroupDiscount_t
+@attribute bonusTableDataString_t
+@attribute cPROFeedbackApprovedEmailSubject_t
+@attribute cSMEmail_t
+@attribute choosePricelist_t
+@attribute copperApproval_t
+@attribute copper_t
+@attribute currencyDecimalSeparator_t
+@attribute currencySymbol_t
+@attribute customDiscountType_l
+@attribute customerNumber_t
+@attribute discountApprovalRequired_t
+@attribute discountPercentNetRequested_l
+@attribute discount_l
+@attribute expectedVolumeApprovalRequired_t
+@attribute expectedVolume_t
+@attribute extendCurrentListPrices_t
+@attribute hPLAppliedDiscount_l
+@attribute hPLApplied_t
+@attribute level2Email_t
+@attribute level3Email_t
+@attribute level4Email_t
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute metalSurchargesApprovalRequired_t
+@attribute minimumOrderValueApprovalRequired_t
+@attribute minimumOrderVolume_t
+@attribute newExpectedVolume_l
+@attribute oldCustomerNo_t
+@attribute oldDiscountString_l
+@attribute overallTermsApprovalLevel_t
+@attribute owner_t
+@attribute paymentTermsShipTo_t
+@attribute periodOfInvoicingShipTo_t
+@attribute preparedByENumber_t
+@attribute priceListExtensionApprovalRequired_t
+@attribute priceListFrom_t
+@attribute priceListTo_t
+@attribute salesOrg_t
+@attribute silverApproval_t
+@attribute silver_t
+@attribute statusBeforeCopy_t
+@attribute surchargeExemption_t
+@attribute termsApprovalRequired_t
+@attribute termsStandardApprovalRequired_t
+@attribute transactionType_t
+@attribute validityPeriodApprovalRequired_t
+@attribute whatLevelOfDeliveryTermsApprovalRequired_t
+@attribute whatLevelOfDiscountApprovalRequired_t
+@attribute whatLevelOfInvoicingTermsApprovalRequired_t
+@attribute whatLevelOfTermsApprovalRequired_t
+@attribute wholesaler_t
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@function Float stringToFloat(String input)
+@function Integer stringToInteger(String input)
+@function Json enableDebugLog()
+@function Json getApprovalThresholds(Json approvalInputs)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@function String getRemark(String rowIndex, String language)
+@function Json assembleTransactionValues(Json INDEX)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-15|Smriti.Chaturvedi	| Initial Version
+2018-04-11|Harshit Mehta		| Set blank in whatLevelOfDeliveryTermsApprovalRequired_t attribute if TnC approval condition is not matching.
+2018-07-02|Harshit Mehta		| ALM 857 : Do not display notification for level 2 if Quote Submitter is Level2 approver.
+2018-07-23|Harshit Mehta		| ALM :: 653 Changes for New Item 
+2018-07-31|Harshit Mehta		| ALM :: 653 Changes for New Item
+2018-09-14|Gaurav Singh			| ALM :: 1107 Changes for Triggering Approvals on Copy, Revise and Version actions
+2018-10-10|Pooja Gupta			| ALM :: 750 Changes to stamp approver name on line item
+2018-10-10|Pooja Gupta			| ALM :: 1750 Added code to reset Delivery Term Approval
+2018-11-27|Ankit Vernekar		| ALM :: 1095 New approval for bad PH
+2018-12-27|Pooja Gupta          | ALM :: 1754 Added below code to show distinct name in notification message
+2019-01-20|Smriti Chaturvedi	| Defect 1486- Logic added to set a flag which will be used in validation rule for Material Item
+2019.02.20|Tanya Arora          |Getting feedbackdiscount_l from Previously approved value and comparing with current discount for DE1811 By Tanya Arora
+2019.09.9|Smriti Chaturvedi		| Updated the notification message for Ph bad hierachy against ALM-2470
+2021.02.15|Nithin               |CPQ-3669 - materials should be exempt from the Zero List Price approval workflow triggering if price included flag True.
+*/
+print "Inside setApprovalRequired_CHEMEA";
+returnString = "";
+//Smriti -Defect 1486- Parameters for Util function.
+inputJson=json();
+materialItemArr = jsonarray();
+materialLineItemMapping=json();
+message ="";
+distributionChannel=jsonput(inputJson, "distributionChannel", distributionChannel_t);
+salesOrg=jsonput(inputJson, "salesOrg", salesOrg_t);
+language=jsonput(inputJson, "language", _system_current_user_language);
+businessgroup=jsonput(inputJson, "businessgroup", qqBusinessLineForSalesOrg_t);
+discountlevel = "";
+thresholdData = util.getApprovalThresholdsCHEMEA(json("{\"salesOrg\": \"" + salesOrg_t + "\"}"));
+//print thresholdData;
+mpgsInThresholdsJSON = jsonkeys(thresholdData);
+discountApprovalRequired = false; //discount approval
+discountLevelApproval = ""; // discountLevelApproval
+newItemApprovalFlag = false; //Flag to check if item is New Item
+currencySymbol = currencySymbol_t;
+currencyDecimalSeparator = currencyDecimalSeparator_t;
+quoteTotal = 0;
+currencyflag = false;
+//Approval message variables
+notificationMessage = "";
+notificationsArray = string[];
+pricingGroupNeedPLMApproval = string[];
+ZeroListpricePLMApproval = string[];
+newItemPLMApproval = string[];
+zeroListPriceApproval  = false;
+deliveryincoterm = false;
+nonstandardterm = false;
+feedbackflag = false;
+controllerId = "";
+transactiontypeval = "";
+totalValueApproval = false;
+userLanguage = _system_current_user_language;
+transitionstepvalue  = _system_current_step_var;
+//Below Array added by Gaurav rather than using string for better performance
+returnStringArray = string[];
+//Below attributes added by Gaurav for 1107
+approvedAgreementDeliveryTerms = "";
+isVersion = (previousAction_t == "version");
+previouslyApproved = false;
+previouslyApprovedValuesJson = json();
+approverName = "";
+approvalLevel ="";
+countPLMApprover=0;
+phApproval = false;
+badPhArray = string[];
+phApprovers ="";
+emailSubjectStatus="";
+//Warning messages code
+userLanguage = _system_current_user_language;
+WARNING_MESSAGE_1 = util.getRemark("WARNING_MESSAGE_1", userLanguage);
+WARNING_MESSAGE_Discount = util.getRemark("WARNING_MESSAGE_2", userLanguage);
+WARNING_MESSAGE_Term = util.getRemark("WARNING_MESSAGE_3", userLanguage);
+WARNING_MESSAGE_4 = util.getRemark("WARNING_MESSAGE_4", userLanguage);
+WARNING_MESSAGE_Legal = util.getRemark("WARNING_MESSAGE_11", userLanguage);
+WARNING_MESSAGE_NonStandardTnC = util.getRemark("WARNING_MESSAGE_9", userLanguage);
+WARNING_MESSAGE_25 = util.getRemark("WARNING_MESSAGE_25", userLanguage);
+WARNING_MESSAGE_26 = util.getRemark("WARNING_MESSAGE_26", userLanguage);
+WARNING_MESSAGE_NewItem = util.getRemark("WARNING_MESSAGE_7", userLanguage);
+WARNING_MESSAGE_27 = util.getRemark("WARNING_MESSAGE_27", userLanguage);
+
+//Check for Quote Totals: Needs CSM Approver if quote total amount exceeds the threshold amount
+approvalTriggers = bmql("select key, value, TransactionType from ApprovalTriggers where salesOrg = $salesOrg_t");
+for row in approvalTriggers{
+	key = get(row, "key");
+	if (key == "quoteTotal"){
+		valueStr = get(row, "value");
+		transactiontypeval = get(row,"TransactionType");
+		if( valueStr <> "" ){
+			quoteTotal = atof(valueStr);
+		}
+	}
+}
+if (qqTotalValue_t > quoteTotal OR isnull(transactiontypeval) OR transactiontypeval == ""){
+	//Gaurav Singh: Changes for 1107
+	//Get the already approved reason details from previousApprovedValues_t attribute
+
+	previousApprovedValues = previousApprovedValues_t;
+	//For version transaction get the previous values for the parent
+        approverset = bmql("SELECT Leve2ApproverName,Level2,Level4ApproverName,Level4,CSM FROM CHEMEA_Approver WHERE SalesOrg = $salesOrg_t");
+		level2Approver = "";
+		level4Approver = "";
+		csmApprover = "";
+		level2Approvername = "";
+		level4Approvername = "";
+		for record in approverset{
+			level2Approver = get(record, "Level2");
+			level4Approver = get(record, "Level4");
+			level2Approvername = get(record,"Leve2ApproverName");
+			level4Approvername = get(record,"Level4ApproverName");
+			csmApprover = get(record, "CSM");
+		}
+	if(isVersion){
+		input = json();
+		//For Agreements Create Renewal is used for versioning
+		parentTransactionId = parent_transaction_id_createRenewal;
+		//For Quotes Create New Version is the versioning action
+		if(isnull(parentTransactionId) OR parentTransactionId == ""){
+			parentTransactionId = parent_transaction_id_qqCreateNewVersion_t;
+		}
+		jsonput(input, "bsid", parentTransactionId);
+		transactionValuesJson = commerce.assembleTransactionValues(input);
+		previousApprovedValues = jsonget(transactionValuesJson, "previousApprovedValues_t");
+	}
+	if((revisionNumber_t > 1 OR isVersion) AND previousApprovedValues <> ""){
+		previouslyApprovedValuesJson = json(previousApprovedValues);
+		approvedAgreementDeliveryTerms = jsonget(previouslyApprovedValuesJson, "agreementDeliveryTerms_t");
+		previouslyApproved = true;
+	}
+	//Gaurav Singh: Added below if condition for 1107, to fire approval only if it was not already approved
+	if(approvedAgreementDeliveryTerms == "" OR agreementDeliveryTerms_t <> approvedAgreementDeliveryTerms){
+		if(agreementDeliveryTerms_t <> "CPT" AND  agreementDeliveryTerms_t <> "FOB" AND agreementDeliveryTerms_t <> "FCA"  AND agreementDeliveryTerms_t <> "EXW"){
+			returnString = returnString + _transaction_document_number + "~whatLevelOfDeliveryTermsApprovalRequired_t~" + "CSM" + "|";	
+			deliveryincoterm = true;
+		}
+		//Pooja Gupta-Added below else condition for defect 1750,to reset Delivery Term Approval
+		else{
+			returnString = returnString + _transaction_document_number + "~whatLevelOfDeliveryTermsApprovalRequired_t~|";
+			deliveryincoterm = false;		
+		}
+	}
+	else{		
+		returnString = returnString + _transaction_document_number + "~whatLevelOfDeliveryTermsApprovalRequired_t~|";
+		deliveryincoterm = false;	
+	}
+	if((qqTnC_t == "nonStandard")){
+		// For Highlighting the Delivery Terms - QQ-438 - Start //
+		returnString = returnString + _transaction_document_number + "~overallTermsApprovalLevel_t~" + "CSM" + "|";
+		// For Highlighting the Delivery Terms - QQ-438 - End //
+		nonstandardterm = true; 
+	}
+	else{	
+		returnString = returnString + _transaction_document_number + "~overallTermsApprovalLevel_t~|";
+		nonstandardterm = false;	
+	}
+	//Line Loop Starts
+	for line in transactionLine{
+		listPrice = line.oldListPrice_l;
+		linediscountval = line.discountPercent_l;
+		discountfeedbackvalue = line.feedbackDiscountPercent_l;
+		productType = line.qqProductType_l;
+		approvalValue = false;
+		mpg = line.materialPricingGroupFullText_l;
+		discountString = line.discountString_l;
+		previouslyApprovedLine = false;
+		
+		//Defect 1095 Conditon for bad PH (less than 12 characters or blank)
+		if(len(mpg)<12 OR mpg == ""){
+			phApproval = true;
+			approvalValue = true;					
+			level = "2";
+			append(badPhArray, string(line._sequence_number));
+		}
+		
+		if(transitionstepvalue == "pendingApproval"){
+			discountRequested = line.feedbackDiscountPercent_l;
+		}
+		else{
+			discountRequested = line.discountPercent_l;
+		}
+		
+		//For New Item needs to route for PLM
+		if(productType == "new"){
+			newItemApprovalFlag = true;
+			approvalValue = true;
+			if(findinarray(newItemPLMApproval,mpg) == -1){
+				append(newItemPLMApproval,mpg);
+			}
+		}
+		
+		//For configured item MPG needs to be changed
+		if(productType == "configuration"){
+			mpg = line.productCode_l;
+		}
+		part = line.materialLineItem_l;
+		docNumber = line._document_number;
+		linenumber=line._sequence_number;
+		level = "";
+		//Smriti -Defect 1486- Parameters for Util function.
+		if(productType == "normal"){
+			jsonarrayappend(materialItemArr, part);
+			jsonput(materialLineItemMapping,part,lineNumber);
+		}
+		currencyflag = false;
+		discountType = line.customDiscountType_l;
+		discount = line.discount_l;
+		currentNetPrice = util.stringToFloat(replace(replace(replace(line.oldDiscountString_l, currencySymbol, ""), "%", ""), currencyDecimalSeparator, "."));
+		discountNetAmount = util.stringToFloat(replace(replace(replace(line.discountString_l, currencySymbol, ""), "%", ""), currencyDecimalSeparator, "."));
+		
+		oldDiscountTypePerc = find(line.oldDiscountString_l, "%") <> -1;
+		newDiscountTypePerc = (discountType == "percent");
+		feedbackvalue = line.discountPercentNetApprovedString_l;
+		currencydecimalseparatorval = currencyDecimalSeparator_t;
+		currencyThousandseparatorval = currencyThousandsSeparator_t;
+		feedbackval = find(feedbackvalue,currencydecimalseparatorval);
+		feedbackthousandval = find(feedbackvalue,currencyThousandseparatorval);
+		if((feedbackval == -1) AND (feedbackthousandval ==  -1)){
+			currencyflag = false;			
+		}
+		elif (feedbackval == -1){
+			currencyflag = true;
+		}
+		returnString = returnString + docNumber + "~currencyflag_l~" + string(currencyflag) + "|";
+		if (findinarray(mpgsInThresholdsJSON, mpg) <> -1){ //print "Hellow";
+			//get the mpg for this line item
+			mpgData = jsonget(thresholdData, mpg);
+
+			// get all thresholds for that mpg
+			dis1 = atof(jsonget(json(mpgData), "Level1Max"));
+			dis2 = atof(jsonget(json(mpgData), "Level2Max"));
+			dis3 = atof(jsonget(json(mpgData), "Level3Max"));
+            approverName=jsonget(json(mpgData), "Email");
+			
+			if (discountRequested > dis1  AND listPrice <> 0.0){
+				//set the overall discount variable
+				discountApprovalRequired = true;
+				// check if the discount is level 4 and set it if true
+				if (discountRequested > dis3 AND level == ""){
+					if( findinarray(pricingGroupNeedPLMApproval, mpg ) == -1 ){
+						append(pricingGroupNeedPLMApproval, mpg);
+					}
+					approvalValue = true;
+					level = "4";
+					discountlevel = "4";
+				}
+
+				// check if the discount is level 3 and set it if true
+				elif((discountRequested > dis2) AND(discountRequested <=  dis3) AND(level == "")){
+					if( findinarray(pricingGroupNeedPLMApproval, mpg ) == -1 ){
+						append(pricingGroupNeedPLMApproval, mpg);
+					}
+					approvalValue = true;
+					level = "3";
+					discountlevel = "3";
+				}
+
+				// check if the discount is level 2 and set it if true
+				elif((discountRequested > dis1) AND(discountRequested <= dis2) AND(level == "")){
+					approvalValue = true;
+					discountlevel = "2";
+					level = "2";
+				}		
+			}
+			// if level is not empty (approval is required)
+			if (level <> ""){
+				returnString = returnString + docNumber + "~level2ThresholdVal~" + string(dis2) + "|";
+				returnString = returnString + docNumber + "~level3ThresholdVal~" + string(dis3) + "|";	
+				// if there is already a approval level set from previous lines
+				if ((discountLevelApproval <> "")){
+					// convert level to a number
+					lvl = atoi(discountlevel);
+					// if the current line has a higher approval level set the discount Level required to be the current level
+					if (lvl > atoi(discountLevelApproval)){
+						discountLevelApproval = string(lvl);
+					}
+				}
+				// if there is currently no approval level set and the current line item requires approval then set it to the discount approval 
+				else{
+					discountLevelApproval = discountlevel;
+				}
+				//Gaurav: Added below code for 1107, Check if the Discount Threshold is more than than the approved threshold then only send for approval again for revised quotes
+				if(previouslyApproved){
+					//  Path to find the item in the items array
+					path = "$..[?(@.materialLineItem_l=='" + part + "')]";
+					previousApprovalManyJsonPath = jsonpathgetmultiple(previouslyApprovedValuesJson, path, true);
+					pathName = jsonarrayget(previousApprovalManyJsonPath, 0, "string");
+					lineItemJson = jsonpathgetsingle(previouslyApprovedValuesJson, pathName, "json");
+					
+					//For version check if discount was increased and for revision check for approved threshold
+					previouslyApprovedDiscountType = jsonpathgetsingle(lineItemJson, "$.customDiscountType_l.value", "string", "");
+					previouslyApprovedDiscountNetValueString = jsonget(lineItemJson, "discountString_l", "string", "0.0");
+					
+					//For Comparing feedback values with the current requested values
+					previouslyApprovedFeedbackValue= jsonget(lineItemJson, "feedbackDiscount_l", "string", "0.0");
+					previouslyApprovedListPrice = jsonpathgetsingle(lineItemJson, "$.oldListPrice_l.value", "string", "");
+					if(isnull(previouslyApprovedListPrice)){
+						previouslyApprovedListPrice = "";
+					}	 	 
+					if(isnull(previouslyApprovedDiscountNetValueString)){
+						previouslyApprovedDiscountNetValueString = "";
+					}
+					if(isnull(previouslyApprovedFeedbackValue)){
+						previouslyApprovedFeedbackValue = "";
+					}
+					previouslyApprovedDiscountNetValue = util.stringToFloat(replace(replace(replace(previouslyApprovedDiscountNetValueString, currencySymbol, ""), "%", ""), currencyDecimalSeparator, "."));
+					feedbackAmount = util.stringToFloat(replace(replace(replace(previouslyApprovedFeedbackValue , currencySymbol, ""), "%", ""), currencyDecimalSeparator, "."));
+					
+					//Version
+					if(isVersion){
+						// No approval needed if the previous approval was a percent and the current discount is less or equal
+						if(previouslyApprovedDiscountType == "percent" AND discountNetAmount <= previouslyApprovedDiscountNetValue AND discountType == "percent"){
+							previouslyApprovedLine = true;
+						}
+						elif(((previouslyApprovedDiscountType == "amt" AND discountNetAmount >= previouslyApprovedDiscountNetValue AND discountType == "amt")) AND (string(listPrice) == string(atof(previouslyApprovedListPrice)))){ // If it was an amount and the amount is lowered then approval is needed
+							//Updated the above condition with the logic of list price because amount threshold needs to be considered if there is a change in the amount crossing the threshold or if List price is changed 
+							previouslyApprovedLine = true;
+						}
+					}
+					//Revision
+					elif(revisionNumber_t > 1){
+						// No approval needed if the previous approval was a percent and the current discount is less or equal
+						if(previouslyApprovedDiscountType == "percent" AND discountNetAmount <= previouslyApprovedDiscountNetValue AND discountType == "percent"
+						AND feedbackAmount == discountNetAmount){
+							previouslyApprovedLine = true;				
+						} 
+						elif(previouslyApprovedDiscountType == "amt" AND discountNetAmount >= previouslyApprovedDiscountNetValue AND discountType == "amt"
+						AND feedbackAmount == discountNetAmount){
+							// If it was an amount and the amount is lowered then approval is needed				  
+							previouslyApprovedLine = true;
+						}
+						//Comparing Feedback Values and current values for DE1811 by Tanya Arora
+						elif(feedbackAmount <> discountNetAmount){
+							// If feedback values is not same as current discount values then needs to be approved
+							previouslyApprovedLine = false;
+						}
+					}
+				}
+				if(previouslyApprovedLine){
+					discountLevelApproval = "";
+					discountApprovalRequired = false;
+					level = "";
+					approvalValue = false;
+				}
+			}		
+		}
+		else{//Defect 1095 Conditon for no match found in Threshold table 
+			phApproval = true; 
+			approvalValue = true;					
+			level = "2";
+			append(badPhArray, string(line._sequence_number));
+		}
+		if(discountLevelApproval <> ""){
+			discountlevel = discountLevelApproval;
+		}
+		
+		if(linediscountval <> discountfeedbackvalue){
+			feedbackflag = true;
+		}
+		
+		//For New Item discountfeedbackValue may be blank as user is not requesting any discount but looking to change List Price
+		if(newItemApprovalFlag AND  discountString == ""  AND transitionstepvalue == "pendingApproval" AND feedbackvalue <> "" AND isNumber(feedbackValue) AND atof(feedbackValue) > 0){
+			feedbackflag = true;
+		}
+		
+		returnString = returnString + _transaction_document_number  + "~feedbackApplied_t~" + string(feedbackflag) + "|";
+		//1790
+		if(feedbackflag==false)
+		{
+			if(_system_current_user_language == "de")
+			{
+	 			emailSubjectStatus="Genehmigt";
+			}
+			else
+			{
+				emailSubjectStatus="Approved";
+			}
+		}
+		else
+		{
+			if(_system_current_user_language == "de")
+			{
+	 			emailSubjectStatus="Ausstehendes Feedback";
+			}
+			else
+			{
+		 		emailSubjectStatus="Pending Feedback";
+			}
+		}
+		returnString = returnString + _transaction_document_number + "~emailSubjectStatus_t~" + emailSubjectStatus + "|";
+		returnString = returnString + _transaction_document_number + "~whatLevelOfDiscountApprovalRequired_t~" + discountLevelApproval + "|";
+		//set the discount variable
+		returnString = returnString + _transaction_document_number + "~discountApprovalRequired_t~" + string(discountApprovalRequired) + "|";
+		returnString = returnString + docNumber + "~approver_l~" + level + "|";
+		// set the variable that contains the highest level of approval required for the agreement	
+		//condition of Zero List Price and Pricing Group
+		if(listPrice == 0.0 AND line.materialLineItem_l <> "" AND ((productType <>"group") AND (productType <>"new")) AND NOT(line.priceIncluded_l)){
+			zeroListPriceApproval = true;
+			approvalValue = true;
+			if(findinarray(ZeroListpricePLMApproval, mpg ) == -1){
+				append(ZeroListpricePLMApproval, mpg);
+			}
+		}
+        //Below code is to set approver name according to Approval Level
+		returnString = returnString + docNumber + "~approvalRequired_l~" + string(approvalValue) + "|";
+		/*if(approvalValue)
+		{
+		returnString = returnString + docNumber + "~lineItemStatus_l~approvalRequired|";
+		}*/
+        if(level=="3" OR level=="4" OR (zeroListPriceApproval) )
+        {
+            returnString = returnString + docNumber + "~approverName_l~" + approverName + "|";
+        }
+        returnString = returnString + docNumber + "~approverName_l~" + level2Approvername + "|";
+		returnString = returnString + "1~approverNameL2_t~" + level2Approvername + "|";
+        if(approvalLevel_t== "3")
+        {
+            returnString = returnString + docNumber + "~approverName_l~" + approverName + "|";
+			returnString = returnString + "1~approverNameL3_t~" + approverName + "|";
+        }
+        if(approvalLevel_t== "4")
+        {
+            returnString = returnString + docNumber + "~approverName_l~" + level4Approvername + "|";
+			returnString = returnString + "1~approverNameL4_t~" + level4Approvername + "|";
+        }
+	}//End of Line Loop
+	jsonput(inputJson, "materialitem", materialItemArr);
+	jsonput(inputJson,"materialLineItemMapping",materialLineItemMapping);
+
+//Smriti -Defect 1486- Parameters for Util function.
+if(jsonarraysize(materialItemArr) >0){
+	retJson = util.getMAT01MultipleDetails(inputJson);	
+	//Smriti -Defect 1486-  Util function invocation
+	message =jsonget(retJson, "message");	
+}
+
+	returnString =  returnString + "1~zeroListPriceApprovalRequired_t~" + string(zeroListPriceApproval) + "|";
+	returnString = returnString + "1~qqNewItemApprovalRequired_t~" + string(newItemApprovalFlag) + "|";
+	returnString = returnString + "1~pH5ApprovalRequired_t~" + string(phApproval) + "|";
+	returnString = returnString + _transaction_document_number  + "~obsoleteMaterialMessage_t~" + message + "|";
+
+	// Defect 1095 Message for PH Approval
+	if(phApproval){
+	//Defect 1095 Adding level 2 approver name
+		phApprovers = phApprovers + level2ApproverName + " " + "(" + ("Level" + string(2)) + ")";
+		returnString = returnString + "1~level2Email_t~" + level2Approver+"|";
+		returnString = returnString + "1~level4Email_t~" + level4Approver+"|";
+		//Smriti -Updated the notification message for Ph bad hierachy against ALM-2470
+		msgBody1 = "<b>" + WARNING_MESSAGE_27 + "</b>";
+		msgBody2 = WARNING_MESSAGE_1;
+		append(notificationsArray, "<p>"+ msgBody1 + " " + msgBody2 + " " + phApprovers + " AND "+ level4Approvername + "(" + ("Level" + string(4)) + ")" + "</p>");
+	}
+	if((zeroListPriceApproval) OR (nonstandardterm) OR(deliveryincoterm)){
+		discountLevelApproval = "4";
+	}
+	elif(newItemApprovalFlag){ //For New Item{
+		discountLevelApproval = "3";
+	}
+	if(discountApprovalRequired OR (zeroListPriceApproval) OR (nonstandardterm) OR (deliveryincoterm) OR (newItemApprovalFlag) OR (phApproval)){
+		plmname = "";
+		PH5 = "";
+		Rangeval = "";
+		discountLevelApprovalInt = util.stringToInteger(discountLevelApproval);
+		discountlevelInt  = util.stringToInteger(discountlevel);
+		if(len(discountlevel) >0){
+			Rangeval = discountlevel;
+		}
+		if(len(discountLevelApproval) >0){
+			Rangeval = discountLevelApproval;
+		}
+		disccountRangeval = util.stringToInteger(Rangeval);
+		discRange = range(disccountRangeval);
+		discountApprovers = "";
+		OtherApprovers = "";
+		IncotermApprover = "";
+		newItemApprovers = "";
+		productApproversJsonArray = jsonArray();
+        uniqueproductApproversJsonArray=jsonArray();
+		for i in discRange{
+			level = i + 1; // since i begins with 0
+			if (level >=  2 AND level <=  4){ // Only get values Between level 2 and Level 4			
+				//PLM LEvel3 Identifier			
+				where = "";
+				if(level == 3){
+					fields = dict("string");
+					lang = dict("string");
+					size = sizeofarray(ZeroListpricePLMApproval);
+					rang = range(size);
+					for j in rang{
+						put(fields,"$S2" + string(j), ZeroListpricePLMApproval[j]);
+						if(len(where) > 0){
+							where = where + " OR" + " PH5 in $S2" + string(j);
+						}
+						else{
+							where = "PH5 in  $S2" + string(j);
+						}
+					}
+					fieldsval = dict("string");
+					lang = dict("string");
+					size = sizeofarray(pricingGroupNeedPLMApproval);
+					rang =  range(size);
+					for k in rang{
+						put(fields, "$S3" + string(k), pricingGroupNeedPLMApproval[k]);
+						if(len(where)> 0){
+							where = where + " OR " + " PH5 in  $S3"+string(k);
+						}
+						else{
+							where = " PH5 in  $S3"+string(k); 
+						}
+					}			 
+					//For New Item PLM
+					size = sizeofarray(newItemPLMApproval);
+					rang =  range(size);
+					for newItemIndex in rang{
+						put(fields,"$S4" + string(newItemIndex),newItemPLMApproval[newItemIndex]);
+						if(len(where) > 0){
+							where = where + " OR " + " PH5 in $S4" + string(newItemIndex);
+						}
+						else{
+							where = " PH5 in $S4" + string(newItemIndex);
+						}
+					}
+					put(fields, "$SalesOrg", salesOrg_t);
+					where = "(" + where + ")" + " AND " + " SalesOrg  = $SalesOrg";
+					recordSet = bmql("select DISTINCT eNumber, PLMApproverName, PH5 from Thresholds_CHEMEA WHERE $where", fields, fields);
+					if(haserror(recordSet)){
+						error = getmessage(recordSet);
+					}
+					for record in recordSet{
+                        countPLMApprover=countPLMApprover+1;
+                        str="\"" + get(record,"eNumber") + "\"";
+                        //ALM-1754-Pooja Gupta- Added below code to add distinct number to approver array
+                        if(find(jsonarraytostr(productApproversJsonArray),str) == -1){
+                                jsonarrayappend(productApproversJsonArray,get(record,"eNumber"));
+                        }
+						plmname = get(record,"PLMApproverName");
+						PH5 = get(record,"PH5");
+						if(findinarray(ZeroListpricePLMApproval, PH5) <> -1){
+                              //ALM-1754-Pooja Gupta- Added below code to show distinct name in notification message
+                            if(find(OtherApprovers,plmname)==-1){
+								OtherApprovers = OtherApprovers +","+ plmname +" " + "(PLM - Level3)" ; 
+                           } 
+						}
+						if(findinarray(newItemPLMApproval, PH5) <> -1){
+                              //ALM-1754-Pooja Gupta- Added below code to show distinct name in notification message
+							if(find(newItemApprovers,plmname)==-1){
+								newItemApprovers = newItemApprovers + "," + plmname + " (PLM - Level3)";
+                            }
+						}						
+						if(findinarray(pricingGroupNeedPLMApproval, PH5) <> -1){
+                            //ALM-1754-Pooja Gupta- Added below code to show distinct name in notification message
+								if(find(discountApprovers,plmname)==-1){
+									discountApprovers = discountApprovers +","+ plmname +" " + "(PLM - Level3)" ;    
+							}    
+						}
+					}
+                    //E0406772- Get PLM Approver count 
+                    if(setPLMCount_t == true)
+                    {
+                    returnString = returnString + _transaction_document_number + "~countPLMApprover_t~" + string(countPLMApprover) +"|";
+                    }
+					// If Step is Pending Approval then no need to update productApprover attribute otherwise it will skip already approved reason and not properly routed for approval.
+                    
+					if(transitionstepvalue == "pendingApproval" AND  approvalReasonValue_t == "cHEMEALEVEL3APPROVAL"){
+						returnString = returnString + _transaction_document_number + "~productApprovers_t~" + productApprovers_t +"|";
+					}
+					else{
+						returnString = returnString + _transaction_document_number + "~productApprovers_t~" + jsonarraytostr (productApproversJsonArray) +"|";
+					}                  	
+            	}
+				if (level <> 3){
+					if (len(discountApprovers) > 0 OR (len(OtherApprovers) > 0) OR (len(IncotermApprover)>0) OR (len(newItemApprovers) > 0)){
+						discountApprovers = discountApprovers + ", ";
+						OtherApprovers = OtherApprovers + ", ";
+						IncotermApprover = IncotermApprover + ", ";
+						newItemApprovers = newItemApprovers + ", ";
+					}
+					if (level == 2){
+						approverID = level2Approver;
+						OtherApprovers = OtherApprovers + level2Approvername + " " + "(" + ("Level" + string(level)) + ")";
+						IncotermApprover = IncotermApprover + level2Approvername + " " + "(" + ("Level" + string(level)) + ")";
+						newItemApprovers = newItemApprovers + level2ApproverName + " " + "(" + ("Level" + string(level)) + ")";
+						
+						if(nonstandardterm){
+							msgBody1 = "<b>" + WARNING_MESSAGE_NonStandardTnC + "</b>";
+							msgBody2 = WARNING_MESSAGE_1;
+							append(notificationsArray, "<p>"+ msgBody1 + " " + msgBody2 + " " + OtherApprovers +"  " + "AND"+"  " + "[Legal Group]" + "</p>");
+						}
+						returnString = returnString + _transaction_document_number + "~level" + string(level) + "Email_t~" + approverID + "|";
+                       
+					}
+					if (level == 4){
+						approverID = level4Approver;
+						OtherApprovers = OtherApprovers + level4Approvername + " " + "(" + ("Level" + string(level)) + ")";
+						IncotermApprover = IncotermApprover + level4Approvername + " " + "(" + ("Level" + string(level)) + ")";
+						returnString = returnString + _transaction_document_number + "~level" + string(level) + "Email_t~" + approverID + "|";
+            		}
+					if(level <= discountlevelInt){
+						if (level == 2){
+							approverID = level2Approver;							
+							//ALM 857 : if Quote Submitter is Level2 approver then no need to show any notification for level2.
+							if(find(quoteSubmitter_t,approverID) == -1){
+								discountApprovers = discountApprovers+level2Approvername + " "+ "("+("Level"+ string(level)) +")";
+							}
+							returnString = returnString + _transaction_document_number + "~level" + string(level) + "Email_t~" + approverID + "|";
+						}	
+						if (level == 4){
+							approverID = level4Approver;
+							discountApprovers = discountApprovers+level4Approvername + " "+ "(" + ("Level"+ string(level) +")");
+							returnString = returnString + _transaction_document_number + "~level" + string(level) + "Email_t~" + approverID + "|";
+						} 	
+					}
+                }
+			}
+		}
+		returnString = returnString + _transaction_document_number + "~cSMEmail_t~" + csmApprover + "|";
+		//Logic to avoid extra ","
+		discountApprovers = trim(discountApprovers);
+		if(endswith(discountApprovers, ",")){ 		
+			discountApprovers = substring(discountApprovers, 0, len(discountApprovers) - 1);		
+		}
+		newItemApprovers = trim(newItemApprovers);
+		if(endswith(newItemApprovers, ",")){ 		
+			newItemApprovers = substring(newItemApprovers,0,len(newItemApprovers)-1);
+		}
+		//Zero List price approval
+		//Defect: 857 : Check DiscountApprover value which contain actual approver name.
+		if(discountApprovalRequired AND discountApprovers <> ""){
+		msgBody1 = "<b>" + WARNING_MESSAGE_Discount + "</b>";
+		msgBody2 = WARNING_MESSAGE_1;
+		 append(notificationsArray, "<p>"+ msgBody1 + " " + msgBody2 + " " + discountApprovers + "</p>");
+		}
+		if(zeroListPriceApproval == true){
+		msgBody1 = "<b>" + WARNING_MESSAGE_26 + "</b>";
+		msgBody2 = WARNING_MESSAGE_1;
+		append(notificationsArray, "<p>"+ msgBody1 + " " + msgBody2 + " " + OtherApprovers + "</p>");
+		}
+		if (deliveryincoterm){
+		msgBody1 = "<b>" + WARNING_MESSAGE_25 + "</b>";
+		msgBody2 = WARNING_MESSAGE_1;
+		append(notificationsArray, "<p>"+ msgBody1 + " " + msgBody2 + " " + IncotermApprover + "</p>");
+		}
+		if(newItemApprovalFlag){
+		msgBody1 = "<b>" + WARNING_MESSAGE_NewItem + "</b>";
+		msgBody2 = WARNING_MESSAGE_1;
+			append(notificationsArray, "<p>"+ msgBody1 + " " + msgBody2 + " " + newItemApprovers + "</p>");
+		}
+	}
+}
+if (sizeofarray(notificationsArray) > 0 AND status_t <> "approved" AND status_t <> "rejected" AND status_t <> "cproFeedback"){
+    notificationMessage = join(notificationsArray, "/n");
+}
+returnString = returnString + _transaction_document_number + "~agreementWarningMessages_t~" + notificationMessage + "|";
+
+return returnString;

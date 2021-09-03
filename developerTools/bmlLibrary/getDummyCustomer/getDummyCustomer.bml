@@ -1,0 +1,25 @@
+/*******************************************************
+@Revision
+
+Date			Name			Comment
+2018/07/25		Harshit Mehta		Initial Version.
+
+*******************************************************/
+//TO DO : Use this function in default function of attribute qqDummyCustomerListForTheCurrentUser_t
+
+rowSep = "#@#";
+
+dummyCustomersDict = dict("string");
+salesOrg = jsonget(inputJson,"salesOrg","String","");
+dummyCustomers = bmql("Select KUNNR, VKORG From DummyCustomers");
+for dummyCustomer in dummyCustomers {
+	put(dummyCustomersDict, get(dummyCustomer, "VKORG"), get(dummyCustomer, "KUNNR"));
+}
+
+retJson = json();
+salesOrgArr = split(salesOrg , rowSep);
+for eachSalesOrg in salesOrgArr {
+	jsonput(retJson, eachSalesOrg, get(dummyCustomersDict, eachSalesOrg));
+}
+
+return jsontostr(retJson);

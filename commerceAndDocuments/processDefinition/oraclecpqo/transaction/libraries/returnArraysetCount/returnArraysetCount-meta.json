@@ -1,0 +1,20 @@
+{
+  "name" : "Return Arrayset Count",
+  "variableName" : "returnArraysetCount",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Integer",
+  "parameters" : [ {
+    "name" : "identifier",
+    "type" : "JsonArray"
+  }, {
+    "name" : "type",
+    "type" : "String"
+  }, {
+    "name" : "columnName",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

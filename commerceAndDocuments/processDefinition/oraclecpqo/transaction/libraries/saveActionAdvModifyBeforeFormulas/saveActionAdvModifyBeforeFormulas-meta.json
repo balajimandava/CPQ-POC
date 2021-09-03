@@ -1,0 +1,14 @@
+{
+  "name" : "Save Action Adv Modify Before Formulas",
+  "variableName" : "saveActionAdvModifyBeforeFormulas",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.checkBizGrpAttrUpdate", "commerce.clearAttacmentTypeAndSelectCheckBox", "commerce.generateBidGroupNo", "commerce.getOutputDocTableData", "commerce.keepOpportunityInfo", "commerce.populateArraySet", "commerce.populateLineData", "commerce.rePriceLines", "commerce.refreshGuidance", "commerce.returnArraysetCount", "commerce.setCPIAttributes", "commerce.setCustomerDetails", "commerce.updateCustomerDetails", "commerce.updatePricePerEditable", "util.clickAnAction", "util.getExchangeRate", "util.getOutputDefaultValues" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputParamJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "discountString_l" ],
+  "mainDocAttributes" : [ "bs_id", "nt_selectedEndCustomerArrayset_t", "selectedCustomerArraySet2_t", "noteArraySet_t", "businessGroupTableData_t", "isCopyOrVersion_t", "transactionName_t", "isLegacyEaton_t", "outputLanguage_t", "transactionType_t", "customerNumber_t", "customerPostalCodeZip_t", "qqCityAndRegionCopy_t", "customerCountry_t", "currency_t" ],
+  "systemAttributes" : [ "_system_company_name", "_system_user_groups", "_system_supplier_company_name", "_system_current_step_var", "_system_user_time_zone", "_system_current_user_language" ]
+}

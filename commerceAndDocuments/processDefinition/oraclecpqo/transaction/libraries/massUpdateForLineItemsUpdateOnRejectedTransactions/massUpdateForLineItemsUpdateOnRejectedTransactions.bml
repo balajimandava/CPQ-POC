@@ -1,0 +1,11 @@
+returnStr = "";
+	
+	if(status_t == "rejected")
+	{
+		for line in transactionLine
+		{
+		  returnStr = returnStr + line._document_number+"~lineItemStatus_l~rejected|";
+		}
+	}
+	
+return returnStr;

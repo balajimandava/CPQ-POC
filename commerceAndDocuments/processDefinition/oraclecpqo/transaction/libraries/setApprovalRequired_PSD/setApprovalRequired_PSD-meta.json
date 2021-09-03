@@ -1,0 +1,11 @@
+{
+  "name" : "setApprovalRequired_PSD",
+  "variableName" : "setApprovalRequired_PSD",
+  "description" : "Project#49074|E9913664|2ndApril2020|Function to incorporate the logic to populate approval required attribute to trigger the approval process for PSD.",
+  "libraryFunctions" : [ "util.getMAT01MultipleDetails", "util.getRemark" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "newNetPrice_l", "brand_l", "_document_number", "approvedNetFixedAmount_l", "netFixedAmountString_l", "approvedDiscount_l", "discountPercentString_l", "materialLineItem_l", "_sequence_number", "salesFloor_l", "qqProductType_l", "lineItemStatus_l" ],
+  "mainDocAttributes" : [ "salesDistrict_t", "transactionType_t", "salesOffice_t", "status_t", "_transaction_document_number", "distributionChannel_t", "salesOrg_t", "qqBusinessLineForSalesOrg_t", "obsoleteMaterialMessage_t" ],
+  "systemAttributes" : [ "_system_current_user_language", "_system_user_groups" ]
+}

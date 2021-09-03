@@ -1,0 +1,34 @@
+/**
+@name Get Exchange Rate
+@api getExchangeRate
+@summary It will returns the exchange rate for the selected currency. Base Currency is USD.
+@parameters:
+	inputData: any type dict, and holds the baseCurrency  and targetCurrency values
+		
+			
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+12-04-2020|Dhananjay            |Initial version
+*/
+exchangeRateVal = 1.0;
+baseCurrency = "USD";
+targetCurrency = "USD";
+if(containskey(inputData, "baseCurrency")){
+	baseCurrency = get(inputData, "baseCurrency","string");
+}
+if(containskey(inputData, "targetCurrency")){
+	targetCurrency = get(inputData, "targetCurrency","string");
+}
+exchangeRate_qry = bmql("SELECT Rate,Rate_Date FROM ExchangeRate WHERE Base_Curr = $baseCurrency AND To_Curr = $targetCurrency  ORDER BY Rate_Date DESC");
+//print exchangeRate_qry;
+if(haserror(exchangeRate_qry)){
+	throwerror("Get Exchange Rate UTIL::"+getmessage(exchangeRate_qry));
+}
+for eachRec in exchangeRate_qry{
+	exchangeRateVal = getfloat(eachRec,"Rate");
+	break;
+}
+
+return exchangeRateVal;

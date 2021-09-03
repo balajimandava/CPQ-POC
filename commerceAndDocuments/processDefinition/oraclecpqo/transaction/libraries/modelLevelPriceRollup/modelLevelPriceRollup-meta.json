@@ -1,0 +1,17 @@
+{
+  "name" : "Model Level Price Rollup",
+  "variableName" : "modelLevelPriceRollup",
+  "description" : "This function will do rollup of different line item attributes at Model level.",
+  "libraryFunctions" : [ "util.getTransactionLineLevelData", "util.u_buildCommerceReturnStrFromJson" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "lineJson",
+    "type" : "Json"
+  }, {
+    "name" : "parentLineJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "newNetPrice_l", "_parent_doc_number", "qqTotal_l", "totalAfterHeaderDiscount_l", "netFixedAmountString_l", "approvedNetFixedAmount_l", "currentNetPricePerUOM_l", "agreementNetDiscountRequested_l", "margin_l", "qqApprovedPrice_l", "qqApprovedTotal_l", "qqApprovedMargin_l", "agreementNetPriceRequested_l", "agreementNetDiscount_l", "agreementNetPrice_l", "oldListPrice_l", "transactionID_l" ],
+  "mainDocAttributes" : [ "currency_t" ],
+  "systemAttributes" : [ ]
+}

@@ -1,0 +1,16 @@
+bsId = "123044242";
+
+selectedDoc = split(_system_selected_document_number, "~");
+getParent  = "";
+
+for line in transactionLine{
+	if(findinarray(selectedDoc, line._document_number) <> -1){
+		getParent = line._parent_doc_number;
+	}
+	if(getParent <> "")
+	{
+		return "1~childItemDeleteValidation_t~false";
+	}
+
+}
+return "1~childItemDeleteValidation_t~true";

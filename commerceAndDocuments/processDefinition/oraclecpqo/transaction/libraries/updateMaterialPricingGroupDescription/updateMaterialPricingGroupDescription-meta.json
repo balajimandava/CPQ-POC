@@ -1,0 +1,11 @@
+{
+  "name" : "Update Material/Pricing GroupDescription",
+  "variableName" : "updateMaterialPricingGroupDescription",
+  "description" : "This function will use in mass update to update uploaded ESEMEA Agreement description in German language.",
+  "libraryFunctions" : [ "commerce.updateUpdateDescription" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "materialLineItem_l" ],
+  "mainDocAttributes" : [ "bs_id", "salesOrg_t", "distributionChannel_t" ],
+  "systemAttributes" : [ ]
+}

@@ -1,0 +1,31 @@
+/**
+@name Resolve VPG for MPG
+@api resolveVPGForMPG
+@summary Resolve the VPG for a given list of MPG's
+@param mpgList String[]
+@param salesOrg String
+@function JsonArray u_getJsonDataForQuery(String query)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-30|Tat.Leung            |Initial version
+*/
+vpgResult = json();
+
+query = "select MPG, VPG from MPG_VPG_Conversion where Sales_Org = '" + salesOrg + "' and MPG in ('" + join(mpgList, "', '") + "')"; 
+vpgData = util.u_getJsonDataForQuery(query);
+jsonput(vpgResult, "vpgData", vpgData);
+// if mpg is not in hte mapping data, assume vpg = mpg
+for mpg in mpgList {
+   path = "$.vpgData[?(@.MPG=='" + mpg  + "')]";
+   if (not jsonpathcheck(vpgResult, path)) {
+       mapping = json();
+       jsonput(mapping, "MPG", mpg);
+       jsonput(mapping, "VPG", mpg);
+       jsonarrayappend(vpgData, mapping);
+       jsonput(vpgResult, "vpgData", vpgData);
+   }
+}
+
+return vpgResult;

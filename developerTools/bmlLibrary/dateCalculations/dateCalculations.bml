@@ -1,0 +1,63 @@
+//Created By: Gaurav Singh
+//Created On: 2-Oct-18
+//Purpose: To handle all the date operations by passing the needed parameters in a json and return needed output in json
+
+/******************************************************************Declaration Section******************************************************************/
+returnJson = json();//Return JSON holds the values to be returned
+
+/******************************************************************Logics Section******************************************************************/
+
+//Logic to calculate number of days from an specified date and the given number of months
+if(NOT isnull(jsonget(INPUTJSON, "mode")) AND jsonget(INPUTJSON, "mode") == "Months"){
+	startDate = getDate();
+	numberOfMonths = 0;
+	if(NOT isnull(jsonget(INPUTJSON, "startDate")) AND NOT isnull(jsonget(INPUTJSON, "numberOfMonths")) AND isnumber(jsonget(INPUTJSON, "numberOfMonths"))){
+		startDate = strtojavadate(jsonget(INPUTJSON, "startDate"), "yyyy-MM-dd HH:mm:ss");
+		stringStartDateArray = split(jsonget(INPUTJSON, "startDate"), "-");
+		//Split Date and Time
+		dateArray = split(stringStartDateArray[2], " ");
+		if(isnumber(stringStartDateArray[0]) AND isnumber(stringStartDateArray[1]) AND isnumber(dateArray[0])){
+			//get the current month, day and year of the start date
+			currentMonth = atoi(stringStartDateArray[1]);
+			currentYear = atoi(stringStartDateArray[0]);
+			currentDate = atoi(dateArray[0]);
+			totalNumberOfDays = 0;
+			//Prepare an array to traverse each month
+			monthsArray = range(atoi(jsonget(INPUTJSON, "numberOfMonths")));
+			//Below arrays are created to find out the number of days in each months
+			monthsWith30Days = integer[]{4, 6, 9, 11};
+			//Will handle February in the logic
+			for eachMonth in monthsArray{
+				//eachMonth starts with 0 so will increment 1 to get the current month
+				daysInCurrentMonth = 31;
+				//February
+				if(currentMonth == 2){
+					daysInCurrentMonth = 28;
+					if(isleap(currentYear)){
+						daysInCurrentMonth = 29;
+					}
+				}
+				//30 days
+				if(findinarray(monthsWith30Days, currentMonth) <> -1){
+					daysInCurrentMonth = 30;
+				}
+				//for 1st time check for partial month
+				if(eachMonth == 0){
+					totalNumberOfDays = daysInCurrentMonth - currentDate + 1;//Inclusive of current date
+				}
+				else{
+					totalNumberOfDays = totalNumberOfDays + daysInCurrentMonth;
+				}
+				if(currentMonth == 12){
+					currentMonth = 0;//resetting to 0 because it would get incremented after if
+					currentYear = currentYear + 1;
+				}
+				currentMonth = currentMonth + 1;
+			}
+			jsonput(returnJson, "TotalNumberofDays", totalNumberOfDays);
+		}
+	}
+}
+
+//Return Statement
+return returnJson;

@@ -1,0 +1,1255 @@
+/**
+@name Upload CSV
+@api uploadCSV
+@summary Called by Upload CSV action to parse and upload MPGs and Material Items via a CSV.
+@param inputDict StringDictionary
+@attribute _document_number
+@attribute _parent_doc_number
+@attribute _system_current_user_language
+@attribute _system_supplier_company_name
+@attribute _system_user_number_format
+@attribute _system_user_session_id
+@attribute bs_id
+@attribute currencyDecimalSeparator_t
+@attribute currencySymbol_t
+@attribute currencyThousandsSeparator_t
+@attribute currency_t
+@attribute customDiscountType_l
+@attribute discount_l
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute salesOrg_t
+@attribute uploadCSV_t
+@attribute userDecimalSeparator_t
+@attribute transactionType_t
+@function Float stringToFloat(String input)
+@function Integer stringToInteger(String input)
+@function String addMPG(String Dictionary inputDict)
+@function String arrayPack(String[] inputArray, String delimiter)
+@function String getRemark(String rowIndex, String language)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@function String getTableValue(String inputCol, String inputTable, String inputFieldValue, String language, String outputField)
+@function String[][] parseCSV(String fileLocation, String quoteCurrencyDecimalSeparator)
+@return Dictionary of String Dictionaries
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017.05.04|dBOHaizlip (PW)      |Initial
+2017.05.23|dBOHaizlip (PW)      |Removed requirement that MPG has to be specified before the Material Item.  If the MPG is not there then it is added without any discount set
+2017.07.06|Shansen (PW)         |Added graceful handling multiple number formats
+2017.10.08|Shansen (PW)         |Changed so that MPG's added along with material items will also get their discount set
+2018-01-04|Tat.Leung            |
+2018-02-27|Shibaji.Ganguly		|Changes for QQ-437.
+2018-05-23|michael.yeung        |
+2018-06-08|Shibaji.Ganguly      |Changes for QQ-437 Latest Updates.
+2018-07-02|Shibaji.Ganguly      |Changes for QQ-480 Implementation.
+2018-08-09|Shibaji.Ganguly      |Capitalised Material Num, Pricing Group, Catalog Num and EAN Num for QQ-763.
+2018-10-25|Gaurav Singh			|Changes for 1631 - To restrict an MPG to be added only once
+2018-10-31|Gaurav Singh			|Changes for 1651 - Adding Valid From and Valid To as part of CSV Upload
+2019-03-22|Smriti Chaturvedi	|Changes for 1917 - commented the code for price perc
+2019-03-28|Gaurav Singh			|Changes for 1911 - Changed the index for material status to 9 from 7
+2019-05-30|Balaji Konagalla		|Changes for 2087 --discount % column auto-populated with zero but it should be empty when loaded empty
+2019-08-22|Balaji Konagalla		|ALM # 2436 , fix for error message when NOK currency is selected
+2019-09-05|Vasundhara Pentakota	|ALM # 2482 , Updated the code for Cross Reference
+2020-03-10|Chandan A J			|49704 - Eagle Development, Updated the code to introduce 2 new columns into upload file. Columns included are Designation and Customer Part #
+2020-05-04|Dhananjay			|To fix the issue: CPQ-1398: If we add the Valid From and Valid To date values its not adding the lines
+2020-05-18|Dhananjay			|To fix the incedent: INC000013552805: Cross Reference mapped to wrong index at line#232
+2020-06-01|Neha G			|Changes after enabling Collaborative Quoting
+2020-09-24|Harshit Mehta		|Added different section execution time to check performance.
+2020-11-05|Vasundhara Pentakota |Performance Changes
+2021-01-11|Johnny Lin			|INC000014132402 added to check if transaction type = Quote with the pricing group, then it is incorrect data
+2021-04-02|Shardul 				|CPQ-3793 Cross Reference and UPC search issue
+2021-03-17|Dhananjay			|CPQ-4556: Entire CSV Failed due to 1 Bad Item
+2021-05-20|Dhananjay			|CPQ-5349: CSV upload message formatting and data not correct
+2021-05-26|Shardul S			|CPQ-5497: All Performance: Update CSV Upload message
+2021-06-15|Rahul			|Project#53390|CPQ-5545:Removing dependency of MPG_Prefix data table.
+2021-15-06|Gautam                       |Changes for CPQ-4228, Display MPG 3 digits(all ES-EMEA countries)
+*/
+starttime = getcurrenttimeinmillis();
+//  Set to false to prevent the webservice calls
+webServices = TRUE;
+
+retDict = dict("dict<string>");
+remarksDict = dict("string");
+allSalesOrgMPG = string[];
+matDict = dict("string[]");
+remarksByLangDict = dict("string");
+allRemarksPacked = "";
+warningRemarksPacked = "";
+uploadsummary = "";
+mpgTotal = 0;
+mpgAdds = 0;
+matTotal = 0;
+matAdds = 0;
+catTotal = 0;   // For QQ-437 Implementation
+catAdds = 0;    // For QQ-437 Implementation
+eanTotal = 0;   // For QQ-437 Implementation
+eanAdds = 0;   // For QQ-437 Implementation
+crossRefTotal = 0;   //03-09-2019 Vasundhara Added as a part of ALM-2482
+crossRefAdds = 0;   //03-09-2019 Vasundhara Added as a part of ALM-248
+suggestedSPTotal = 0; //CPQ-4848
+suggestedSPAdds = 0;  //CPQ-4848
+suggestedDPTotal = 0;  //CPQ-4848
+suggestedDPAdds = 0;  //CPQ-4848
+
+//Performance_Changes : Initializing all CSV message 																								fields to empty.
+CSV_UPLOAD_ERR0 = "";
+CSV_UPLOAD_ERR1 = "" ;
+CSV_UPLOAD_ERR2a = "" ;
+CSV_UPLOAD_ERR2b = "" ;
+CSV_UPLOAD_ERR3 = "" ;
+CSV_UPLOAD_ERR4 = "" ;
+CSV_UPLOAD_ERR5 = "" ;
+CSV_UPLOAD_ERR6 = "" ;
+CSV_UPLOAD_ERR7 = "" ;
+CSV_UPLOAD_ERR8 = "" ;
+CSV_UPLOAD_ERR9 = "" ;
+CSV_UPLOAD_ERR10 = "" ;
+CSV_UPLOAD_ERR11 = "" ;
+CSV_UPLOAD_ERR12 = "" ;
+CSV_UPLOAD_ERR13 = "" ;
+CSV_UPLOAD_ERR14 = "" ;
+CSV_UPLOAD_ERR15 = "" ;
+CSV_UPLOAD_ERR16 = "" ;
+CSV_UPLOAD_ERR17 = "" ;
+CSV_UPLOAD_ERR18 = "" ;
+CSV_UPLOAD_ERR19 = "" ;
+CSV_UPLOAD_ERR20 = "" ;
+CSV_UPLOAD_ERR21 = "" ;
+CSV_UPLOAD_ERR30 = "" ;
+CSV_UPLOAD_ERR31 = "";
+CSV_UPLOAD_ERR32 = "";
+CSV_UPLOAD_ERR33 = "";
+CSV_UPLOAD_ERR34 = "";
+CSV_UPLOAD_ERR35 = "";
+CSV_UPLOAD_ERR36 = "";
+CSV_UPLOAD_ERR37 = "";
+CSV_UPLOAD_WARN4 = "";
+CSV_UPLOAD_WARN1 = "";
+CSV_UPLOAD_WARN2 = "";
+CSV_UPLOAD_WARN3 = "";
+CSV_UPLOAD_ERR38 = "";
+CSV_UPLOAD_ERR39 = "";
+CSV_UPLOAD_ERR40 = "";
+CSV_UPLOAD_ERR41 = "";
+CSV_UPLOAD_ERR42 = "";
+
+uniqueMPGsArray = string[];	//Added by Gaurav Singh for 1631 to store unique MPGs
+mpgRepeatFlag = false;
+userDecimalDifferent = (userDecimalSeparator_t <> currencyDecimalSeparator_t);
+
+placesChar = substring(_system_user_number_format, -3, -2);
+
+wrongChar = ".";
+if (placesChar == ".") {
+    wrongChar = ",";
+}
+
+//  38064285
+
+salesOrg = salesOrg_t;
+businessLine = qqBusinessLineForSalesOrg_t;
+
+//old code
+//mpgPrefix = util.getTableValue("VKORG", "MPG_Prefix", salesOrg, "", "Prefix"); //2021-06-15|CPQ-5545:Removing dependency of MPG_Prefix data table.
+//new code CPQ- 4228
+mpgPrefix = "";
+if(qqBusinessLineForSalesOrg_t <> "ES-EMEA"){
+  mpgPrefix = util.getTableValue("VKORG", "MPG_Prefix", salesOrg, "", "Prefix");
+}
+
+userLanguage = _system_current_user_language;
+colNames = string[] {
+    "Pricing Group",	// 0
+	"Catalog #",	    // 1
+    "Material #",	    // 2
+    "UPC",              // 3 EAN
+	"Quantity",			// 4
+    "Discount Percent",	// 5
+    "Net Price",		// 6
+	"Price Per",		// 7
+	"Item Note",		// 8
+	"Valid From",
+	"Valid To",
+	"Suggested Selling Price", //CPQ-4848
+	"Suggested Discount %",//CPQ-4848
+    "en"
+};
+
+//Performance_Changes -  START
+itemBMQL = bmql("SELECT Remark, RowIndx FROM RemarksByLang WHERE RowIndx LIKE '%CSV_UPLOAD%' AND Language = $userLanguage");
+for eachItem in itemBMQL{
+	remark = get(eachItem,"Remark");
+	rowIndx = get(eachItem,"RowIndx");
+	put(remarksByLangDict,rowIndx,remark);
+}
+if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_0")){
+	CSV_UPLOAD_ERR0 = get(remarksByLangDict,"ERROR_CSV_UPLOAD_0"); // Msg: Invalid data at row
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_1")){
+	CSV_UPLOAD_ERR1 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_1"); // Msg: cannot have a value on the same row
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_2a")){
+	CSV_UPLOAD_ERR2a = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_2a"); // must be blank when
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_2b")){
+	CSV_UPLOAD_ERR2b = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_2b"); // Msg: has a value
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_3")){
+	CSV_UPLOAD_ERR3 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_3"); // Msg: value is required
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_4")){
+	CSV_UPLOAD_ERR4 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_4"); // Msg: cannot both be blank
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_5")){
+	CSV_UPLOAD_ERR5 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_5"); // Msg: duplicate row found
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_6")){
+	CSV_UPLOAD_ERR6 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_6"); // Msg: cannot have a discount and a net price
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_7")){
+	CSV_UPLOAD_ERR7 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_7"); // Msg: cannot have a blank discount and blank net price
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_8")){
+	CSV_UPLOAD_ERR8 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_8"); // Msg: cannot be greater that 100%
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_9")){
+	CSV_UPLOAD_ERR9 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_9"); // Msg: must be a number
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_10")){
+	CSV_UPLOAD_ERR10 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_10"); // Msg: cannot be less than zero
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_11")){
+	CSV_UPLOAD_ERR11 = get(remarksByLangDict,"ERROR_CSV_UPLOAD_11"); // Msg: Please use the BROWSE button to upload the CSV file to this agreement
+//}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_12")){
+	//CSV_UPLOAD_ERR12 = get(remarksByLangDict,"ERROR_CSV_UPLOAD_12"); // Msg: NO GROUPS OR ITEMS UPLOADED DUE TO ERRORS//Commented by Shardul for CPQ-5497
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_13")){
+	CSV_UPLOAD_ERR13 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_13"); // Msg: is not valid for Sales Org
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_14")){
+	CSV_UPLOAD_ERR14 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_14"); // Msg: is marked as inactive for Sales Org
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_15")){
+	CSV_UPLOAD_ERR15 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_15"); // Msg: is not available for Sales Org
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_16")){
+	CSV_UPLOAD_ERR16 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_16"); // Msg: is not valid for
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_17")){
+	CSV_UPLOAD_ERR17 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_17"); // Msg: Price Groups:
+//}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_18")){
+	//CSV_UPLOAD_ERR18 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_18"); // Msg: Total Material Price Groups Added://Commented by Shardul for CPQ-5497
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_19")){
+	CSV_UPLOAD_ERR19 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_19"); // Msg: Materials:
+//}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_20")){
+	//CSV_UPLOAD_ERR20 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_20"); // Msg: Total Material Line Items Added:
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_21")){
+	CSV_UPLOAD_ERR21 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_21"); // Msg: Line is incorrectly formatted for Upload
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_30")){
+	CSV_UPLOAD_ERR30 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_30"); // Msg: must be a whole number
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_31")){
+	CSV_UPLOAD_ERR31 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_31"); // Msg: Catalogs:
+//}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_32")){
+	//CSV_UPLOAD_ERR32 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_32"); // Msg: Total Catalogs Added://Commented by Shardul for CPQ-5497
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_33")){
+	CSV_UPLOAD_ERR33 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_33"); // Msg: UPCs:
+//}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_34")){
+	//CSV_UPLOAD_ERR34 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_34"); // Msg: Total UPCs Added://Commented by Shardul for CPQ-5497
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_35")){
+	CSV_UPLOAD_ERR35 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_35"); // Msg: Price Per not editable
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_36")){
+	CSV_UPLOAD_ERR36 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_36"); // Msg: for your sales org
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_37")){
+	CSV_UPLOAD_ERR37 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_37"); // Msg: entered cannot anything other than 1 or 100
+}if(containskey(remarksByLangDict,"WARNING_CSV_UPLOAD_4")){
+	CSV_UPLOAD_WARN4 = " " + get(remarksByLangDict,"WARNING_CSV_UPLOAD_4"); // Msg: ITEMS ADDED SUCCESSFULLY WITH WARNINGS
+}if(containskey(remarksByLangDict,"WARNING_CSV_UPLOAD_1")){
+	CSV_UPLOAD_WARN1 = " " + get(remarksByLangDict,"WARNING_CSV_UPLOAD_1"); // Msg: Unexpected format at row
+}if(containskey(remarksByLangDict,"WARNING_CSV_UPLOAD_2")){
+	CSV_UPLOAD_WARN2 = " " + get(remarksByLangDict,"WARNING_CSV_UPLOAD_2"); // Msg: detected as
+}if(containskey(remarksByLangDict,"WARNING_CSV_UPLOAD_3")){
+	CSV_UPLOAD_WARN3 = " " + get(remarksByLangDict,"WARNING_CSV_UPLOAD_3"); // Msg: using
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_38")){
+	CSV_UPLOAD_ERR38 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_38"); // Msg: using
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_39")){
+	CSV_UPLOAD_ERR39 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_39"); // Msg: Cross References:
+//}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_40")){
+	//CSV_UPLOAD_ERR40 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_40"); // Msg: Total Cross References Added: //Commented by Shardul for CPQ-5497
+}if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_41")){
+	CSV_UPLOAD_ERR41 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_41"); // Msg: Cannot have the pricing group for the Quote, INC000014132402
+}
+if(containskey(remarksByLangDict,"ERROR_CSV_UPLOAD_42")){
+	CSV_UPLOAD_ERR42 = " " + get(remarksByLangDict,"ERROR_CSV_UPLOAD_42"); // Msg: Total: //Added by Shardul for CPQ-5497
+}
+//Performance_Changes -  END
+
+if (uploadCSV_t == "") {
+
+    put(remarksDict, "CSVFileERROR", CSV_UPLOAD_ERR11);
+    put(retDict, "ErrorRemarks", remarksDict);
+    return retDict;
+
+}
+//Gaurav: Below line loop gets the MPGs already added on the transaction
+for eachLine in transactionLine {
+	//INC000013831593 - Ali - To avoid duplicate message error.
+	if(eachLine.qqProductType_l == "group"){
+		append(uniqueMPGsArray, eachLine.materialPricingGroup_l);
+	}
+}
+
+
+// SOME PROPERTIES
+SITE_NAME = lower(_system_supplier_company_name);
+
+// PARSE THE FILE THAT YOU WILL BE LOADING INTO THE ATTACHMENT ATTRIBUTE USING THE UTIL FUNCTION
+//file = "https://" + SITE_NAME + ".bigmachines.com/servlet/ImageServer?&file_type=cmAttachmentAttr&file_id=" + uploadCSV_t;
+
+//data = util.parseCSV(file, currencyDecimalSeparator_t);
+parseCSVStartTime = getcurrenttimeinmillis();
+mpgDict = dict("string");
+uniqueMPGDict = dict("string[]");
+put(mpgDict,"mpgPrefix",mpgPrefix);
+put(mpgDict,"uploadCode","uploadCsv");
+put(uniqueMPGDict,"uniqueMPGsArray",uniqueMPGsArray);
+dataJson = util.parseCSVMultiple(currencyDecimalSeparator_t, getattachmentdata(uploadCSV_t),mpgDict,uniqueMPGDict); // Performance_Changes
+
+dataJsonIndexes = Integer[];
+csvDataJson = jsonarray();
+matList = "";
+catalogList = "";
+UPCList = "";
+crossRefList = "";
+if(isjsonnull(dataJson,"csvData") ==  false AND jsonget(dataJson,"csvData") <> ""){
+	csvDataJson = jsonarray(jsonget(dataJson,"csvData"));
+	dataJsonIndexes = range(jsonarraysize(csvDataJson));
+}
+if(isjsonnull(dataJson,"mpgRepeatFlag") ==  false AND jsonget(dataJson,"mpgRepeatFlag") <> ""){
+	if(jsonget(dataJson,"mpgRepeatFlag") == "true"){
+		mpgRepeatFlag = true;
+	}
+}
+if(isjsonnull(dataJson,"materialItemsList") ==  false AND jsonget(dataJson,"materialItemsList") <> ""){
+	matList = jsonget(dataJson,"materialItemsList");
+}
+if(isjsonnull(dataJson,"catalogItemsList") ==  false AND jsonget(dataJson,"catalogItemsList") <> ""){
+	catalogList = jsonget(dataJson,"catalogItemsList");
+}
+if(isjsonnull(dataJson,"UPCItemsList") ==  false AND jsonget(dataJson,"UPCItemsList") <> ""){
+	UPCList = jsonget(dataJson,"UPCItemsList");
+}
+if(isjsonnull(dataJson,"crossRefItemsList") ==  false AND jsonget(dataJson,"crossRefItemsList") <> ""){
+	crossRefList = jsonget(dataJson,"crossRefItemsList");
+}
+//Performance_Changes -  END
+parseCSVEndTime = getcurrenttimeinmillis();
+parseCSVExecutionTime = (parseCSVEndTime - parseCSVStartTime)/1000;
+print ("util.parseCSV function execution + Data Processing time in seconds  " + string(parseCSVExecutionTime));
+
+//Gaurav: Throw error if MPG repeats for the transaction
+if(mpgRepeatFlag){
+	put(remarksDict, "DuplicateMPGs", CSV_UPLOAD_ERR38);
+    put(retDict, "ErrorRemarks", remarksDict);
+    return retDict;
+}
+
+materialSearchStartTime = getcurrenttimeinmillis();
+matListMatDetailsJson = json();
+matListMatDetailsJson_v1 = json();
+catalogListMatDetailsJson = json();
+UPCListMatDetailsJson = json();
+UPCListMatDetailsJson_v1 = json();
+crossRefListMatDetailsJson = json();
+crossRefListMatDetailsJson_v1 = json();
+searchParams = dict("string");
+put(searchParams, "searchMode", "SEARCH_CSV1");
+put(searchParams, "salesOrg", salesOrg);
+put(searchParams, "transactionType", transactionType_t);
+put(searchParams, "distributionChannel", distributionChannel_t);
+put(searchParams, "materialNum", "");
+put(searchParams, "catalogNum", "");
+put(searchParams, "EANNum", "");
+put(searchParams, "crossRefNum", "");
+//Performance_Changes - START
+if(matList <> ""){
+	put(searchParams, "materialNum", matList);
+	searchRes = util.searchMaterialItems(searchParams);
+	indexes = range(jsonarraysize(searchRes));
+	indvdlDet = json();
+	if(jsonarraysize(searchRes) > 0) {
+		for i in indexes {
+			searchResLine = jsonarrayget(searchRes, i, "jsonarray");
+
+			eachMatr2 = jsonarrayget(searchResLine, 11, "string"); //CPQ-3793
+			eachMatr1 = jsonarrayget(searchResLine, 6, "string");
+			
+			jsonput(indvdlDet, "pricingGroup", jsonarrayget(searchResLine, 3, "string"));
+			jsonput(indvdlDet, "materialNum", jsonarrayget(searchResLine, 6, "string"));
+			jsonput(indvdlDet, "groupIDText", jsonarrayget(searchResLine, 4, "string"));
+			jsonput(indvdlDet, "materialType", jsonarrayget(searchResLine, 5, "string"));
+			//Gaurav: Updated below index to 8 from 7 for 1911
+			jsonput(indvdlDet, "status", jsonarrayget(searchResLine, 9, "string"));//changed 8 to 9
+			jsonput(matListMatDetailsJson, eachMatr1, indvdlDet);
+			jsonput(matListMatDetailsJson_v1, eachMatr2, indvdlDet);
+			//print matListMatDetailsJson;
+		}
+	}
+}
+//Performance_Changes - END
+put(searchParams, "materialNum", "");
+//Performance_Changes - START
+if(catalogList <> ""){
+	put(searchParams, "catalogNum", catalogList);
+	searchRes = util.searchMaterialItems(searchParams);
+	indexes = range(jsonarraysize(searchRes));
+	indvdlDet = json();
+	if(jsonarraysize(searchRes) > 0) {
+		for i in indexes {
+			searchResLine = jsonarrayget(searchRes, i, "jsonarray");
+			eachCatalog = jsonarrayget(searchResLine, 5, "string");
+				jsonput(indvdlDet, "pricingGroup", jsonarrayget(searchResLine, 3, "string"));
+				jsonput(indvdlDet, "materialNum", jsonarrayget(searchResLine, 6, "string"));
+				jsonput(indvdlDet, "groupIDText", jsonarrayget(searchResLine, 4, "string"));
+				jsonput(indvdlDet, "materialType", jsonarrayget(searchResLine, 5, "string"));
+				//Gaurav: Updated below index to 8 from 7 for 1911
+				jsonput(indvdlDet, "status", jsonarrayget(searchResLine, 9, "string"));//changed 8 to 9
+			jsonput(catalogListMatDetailsJson, eachCatalog, indvdlDet);
+		}
+	}
+}
+//Performance_Changes - END
+put(searchParams, "catalogNum", "");
+//Performance_Changes - START
+if(UPCList <> ""){
+	put(searchParams, "EANNum", UPCList);
+	searchRes = util.searchMaterialItems(searchParams);
+	indexes = range(jsonarraysize(searchRes));
+	indvdlDet = json();
+	if(jsonarraysize(searchRes) > 0) {
+		for i in indexes {
+			searchResLine = jsonarrayget(searchRes, i, "jsonarray");
+
+			eachUPC = jsonarrayget(searchResLine, 10, "string");
+			eachUPC1 = jsonarrayget(searchResLine, 12, "string");
+
+			if(NOT isnull(eachUPC)){
+				jsonput(indvdlDet, "pricingGroup", jsonarrayget(searchResLine, 3, "string"));
+				jsonput(indvdlDet, "materialNum", jsonarrayget(searchResLine, 6, "string"));
+				jsonput(indvdlDet, "groupIDText", jsonarrayget(searchResLine, 4, "string"));
+				jsonput(indvdlDet, "materialType", jsonarrayget(searchResLine, 5, "string"));
+				//Gaurav: Updated below index to 8 from 7 for 1911
+				jsonput(indvdlDet, "status", jsonarrayget(searchResLine, 9, "string"));//changed 8 to 9
+				jsonput(indvdlDet, "upc", jsonarrayget(searchResLine, 10, "string"));
+				jsonput(UPCListMatDetailsJson, eachUPC, indvdlDet);
+				jsonput(UPCListMatDetailsJson_v1, eachUPC1, indvdlDet);
+			}
+		}
+	}
+}
+//Performance_Changes - END
+put(searchParams, "EANNum", "");
+//03-09-2019 Vasundhara -Added as a part of ALM-2482
+//Performance_Changes - START
+if(crossRefList <> ""){
+	put(searchParams, "businessGrp",qqBusinessLineForSalesOrg_t);
+	put(searchParams, "crossRefNum", crossRefList);
+	searchRes = util.searchMaterialItems(searchParams);
+	indexes = range(jsonarraysize(searchRes));
+	indvdlDet = json();
+	if(jsonarraysize(searchRes) > 0) {
+		for i in indexes {
+			searchResLine = jsonarrayget(searchRes, i, "jsonarray");
+			eachCrossRef1 = jsonarrayget(searchResLine, 13, "string");
+			eachCrossRef = jsonarrayget(searchResLine, 8, "string");			
+			jsonput(indvdlDet, "crossReference", jsonarrayget(searchResLine, 8, "string"));
+			jsonput(indvdlDet, "pricingGroup", jsonarrayget(searchResLine, 3, "string"));
+			jsonput(indvdlDet, "materialNum", jsonarrayget(searchResLine, 6, "string"));
+			jsonput(indvdlDet, "groupIDText", jsonarrayget(searchResLine, 4, "string"));
+			jsonput(indvdlDet, "materialType", jsonarrayget(searchResLine, 5, "string"));
+			//Gaurav: Updated below index to 8 from 7 for 1911
+			jsonput(indvdlDet, "status", jsonarrayget(searchResLine, 9, "string"));//changed 8 to 9
+			jsonput(indvdlDet, "crossrefsearch", jsonarrayget(searchResLine, 13, "string"));	
+			jsonput(crossRefListMatDetailsJson, eachCrossRef, indvdlDet);
+			jsonput(crossRefListMatDetailsJson_v1, eachCrossRef1, indvdlDet);
+		}
+	}
+}
+//Performance_Changes - END
+put(searchParams, "crossRefNum", "");
+materialSearchEndTime = getcurrenttimeinmillis();
+materialSearchExecutionTime = (materialSearchEndTime - materialSearchStartTime)/1000;
+print ("Material Search execution time in seconds  "+string(materialSearchExecutionTime));
+goodRows = integer[];
+
+/////////// CHECK THE DATA ///////////
+dataValidationStartTime = getcurrenttimeinmillis();
+mpgDict = dict("string");
+matOnly1Dict = dict("string");
+mpgRowNumDict = dict("integer");
+allRemarks = dict("string");
+
+// LOOP OVER THE PARSED DATA
+lastMPG = "";
+rowCount = 1;
+invalidRows = String[];
+row = string[];
+lrowMPG = "";
+materialsToBeAddedJson = json(); // For QQ-437 Implementation;
+if(jsonarraysize(csvDataJson) > 0){
+	for i in dataJsonIndexes{	
+		eachRow = jsonarrayget(csvDataJson, i, "json");
+		eachRowLabelArray = jsonkeys(eachRow);
+		//matTotal = matTotal + 1;
+		//HEADER
+		colNames[0] = eachRowLabelArray[0];   // Pricing Group
+		colNames[1] = eachRowLabelArray[1];   // Catalog #
+		colNames[2] = eachRowLabelArray[2];   // Material #
+		colNames[3] = eachRowLabelArray[3];   // UPC (EAN #)
+		colNames[4] = eachRowLabelArray[4];   // Quantity
+		colNames[5] = eachRowLabelArray[5];   // Discount Percent
+		colNames[6] = eachRowLabelArray[6];   // Net Price
+		colNames[7] = eachRowLabelArray[7];   // Price Per
+		colNames[8] = eachRowLabelArray[8];	// Customer Part # - 49704 - Eagle Development
+		colNames[9] = eachRowLabelArray[9];	// Designation - 49704 - Eagle Development
+		colNames[10] = eachRowLabelArray[10];   // Item Note
+		colNames[11] = eachRowLabelArray[11];   // Valid From
+		colNames[12] = eachRowLabelArray[12];   // Valid To
+		colNames[13] = eachRowLabelArray[13];   // Cross Reference //03-09-2019 Vasundhara Added as a part of ALM-2482
+		colNames[14] = eachRowLabelArray[14];   // Suggested Selling Price CPQ-484
+		colNames[15] = eachRowLabelArray[15];   // Suggested Discount	CPQ-4848
+		//Data
+		row[0] = jsonget(eachRow,eachRowLabelArray[0]);
+		row[1] = jsonget(eachRow,eachRowLabelArray[1]);
+		row[2] = jsonget(eachRow,eachRowLabelArray[2]);
+		row[3] = jsonget(eachRow,eachRowLabelArray[3]);
+		row[4] = jsonget(eachRow,eachRowLabelArray[4]);
+		row[5] = jsonget(eachRow,eachRowLabelArray[5]);
+		row[6] = jsonget(eachRow,eachRowLabelArray[6]);
+		row[7] = jsonget(eachRow,eachRowLabelArray[7]);
+		row[8] = jsonget(eachRow,eachRowLabelArray[8]);
+		row[9] = jsonget(eachRow,eachRowLabelArray[9]);
+		row[10] = jsonget(eachRow,eachRowLabelArray[10]);
+		row[11] = jsonget(eachRow,eachRowLabelArray[11]);
+		row[12] = jsonget(eachRow,eachRowLabelArray[12]);
+		row[13] = jsonget(eachRow,eachRowLabelArray[13]);
+		if(NOT isjsonnull(eachRow, eachRowLabelArray[14])){
+		row[14] = jsonget(eachRow,eachRowLabelArray[14]);} // CPQ-4848
+		if(NOT isjsonnull(eachRow, eachRowLabelArray[15])){
+		row[15] = jsonget(eachRow,eachRowLabelArray[15]);} // CPQ-4848
+
+			
+		rowStr = string(rowCount) + " - ";
+		rowRemarks = string[];
+		rowWarnRemarks = string[];
+		cleanRow = TRUE;
+		fromMPGBool = false;    // For QQ-437 Implementation.
+		fromCATBool = false;    // For QQ-437 Implementation.
+		fromEANBool = false;    // For QQ-437 Implementation.
+		fromCrossRefBool = false;    // Vasundhara
+		getkey = "";
+		rowMPG = "";
+		if((NOT isnull(row[0])) AND (row[0] <> "")) {
+			rowMPG = "VPG" + mpgPrefix + upper(row[0]); // Pricing Group Material Number is with VPG and the Sales Org Prefix. // => CAPITALIZE
+		}
+		
+		rowCAT = upper(row[1]); // Catalog Number // => CAPITALIZE
+		
+		rowMAT = upper(row[2]); // Material Number // => CAPITALIZE
+		rowEAN = upper(row[3]); // UPC / EAN Number // => CAPITALIZE
+		rowCROSSREF="";// C9940122 - added for CPQ-1806/Defect 2809
+		if((NOT isnull(row[13])) AND (row[13] <> "")) {// C9940122 - added for CPQ-1806/Defect 2809
+		rowCROSSREF = upper(row[13]);} // Cross Reference Number // => CAPITALIZE //03-09-2019 Vasundhara Added as a part of ALM-2482
+		rowCustomerPartNo = row[8]; // Customer Part # - 49704 - Eagle Development
+		rowDesignation = row[9]; // Designation - 49704 - Eagle Development
+		
+		rowQTY = ""; // Qunatity
+		//Below Variables added by Gaurav Singh for ALM #: 1651 to track uploaded Valid From and Valid To date
+		rowValidFrom = row[11]; //Valid From //Chandan - 49704 - Eagle Development - Changing the index from 9 to 11, as we have introduced 2 new columns into Upload File
+		rowValidTo = row[12]; //Valid To //Chandan - 49704 - Eagle Development - Changing the index from 10 to 12, as we have introduced 2 new columns into Upload File
+		suggestedSellingPrice = row[14]; // Suggested Selling Price CPQ-4848
+		suggestedDiscount = row[15]; // Suggested Discount // CPQ-4848
+
+		
+		rowQTYString = "";
+		if(NOT isnull(row[4])) {
+			rowQTYString = row[4];
+			userDecimalIndex = find(rowQTYString, userDecimalSeparator_t);
+			if (userDecimalDifferent AND userDecimalIndex <> -1) {
+				remarkMessage = CSV_UPLOAD_WARN1 + " " + rowStr + colNames[4] + CSV_UPLOAD_WARN2 + " " + rowQTYString + " " + CSV_UPLOAD_WARN3 + " ";
+				//if they have a different decimal separator And it's found:
+				currencyDecimalIndex = find(rowQTYString, currencyDecimalSeparator_t);
+				if (currencyDecimalIndex == -1) {
+					//if the only separator was their decimal - safe to assume it's in their preferred format
+					//This will causes problems with thousand separators but treats decimals correctly
+					rowQTYString = replace(rowQTYString, userDecimalSeparator_t, currencyDecimalSeparator_t);
+					rowQTY = replace(rowQTYString, currencyDecimalSeparator_t, ".");
+				} else {
+					//both are found, use whatever ocurs last as the decimal
+					cellDecimalSep = currencyDecimalSeparator_t;
+					if (userDecimalIndex > currencyDecimalIndex) {
+						cellDecimalSep = userDecimalSeparator_t;
+					}
+					digitChars = split(rowQTYString, "");
+					rowQTYString = "";
+					for digitChar in digitChars {
+						if (isnumber(digitChar) OR digitChar == cellDecimalSep) {
+							rowQTYString = rowQTYString + digitChar;
+						}
+					}
+					rowQTYString = replace(rowQTYString, cellDecimalSep, currencyDecimalSeparator_t);
+					rowQTY = replace(rowQTYString, currencyDecimalSeparator_t, ".");
+				}
+				append(rowWarnRemarks, remarkMessage + rowQTYString + " " + currency_t);
+			} else {if (currencyThousandsSeparator_t <>""){//added the condition forALM # 2436 , to fix error message when NOK currency is selected
+				rowQTYString = replace(rowQTYString, currencyThousandsSeparator_t, "");
+				}
+				rowQTY = replace(rowQTYString, currencyDecimalSeparator_t, ".");
+			}
+		}
+		
+		rowDIS = "";
+		rowDISString = "";
+		if (NOT isnull(row[5])) { // Discount Percent
+			//rowDIS = replace(replace(replace(row[2],currencyThousandsSeparator_t,""),currencyDecimalSeparator_t, "."),currencySymbol_t,"");
+			//if the only symbol found is the user's decimal separator, treat it as that format
+			rowDISString = replace(row[5], currencySymbol_t, "");
+			userDecimalIndex = find(rowDISString, userDecimalSeparator_t);
+			if (userDecimalDifferent AND userDecimalIndex <> -1) {
+				remarkMessage = CSV_UPLOAD_WARN1 + " " + rowStr + colNames[5] + CSV_UPLOAD_WARN2 + " " + rowDISString + " " + CSV_UPLOAD_WARN3 + " ";
+				//if they have a different decimal separator And it's found:
+				currencyDecimalIndex = find(rowDISString, currencyDecimalSeparator_t);
+				if (currencyDecimalIndex == -1) {
+					//if the only separator was their decimal - safe to assume it's in their preferred format
+					//This will causes problems with thousand separators but treats decimals correctly
+					rowDISString = replace(rowDISString, userDecimalSeparator_t, currencyDecimalSeparator_t);
+					rowDIS = replace(rowDISString, currencyDecimalSeparator_t, ".");
+				} else {
+					//both are found, use whatever ocurs last as the decimal
+					cellDecimalSep = currencyDecimalSeparator_t;
+					if (userDecimalIndex > currencyDecimalIndex) {
+						cellDecimalSep = userDecimalSeparator_t;
+					}
+					digitChars = split(rowDISString, "");
+					rowDISString = "";
+					for digitChar in digitChars {
+						if (isnumber(digitChar) OR digitChar == cellDecimalSep) {
+							rowDISString = rowDISString + digitChar;
+						}
+					}
+					rowDISString = replace(rowDISString, cellDecimalSep, currencyDecimalSeparator_t);
+					rowDIS = replace(rowDISString, currencyDecimalSeparator_t, ".");
+				}
+				append(rowWarnRemarks, remarkMessage + rowDISString + " " + currency_t);
+			} else {
+			if (currencyThousandsSeparator_t <>""){//added the condition forALM # 2436 , to fix error message when NOK currency is selected
+				rowQTYString = replace(rowQTYString, currencyThousandsSeparator_t, "");
+				rowDISString = replace(rowDISString, currencyThousandsSeparator_t, "");
+				}
+				rowDIS = replace(rowDISString, currencyDecimalSeparator_t, ".");
+			}
+		}
+		
+		rowNET = "";
+		rowNETString = "";
+		if (NOT isnull(row[6])) { // Net Price
+			//rowNET = replace(replace(replace(row[3],currencyThousandsSeparator_t,""),currencyDecimalSeparator_t, "."),currencySymbol_t,"");
+			//if the only symbol found is the user's decimal separator, treat it as that format
+			rowNETString = replace(row[6], currencySymbol_t, "");
+			userDecimalIndex = find(rowNETString, userDecimalSeparator_t);
+			if (userDecimalDifferent AND userDecimalIndex <> -1) {
+				remarkMessage = CSV_UPLOAD_WARN1 + " " + rowStr + colNames[6] + CSV_UPLOAD_WARN2 + " " + rowNETString + " " + CSV_UPLOAD_WARN3 + " ";
+				currencyDecimalIndex = find(rowNETString, currencyDecimalSeparator_t);
+				if (currencyDecimalIndex == -1) {
+					//if the only separator was their decimal - safe to assume it's in their preferred format
+					//This will causes problems with thousand separators but treats decimals correctly
+					rowNETString = replace(rowNETString, userDecimalSeparator_t, currencyDecimalSeparator_t);
+					rowNET = replace(rowNETString, currencyDecimalSeparator_t, ".");
+				} else {
+					//both are found, use whatever ocurs last as the decimal
+					cellDecimalSep = currencyDecimalSeparator_t;
+					if (userDecimalIndex > currencyDecimalIndex) {
+						cellDecimalSep = userDecimalSeparator_t;
+					}
+					digitChars = split(rowNETString, "");
+					rowNETString = "";
+					for digitChar in digitChars {
+						if (isnumber(digitChar) OR digitChar == cellDecimalSep) {
+							rowNETString = rowNETString + digitChar;
+						}
+					}
+					rowNETString = replace(rowNETString, cellDecimalSep, currencyDecimalSeparator_t);
+					rowNET = replace(rowNETString, currencyDecimalSeparator_t, ".");
+				}
+				append(rowWarnRemarks, remarkMessage + rowNETString + " " + currency_t);
+			} else { if (currencyThousandsSeparator_t <>""){//added the condition forALM # 2436 , to fix error message when NOK currency is selected
+				rowQTYString = replace(rowQTYString, currencyThousandsSeparator_t, "");
+				rowNETString = replace(replace(rowNETString, currencyThousandsSeparator_t, ""), currencySymbol_t, "");
+				}
+				rowNET = replace(rowNETString, currencyDecimalSeparator_t, ".");
+			}
+		}
+		
+		//rowPPR = row[7]; // Price Per	
+		rowPPR = ""; // Price Per 
+		rowPPRString = "";
+		if(NOT isnull(row[7])) {
+			rowPPRString = row[7];
+			userDecimalIndex = find(rowPPRString, userDecimalSeparator_t);
+			if (userDecimalDifferent AND userDecimalIndex <> -1) {
+				remarkMessage = CSV_UPLOAD_WARN1 + " " + rowStr + colNames[7] + CSV_UPLOAD_WARN2 + " " + rowPPRString + " " + CSV_UPLOAD_WARN3 + " ";
+				//if they have a different decimal separator And it's found:
+				currencyDecimalIndex = find(rowPPRString, currencyDecimalSeparator_t);
+				if (currencyDecimalIndex == -1) {
+					//if the only separator was their decimal - safe to assume it's in their preferred format
+					//This will causes problems with thousand separators but treats decimals correctly
+					rowPPRString = replace(rowPPRString, userDecimalSeparator_t, currencyDecimalSeparator_t);
+					rowPPR = replace(rowPPRString, currencyDecimalSeparator_t, ".");
+				} else {
+					//both are found, use whatever ocurs last as the decimal
+					cellDecimalSep = currencyDecimalSeparator_t;
+					if (userDecimalIndex > currencyDecimalIndex) {
+						cellDecimalSep = userDecimalSeparator_t;
+					}
+					digitChars = split(rowPPRString, "");
+					rowPPRString = "";
+					for digitChar in digitChars {
+						if (isnumber(digitChar) OR digitChar == cellDecimalSep) {
+							rowPPRString = rowPPRString + digitChar;
+						}
+					}
+					rowPPRString = replace(rowPPRString, cellDecimalSep, currencyDecimalSeparator_t);
+					rowPPR = replace(rowPPRString, currencyDecimalSeparator_t, ".");
+				}
+				append(rowWarnRemarks, remarkMessage + rowPPRString + " " + currency_t);
+			} else {
+				if (currencyThousandsSeparator_t <>""){//added the condition forALM # 2436 , to fix error message when NOK currency is selected
+				rowQTYString = replace(rowQTYString, currencyThousandsSeparator_t, "");
+				rowPPRString = replace(rowPPRString, currencyThousandsSeparator_t, "");
+				}
+				rowPPR = replace(rowPPRString, currencyDecimalSeparator_t, ".");
+			}
+		} 
+		
+		rowNTS = row[10]; // Item Notes //Chandan - 49704 - Eagle Development - Changing the index from 8 to 10, as we have introduced 2 new columns into Upload File
+		// CHECK FOR CLEAN DATA 
+		
+		// CHECK FOR CLEAN DATA
+		if (sizeofarray(row) <> 16) { //CPQ-4848 //04-03-2020 - Chandan - 49704 - Eagle Development - Updated the size from 12 to 14, as 2 new columns are added into CSV file. 1. Customer Part # and 2. Designation //03-09-2019 Vasundhara Update size from 11 t0 12 - ALM-2482
+			cleanRow = FALSE;
+			// Error Msg: "Invalid data at row {rowStr} Line is incorrectly formatted for Upload"
+			append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + CSV_UPLOAD_ERR21);
+		} elif ((rowMPG == "") AND (rowMAT == "") AND (rowCAT == "") AND (rowEAN == "")  AND (rowCROSSREF == "")) { //Added "rowCROSSREF" to the existing condition. 03-09-2019 Vasundhara Added as a part of ALM-2482
+			cleanRow = FALSE;
+			// Error Msg: "Invalid data at row {rowStr} {colNames[0]} & colNames[1] & colNames[2] & colNames[3] cannot be blank". //Added "colNames[11]" to the existing condition. 03-09-2019 Vasundhara Added as a part of ALM-2482
+			append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[0] + " & " + colNames[1] + " & " + colNames[2] + " & " + colNames[3] + " & " + colNames[11] + CSV_UPLOAD_ERR4);
+			// Commented for QQ-437 Implementation*/
+		} elif ((rowMPG <> "") AND (util.checkBizGroupCondition("hidePricingGroupTab", transactionType_t, salesOrg_t)) ) { //INC000014132402 added to check if transaction type = Quote with the pricing group, then it is incorrect data
+        cleanRow = FALSE;
+        // Error Msg: "Invalid data at row {rowStr} {colNames[0]} & colNames[1] & colNames[2] & colNames[3] cannot have the pricing group for the Quote". 
+        append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + CSV_UPLOAD_ERR41);
+        // End of INC000014132402 change
+		} else {
+		   
+			// For Pricing Group
+			if (rowMPG <> "") {
+				mpgTotal = mpgTotal + 1;
+					
+				// Check if the Pricing Group material number exists in the material list
+				cleanRow = (findinarray(jsonkeys(matListMatDetailsJson), rowMPG) <> -1);
+							
+				
+				if(cleanRow) { 
+					//check if the Pricing Group material number is active or inactive.
+					statusBool = (jsonget(jsonget(matListMatDetailsJson, rowMPG, "json"), "status", "string", "inactive") == "active");
+					cleanRow = cleanRow AND statusBool;
+					if(NOT statusBool) {
+						// Error Msg: "Invalid data at row {rowStr} {rowMPG} is marked as inactive for Sales Org"
+						append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[0] + "#: " +substring(rowMPG, 3) + CSV_UPLOAD_ERR14);
+					}
+				} else {
+					// Error Msg: "Invalid data at row {rowStr} {rowMPG} is not available for Sales Org"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[0] + "#: " + substring(rowMPG, 3) + CSV_UPLOAD_ERR15);
+				}
+				
+				
+				// Conditions for Clean Row: When Pricing Group is entered, only Discount Percent and Notes column can be filled. If any other column is filled, the row is invalidated.
+				cleanRow = cleanRow AND((rowCAT == "") AND (rowMAT == "") AND (rowEAN == "") AND (rowQTY == "") AND (rowNET == "") AND (rowPPR == "") AND (rowCROSSREF == "")); //03-09-2019 Vasundhara Added rowCROSSREF- ALM-2482
+				if (rowCAT <> "") {
+					// Error Msg: "Invalid data at row {rowStr} Pricing Group & Catalog # cannot have a value on the same row"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[0] + " & " + colNames[1] + CSV_UPLOAD_ERR1);
+				}
+				if (rowMAT <> "") {
+					// Error Msg: "Invalid data at row {rowStr} Pricing Group & Material # cannot have a value on the same row"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[0] + " & " + colNames[2] + CSV_UPLOAD_ERR1);
+				}
+				if (rowEAN <> "") {
+					// Error Msg: "Invalid data at row {rowStr} Pricing Group & UPC cannot have a value on the same row"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[0] + " & " + colNames[3] + CSV_UPLOAD_ERR1);
+				}
+				if (rowQTY <> "") {
+					// Error Msg: "Invalid data at row {rowStr} Quantity must be blank when Pricing Group has a value"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[4] + CSV_UPLOAD_ERR2a + " " + colNames[0] + CSV_UPLOAD_ERR2b);
+				}
+				if (rowNET <> "") {
+					// Error Msg: "Invalid data at row {rowStr} Net Price must be blank when Pricing Group has a value"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[6] + CSV_UPLOAD_ERR2a + " " + colNames[0] + CSV_UPLOAD_ERR2b);
+				}
+				if (rowPPR <> "") {
+					// Error Msg: "Invalid data at row {rowStr} Price Per must be blank when Pricing Group has a value" 
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[7] + CSV_UPLOAD_ERR2a + " " + colNames[0] + CSV_UPLOAD_ERR2b);
+				}
+				//03-09-2019 Vasundhara Added rowCROSSREF- ALM-2482
+				 if (rowCROSSREF <> "") {
+					// Error Msg: "Invalid data at row {rowStr} Pricing Group & Cross Reference cannot have a value on the same row"
+					//append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[0] + " & " + colNames[11] + CSV_UPLOAD_ERR1);
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[0] + " & " + colNames[13] + CSV_UPLOAD_ERR1);
+				}
+				
+				if (cleanRow) {
+					if(findinarray(jsonkeys(materialsToBeAddedJson), rowMPG) == -1) {
+						mpgAdds = mpgAdds + 1;                    
+					}
+					fromMPGBool = true;
+					rowMAT = rowMPG;
+				}
+			}
+			
+			// For Catalog Number
+			if((CLEANROW) AND (rowCAT <> "")) {
+				catTotal = catTotal + 1;					
+				 // Check if the Pricing Group material number exists in the material list
+				cleanRow = cleanRow AND (findinarray(jsonkeys(catalogListMatDetailsJson), rowCAT) <> -1);
+
+				if(cleanRow) { 
+					//check if the Pricing Group material number is active or inactive.
+					statusBool = (jsonget(jsonget(catalogListMatDetailsJson, rowCAT, "json"), "status", "string", "inactive") == "active");
+					cleanRow = cleanRow AND statusBool;
+					if(NOT statusBool) {
+						// Error Msg: "Invalid data at row {rowStr} {rowCAT} is marked as inactive for Sales Org"
+						append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[1] + ": " + rowCAT + CSV_UPLOAD_ERR14);
+					}
+				} else {
+					// Error Msg: "Invalid data at row {rowStr} {rowCAT} is not available for Sales Org"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[1] + ": " + rowCAT + CSV_UPLOAD_ERR15);
+				}
+				
+				cleanRow = cleanRow AND ((rowMAT == "") AND (rowEAN == "")); //AND containskey(catalogToMatrlNumDict, rowCAT)); // Commented for QQ-437 Implementation.
+				if (rowMAT <> "") {
+					// Error Msg: "Invalid data at row {rowStr} Catalog # & Material # cannot have a value on the same row"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[1] + " & " + colNames[2] + CSV_UPLOAD_ERR1);
+				}
+				if (rowEAN <> "") {
+					// Error Msg: "Invalid data at row {rowStr} Catalog # & UPC cannot have a value on the same row"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[1] + " & " + colNames[3] + CSV_UPLOAD_ERR1);
+				}
+				
+				if(cleanRow) {
+					// If true, then set the Material # from the Catalog # and let the rest material number take care of adding the item.
+					rowCATmatrl = jsonget(jsonget(catalogListMatDetailsJson, rowCAT, "json"), "materialNum", "string");
+					if(findinarray(jsonkeys(materialsToBeAddedJson), rowCATmatrl) == -1) {
+						catAdds = catAdds + 1;                    
+					}
+					fromCATBool = true;
+					rowMAT = rowCATmatrl;
+				}
+			}
+			// For EAN Number / UPC
+			if((CLEANROW) AND (rowEAN <> "")) {
+				eanTotal = eanTotal + 1;					
+    			 // Check if the Pricing Group material number exists in the material list
+				upcexists = (findinarray(jsonkeys(UPCListMatDetailsJson), rowEAN) <> -1 OR (findinarray(jsonkeys(UPCListMatDetailsJson_v1), rowEAN) <> -1 ));
+				if(findinarray(jsonkeys(UPCListMatDetailsJson_v1), rowEAN) <> -1)
+				{
+					rowEAN = jsonget(jsonget(UPCListMatDetailsJson_v1, rowEAN, "json"), "upc", "string");
+				}
+				cleanRow = cleanRow AND upcexists;
+				if(cleanRow) { 
+					//check if the Pricing Group material number is active or inactive.
+					statusBool = (jsonget(jsonget(UPCListMatDetailsJson, rowEAN, "json"), "status", "string", "inactive") == "active");
+					cleanRow = cleanRow AND statusBool;
+					if(NOT statusBool) {
+						// Error Msg: "Invalid data at row {rowStr} {rowEAN} is marked as inactive for Sales Org"
+						append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[3] + "#: " +  rowEAN + CSV_UPLOAD_ERR14);
+					}
+				} else {
+					// Error Msg: "Invalid data at row {rowStr} {rowEAN} is not available for Sales Org"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[3] + "#: " + rowEAN + CSV_UPLOAD_ERR15);
+				}
+				
+				cleanRow = cleanRow AND (rowMAT == ""); 
+				if (rowMAT <> "") {
+					// Error Msg: "Invalid data at row {rowStr} UPC & Material # cannot have a value on the same row"
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[3] + " & " + colNames[2] + CSV_UPLOAD_ERR1);
+				}
+				
+				if(cleanRow) {
+					// If true, then set the Material # from the UPC # and let the rest material number take care of adding the item.
+					rowEANmatrl = jsonget(jsonget(UPCListMatDetailsJson, rowEAN, "json"), "materialNum", "string");
+					if(findinarray(jsonkeys(materialsToBeAddedJson), rowEANmatrl) == -1) {
+						eanAdds = eanAdds + 1;                    
+					}
+					fromEANBool = true;
+					rowMAT = rowEANmatrl;
+				}
+			}
+			// For Cross Reference Number - 03-09-2019 Vasundhara Added as a part of ALM-2482
+			if((CLEANROW) AND (rowCROSSREF <> "")) {
+				crossRefTotal = crossRefTotal + 1;					
+				crossrefexists = (findinarray(jsonkeys(crossRefListMatDetailsJson), rowCROSSREF) <> -1 OR (findinarray(jsonkeys(crossRefListMatDetailsJson_v1), rowCROSSREF) <> -1 ));
+				if(findinarray(jsonkeys(crossRefListMatDetailsJson_v1), rowCROSSREF) <> -1 )
+				{
+					rowCROSSREF = jsonget(jsonget(crossRefListMatDetailsJson_v1, rowCROSSREF, "json"), "crossReference", "string");
+				}
+				 // Check if the cross Reference number exists in the material list
+				cleanRow = cleanRow AND crossrefexists;
+				if(cleanRow) { 
+					//check if the cross Reference number is active or inactive.
+					statusBool = (jsonget(jsonget(crossRefListMatDetailsJson, rowCROSSREF, "json"), "status", "string", "inactive") == "active");
+					cleanRow = cleanRow AND statusBool;
+					if(NOT statusBool) {
+						// Error Msg: "Invalid data at row {rowStr} {rowCROSSREF} is marked as inactive for Sales Org"
+						//append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[11] + "#: " +  rowCROSSREF + CSV_UPLOAD_ERR14);
+						append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[13] + "#: " +  rowCROSSREF + CSV_UPLOAD_ERR14);
+					}
+				} else {
+					// Error Msg: "Invalid data at row {rowStr} {rowCROSSREF} is not available for Sales Org"
+					//append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[11] + "#: " + rowCROSSREF + CSV_UPLOAD_ERR15);
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[13] + "#: " + rowCROSSREF + CSV_UPLOAD_ERR15);
+				}
+				
+				cleanRow = cleanRow AND (rowMAT == ""); 
+				if (rowMAT <> "") {
+					// Error Msg: "Invalid data at row {rowStr} Cross Reference & Material # cannot have a value on the same row"
+					//append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[11] + " & " + colNames[2] + CSV_UPLOAD_ERR1);
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[13] + " & " + colNames[2] + CSV_UPLOAD_ERR1);
+				}
+				
+				if(cleanRow) {
+					// If true, then set the Material # from the Cross Reference # and let the rest material number take care of adding the item.
+								   
+					rowCrossRefMatrl = jsonget(jsonget(crossRefListMatDetailsJson, rowCROSSREF, "json"), "materialNum", "string");
+					if(findinarray(jsonkeys(materialsToBeAddedJson), rowCrossRefMatrl) == -1) {
+						crossRefAdds = crossRefAdds + 1;                    
+					}
+					fromCrossRefBool = true;
+					rowMAT = rowCrossRefMatrl;
+				}
+			}
+			
+			// For Material Number
+			if ((CLEANROW) AND (rowMAT <> "")) {
+				
+					
+				if((NOT fromEANBool) AND (NOT fromCATBool) AND (NOT fromMPGBool) AND (NOT fromCrossRefBool)) {
+					matTotal = matTotal + 1;
+					// If the Material Item is NOT coming from Pricing Group, Catalog or UPC (EAN Number)
+					ifmatexists = (findinarray(jsonkeys(matListMatDetailsJson), rowMAT) <> -1 OR (findinarray(jsonkeys(matListMatDetailsJson_v1), rowMAT) <> -1 ));
+					
+					if(findinarray(jsonkeys(matListMatDetailsJson_v1), rowMAT) <> -1 )
+					{
+						rowMAT = jsonget(jsonget(matListMatDetailsJson_v1, rowMAT, "json"), "materialNum", "string");
+					}
+					
+					cleanRow = cleanRow AND ifmatexists;
+					if(cleanRow) { 
+						//check if the Pricing Group material number is active or inactive.
+						statusBool = (jsonget(jsonget(matListMatDetailsJson, rowMAT, "json"), "status", "string", "inactive") == "active");
+						cleanRow = cleanRow AND statusBool;
+						if(NOT statusBool) {
+							// Error Msg: "Invalid data at row {rowStr} {rowMAT} is marked as inactive for Sales Org"
+							append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[2] + ": "+ rowMAT + CSV_UPLOAD_ERR14);
+						}
+					} else {
+						// Error Msg: "Invalid data at row {rowStr} {rowMAT} is not available for Sales Org"
+						append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[2] + ": " + rowMAT + CSV_UPLOAD_ERR15);
+					}
+				}
+				
+				cleanRow = cleanRow AND (NOT((rowDIS <> "") AND (rowNET <> "")));
+				if ((rowDIS <> "") AND(rowNET <> "")) {
+					// Error Message: "Invalid data at row {rowStr} Catalog #/ Material # / UPC cannot have a discount and a net price"
+					col = colNames[2]; //Material #
+					if(fromCATBool) {
+						col = colNames[1]; //Catalog #
+					} elif(fromEANBool) {
+						col = colNames[3]; //UPC
+					}elif(fromCrossRefBool){
+						col = colNames[11];
+					}
+					append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + col + CSV_UPLOAD_ERR6);
+				} 
+				
+				
+				if((rowQTY <> "") AND (NOT(isnull(rowQTY)))) {
+					if(isnumber(rowQTY)) {
+						findDecimalInQty = find(rowQTY, ".");
+						if(findDecimalInQty <> -1) {
+							cleanRow = FALSE;
+							// Error Message: "Invalid data at row {rowStr} Quantity must be a whole number"
+							append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[4] + CSV_UPLOAD_ERR30);
+						} else {
+							qtyInt = util.stringToInteger(rowQTY);
+							if(qtyInt < 0) {
+								cleanRow = FALSE;
+								// Error Message: "Invalid data at row {rowStr} Quantity cannot be less than zero"
+								append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[4] + CSV_UPLOAD_ERR10);
+							}
+						}
+					} else {
+						cleanRow = FALSE;
+						// Error Message: "Invalid data at row {rowStr} Quantity must be a number"
+						append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[4] + CSV_UPLOAD_ERR9);
+					}
+				}
+				
+				if ((rowDIS <> "") AND(NOT isnull(rowDIS))) {
+					if (isnumber(rowDIS)) {
+						discountFloat = util.stringToFloat(rowDIS);
+						  
+						if (discountFloat > 100) {
+							cleanRow = FALSE;
+							// Error Message: "Invalid data at row {rowStr} Discount Percent cannot be greater that 100%"
+							append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[5] + CSV_UPLOAD_ERR8);
+						} elif (discountFloat < 0) {
+							cleanRow = FALSE;
+							// Error Message: "Invalid data at row {rowStr} Discount Percent cannot be less than zero"
+							append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[5] + CSV_UPLOAD_ERR10);
+						}                    
+					} else {
+						cleanRow = FALSE;
+						// Error Message: "Invalid data at row {rowStr} Discount Percent must be a number"
+						append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[5] + CSV_UPLOAD_ERR9);
+					}                
+				}
+				
+				if ((rowNET <> "") AND(NOT isnull(rowNET))) {
+					if (isnumber(rowNET)) {
+						netPriceFloat = util.stringToFloat(rowNET);
+						if (netPriceFloat < 0) {
+							cleanRow = FALSE;
+							// Error Message: "Invalid data at row {rowStr} Net Price cannot be less than zero
+							append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[6] + CSV_UPLOAD_ERR10);
+						}
+					} else {
+						cleanRow = FALSE;
+						// Error Message: "Invalid data at row {rowStr} Net Price must be a number"
+						append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[6] + CSV_UPLOAD_ERR9);
+					}                
+				}
+				
+				if((rowPPR <> "") AND (NOT(isnull(rowPPR)))) {
+					if(isnumber(rowPPR)) {
+						findDecimalInPricePer = find(rowPPR, ".");
+						if(findDecimalInPricePer <> -1) {
+							cleanRow = FALSE;
+							// Error Message: "Invalid data at row {rowStr} Price Per must be a whole number"
+							append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[7] + CSV_UPLOAD_ERR30);
+						} else {
+							if(businessLine <> "BUSSMANN" AND businessLine <> "B-LINE") {
+								cleanRow = FALSE;
+								// Error Message: "Invalid data at row {rowStr} Price Per not editable for your sales org"
+								append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[7] + CSV_UPLOAD_ERR35 + CSV_UPLOAD_ERR36);
+							} else {
+								pricePerVal = "1";
+								dbResults = BMQL("Select KPEIN From PRI01 Where MATNR = $rowMAT And VKORG = $salesOrg");
+								for res in dbResults {
+									pricePerVal = get(res, "KPEIN");
+									break;
+								}
+								if(NOT(isnumber(pricePerVal))) {
+									pricePerVal = "1";
+								}
+									if(rowPPR <> "1" AND rowPPR <> "100") {
+										cleanRow = FALSE;
+										// Error Message: "Invalid data at row {rowStr} Price Per entered cannot anything other than 1 or 100"
+										append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[7] + CSV_UPLOAD_ERR37); 
+									}
+								//}
+							}
+						}
+					} else {
+						cleanRow = FALSE;
+						// Error Message: "Invalid data at row {rowStr} Price Per must be a number"
+						append(rowRemarks, CSV_UPLOAD_ERR0 + rowStr + colNames[7] + CSV_UPLOAD_ERR9);
+					}
+				}
+				
+				if (cleanRow) {
+					
+					/*if((NOT fromEANBool) AND (NOT fromCATBool) AND (NOT fromMPGBool) AND (NOT fromCrossRefBool)) {
+						matTotal = matTotal + 1;
+					}*/
+						lclMatrToBeAddedJsonArr = jsonarray();
+						
+						//INC000013782109 - Ali - Key changed as duplicate lines were creating in LIG
+						//if (findinarray(jsonkeys(materialsToBeAddedJson), rowMAT) <> -1) {
+							//lclMatrToBeAddedJsonArr = jsonget(materialsToBeAddedJson, rowMAT, "jsonarray"); 
+						 if (findinarray(jsonkeys(materialsToBeAddedJson), rowMAT + string(rowCount)) <> -1) {
+							lclMatrToBeAddedJsonArr = jsonget(materialsToBeAddedJson, rowMAT + string(rowCount), "jsonarray");
+						}
+						lclMatrToBeAddedJson = json();
+						if(fromMPGBool) {
+							lclMatrToBeAddedJson = jsonget(matListMatDetailsJson, rowMPG, "json");
+						} elif(fromCATBool) {
+							lclMatrToBeAddedJson = jsonget(catalogListMatDetailsJson, rowCAT, "json");
+						} elif(fromEANBool) {
+							lclMatrToBeAddedJson = jsonget(UPCListMatDetailsJson, rowEAN, "json");
+						}elif(fromCrossRefBool) {
+							lclMatrToBeAddedJson = jsonget(crossRefListMatDetailsJson, rowCROSSREF, "json");
+						} 
+						else {
+							matAdds = matAdds + 1;
+							lclMatrToBeAddedJson = jsonget(matListMatDetailsJson, rowMAT, "json");
+						}
+						// Need to figure out the logic for CAT, EAN, and MAT - Start //
+						disORnet = "percent";
+						rowVAL = rowDISString;
+						if (rowDIS == "") {
+							disORnet = "amt";
+							rowVAL = rowNETString;
+						}
+						
+						// Need to figure out the logic for CAT, EAN, and MAT - End //
+						
+						if(rowQTY == "") {
+							// If Qty is empty then default it to 1.
+							rowQTY = "1";
+						}
+
+						jsonput(lclMatrToBeAddedJson, "discountString", rowVAL);
+						jsonput(lclMatrToBeAddedJson, "discountType", disORnet);
+						jsonput(lclMatrToBeAddedJson, "qty", rowQTY);
+						jsonput(lclMatrToBeAddedJson, "rowNotes", rowNTS);
+						jsonput(lclMatrToBeAddedJson, "pricePer", rowPPR);
+						//Gaurav: Added below lines for Valid from and Valid to for ALM #: 1651
+						jsonput(lclMatrToBeAddedJson, "validFrom", rowValidFrom);
+						jsonput(lclMatrToBeAddedJson, "validTo", rowValidTo);
+						jsonput(lclMatrToBeAddedJson, "customerPartNo", rowCustomerPartNo);
+						jsonput(lclMatrToBeAddedJson, "designation", rowDesignation);
+						jsonput(lclMatrToBeAddedJson, "suggestedSellingPrice", suggestedSellingPrice);  //CPQ-4848
+						jsonput(lclMatrToBeAddedJson, "suggestedDiscount", suggestedDiscount); // CPQ-4848
+						jsonput(lclMatrToBeAddedJson, "blankstring", "blankstring");// CPQ-4848
+						
+						jsonarrayappend(lclMatrToBeAddedJsonArr, lclMatrToBeAddedJson);
+						jsonput(materialsToBeAddedJson, rowMAT + string(rowCount), lclMatrToBeAddedJsonArr); // 49704 - Eagle Development - Added the counter in key to add the items in the order in which they are uploaded
+						
+				}
+			}    
+		}
+		if (NOT cleanRow) {
+			rowCountStr = string(rowCount);
+			append(invalidRows, rowCountStr);
+
+			if (allRemarksPacked <> "") {
+				allRemarksPacked = allRemarksPacked + "/n";
+			} /*else {
+				allRemarksPacked = CSV_UPLOAD_ERR12 + "/n";
+			}*/
+			allRemarksPacked = allRemarksPacked + join(rowRemarks, "/n");
+		} elif (sizeofarray(rowWarnRemarks) > 0) {
+			if (warningRemarksPacked <> "") {
+				warningRemarksPacked = warningRemarksPacked + "/n";
+			} else {
+				warningRemarksPacked = CSV_UPLOAD_WARN4 + "/n";
+			}
+			warningRemarksPacked = warningRemarksPacked + join(rowWarnRemarks, "/n");
+		}
+		rowCount = rowCount + 1;
+	}
+}
+
+dataValidationEndTime = getcurrenttimeinmillis();
+dataValidationExecutionTime = (dataValidationEndTime - dataValidationStartTime)/1000;
+print ("data validation Execution time in seconds  "+ string(dataValidationExecutionTime));
+
+addPartLineStartTime = getcurrenttimeinmillis();
+numOfInvalidRows = sizeofarray(invalidRows);
+if (numOfInvalidRows > 0) {
+    packedRows = join(invalidRows, ",");
+    put(remarksDict, "ListOfInvalidRows", packedRows);
+    put(remarksDict, "NumberOfInvalidRows", string(numOfInvalidRows));
+    put(remarksDict, "AllRemarks", allRemarksPacked);
+    put(retDict, "ErrorRemarks", remarksDict);
+} 
+//else {//Fix for CPQ-4556
+    
+    // For QQ-437 Implementation - Start //
+    materialKeys = jsonkeys(materialsToBeAddedJson);
+    materialsToBeAddedArr = string[];
+    if (sizeofarray(materialKeys) > 0) {//Fix for CPQ-4556
+    for eachMaterialItem in materialKeys {
+        individualMatJsonArr = jsonget(materialsToBeAddedJson, eachMaterialItem, "jsonarray");
+        loopCount = range(jsonarraysize(individualMatJsonArr));
+        for eachLoop in loopCount {
+            individualMatDetArr = string[];			
+            eachIndividualMatJsonInMatJsonArr = jsonarrayget(individualMatJsonArr, eachLoop, "json");
+            append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "materialNum", "string"));
+            append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "pricingGroup", "string"));
+            append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "groupIDText", "string"));
+            append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "materialType", "string"));
+            append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "discountString", "string"));
+            append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "discountType", "string"));
+            append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "qty", "string"));
+            append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "rowNotes", "string"));
+            append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "pricePer", "string"));
+	//Gaurav: Added below lines for Valid from and Valid to for ALM #: 1651
+	append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "validFrom", "string"));
+	append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "validTo", "string"));
+	//Chandan - 49704 - Eagle Development - Added the below indexes into array to populte Designation and Customer Part # in line item grid - START
+	append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "customerPartNo", "string"));
+	append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "designation", "string"));
+	 append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "suggestedSellingPrice", "string")); // CPQ-4848
+   	append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "suggestedDiscount", "string")); //CPQ-4848
+	append(individualMatDetArr, jsonget(eachIndividualMatJsonInMatJsonArr, "blankstring", "string"));
+	//Chandan - 49704 - Eagle Development - Added the below indexes into array to populte Designation and Customer Part # in line item grid - END
+ 
+            append(materialsToBeAddedArr, join(individualMatDetArr, "$,$"));   
+           
+        }
+    }
+  //  print materialsToBeAddedArr;
+    if(sizeofarray(materialsToBeAddedArr) > 0) {
+        mpgADDResponse = "";
+        if (webServices) {
+            inputJson = json();
+            jsonput(inputJson, "currentSelectedMaterialItems", join(materialsToBeAddedArr, "#@#"));
+            jsonput(inputJson,"SearchMode","SEARCH_CSV1"); //Performance_Changes
+		mpgADDResponse = commerce.addPartLines(inputJson);            
+        }
+    }
+   addPartLineEndTime = getcurrenttimeinmillis();
+   addPartLineExecutionTime = (addPartLineEndTime - addPartLineStartTime)/1000;
+   print ("Add part line execution time in seconds  "+ string(addPartLineExecutionTime));
+    // For QQ-437 Implementation - End //
+    
+    if (warningRemarksPacked <> "") {
+        put(remarksDict, "WarningRemarks", warningRemarksPacked);
+    }
+    //Fix for CPQ-5349
+	//Modified by Shardul for CPQ-5497 --Start
+	totalrows = rowCount-1;
+	totaluploadedrows = mpgAdds + matAdds + catAdds + eanAdds + crossRefAdds;
+	if(mpgTotal > 0)
+	{
+		uploadsummary = uploadsummary + CSV_UPLOAD_ERR17 + " " + string(mpgAdds) + "/" + string(mpgTotal)+ "/n";
+		//allRemarksPacked = allRemarksPacked + CSV_UPLOAD_ERR18 + " " + string(mpgAdds) + "/n";
+	}
+	if(matTotal > 0)
+	{
+		uploadsummary = uploadsummary + CSV_UPLOAD_ERR19 + " " + string(matAdds) + "/" + string(matTotal)+ "/n";
+		//allRemarksPacked = allRemarksPacked + CSV_UPLOAD_ERR20 + " " + string(matAdds) + "/n";
+	}
+	if(catTotal > 0)
+	{	
+		uploadsummary = uploadsummary + CSV_UPLOAD_ERR31 + " " + string(catAdds) + "/" + string(catTotal)+ "/n";
+		//allRemarksPacked = allRemarksPacked + CSV_UPLOAD_ERR32 + " " + string(catAdds) + "/n";
+	}
+	if(eanTotal > 0)
+	{
+		uploadsummary = uploadsummary + CSV_UPLOAD_ERR33 + " " + string(eanAdds) + "/" + string(eanTotal)+ "/n";
+		//allRemarksPacked = allRemarksPacked + CSV_UPLOAD_ERR34 + " " + string(eanAdds) + "/n";
+	}
+	if(crossRefTotal > 0)
+	{
+		uploadsummary = uploadsummary + CSV_UPLOAD_ERR39 + " " + string(crossRefAdds)+ "/" +string(crossRefTotal) + "/n"; //03-09-2019 Vasundhara Added as a part of ALM-2482
+		//allRemarksPacked = allRemarksPacked + CSV_UPLOAD_ERR40 + " " + string(crossRefAdds); //03-09-2019 Vasundhara Added as a part of ALM-2482
+	}
+	uploadsummary = uploadsummary + CSV_UPLOAD_ERR42 + " " + string(totaluploadedrows)+ "/" +string(totalrows) + "/n";    	
+	
+    if(NOT(endswith(allRemarksPacked, "/n"))){
+    	allRemarksPacked = allRemarksPacked + "/n";
+    }
+	put(remarksDict, "UploadSummary", uploadsummary);
+	//Modified by Shardul for CPQ-5497 --End
+    put(remarksDict, "AllRemarks", allRemarksPacked);
+    put(retDict, "SuccessRemarks", remarksDict);
+}
+endTime = getcurrenttimeinmillis();
+uploadCSVExecutionTime = (endTime - startTime)/1000;
+print ("Commerce.uploadCSV function execution time in seconds  " + string(uploadCSVExecutionTime));
+
+return retDict;

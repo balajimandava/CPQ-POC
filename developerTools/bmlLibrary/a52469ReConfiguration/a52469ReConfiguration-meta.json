@@ -1,0 +1,12 @@
+{
+  "name" : "52469 ReConfiguration",
+  "variableName" : "a52469ReConfiguration",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,11 @@
+{
+  "name" : "Update Price Per Editable",
+  "variableName" : "updatePricePerEditable",
+  "description" : "Update the Price Per editable attribute's value if it is not updated. This is to avoid the formula error which is received.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "qqPricePerEditable_l", "qqPerUOM_l", "materialLineItem_l", "_document_number" ],
+  "mainDocAttributes" : [ "salesOrg_t" ],
+  "systemAttributes" : [ ]
+}

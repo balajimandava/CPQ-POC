@@ -1,0 +1,12 @@
+{
+  "name" : "Get Users for Group",
+  "variableName" : "getUsersForGroup",
+  "description" : "Get user list for provided Group name",
+  "libraryFunctions" : [ ],
+  "returnType" : "String[]",
+  "parameters" : [ {
+    "name" : "groupName",
+    "type" : "String"
+  } ],
+  "attributes" : [ "_supplier_company_name" ]
+}

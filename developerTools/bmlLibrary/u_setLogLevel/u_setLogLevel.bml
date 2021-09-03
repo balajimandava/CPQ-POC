@@ -1,0 +1,57 @@
+/**
+@name Set Log Level
+@api u_setLogLevel
+@summary Set the logging level for the packages specified in packageLevel.  A package will be
+removed from settings if the logging level is 0.
+
+Logging level: 
+
+* ```0 = NONE```
+* ```1 = ERROR```
+* ```2 = WARNING```
+* ```3 = INFO```
+* ```4 = DEBUG```
+* ```5 = TRACE/FULL```
+@param categoryLevel String[][] a 2-dimensional array containing the categories (first column)
+and the corresponding logging levels.
+[\n]
+{[\n]
+&nbsp;&nbsp;{"category1", "4"},[\n]
+&nbsp;&nbsp;{"category2", "3"},[\n]
+&nbsp;&nbsp;{"category3", "2"},[\n]
+&nbsp;&nbsp;{"category4", "1"},[\n]
+&nbsp;&nbsp;{"category5", "0"},[\n]
+}
+@package utils/Logging
+@return Json the current log package and level.
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-10|tleung               |Initial version
+*/
+PW_LOGGING_SETTINGS = "PW_LOGGING_SETTINGS";
+
+// get current logging flags, create an empty object if not in session yet
+logLevels = userSessionGet(PW_LOGGING_SETTINGS, "json");
+if (isNull(logLevels)) {
+    logLevels = json();
+}
+
+// append / remove category from setting
+for level in categoryLevel {
+    logLevel = 0;
+    if (isNumber(level[1])) {
+        logLevel = atoi(level[1]);
+    }
+    if (logLevel > 0) {
+        jsonPut(logLevels, level[0], logLevel);
+    } else {
+        jsonRemove(logLevels, level[0]);
+    }
+}
+
+// cache log settings
+userSessionSet(PW_LOGGING_SETTINGS, logLevels);
+
+// return current logging settings
+return logLevels;

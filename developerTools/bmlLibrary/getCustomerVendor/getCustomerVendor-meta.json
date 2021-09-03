@@ -1,0 +1,12 @@
+{
+  "name" : "getCustomerVendor",
+  "variableName" : "getCustomerVendor",
+  "description" : "get list of Vendor id given customer #",
+  "libraryFunctions" : [ ],
+  "returnType" : "String[]",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

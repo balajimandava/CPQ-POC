@@ -1,0 +1,14 @@
+{
+  "name" : "Refresh Pricing from BM - Before Formulas",
+  "variableName" : "refreshPricingFromBMBeforeFormulas",
+  "description" : "",
+  "libraryFunctions" : [ "util.commonCallToBM", "util.getExchangeRate", "util.getLeadTime" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputParamJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "_parent_doc_number", "qqProductType_l", "_line_bom_id", "materialLineItem_l", "lineItemStatus_l", "brand_l", "leadTimeIndicator_l", "productHierarchy_l" ],
+  "mainDocAttributes" : [ "currency_t", "bs_id", "salesOrg_t", "distributionChannel_t", "salesRepLanguage_t", "newExchangeRate_t", "oldExchangeRate_t" ],
+  "systemAttributes" : [ "_system_date", "_system_current_document_currency_pref" ]
+}

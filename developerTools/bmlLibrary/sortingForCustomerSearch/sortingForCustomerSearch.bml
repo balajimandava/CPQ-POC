@@ -1,0 +1,111 @@
+/**
+@sortingForCustomerSearch
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2020-06-08|Gautam	        |Util to sort customer search result query based on any column eg name  
+*/
+//Variable declaration and importing required attributes.
+
+
+
+retStr = ""; 
+rowSep = "#@#";
+colSep = "$,$";
+sortValues = string[];
+
+
+//retRecordDataSample = "Sold to$,$0000738572$,$Elva Industrielle$,$Automatisierungs GmbH$,$74080$,$Heilbronn-Böckingen$,$$,$DE$,$$,$$,$$,$$,$$,$$,$$,$$,$4942$,$EMEAI#@#Sold to$,$0000751845$,$Elva Industrielle$,$Automatisierungs GmbH$,$74080$,$Heilbronn-Böckingen$,$Baden-Württemberg$,$DE$,$$,$$,$$,$$,$$,$$,$$,$$,$4942$,$EMEAI#@#Ship to$,$0000749689$,$SEG$,$System Einbau Gehäuse$,$71522$,$Backnang$,$$,$DE$,$Sold to$,$0000738572$,$Elva Industrielle$,$74080$,$Heilbronn-Böckingen$,$$,$DE$,$$,$4942$,$EMEAI#@#Ship to$,$0000749690$,$Bräuer$,$Aufbereitungsmaschinen$,$74211$,$Leingarten$,$$,$DE$,$Sold to$,$0000738572$,$Elva Industrielle$,$74080$,$Heilbronn-Böckingen$,$$,$DE$,$$,$4942$,$EMEAI#@#Ship to$,$0000750581$,$bgu - Umweltschutzanlagen GmbH$,$$,$74626$,$Bretzfeld - Schwabbach$,$$,$DE$,$Sold to$,$0000738572$,$Elva Industrielle$,$74080$,$Heilbronn-Böckingen$,$$,$DE$,$$,$4942$,$EMEAI#@#Ship to$,$0000754363$,$Assmann GmbH$,$$,$74348$,$Lauffen a.N.$,$$,$DE$,$Sold to$,$0000738572$,$Elva Industrielle$,$74080$,$Heilbronn-Böckingen$,$$,$DE$,$$,$4942$,$EMEAI#@#Ship to$,$0000754405$,$Sperr + Lechner GmbH + Co. KG$,$$,$74613$,$Öhringen-Ohrnberg$,$$,$DE$,$Sold to$,$0000738572$,$Elva Industrielle$,$74080$,$Heilbronn-Böckingen$,$$,$DE$,$$,$4942$,$EMEAI#@#Ship to$,$0000754476$,$Ruchser$,$$,$74336$,$Brackenheim-Mersheim$,$$,$DE$,$Sold to$,$0000738572$,$Elva Industrielle$,$74080$,$Heilbronn-Böckingen$,$$,$DE$,$$,$4942$,$EMEAI#@#Ship to$,$0000759908$,$bgu - Umweltschutzanlagen GmbH$,$$,$74626$,$Bretzfeld - Schwabbach$,$$,$DE$,$Sold to$,$0000751845$,$Elva Industrielle$,$74080$,$Heilbronn-Böckingen$,$Baden-Württemberg$,$DE$,$$,$4942$,$EMEAI#@#Ship to$,$0000763968$,$Assmann GmbH$,$$,$74348$,$Lauffen a.N.$,$$,$DE$,$Sold to$,$0000751845$,$Elva Industrielle$,$74080$,$Heilbronn-Böckingen$,$Baden-Württemberg$,$DE$,$$,$4942$,$EMEAI#@#Ship to$,$0000764017$,$Sperr + Lechner GmbH + Co. KG$,$$,$74613$,$Öhringen-Ohrnberg$,$$,$DE$,$Sold to$,$0000751845$,$Elva Industrielle$,$74080$,$Heilbronn-Böckingen$,$Baden-Württemberg$,$DE$,$$,$4942$,$EMEAI#@#Ship to$,$0000764093$,$Ruchser$,$$,$74336$,$Brackenheim-Mersheim$,$$,$DE$,$Sold to$,$0000751845$,$Elva Industrielle$,$74080$,$Heilbronn-Böckingen$,$Baden-Württemberg$,$DE$,$$,$4942$,$EMEAI";
+
+retRecordDataSample = retRecordData;
+retRecordDataRows  = string[];
+
+//split retRecordData by row separator
+retRecordDataRows = split(retRecordDataSample,rowSep);
+sortColumnIndex = sortIndex - 1;
+//sortColumnIndex = 2;
+retRecordDataRowsCopy = dict("string");
+sortColumnValues = string[];
+retRecordDataColumns = string[];
+
+
+if(retRecordDataSample == "")
+{
+     return retRecordDataSample;
+}
+
+
+//no need to sort if only one record
+if(sizeofarray(retRecordDataRows) == 1)
+{
+	return retRecordDataSample;
+	
+}
+
+
+//loop through data set rows and fetch column based on sort index 
+if (sizeofarray(retRecordDataRows) > 0) {
+	
+		for row in retRecordDataRows{
+			 put(retRecordDataRowsCopy,row,row);
+			 retRecordDataColumns = split(row,colSep);
+			 append(sortColumnValues,lower(retRecordDataColumns[sortColumnIndex]));
+		}
+	
+	//print "beforesorting";
+        //print sortColumnValues;
+		
+	//Sort values in the array
+        sort(sortColumnValues);
+		
+		
+        //print "aftersorting";
+        //print sortColumnValues;
+
+		
+}
+
+keysStr = string[];
+
+
+if (sizeofarray(sortColumnValues) > 0) {
+	for data in sortColumnValues
+	{
+	   
+		  keysStr = keys(retRecordDataRowsCopy);
+		  if(sizeofarray(keysStr) > 0 )
+		  {
+			  for row in retRecordDataRows
+			  {
+				 retRecordDataColumns = split(row,colSep);
+				 if(data == lower(retRecordDataColumns[sortColumnIndex]))
+				 {
+				 
+				   if(containskey(retRecordDataRowsCopy,row))
+				   {
+						if(get(retRecordDataRowsCopy,row) <> "")
+						{
+							
+							rowData = get(retRecordDataRowsCopy,row);
+							
+							if (retStr <> "") {
+								
+								retStr = retStr + rowSep;
+			                                }
+			                                retStr = retStr + rowData;
+							put(retRecordDataRowsCopy,row,"");
+								
+						}
+							
+				   }
+				 
+				 }
+			  }
+		  }
+	 
+	 
+	 }
+	
+
+}
+retRecordDataRowsCopy = dict("string");
+return retStr;

@@ -1,0 +1,12 @@
+//Pooja Gupta-New util to return Transaction URL
+processId=jsonget(inputJson,"processId");
+documentId=jsonget(inputJson,"documentId");
+ActionId=jsonget(inputJson,"ActionId");
+siteName=jsonget(inputJson,"siteName");
+bsid=jsonget(inputJson,"bsid");
+
+result = "https://" + siteName + ".bigmachines.com/commerce/buyside/document.jsp?formaction=performAction&action_id=" + ActionId;
+result = result + "&bs_id=" + bsid;
+result = result + "&bm_cm_process_id=" + processId;
+result = result + "&document_id=" + documentId;
+return result;

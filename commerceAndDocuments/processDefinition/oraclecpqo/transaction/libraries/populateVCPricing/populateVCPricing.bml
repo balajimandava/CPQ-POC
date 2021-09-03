@@ -1,0 +1,200 @@
+/**
+@name Populate VC Pricing
+@api populateVCPricing
+@summary Retrieve VC pricing from SAP.  If all VC pricing data need to be refreshed, add "fp_refreshVCPrice" to the data JSON parameter.
+@param data Json
+@attribute _document_number
+@attribute _model_variable_name
+@attribute _sequence_number
+@attribute _system_supplier_company_name
+@attribute _system_user_time_zone
+@attribute externalConfigVCData_l
+@attribute materialLineItem_l
+@attribute needVCPricing_l
+@attribute qqProductType_l
+@attribute quantity_l
+@attribute transactionNumber_t
+@function Float stringToFloat(String input)
+@function Json sapConditions(Json data)
+@function Json u_getLineFromJson(Json data, String docNum)
+@function Json u_setCommerceAttribute(Json data, String docNum, String attribute, String value)
+@function String buildVCPricerXML(Json data)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-22|Tat.Leung            |
+2018-04-19|Dave.Haizlip		|Added the XML build -- 90197744/96690953/96699606/96690953/98041910
+2018-06-25|michael.yeung        |
+2018-08-08|michael.yeung        | set fp_refreshVCPrice before calling SAPConditions if fp_refresh is true
+2019-03-19|Gaurav Singh			|Changes made to reset result json for INC000012256226
+2019-06-26|Pooja Gupta          |Added code for defect 2250 to update price only for VC line items
+2021-01-25|Shardul SAP          |Performance impv fix.
+*/
+print "populateVCPricing called";
+print "data is";
+print data;
+
+result = jsoncopy(data);
+EXTERNAL_CONFIG_MODELS = string[] {
+    "takeOff"
+};
+
+userDatePref = "yyyy/MM/dd HH:mm";
+userTimeZone = "Europe/Amsterdam";
+if (_system_user_time_zone <> "") {
+    userTimeZone = _system_user_time_zone;
+}
+
+dateTime = replace(datetostr(getdate(), userDatePref + " z", userTimeZone), "/", ".");
+
+refreshFlag = jsonget(result, "fp_refresh", "boolean", false);
+atLeastOneLine= false;
+
+// build VC request for all lines that need VC Pricing
+itemsToUpdate = jsonarray();
+
+genericMAX= 8;
+sapLineNum= json();
+materialItemsJson = json();
+lineProductType= json();
+itemNumberDocNum= json();
+allDocNumJson= json();
+loop2= range(genericMAX);
+genericAttr= "discSurcharge8_l";
+nonVCModels = string[]; 
+
+for line in transactionLine {
+   // if (((line._parent_doc_number <> "" and line.qqProductType_l == "normal" ) or (line.qqProductType_l == "configuration" and line._parent_doc_number == "")) and (line.needVCPricing_l or refreshFlag))
+     if (((line._parent_doc_number <> "" and line.qqProductType_l == "normal" ) or (line.qqProductType_l == "configuration" and line._parent_doc_number == "")) and (line.needVCPricing_l or refreshFlag) or ((line.qqProductType_l == "configuration" and line._parent_doc_number <> "")))
+     {
+        
+        // We have at least one line with VC Data
+        atLeastOneLine= TRUE;
+        
+        // get VC data for the line
+       	currentline = util.u_getLineFromJson(result, line._document_number);
+       	//print currentline;
+        // update POSEX, CONFIG_ID, and other quote, quote line specific fields
+        
+        // keep track of which items we need to update
+        jsonarrayappend(itemsToUpdate, line._document_number);
+		
+		if( line._parent_doc_number == "" ) {
+			if ( (line.qqProductType_l <> "configuration") ) {
+				continue;
+			} elif (line.externalConfigVCData_l == "")  {
+				append( nonVCModels, line._document_number );
+				continue;   // exclude configuration with no vc data
+			}
+		  } else {
+			if( findinarray(nonVCModels, line._parent_doc_number) > -1) {
+				continue;   // exclude configuration child lines  with no vc data   
+			}
+			jsonput(materialItemsJson, line.materialLineItem_l, line._document_number);
+		  }
+		//Loop From SAP Conditions is moved in here for performance improvement
+		jsonput(lineProductType,line._document_number,line.qqProductType_l);
+		jsonput(sapLineNum,line._group_sequence_number,line._document_number);
+		jsonput(itemNumberDocNum,line._document_number,line._document_number);
+		// Initialize each doc number with all attributes to be set to 0.00
+		conditionJson= json();
+		jsonput(conditionJson,"_document_number",line._document_number);
+		jsonput(conditionJson,"_parent_doc_number",line._parent_doc_number); 
+		//ALM# 2408 :: Set needNetPrice_l to false.
+		jsonput(conditionJson,"needNetPrice_l","false");
+
+		for idx2 in loop2 {
+			attrName= replace(genericAttr,string(genericMAX),string(idx2+1));
+			jsonput(conditionJson,attrName,"");
+		} 
+		
+		docNumJson= json(); 
+		jsonput(docNumJson,"items",conditionJson);
+		
+		//2019-05-07|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+		jsonput(allDocNumJson,line._document_number,docNumJson);  
+		//End : Changes to improve performance.
+		
+    }
+}
+//print itemsToUpdate;
+if (atLeastOneLine) {
+
+  siteID = _system_supplier_company_name + "SOA";
+  soaUserID = "";
+  soaPassID = "";
+
+  siteBMQL = bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+  for eachSite in siteBMQL {
+    soaUserID = get(eachSite, "FieldName");
+    soaPassID = get(eachSite, "Value1");
+    jsonput(result,"CPQSOASAP",soaUserID);
+    jsonput(result,"CPQSOASAPPW",soaPassID);
+	jsonput(result,"itemsToUpdate",itemsToUpdate); //Added by Shardul to pass items for XML generation
+  }
+
+  vcDataXML= "";
+  print "result = ";
+  print result;
+  vcDataXml = commerce.buildVCPricerXML(result);
+  //print "vcDataXml = ";
+  //print vcDataXml;
+  //Gaurav: Resetting result json to prepare the return json (INC000012256226)
+  result = jsoncopy(data);
+  vcDataXml= replace(vcDataXml,"&amp;quot;","\"");
+  
+  envVariable= util.getEnvironmentVariable("SOA_SAP_VCPRICE_URL", "");
+  if  (envVariable == "") {
+  	throwerror("SOA_SAP_VCPRICE_URL is not configured for " + _system_supplier_company_name, false);
+  }
+  
+  
+  // Set headers for request message
+  headers = dict("string");
+  put(headers, "Content-Type", "text/xml");
+  put(headers, "SOAPAction", "process");
+  
+  
+  print "SAP Net Price call = ";
+  print vcDataXml;
+  responseD = urldata(envVariable , "POST", headers, vcDataXml);
+  
+  statusCode = get(responseD, "Status-Code");
+  messageBody= get(responseD, "Message-Body");
+  errorMessage = get(responseD, "Error-Message");
+  if (statusCode == "200") { //  Get the results of the call to refresh Net Prices
+    errorMessage = "";
+    vcPricerReturn=json();
+    jsonput(vcPricerReturn,"successfulMessage",messageBody);
+    jsonput(vcPricerReturn,"VCPricingCall",true);
+    //Pooja Gupta- Added below parameter for 2250
+    jsonput(vcPricerReturn,"itemsToUpdate",itemsToUpdate);
+	jsonput(vcPricerReturn,"allDocNumJson",allDocNumJson);
+	jsonput(vcPricerReturn,"itemNumberDocNum",itemNumberDocNum);
+	jsonput(vcPricerReturn,"materialItemsJson",materialItemsJson);
+	jsonput(vcPricerReturn,"lineProductType",lineProductType);
+	//print lineProductType;
+	jsonput(vcPricerReturn,"sapLineNum",sapLineNum);
+	//print sapLineNum;
+    if(refreshFlag) {jsonput(vcPricerReturn,"fp_refreshVCPrice",true); }
+    result= commerce.sapConditions(vcPricerReturn);
+    itemsToUpdateStr= jsonarraytostr(itemsToUpdate);
+	itemsToUpdateStr = replace(itemsToUpdateStr ,"\"","");
+	itemsToUpdateStr = substring(itemsToUpdateStr , 1, len(itemsToUpdateStr )-1);
+ 	itemsToUpdateArr=split(itemsToUpdateStr,",");
+  	  for itemDocNum in itemsToUpdateArr {
+      result = util.u_setCommerceAttribute(result, itemDocNum, "needVCPricing_l", "false");
+    }
+
+  } else { // Set all the values to a blank because the POST failed
+    jsonput(result,"fp_transactionNumber_t",transactionNumber_t);
+    jsonput(result, "condaLastSentDate_t", dateTime);
+    jsonput(result, "condaStatusCode_t", "VC Price call Error -- Statis Code: " + statusCode);
+    jsonput(result, "agreementErrorMessages_t", "SAP Message: " + errorMessage  + " -- Status Code: " + statusCode);
+    jsonput(result, "condaXML_t",vcDataXml);
+  }
+}
+return result;

@@ -1,0 +1,42 @@
+//************************************************************************************************************
+//** Util:	  Get Table Value
+//** Type:        BML Util
+//**
+//** Description: Returns a value from any table/column/row combo
+//** 
+//** Parameters:  RowIndx (string)
+//**		  language (string)      
+//**
+//** Return:	  [Remark column in Data Table RemarksByLang]
+//**
+//** History Log: Date		Author			Comment 
+//**		  2017.05.04	dHaizlip (PW)		Initial
+//************************************************************************************************************
+retString= "";
+debugMode = false;
+
+inLanguage= language;
+selectCol= outputField;
+dataTable= inputTable;
+lang = dict("string");
+fields = dict("string");
+put(fields,"$field1",inputFieldValue);
+where= inputCol + " = " + "$field1";
+if (language <> "") {
+  put(fields,"$inLanguage",language);
+  where=where+ " AND " + "language = $inLanguage";
+}
+
+itemBMQL= bmql("SELECT $selectCol " +
+	       "FROM $dataTable " +
+	       "WHERE $where", lang, fields);
+//if (debugMode) {
+//print itemBMQL;
+//}
+for eachItem in itemBMQL {
+  retString= get(eachItem,selectCol);
+  // 1st Hit wins!!!
+  break;
+}
+
+return retString;

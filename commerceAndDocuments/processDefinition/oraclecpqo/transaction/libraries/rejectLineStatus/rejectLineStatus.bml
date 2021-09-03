@@ -1,0 +1,33 @@
+retString= "";
+
+currentApproverGroup = _system_user_groups;
+currentApproverGroupArr = split(currentApproverGroup,"~");
+
+
+if(qqBusinessLineForSalesOrg_t == "ES-EMEA")
+{
+	for line in  transactionLine
+	{
+   		if(line.approver_l==currentApprovalLevel_t AND line.lineItemStatus_l<>"cancelled")     
+    		{ //if current level is maximum level then only reject the line item
+           		retString=retString+line._document_number+"~lineItemStatus_l~rejected|";
+           	}
+    	}
+}
+
+if(qqBusinessLineForSalesOrg_t == "B-LINE" OR qqBusinessLineForSalesOrg_t == "BUSSMANN")
+{
+	for line in  transactionLine
+	{
+   		if(line.approverForBlineBussman_l==currentApprovalLevel_t AND line.lineItemStatus_l<>"cancelled")     
+    		{ //if current level is maximum level then only reject the line item
+           		retString=retString+line._document_number+"~lineItemStatus_l~rejected|";
+           	}
+    	}
+}
+
+
+
+
+
+return retString;

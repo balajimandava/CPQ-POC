@@ -1,0 +1,166 @@
+/****************************************************************************
+Admin Update Logs :
+Date			Name			Comments
+(DD/MM/YYYY)
+04/02/2019		Harshit Mehta		Initial Version
+******************************************************************************/
+
+transactionNumber = transactionNumber_t;
+errorCode = "";
+jsonparam = json();
+STATUS = "SUCCESS";
+
+//Check if current transaction needs to update for missing MPG scenario.
+resultSet = BMQL("Select TRAN_NUM from TRANSACTIONNUMBER where TRAN_NUM = $transactionNumber");
+found = false;
+for result in resultSet
+{
+	found = true;
+	transactionNum = get(result,"TRAN_NUM");
+	if(transactionNum == "" OR transactionNumber <> transactionNum)
+	{
+		STATUS = "FAIL";
+		errorCode = "No matching criteria";
+		jsonput(jsonparam ,"STATUS",STATUS);
+		jsonput(jsonparam,"ERROR_MESSAGE",errorCode);
+		//Update current transaction details in updateDescription data table.
+		tempResult = commerce.updateUpdateDescription(jsonParam);
+		
+		return ""; //no need to proceed further as current transaction is not satisfying missing MPG scenario.
+	}
+}
+
+if(found == false) //No row return by above BMQL query.
+{
+	STATUS = "FAIL";
+	errorCode = "No matching criteria";
+	jsonput(jsonparam ,"STATUS",STATUS);
+	jsonput(jsonparam,"ERROR_MESSAGE",errorCode);
+
+	//Update current transaction details in updateDescription data table.
+	tempResult = commerce.updateUpdateDescription(jsonParam);
+	
+	return ""; //no need to proceed further as current transaction is not satisfying missing MPG scenario.
+}
+
+
+
+companyName = _system_supplier_company_name;
+
+resultArray = String[];
+result = "";
+
+
+// get system user
+user = util.getSiteSpecificData(companyName );
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+headers = dict("string");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+
+baseURL = "https://" + _system_supplier_company_name + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction/" + bs_id + "/transactionLine";
+
+//Not able to use query as it is giving some crazy errors for few transactions.
+// Need to work with oracle to get this error resolved.
+query = "{$and:[{qqProductType_l:{$eq:'normal'}},{materialPricingGroup_l:{$exists:'false'}}]}";
+
+lineFields = string[] {
+    "_document_number",
+    "materialPricingGroup_l",
+    "materialLineItem_l",
+    "qqProductType_l"
+};
+
+lineParam = join(lineFields,",");
+parameters = makeurlparam({'fields':lineParam});
+
+
+//Get all transactionLine data of given transaction.
+quoteLineResp = urldata(baseURL + "?" + parameters,"get",headers);
+statusCode = get(quoteLineResp, "Status-Code");
+
+if(not isnumber(statusCode) and atoi(statusCode) <> 200) {
+    errorCode =  errorCode+ "couldn't get line data for this transaction";
+    STATUS = "FAIL";
+}
+lineData = get(quoteLineResp, "Message-Body");
+lineDataJson = json(lineData);
+
+//Remove links and hasMore information.
+jsonpathremove(lineDataJson, "$..links");
+jsonpathremove(lineDataJson,"$..hasMore");
+
+if(isjsonnull(lineDataJson,"items"))
+{
+   errorCode = errorCode + "No Items found";
+   STATUS = "FAIL";
+}
+else
+{
+	
+	/*****
+		Search actual lines which need update for missing MPGs
+		 condition # 1 : search for productType as normal
+		 condition # 2 : search materialLineItem starting with VPGH.
+	*****/
+	
+	itemsJsonArray = jsonpathgetmultiple(lineDataJson , "$..items[? (@.qqProductType_l.value == 'normal' && @.materialLineItem_l =~ /VPG.*/i)]");
+	//itemsJsonArray = jsonarray(itemsJson);
+	rangeArray = range(jsonarraysize(itemsJsonArray)); //get range array to iterate each json array node.
+	//Iterate items one by one and get corresponding data from MAT01 table.
+	for count in rangeArray
+	{
+		itemJson = jsonarrayget(itemsJsonArray,count,"json");
+		materialNumber = jsonpathgetsingle(itemJson,"$..materialLineItem_l","String","");
+		documentNumber = jsonget(itemJson,"_document_number");
+		
+		//Get details from MAT01 table for each part
+		partDetails = bmql("select MATNR,MAKTXDE, MATGRP5_TEXTDE, MEINS from MAT01 where MATNR = $materialNumber AND VKORG = $salesOrg_t");
+		
+		for part in partDetails
+		{
+			
+			description = get(part,"MATGRP5_TEXTDE"); //Get German description
+			UOM = get(part,"MEINS");  // Get UOM details.
+			append(resultArray,documentNumber + "~qqProductType_l~group"); //Set productType as group.
+			append(resultArray,documentNumber+ "~materialPricingGroup_l~" + substring(materialNumber,4)); //Set MPG
+			append(resultArray,documentNumber + "~qqCatalogNumber_l~" + materialNumber ); //Set CatalogNumber.
+			append(resultArray,documentNumber + "~materialLineItemShortDescription_l~" + description);
+			append(resultArray,documentNumber + "~materialPricingGroupShortDescription_l~" + description);
+			append(resultArray,documentNumber + "~uOM_l~" + UOM);
+			
+			/* BPG */
+			//Below code to get bonus groups and bonus groups discount.
+			bonusGroupInput=json();
+			jsonput(bonusGroupInput, "salesOrg", salesOrg_t);
+			jsonput(bonusGroupInput, "customerNumber", customerNumber_t);
+			bonusGroups = util.getBonusGroups(bonusGroupInput);
+			jsonput(bonusGroupInput, "bonusGroups", bonusGroups);
+			jsonput(bonusGroupInput, "mpg", substring(materialNumber,3)); //salesorgMPGPrefix + group 
+			bonusData = util.getBonus(bonusGroupInput);
+			bonusGroup =  jsonget(bonusData, "BonusGroup");
+			bonusGroupDiscStr = jsonget(bonusData, "BonusDiscount", "string", "");
+			bonusGroupDisc = 0.0;
+			if(bonusGroupDiscStr<>""){
+				bonusGroupDisc =  atof(bonusGroupDiscStr);
+			}
+			
+			append(resultArray,documentNumber + "~bonusGroup_l~" + bonusGroup);
+			append(resultArray,documentNumber +"~bonusGroupDiscount_t~"+ string(bonusGroupDisc));
+			
+			break; //Only one valid record expected.
+		}
+	}
+}
+
+
+jsonput(jsonparam ,"STATUS",STATUS);
+jsonput(jsonparam,"ERROR_MESSAGE",errorCode);
+
+//Update current transaction details in updateDescription data table.
+tempResult = commerce.updateUpdateDescription(jsonParam);
+
+result = join(resultArray,"|");
+
+return result;

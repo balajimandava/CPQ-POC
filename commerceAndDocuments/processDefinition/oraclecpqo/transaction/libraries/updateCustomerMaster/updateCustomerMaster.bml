@@ -1,0 +1,192 @@
+/**
+@name Update Customer Master
+@api updateCustomerMaster
+@summary Called by a Timer in the Active Step to use Web Services to send or clear the Pricing List in the customer master file
+@param inputDict StringDictionary
+@attribute _system_supplier_company_name
+@attribute _system_user_login
+@attribute _system_user_time_zone
+@attribute accountTypeKTOKD_t
+@attribute agreementDeliveryTerms_t
+@attribute agreementPaymentTerms_t
+@attribute agreementPeriodOfInvoicing_t
+@attribute bs_id
+@attribute choosePricelist_t
+@attribute companyCode_t
+@attribute customerNumber_t
+@attribute distributionChannel_t
+@attribute division_t
+@attribute priceListFrom_t
+@attribute salesOrg_t
+@attribute transactionType_t
+@function String getEnvironmentVariable(String key, String defaultValue)
+@return String Dictionary Returns a String Dictionary to update commerce attributes
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017.06.19|dBo Haizlip          |Initial creation (46953974)
+2017.07.12|apatterson           |Updated to use environment variable util function
+2017.07.26|shansen              |Changed to look at inputDict for pricelist name when applicable
+2018-01-04|Tat.Leung            |Use _system_supplier_company_name instead of _system _ company_name
+2020-12-30|Dhananjay		|CPQ-3473:Enable Z300 Sold Tos
+*/
+retDict = dict("string");
+
+//  Switch to turn off the POST command...it will execute in the debugger.
+processPOST = TRUE;
+
+debugMode = FALSE;
+
+siteID = _system_supplier_company_name + "SOA";
+soaUserID = "";
+soaPassID = "";
+
+siteBMQL = bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+for eachSite in siteBMQL {
+    soaUserID = get(eachSite, "FieldName");
+    soaPassID = get(eachSite, "Value1");
+}
+
+accountType = accountTypeKTOKD_t;
+transactionType = transactionType_t;
+
+userDatePref = "yyyy/MM/dd HH:mm";
+
+userTimeZone = "Europe/Amsterdam";
+if (_system_user_time_zone <> "") {
+    userTimeZone = _system_user_time_zone;
+}
+
+dateTime = replace(datetostr(getdate(), userDatePref + " z", userTimeZone), "/", ".");
+
+CPQ_OUTBOUND_CONTROL = util.getEnvironmentVariable("CPQ_OUTBOUND_CONTROL", "DISABLED");
+
+//  If we are set to Disabled then return the date and time and status code
+if (find(CPQ_OUTBOUND_CONTROL, "DISABLE") <> -1) {
+    //  Return the results and info
+    put(retDict, "dateTime", dateTime);
+    put(retDict, "statusCode", "DISABLED");
+    put(retDict, "messageBody", "");
+    put(retDict, "errorMessage", "");
+    put(retDict, "payloadXML", "");
+    return retDict;
+}
+
+disableExtension = FALSE;
+enableORdisable = "Enable Extension (" + dateTime + ")";
+if (containskey(inputDict, "DisableExtension")) {
+    disableExtension = TRUE;
+    enableORdisable = "DISABLE Extension (" + dateTime + ")";
+}
+
+priceListName = "";
+if (NOT disableExtension) {
+    if (containskey(inputDict, "priceListName")) {
+        priceListName = get(inputDict, "priceListName");
+    }
+}
+
+//  SEND ALL THE TIME FOR RIGHT NOW
+includeDeliveryTerms = "";
+includePaymentAndInvoicingTerms = "";
+if (transactionType == "CSP") {
+    dummyline = "";
+//} elif (accountType == "Z001") {
+} elif (accountType == "Z001" OR accountType == "Z300") {//CPQ-3473:Enable Z300 Sold Tos
+    includeDeliveryTerms = "Include Delivery Terms for DSP SoldTo's (Z001)";
+    includePaymentAndInvoicingTerms = "Include Payment Terms and Invoicing Terms for DSP SoldTo's (Z001)";
+} elif (accountType == "Z002") {
+    includeDeliveryTerms = "Include Delivery Terms for DSP ShipTo's (Z002)";
+} else {
+    includeDeliveryTerms = "Include Delivery Terms for DSP Hierarchy's (Z012)";
+    includePaymentAndInvoicingTerms = "Include Payment Terms and Invoicing Terms for DSP Hierarchy's (Z012)";
+}
+
+requestHeader = dict("string");
+put(requestHeader, "Content-Type", "text/xml");
+put(requestHeader, "SOAPAction", "process");
+SOA_URL = util.getEnvironmentVariable("SOA_URL", "");
+updatePriceListSAP = "$BASE_PATH$/XMLOutbound/updatePriceListSAP.xml";
+
+agreementDeliveryTerms = agreementDeliveryTerms_t;
+if (find(agreementDeliveryTerms, "_") <> -1) {
+    agreementDeliveryTerms = substring(agreementDeliveryTerms, 0, find(agreementDeliveryTerms, "_"));
+}
+
+//1648
+validTo=get(inputDict,"validTo");
+pricelistValidTo=get(inputDict,"priceListTo");
+status=get(inputDict,"status");
+expirenow=get(inputDict,"expireNow");
+
+xmlTemplateD = dict("string");
+put(xmlTemplateD, "CPQSOASAP", soaUserID);
+put(xmlTemplateD, "CPQSOASAPPW", soaPassID);
+put(xmlTemplateD, "SOAURL", SOA_URL);
+put(xmlTemplateD, "CUSTOMERNUMBER", customerNumber_t);
+put(xmlTemplateD, "COMPANYCODE", companyCode_t);
+put(xmlTemplateD, "SALESORG", salesOrg_t);
+put(xmlTemplateD, "DISTRIBUTIONCHANNEL", distributionChannel_t);
+put(xmlTemplateD, "DIVISION", division_t);
+put(xmlTemplateD, "ACTIVATEORDEACTIVATE", enableORdisable);
+put(xmlTemplateD, "PRICELIST", priceListName); //  Note: Blank means the Price List returns to current list
+put(xmlTemplateD, "includeDeliveryTerms", includeDeliveryTerms);
+put(xmlTemplateD, "includePaymentAndInvoicingTerms", includePaymentAndInvoicingTerms);
+if (includeDeliveryTerms <> "") {
+    put(xmlTemplateD, "DELIVERYTERMS", agreementDeliveryTerms);
+}
+if (includePaymentAndInvoicingTerms <> "") {
+    put(xmlTemplateD, "PERIODOFINVOICING", replace(agreementPeriodOfInvoicing_t, "blank", ""));
+    put(xmlTemplateD, "PAYMENTTERMS", agreementPaymentTerms_t);
+}
+if(expirenow=="true")
+{
+    put(xmlTemplateD, "validTo", validTo);
+    put(xmlTemplateD, "priceListValidTo", pricelistValidTo);
+}
+
+requestBody = applytemplate(updatePriceListSAP, xmlTemplateD, "ERROR");
+
+if (debugMode) {
+
+    print "***  REQUEST requestHeader  ***";
+    print requestHeader;
+    print "";
+    print "***  REQUEST BODY  ***";
+    print requestBody;
+    print "";
+
+}
+
+responseD = dict("string");
+
+if (processPOST) {
+    if (accountType <> "Z012") { //  NOT sent to SAP for Hierarchy agreements
+        put(responseD, "Status-Code", "999-CPQ commerce.updateCustomerMaster");
+        put(responseD, "Error-Message", "CPQ_OUTBOUND_CONTROL set to " + upper(CPQ_OUTBOUND_CONTROL));
+        if ((find(upper(CPQ_OUTBOUND_CONTROL), "ENABLE") <> -1)) {
+            responseD = urldata(SOA_URL, "POST", requestHeader, requestBody);
+        }
+    }
+}
+
+statusCode = get(responseD, "Status-Code");
+messageBody = get(responseD, "Message-Body");
+errorMessage = get(responseD, "Error-Message");
+if (statusCode == "202") {
+    errorMessage = "";
+} elif (isnull(messageBody)) {
+  if (isnull(messageBody)) {
+    messageBody = "NO Message-Body";
+  }
+  errorMessage = "DEBMAS Status-Code: " + statusCode + " -- " + errorMessage;
+}
+
+//  Return the results and info
+put(retDict, "dateTime", dateTime);
+put(retDict, "statusCode", statusCode);
+put(retDict, "messageBody", messageBody);
+put(retDict, "errorMessage", errorMessage);
+put(retDict, "payloadXML", requestBody);
+
+return retDict;

@@ -1,0 +1,14 @@
+{
+  "name" : "Update Parent Transaction",
+  "variableName" : "updateParentTransaction",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.updateCustomerMaster", "util.getSiteSpecificData", "util.getTransactionData", "util.u_addToDate" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "jsonlib",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "agreementValidTo_t", "agreementValidFrom_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

@@ -1,0 +1,12 @@
+{
+  "name" : "Connect to Zilliant",
+  "variableName" : "connectToZilliant",
+  "description" : "Use the OAuth token and connect with Zilliant to fetch the guidance.",
+  "libraryFunctions" : [ "util.getAuthenticationToken", "util.getEnvironmentVariable" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputParamJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

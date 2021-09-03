@@ -1,0 +1,32 @@
+/**
+@name Send Quote
+@api sendQuote
+@summary Sends CPQ data to an external destination (SOA)
+@param data Json
+@attribute _system_supplier_company_name
+@function String buildCreateQuoteXML(Json data)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-26|Tat.Leung            |Initial Version
+*/
+result = data;
+
+createQuoteXml = commerce.buildCreateQuoteXML(data);
+envVariable = util.getEnvironmentVariable("SOA_CREATE_QUOTE_URL", "");
+if  (envVariable == "") {
+	throwerror("SOA_CREATE_QUOTE_URL is not configured for " + _system_supplier_company_name, false);
+}
+
+// TODO add actual post code to SOA
+if (not isnull(envVariable) and envVariable <> "") {
+    print "post xml to SOA: ";
+    print createQuoteXml;
+} else {
+    print createQuoteXml;
+}
+//  Just in-case, no Pipes or tilde characters
+
+return json();

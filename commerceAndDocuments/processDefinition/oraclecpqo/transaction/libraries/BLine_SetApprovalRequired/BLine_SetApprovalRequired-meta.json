@@ -1,0 +1,11 @@
+{
+  "name" : "BLine_SetApprovalRequired",
+  "variableName" : "BLine_SetApprovalRequired",
+  "description" : "This function will set approval data for B Line",
+  "libraryFunctions" : [ "commerce.get_BLineProductHierarchyAndPLMApprover", "util.getRemark", "util.u_convertJsonArrayToStringArray" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "customerNumber_t", "salesOrg_t", "transactionType_t", "agreementPaymentTerms_t", "qqCountryRegion_t", "shipToNumber_t", "soldToNumber_t", "quoteSubmitter_t", "agreementDeliveryTerms_t", "productApprovers_t", "quoteManagerThresholdApprovalRequired_t", "pricingManagerThresholdApprovalRequired_t", "superUserEmail_t", "evaluateDiscountApproval_t", "controllerApproved_t", "currentApprovalLevel_t", "bLINELevel3Email_t", "endCustomerNumbers_t", "endCustomerArraySet2_t", "nt_selectedEndCustomerArrayset_t", "qqTnC_t", "whatLevelOfDeliveryTermsApprovalRequired_t", "whatLevelOfTermsApprovalRequired_t", "status_t", "approval_status_submit_t", "level3Email_t", "requiredApprovals_t" ],
+  "systemAttributes" : [ "_system_current_step_var" ]
+}

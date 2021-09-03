@@ -1,0 +1,261 @@
+/**
+@name Parse CSV
+@api parseCSV
+@param fileLocation String
+@param quoteCurrencyDecimalSeparator String
+@attribute _user_number_format
+@function Integer countOccurrences(String data, String match)
+@return String[][]
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-10-25|michael.yeung        |
+2020-03-16|Atul Jain		| Added debug mode to print statements
+2020-11-05|Vasundhara Pentakoat |Performance Changes
+*/
+arr = string[][];
+labelArray = string[]; //Performance Changes
+csvJson = json();
+retJsonArray = jsonarray(); //Performance Changes
+mpgPrefix = "";
+uniqueMPGsArray = string[];
+print "============fileContentDict==========";
+print fileContentDict;
+fileContentFromDict = get(fileContentDict,"filecontent","string");
+raw = decodebase64(fileContentFromDict);
+print "========raw==========";
+print raw;
+if(containskey(inputDict,"mpgPrefix")){
+	mpgPrefix = get(inputDict,"mpgPrefix");
+}
+if(containskey(testDict,"uniqueMPGsArray")){
+	uniqueMPGsArray = get(testDict,"uniqueMPGsArray");
+}
+//raw = urldatabyget(fileLocation, "", "ERROR");
+debugMode = false;
+
+if (raw == "ERROR") {
+  return csvJson;
+}
+csvSep= ",";
+//if (debugMode) {
+//print "Number Format = " + _user_number_format;
+//print "CSVSEP= " + csvSep;
+//}
+
+rowId=0;
+colId=0;
+goodLines = 0;
+knownColumns = 0;
+
+//apple has to be different so some macs will use \r instead of \n
+raw=replace(raw, "\r", "\n");
+rawLines = split(raw,"\n");
+//determine separator - could be comma or semicolon
+semiColonCount=util.countOccurrences(raw, ";");
+commaCount=util.countOccurrences(raw, ",");
+if (debugMode) {
+	print semiColonCount;
+	print commaCount;
+}
+
+if(semiColonCount>commaCount){
+	csvSep=";";
+}
+
+for rl in rawLines{
+        if (trim(rl) == "") {
+          continue;
+        }
+	rawCols = split(rl,csvSep);
+	if(rowId == 0){
+		if(startswith(lower(rl), "sep")){
+			//csv metadata to force read the separator from file when opening through excel, ignore it for parsing
+			continue;
+		}
+		knownColumns = 0;//sizeofarray(rawCols);
+		//make sure extra columns weren't added on accident
+		for rawCol in rawCols{
+			if(trim(rawCol)<>""){
+				knownColumns=knownColumns+1;
+			}
+		}
+	}
+	if(sizeofarray(rawCols) <> knownColumns){
+		//handle quoted values (if present), else its a bad line
+		quoteCount=0.0;
+		colId=0;
+		rawLineChars=split(rl, "");
+		cellData="";
+		colQuotesFound=false;
+		for rawLineChar in rawLineChars{
+			if(colId>=knownColumns){
+				break;
+			}
+			if(rawLineChar=="\""){
+				if(fmod(quoteCount, 2.0)==0.0){
+					quoteCount=quoteCount+1;
+				}
+				else{
+					quoteCount=quoteCount-1;
+				}
+				colQuotesFound=true;
+			}
+			if(quoteCount==0.0 AND rawLineChar==csvSep){
+				if(colQuotesFound){
+					arr[rowId][colId]=substring(replace(cellData, "\"\"", "\""),1,-1);
+				}
+				else{
+					arr[rowId][colId]=cellData;
+				}
+				colQuotesFound=false;
+				colId=colId+1;
+				//if (debugMode) {
+				//print cellData;
+				//}
+				cellData="";
+			}
+			else{
+			 cellData=cellData+rawLineChar;
+			}
+		}
+		if(cellData<>"" OR colId<=knownColumns){
+			//handle last column
+			//if (debugMode) {
+			//print cellData;
+			//}
+			if(colQuotesFound){
+				arr[rowId][colId]=substring(replace(cellData, "\"\"", "\""),1,-1);
+			}
+			else{
+				arr[rowId][colId]=cellData;
+			}
+		}
+	}
+	else{
+		colId=0;
+		for rawCol in rawCols{
+			if(colId>=knownColumns){
+				break;
+			}
+			arr[rowId][colId]=rawCol;
+			//Performance Changes - START
+			if(rowId == 0){
+				append(labelArray,rawCol);
+			}
+			//Performance Changes -END
+			colId=colId+1;	
+		}
+	}
+	rowId=rowId+1;
+}
+
+//Performance Changes - START
+rowCount = 1;
+matList = string[];
+catalogList = string[];
+UPCList = string[];
+crossRefList = string[];
+mpgRepeatFlag = false;
+for row in arr{
+	// Added for QQ-437 Implementation - Start //
+    // If any of Pricing Group, Catalog #, Material # or EAN is filled simultaneously, that row will be rejected. Only rows which have only 1 entry in any of the before mentioned cols will be selected for a valid row.
+    if(rowCount <= 1) {
+        // Ignore the heading row.
+        rowCount = rowCount + 1;
+        continue;
+    } else {
+		//Gaurav: change for 1631, append MPG to unique MPGs array and if already exists then throw error
+		if(NOT isnull(row[0]) AND row[0] <> ""){
+			if(findinarray(uniqueMPGsArray, row[0]) == -1){
+				append(uniqueMPGsArray, row[0]);
+			}
+			else{
+				mpgRepeatFlag = true;
+				break;
+			}
+		}
+        colSum = 0;
+        cols = range(5);
+        for col in cols{
+			if(col == 4){
+				col = 13;//To fix the issue: CPQ-1398
+				//col = 11;
+			}
+            if(trim(row[col]) == "") {
+                colSum = colSum + 0;
+            } else {
+                colSum = colSum + 1;
+            }
+        }
+        if(colSum <> 1) {
+            rowCount = rowCount + 1;
+            continue;
+        }  
+
+		//Forming Json array
+		colIndex = 0;
+		rowJson= json();
+		for eachCol in row{
+			jsonput(rowJson,labelArray[colIndex],eachCol);
+			colIndex = colIndex + 1;
+		}
+		jsonarrayappend(retJsonArray,rowJson);
+    }
+    // Added for QQ-437 Implementation - End //
+    
+    // If Pricing Group is not empty, then it will have a corresponding material number with VPG prefix and pricing group prefix.
+    if((trim(row[0]) <> "") AND (findinarray(matList, "'"+"VPG"+mpgPrefix+upper(row[0]+"'")) == -1)) {
+		append(matList, "'" + "VPG" + mpgPrefix + upper(row[0]) + "'"); // => CAPITALIZE
+	}
+	
+	// If Catalog # is not empty, then add it to the cataloglist
+	if((trim(row[1]) <> "") AND (findinarray(catalogList, "'" + upper(row[1]) + "'") == -1)) {
+		append(catalogList,"'" + upper(row[1]) + "'"); // => CAPITALIZE
+	}
+	
+	// If Material # is not empty, then add it to the matList
+	if((trim(row[2]) <> "") AND (findinarray(matList, "'" + upper(row[2]) + "'") == -1)) {
+		append(matList, "'" + upper(row[2]) + "'"); // => CAPITALIZE
+	}
+    
+    // If UPC is not empty, then add it to the UPCList
+	if((trim(row[3]) <> "") AND (findinarray(UPCList, "'"+upper(row[3])+"'") == -1)) {
+		append(UPCList, "'" + upper(row[3]) + "'"); // => CAPITALIZE
+	}
+	
+	 // If Cross Reference is not empty, then add it to the crossRefList - 03-09-2019 Vasundhara - Added as apart of ALM-2482
+	//if((trim(row[11]) <> "") AND (findinarray(crossRefList, upper(row[11])) == -1)) {
+	if((trim(row[13]) <> "") AND (findinarray(crossRefList, "'"+upper(row[13])+"'") == -1)) {
+		//append(crossRefList, upper(row[11])); // => CAPITALIZE
+		append(crossRefList, "'" + upper(row[13]) + "'"); // => CAPITALIZE
+	}
+    rowCount = rowCount + 1;
+}
+materialListStr = "";
+catalogListStr = "";
+UPCListStr = "";
+crossRefListStr = "";
+if(sizeofarray(matList) > 0){
+	materialListStr = join(matList,",");
+}
+if(sizeofarray(catalogList) > 0){
+	catalogListStr = join(catalogList,",");
+}
+if(sizeofarray(UPCList) > 0){
+	UPCListStr = join(UPCList,",");
+}
+if(sizeofarray(crossRefList) > 0){
+	crossRefListStr = join(crossRefList,",");
+}
+
+//Performance Changes - END
+jsonput(csvJson,"csvData",jsonarraytostr(retJsonArray));
+jsonput(csvJson,"mpgRepeatFlag",string(mpgRepeatFlag));
+jsonput(csvJson,"materialItemsList",materialListStr);
+jsonput(csvJson,"catalogItemsList",catalogListStr);
+jsonput(csvJson,"UPCItemsList",UPCListStr);
+jsonput(csvJson,"crossRefItemsList",crossRefListStr);
+//print retJsonArray; 
+//print csvJson;
+return csvJson;

@@ -1,0 +1,15 @@
+{
+  "name" : "Get Transaction Data",
+  "variableName" : "getTransactionData",
+  "description" : "Get Transaction Header Data",
+  "libraryFunctions" : [ "util.getListOfTransactionsForQuery", "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "bsId",
+    "type" : "String"
+  }, {
+    "name" : "xpaths",
+    "type" : "String[]"
+  } ],
+  "attributes" : [ ]
+}

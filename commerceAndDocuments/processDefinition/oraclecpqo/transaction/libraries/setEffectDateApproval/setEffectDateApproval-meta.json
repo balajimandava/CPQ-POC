@@ -1,0 +1,14 @@
+{
+  "name" : "Set Effect Date Approval",
+  "variableName" : "setEffectDateApproval",
+  "description" : "",
+  "libraryFunctions" : [ "util.u_addToDate", "util.u_setCommerceAttribute" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "agreementValidFrom_t", "agreementValidTo_t", "transactionType_t" ],
+  "systemAttributes" : [ ]
+}

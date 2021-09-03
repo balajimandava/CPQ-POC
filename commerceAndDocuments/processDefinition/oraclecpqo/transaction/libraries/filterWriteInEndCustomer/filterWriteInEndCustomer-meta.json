@@ -1,0 +1,11 @@
+{
+  "name" : "Filter Write In End Customer",
+  "variableName" : "filterWriteInEndCustomer",
+  "description" : "Project#49074|E9913664|20thMarch2020|Search and Remove Write-in customers form End Customer arrayset. This function will be invoked on Revise, Renew, Copy actions.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "endCustomerArraySet2_t" ],
+  "systemAttributes" : [ ]
+}

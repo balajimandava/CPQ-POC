@@ -1,0 +1,25 @@
+//********************************************************************************************
+//** Description: Function to check whether approval for a specific approval reason and level
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	15-July-2020 	Rahul Uttarwar 	Initial version
+//********************************************************************************************
+approvalRequired = false;
+jsonObj=json();
+if(transactionLineApprovalInformation_t<>"" AND NOT ISNULL(transactionLineApprovalInformation_t)){
+	jsonObj = json(transactionLineApprovalInformation_t);
+}
+jsonObjForApprovalCondions = json();
+
+approvarJsonArrForCondition = jsonpathgetmultiple(jsonObj, "$..['" + Condition + "']");
+jsonput(jsonObjForApprovalCondions, Condition, approvarJsonArrForCondition);
+
+approverJsonArr = jsonpathgetmultiple(jsonObjForApprovalCondions, "$..level" + Level + "Approver");
+
+if(jsonarraysize(approverJsonArr) > 0){
+	approvalRequired = true;
+}
+
+return approvalRequired;

@@ -1,0 +1,14 @@
+{
+  "name" : "Trigger Email",
+  "variableName" : "triggerEmail",
+  "description" : "Create parameters for Email action to trigger an email",
+  "libraryFunctions" : [ "commerce.setOutputDocumentAttributes", "util.sendEmail" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bs_id", "emailAddress", "transactionNumber_t", "cCEmail_t", "customerRepresentative_t", "customerSalutation_t", "viewQQoutputDraftActionBoolean_t", "qq_Contact2Email_t", "qqBusinessLineForSalesOrg_t", "transactionName_t", "customerNumber_t", "qqCustomerNameCopy_t", "transactionType_t", "qq_MnlShpTo_Name2_t", "qq_MnlShpTo_Name1_t", "qqTotalValue_t", "qq_customerReferenceShipTo", "qq_shipToName_t", "qq_shipToName2_t", "outputLanguage_t", "currency_t", "qqAttachment15_t", "qq_Contact4Email_t", "qq_Contact4Phone_t", "salesOrg_t", "qq_Contact2Phone_t", "currencySymbol_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_current_user_language" ]
+}

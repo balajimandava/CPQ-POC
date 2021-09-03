@@ -1,0 +1,16 @@
+/**
+@name Build Item XML
+@api buildItemXML
+@summary Build an item XML for a line.
+@param data Json product data for the line
+@function String Dictionary u_convertJSONToStringDictionary(Json data)
+@return String XML to be used to update a line item.
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-18|Tat.Leung            |Initial version.
+*/
+template = "$BASE_PATH$/WebServices/item_update_template.xml";
+tokens = util.u_convertJSONToStringDictionary(data);
+xml = applytemplate(template, tokens, "");
+return xml;

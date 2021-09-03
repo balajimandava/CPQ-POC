@@ -1,0 +1,63 @@
+result = json();
+debugMode = false;
+
+/*print "bom from recommended item is";
+print bom;
+if( NOT isnull(bom) AND bom <> ""){
+xpathItemDetail = string [];
+xpathItemDetail[0] = "//TakeoffCode";
+xpathItemDetail[1] = "//ProductLine";
+xpathItemDetail[2] = "//ProductID";
+xpathItemDetail[3] = "//CatalogNumber";
+xpathItemDetail[4] = "//MaterialNumber";
+xpathItemDetail[5] = "//ConfigurationID";
+xpathItemDetail[6] = "//Description";
+xpathItemDetail[7] = "//Quantity";
+xpathItemDetail[8] = "//Price";
+xpathItemDetail[9] = "//Cost";
+
+
+eachItem = readxmlsingle(bom, xpathItemDetail);
+print eachItem ;
+allItemsArray = get(eachItem , xpathItemDetail[0]);
+
+if(NOT isnull(allItemsArray)){
+for xpath in xpathItemDetail{
+takeOffCode= util.getStringDict(eachItem, xpathItemDetail[0], "");
+jsonput(result, "takeoffCode", takeoffCode);
+							
+productLine= util.getStringDict(eachItem, xpathItemDetail[1], "");
+jsonput(result, "productLine", productLine);
+
+productID= util.getStringDict(eachItem, xpathItemDetail[2], "");
+jsonput(result, "productID", productID);
+
+catalogNumber= util.getStringDict(eachItem, xpathItemDetail[3], "");
+jsonput(result, "catalogNumber", catalogNumber);
+
+SAPCatalogNumber= util.getStringDict(eachItem, xpathItemDetail[4], "");
+jsonput(result, "SAPCatalogNumber", SAPCatalogNumber);
+
+configurationID= util.getStringDict(eachItem, xpathItemDetail[5], "");
+jsonput(result, "configurationID", configurationID);
+
+materialLineItemShortDescription= util.getStringDict(eachItem, xpathItemDetail[6], "");
+jsonput(result, "materialLineItemShortDescription", materialLineItemShortDescription);
+
+quantity= util.getStringDict(eachItem, xpathItemDetail[7], "");
+jsonput(result, "quantity", quantity);
+
+listPrice= util.getStringDict(eachItem, xpathItemDetail[8], "");
+jsonput(result, "listPrice", listPrice);
+
+MaterialCost= util.getStringDict(eachItem, xpathItemDetail[9], "");
+jsonput(result, "MaterialCost", MaterialCost);
+
+
+
+}
+}
+}*/
+print "result of the bom parsing is";
+print result;
+return result;

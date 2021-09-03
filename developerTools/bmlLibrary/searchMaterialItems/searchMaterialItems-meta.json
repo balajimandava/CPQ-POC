@@ -1,0 +1,12 @@
+{
+  "name" : "Search material items",
+  "variableName" : "searchMaterialItems",
+  "description" : "Generate a JSON array containing the IDs and details of Material Items that satisfy the specified search criteria.",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.generalChecks", "util.getActiveMaterialStatuses", "util.getStringDict" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "searchParams",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

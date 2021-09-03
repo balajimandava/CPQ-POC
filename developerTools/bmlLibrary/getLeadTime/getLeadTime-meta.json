@@ -1,0 +1,12 @@
+{
+  "name" : "Get Lead Time",
+  "variableName" : "getLeadTime",
+  "description" : "This will returns the lead time based on the Product Line, Brand and Lead time Indicator",
+  "libraryFunctions" : [ ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "inputData",
+    "type" : "Anytype Dictionary"
+  } ],
+  "attributes" : [ ]
+}

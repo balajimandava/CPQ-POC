@@ -1,0 +1,11 @@
+{
+  "name" : "Mass update Mass Price Changes",
+  "variableName" : "massUpdateMassPriceChanges",
+  "description" : "",
+  "libraryFunctions" : [ "util.triggerAnyActionUsingRESTAPI" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "massPriceChanges_t", "bs_id" ],
+  "systemAttributes" : [ ]
+}

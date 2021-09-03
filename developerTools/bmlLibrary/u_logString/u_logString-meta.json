@@ -1,0 +1,21 @@
+{
+  "name" : "Log String",
+  "variableName" : "u_logString",
+  "description" : "Print a string to the log file.  If the message is longer than 4000 characters (CPQ limit),\nit will be printed in multiple lines.  The continuation lines are indicated by \"(C)\".",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "category",
+    "type" : "String"
+  }, {
+    "name" : "level",
+    "type" : "Integer"
+  }, {
+    "name" : "message",
+    "type" : "String"
+  }, {
+    "name" : "label",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,21 @@
+{
+  "name" : "Log String Dictionary",
+  "variableName" : "u_logStringDict",
+  "description" : "Print a string dictionary object to the log.",
+  "libraryFunctions" : [ "util.u_logString" ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "category",
+    "type" : "String"
+  }, {
+    "name" : "level",
+    "type" : "Integer"
+  }, {
+    "name" : "strDict",
+    "type" : "String Dictionary"
+  }, {
+    "name" : "label",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

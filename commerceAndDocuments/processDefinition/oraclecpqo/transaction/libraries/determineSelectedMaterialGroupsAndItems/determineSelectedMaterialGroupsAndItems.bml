@@ -1,0 +1,45 @@
+//************************************************************************************************************
+//** Function:    Get the list of material groups and material items currently in the arrangement
+//** Type:        Commerce function
+//**
+//** Description: Generate a JSON object containing arrays of IDs for Material Groups and Material Items 
+//**              currently present in the arrangement.
+//** 
+//** Param:       See above for main document and sub-document fields used by this function
+//**
+//** Return type: JSON object
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              14/06/2017    apatterson      Initial version
+//************************************************************************************************************
+
+// Get input parameters
+debug = util.getStringDict(inputParams, "DEBUG", "false");
+
+// Retrieve a list of material price groups already added to the agreement
+materialGroups = jsonarray();
+materialItems = jsonarray();
+
+// Iterate through all line items
+for line in transactionLine {
+    if (line.qqProductType_l == "group") {
+        // Material group line
+        jsonarrayappend(materialGroups, line.materialPricingGroup_l);
+    } else {
+        // Material item line
+        jsonarrayappend(materialItems, line.materialLineItem_l);
+    }
+}
+
+// Show full set of selections if in DEBUG mode
+if (debug == "true") {
+    print "Material groups present in agreement: " + jsonarraytostr(materialGroups);
+    print "Material items present in agreement: " + jsonarraytostr(materialItems);
+}
+
+// Structure response and return
+response = json();
+jsonput(response, "materialGroups", materialGroups);
+jsonput(response, "materialItems", materialItems);
+return response;

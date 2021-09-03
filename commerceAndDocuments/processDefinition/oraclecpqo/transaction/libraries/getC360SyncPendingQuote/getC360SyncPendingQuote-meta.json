@@ -1,0 +1,11 @@
+{
+  "name" : "Get C360 Sync Pending Quote",
+  "variableName" : "getC360SyncPendingQuote",
+  "description" : "Get the quote that is in the awaiting a C360 sync response.",
+  "libraryFunctions" : [ "util.getListOfTransactionsForQuery" ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qqRootTransactionNumber_t", "opportunityNumber_t" ],
+  "systemAttributes" : [ ]
+}

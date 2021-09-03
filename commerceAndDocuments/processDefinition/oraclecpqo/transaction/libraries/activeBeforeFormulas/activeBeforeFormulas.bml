@@ -1,0 +1,130 @@
+//************************************************************************************************************
+//** Function:    Active - Before Formulas
+//** Type:        Commerce Library Function   
+//**
+//** Description: Function runs in before formulas of Active action
+//** 
+//** Return type: String  
+//**
+//** History:     Date(YYYY.MM.DD)          Author          Comment 
+//**              ------------- 		--------------- --------------------------------------------------------------
+//**              2017.07.25  			dBo Haizlip     Initial version (
+//**              2017.10.31   			vhingorani      Not to send Price List on Active - ALM 501
+//**              2017.11.01   			shansen        	Adjust to only send pricelist if the current date >= pricelist from date ALM 310/jira 501
+//**		  	  2018.08.16			dBo Haizlip	  	DEBMAS only for ES-EMEA
+//**			  2018.09.01			Harshit Mehta	Adding condition to check when SAP synch will happen for uploaded agreement.
+//************************************************************************************************************
+retString= "";
+  
+  //  55375580
+  
+  SAPSYNCHFORUPLOADEDAGREEMENT = (util.getEnvironmentVariable("UPLOADAGREEMENTSYNCH_" + qqBusinessLineForSalesOrg_t ,"DISABLED") == "ENABLED");
+  setNextTimer= TRUE;
+  runString= "";
+  nextStep= "Active";
+  dateFormat= "yyyy-MM-dd";
+  
+  inputDict= dict("string");
+  retCusMas= dict("string");
+  statusCode ="";
+  activeTimer= substring(active_Timer_t,0,10);
+  activeTimerDate= strtojavadate(activeTimer,dateFormat);
+  todaysDateString= substring(_system_date,0,10);
+  todaysDate= strtojavadate(todaysDateString,dateFormat);
+  
+  
+  //  Used for testing if Active is manually clicked by Admins
+  if (comparedates(todaysDate,activeTimerDate) <> 0) {
+    todaysDateString= activeTimer;
+  }
+  
+  runFrom= todaysDateString;
+  runFromDate= strtojavadate(runFrom,dateFormat);
+
+  enablePriceList=FALSE; //this means a "/" will be sent and later on the active timer will send the pricelist when the pricelist becomes active
+  if ( (NOT isnull(priceListFrom_t)) AND (extendCurrentListPrices_t) ) {
+    priceListFromDate= strtojavadate(substring(priceListFrom_t,0,10),dateFormat);
+    enablePriceList= (comparedates(runFromDate, priceListFromDate)>=0);
+  }
+  //13-02 ALM 1648 -Added below condition to stop price list sync to SAP for old transaction
+  if ( (accountTypeKTOKD_t<>"Z012") AND (qqBusinessLineForSalesOrg_t == "ES-EMEA") AND (isAgreement_t) ) { // Just send terms on Active and not Pricelist and ONLY for ES-EMEA
+    
+    if(enablePriceList){
+        put(inputDict, "priceListName", choosePricelist_t);
+    } 
+	else {
+        put(inputDict, "priceListName", "/"); //Disable PLTYP on the Customer Master;
+    }
+	//Harshit : Check if uploaded agreement require SAP Synch
+    if(NOT uploadedAgreement_t OR (uploadedAgreement_t AND find(agreementUploadDetails_t,"NOSAPSYNCHONACTIVEACTION") == -1) AND SAPSYNCHFORUPLOADEDAGREEMENT AND syncToSAP_t){
+    retCusMas= dict("string");
+    retCusMas= commerce.updateCustomerMaster(inputDict);
+    retString= retString + "1~dEBMASPriceListUpdateFromDate_t~" + get(retCusMas,"dateTime") + "|";
+    statusCode= get(retCusMas,"statusCode");
+    retString= retString + "1~dEBMASPriceListUpdateStatusCode_t~" + get(retCusMas,"statusCode") + "|";
+    retString= retString + "1~dEBMASPriceListMessageBody_t~" + get(retCusMas,"messageBody") + "|";
+    retString= retString + "1~agreementErrorMessages_t~" + get(retCusMas,"errorMessage") + "|";
+    
+    //  Just in-case, no Pipes or tilde characters
+    payloadXML = replace(get(retCusMas,"payloadXML"),"|","^PIPE^");
+    payloadXML = replace(payloadXML,"~","^TILDE^");
+    
+    retString = retString + "1~dEBMASPriceListUpdateXML_t~" + payloadXML + "|";
+    }
+	//If uploaded agreement doesn't require synch then consider SAP response as success and set status code as 202
+    if(uploadedAgreement_t AND find(agreementUploadDetails_t,"NOSAPSYNCHONACTIVEACTION") > 0 AND NOT SAPSYNCHFORUPLOADEDAGREEMENT){
+    	statusCode = "202";
+    }
+    if (statusCode == "DISABLED") {
+      
+      //  Try again in a day
+      nextStep= "Active";
+      nextDate= substring(datetostr(adddays(todaysDate,1),"yyyy-MM-dd HH:mm:ss"),0,10) + " 00:00:00";
+      
+      retString= retString + "1~status_t~active" + "|";
+      retString= retString + "1~qqPreviousStatus_t~active" + "|";
+      retString= retString + "1~active_Timer_t~" + nextDate + "|";
+      setNextTimer= FALSE;
+    } elif (statusCode <> "202") {  //202 is the code returned if the SOA service received the message
+      nextStep= "ERP Error";
+    }
+    else{
+      //if it was successful AND we actually sent a pricelist update the count - this signifies that the next pricelist action is a disable
+      if(enablePriceList){
+        retString= retString + "1~priceListExtensionCount_t~1|";
+      }
+    }
+    retString= retString + "1~approvedWorkflowTransition_t~" + nextStep + "|";
+  
+    //  We had an issue so reset the status as well
+    if (nextStep == "ERP Error") {
+      retString= retString + "1~status_t~erpError" + "|";
+      retString= retString + "1~qqPreviousStatus_t~erpError" + "|";
+      //  Disable any timer firing
+      retString= retString + "1~active_Timer_t~" + "9999-12-31 00:00:00" + "|";
+      setNextTimer= FALSE;
+    }
+  
+  }
+  
+  if (setNextTimer) {
+    parmsDict= dict("string");
+    put(parmsDict,"runFrom",runFrom);
+    nextTimerDate= commerce.nextTimer(parmsDict);
+    
+    agreementValidTo= substring(agreementValidTo_t,0,10);
+    agreementValidToDate= strtojavadate(agreementValidTo,dateFormat);
+    retString=retString + "1~active_Timer_t~" + substring(datetostr(nextTimerDate,"yyyy-MM-dd HH:mm:ss"),0,10) + " 00:00:00" + "|";
+    daysToValidTo= 0;
+    
+    //  Is Timer Before the Valid To date?
+    if (comparedates(nextTimerDate,agreementValidToDate) == -1) {
+      daysToValidTo= getdiffindays(nextTimerDate,agreementValidToDate);
+    }
+    
+    retString=retString + "1~days_To_ValidTo_t~" + string(daysToValidTo) + "|";
+    
+  }
+  
+
+return retString;

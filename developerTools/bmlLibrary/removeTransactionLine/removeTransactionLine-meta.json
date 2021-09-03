@@ -1,0 +1,15 @@
+{
+  "name" : "Remove Transaction Line",
+  "variableName" : "removeTransactionLine",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "ConfigurationId",
+    "type" : "String"
+  }, {
+    "name" : "bsId",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,222 @@
+/**
+@name Populate Line Data
+@api populateLineData
+@summary 
+@attribute _config_extra_info
+@attribute _document_number
+@attribute _model_variable_name
+@attribute _parent_doc_number
+@attribute _sequence_number
+@attribute currencySymbol_t
+@attribute currencyThousandsSeparator_t
+@attribute customerNumber_t
+@attribute discountNumericString_l
+@attribute discountString_l
+@attribute discountType_l
+@attribute distributionChannel_t
+@attribute doc_number
+@attribute materialLineItem_l
+@attribute salesOrg_t
+@function Json getCMI01Details(Json partJson)
+@function String extractValidNumericValue(String numberAsString, String thousandSeparator, String currencySymbol, String type)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-06|Tat.Leung            |
+2018-06-07|michael.yeung        |
+2018-07-02|michael.yeung        |
+2018-07-03|michael.yeung        |
+2018-07-05|michael.yeung        | Add pricing At Child Line 
+2019-05-03|Harshit Maheshwari   | Removed doc_number attribute from input attributes as not in use
+2020-01-21|Nithin L D           | LineItemGridChanges - Minimum Order Quantity/Rounding changes start
+2020-04-17|Dhananjay	        | Customer Part Number is Editable on LIG and user can enter this if there is no matching in CMI01
+2020-05-13|Dhananjay	        | For PSD, we need to get the customer Material# based on the Primary End Customer (endCustomerNo_t)
+2020-06-30|Shardul		| Added fix for CPQ-2140
+2020-07-30|Priyanka		| Setting the brand total for brandTotal_l line attribute
+2020-12-11|Shardul      	| CPQ-3632 - Soft Warning Message on Save changes
+2020-11-20|Malli		| CPQ-2812 - Net Fixed Amount Warning message
+2021-01-07|Dhananjay	        |CPQ-3759:Material Auto Rounding should not apply to materials with a rounding qty of 0 or 1
+2021-02-01|Neha			| CPQ-4096 : Reset the Error Message
+*/
+result = string[];
+takeOffCodeDict = dict("string");
+configPricingDict = dict("string");
+haveConfiguration = false;
+brandTotalDict = dict("float");
+setBrandTotal = false;
+zeroNetFixedAmtFlg = false;
+zeroNetFixedAmtmsg = "";
+msgSB = stringbuilder();
+messageArray = string[];
+
+sbappend(msgSB, "0.00 " + util.getRemark("WARNING_MESSAGE_ZEROPRICE", _system_current_user_language) +": ");
+conditionForZeroNetFixedAmt = util.checkBizGroupCondition("warningForZeroNetFixedAmount", transactionType_t, salesOrg_t);
+for line in transactionLine {
+    discNumStr = util.extractValidNumericValue(line.discountString_l, currencyThousandsSeparator_t, currencySymbol_t, line.discountType_l);
+    append(result, line._document_number + "~discountNumericString_l~" + discNumStr);
+
+	partJson = json();
+    jsonput(partJson,"VKORG",salesOrg_t);
+    jsonput(partJson,"VTWEG",distributionChannel_t);
+    jsonput(partJson,"MATNR",line.materialLineItem_l);
+    jsonput(partJson,"customerNumber",customerNumber_t);
+    if(qqBusinessLineForSalesOrg_t  == "PSD" ){
+	jsonput(partJson,"customerNumber",endCustomerNo_t);
+	lineTotal = line.qqTotal_l;
+	brand = line.brand_l;
+	//brandTotalDict -- Key: brand  and Value:lineTotal
+	if(containskey(brandTotalDict,brand)){
+		brandTotal = get(brandTotalDict,brand);
+		brandTotal = brandTotal  + lineTotal;
+		put(brandTotalDict,brand,brandTotal);
+	}else{
+		put(brandTotalDict,brand,lineTotal);
+	}
+	setBrandTotal = true;
+    }
+    
+    
+    CMI01records = util.getCMI01Details(partJson);
+    customerPartNumber_db = jsonget(CMI01records,"KDMAT");
+    customerPartNumber = line.customerPartNumber_l;
+    //customerPartNumber = jsonget(CMI01records,"KDMAT");
+   // append(result, line._document_number + "~customerPartNumber_l~" + customerPartNumber);
+    	//Customer Part Number is Editable on LIG and user can enter this if there is no matching in CMI01
+	if(customerPartNumber == ""){
+		customerPartNumber = customerPartNumber_db;
+	}
+	append(result, line._document_number + "~customerPartNumber_l~" + customerPartNumber);
+    if( line._model_variable_name == "takeOff" AND line._config_extra_info <> "" ) {
+        takeOffCode = "";
+        if (line._config_extra_info <> "" ) {
+            cfgExtraInfo = json(line._config_extra_info );
+            takeOffCode = jsonget(cfgExtraInfo, "configHeaderId");
+
+            pricingAtChild = "false";
+            takeOffRecords = bmql("select pricingAtChild from SalesOrgToTakeOff where SalesOrg =$salesOrg_t and TakeOffModel = $takeOffCode ");
+            for r in takeOffRecords {
+                pricingAtChild = get(r,"pricingAtChild");
+                break;
+            }
+            
+	    //Added by Shardul to fix fields editable for PushButton Flatpack issue.
+            if((line.takeOffModel_l == "PUSHBUT" OR line.takeOffModel_l=="ATDERESI") AND NOT(isNULL(getconfigattrvalue(line._document_number,"SAPConfigurationID"))))
+            {
+                pricingAtChild = "false";
+            }
+            
+            put(configPricingDict, line._document_number, pricingAtChild);
+            append(result, line._document_number + "~takeOffModel_l~" + takeOffCode);
+            append(result, line._document_number + "~priceAtChildLine_l~" + pricingAtChild);
+            put(takeOffCodeDict, line._document_number, takeOffCode);
+            haveConfiguration = true;
+        }
+    }
+    //Added by Shardul for INC000014092797
+	if((line.takeOffModel_l == "PUSHBUT" OR line.takeOffModel_l=="ATDERESI") AND (isNULL(getconfigattrvalue(line._document_number,"SAPConfigurationID"))) and line._parent_doc_number == "")
+	{
+		append(result, line._document_number + "~ifHaveChildLine_l~true");
+	}	
+	
+	
+	//Project#49074 - LineItemGridChanges - Minimum Order Quantity/Rounding changes start
+    Qty = line.quantity_l;	
+	OldQty = line.quantity_l;	
+	MinOrdQty = line.minimumOrderQuantity_l;
+	if(qqBusinessLineForSalesOrg_t  == "PSD" )
+	{
+	//append(result, "1~softWarningMessageOnSave_t~" + "");
+		if( Qty < MinOrdQty){
+			Qty = MinOrdQty;
+		}
+		//if( line.roundingQuantity_l <> 0){//CPQ-3759:Material Auto Rounding should not apply to materials with a rounding qty of 0 or 1
+		if( line.roundingQuantity_l > 1 AND line.quantity_l <> line.roundingQuantity_l){
+			 QtyCal = Qty / line.roundingQuantity_l ;
+			 remainder = fmod(Qty ,  line.roundingQuantity_l );
+			 if( remainder > 0 ) 
+			 {
+				QtyCal = QtyCal + 1;
+				Qty = line.roundingQuantity_l * QtyCal;
+			 }
+			comments =  "Line Item  " + string(line._sequence_number) +" - "+line.materialLineItem_l+" has rounding quantity of "+string(line.roundingQuantity_l)+" and has been automatically rounded to a Quantity of  "+ string(Qty)  ;
+			messageStr = comments;
+			append(messageArray, messageStr);
+			 
+		}
+                      append(result, line._document_number + "~quantity_l~" + string(Qty));	
+	
+    }
+    /*if (isnull(string(Qty))) {
+        Qty = 1;
+    }
+    */
+    
+	//Project#49074 - LineItemGridChanges - Minimum Order Quantity/Rounding changes End
+	
+	// Net Fixed amount warning message logic - CPQ-2812
+	//if(qqBusinessLineForSalesOrg_t == "ES-EMEA" AND (qq_ntTransactionType_t == "DS" OR qq_ntTransactionType_t == "WQ")){
+	//print conditionForZeroNetFixedAmt;
+	if (line._parent_doc_number == "" and line.qqProductType_l == "normal" ) { // Neha : added additional condition for standard items - CPQ-2588
+	if(conditionForZeroNetFixedAmt){
+		netFixedAmtTxt = replace(line.netFixedAmountString_l, ",",".");
+		if(netFixedAmtTxt <> "" AND NOT(isnull(netFixedAmtTxt))){
+			netFixedAmt= atof(netFixedAmtTxt);
+			if(netFixedAmt == 0){
+				zeroNetFixedAmtFlg = true;	
+				// sample : 0.00 price requested for Material Item: Y7-1234567 - Line #: 1				
+				sbappend(msgSB,line.materialLineItem_l + " - "+ util.getRemark("LINE", _system_current_user_language)+": "+string(line._sequence_number) + ", ");
+			}
+			else
+			{
+				if(netFixedAmountWarningMsg_t <> "")
+				{
+					append(result,"1~netFixedAmountWarningMsg_t~");
+				}
+			}
+	
+		} 
+		else
+		{ 
+			// CPQ-4096 : Reset the Error Message
+			if(netFixedAmountWarningMsg_t <> "")
+			{
+				append(result,"1~netFixedAmountWarningMsg_t~");
+			}
+						
+		}
+	   }		
+	}// End of Net Fixed amount warning message logic 
+}
+// Set Net Fixed amount warning message attribute
+append(result, "1~softWarningMessageOnSave_t~" + join(messageArray,"/n"));
+
+if(zeroNetFixedAmtFlg){	
+	zeroNetFixedAmtmsg = sbtostring(msgSB);	
+	if(endswith(zeroNetFixedAmtmsg,", ")){
+		zeroNetFixedAmtmsg = substring(zeroNetFixedAmtmsg,0,len(zeroNetFixedAmtmsg)-2);
+	}
+	append(result,"1~netFixedAmountWarningMsg_t~"+zeroNetFixedAmtmsg);
+}//End of Setting Net Fixed amount warning message attribute
+
+	
+//if(haveConfiguration ) {
+if(haveConfiguration OR setBrandTotal){
+    for line in transactionLine {
+        if( line._parent_doc_number <> "" ) {
+            takeOffCode = get(takeOffCodeDict, line._parent_doc_number );
+            append(result, line._document_number + "~takeOffModel_l~" + takeOffCode);
+            pricingAtChild = get(configPricingDict, line._parent_doc_number );
+            append(result, line._document_number + "~priceAtChildLine_l~" + pricingAtChild);
+        }
+        //Setting the brand total for brandTotal_l line attribute
+        brand = line.brand_l;
+	brandTotal = 0.0;
+	if(containskey(brandTotalDict,brand)){
+		brandTotal = get(brandTotalDict,brand);
+	}
+	append(result, line._document_number + "~brandTotal_l~" + string(brandTotal));
+    }
+}
+newValues = join(result, "|");
+return newValues;

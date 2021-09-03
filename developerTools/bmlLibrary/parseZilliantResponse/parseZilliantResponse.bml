@@ -1,0 +1,57 @@
+//zilliant_Response_Str = "{\"Price_Guidance\":[{\"Line_Doc#\":\"2\",\"Start\":1,\"Target\":0,\"Sales_Floor\":0,\"Division_Min\":0,\"zList_Price\":0,\"Segment_ID\":0,\"Renewal_Increase%\":\"\",\"Cost\":0.0,\"Sales_History_Data\":0},{\"Line_Doc#\":\"3\",\"Start\":2,\"Target\":1,\"Sales_Floor\":0,\"Division_Min\":0,\"zList_Price\":0,\"Segment_ID\":0,\"Renewal_Increase%\":\"\",\"Cost\":0.0,\"Sales_History_Data\":0}],\"Reporting_Urls\":{\"Sales_Score_URL\":\"test\",\"Customer_Score_URL\":\"test1\",\"Sales_History_URL\":\"test2\"},\"Price_Guidance_Information\":{\"Account_Type\":\"t\",\"Sub_Account_Type\":\"t1\",\"Optimized_Customer\":\"t2\"}}";//testing string
+//zilliantResp = json(zilliant_Response_Str);
+zilliantResp = zilliant_Response;
+parsedZilliantResp = json();
+//print zilliantResp;
+//print jsonpathcheck(zilliantResp, "$.Price_Guidance[?(@.Line_Doc#=='2')].Start");
+//print jsonpathgetsingle(zilliantResp, "$.Price_Guidance[?(@.Line_Doc#=='2')].Start", "string");
+lineInfoArr = jsonpathgetmultiple(zilliantResp, "$.Price_Guidance..Line_Doc#");
+//print lineInfoArr;
+loopArr = range(jsonarraysize(lineInfoArr));
+for each in loopArr{
+	lineInfoArrElem = jsonarrayget(lineInfoArr,each);
+	lineInfoJson = json();
+	jsonPath = "$.Price_Guidance[?(@.Line_Doc#=='"+lineInfoArrElem+"')].Start";
+	start = jsonpathgetsingle(zilliantResp, jsonPath, "string");
+	jsonput(lineInfoJson,"Start",start);
+	jsonPath = "$.Price_Guidance[?(@.Line_Doc#=='"+lineInfoArrElem+"')].Target";
+	target = jsonpathgetsingle(zilliantResp, jsonPath, "string");
+	jsonput(lineInfoJson,"Target",target);
+	jsonPath = "$.Price_Guidance[?(@.Line_Doc#=='"+lineInfoArrElem+"')].Sales_Floor";
+	salesFloor = jsonpathgetsingle(zilliantResp, jsonPath, "string");
+	jsonput(lineInfoJson,"Sales_Floor",salesFloor);
+	jsonPath = "$.Price_Guidance[?(@.Line_Doc#=='"+lineInfoArrElem+"')].Division_Min";
+	divisionMin = jsonpathgetsingle(zilliantResp, jsonPath, "string");
+	jsonput(lineInfoJson,"Division_Min",divisionMin);
+	jsonPath = "$.Price_Guidance[?(@.Line_Doc#=='"+lineInfoArrElem+"')].zList_Price";
+	zlistPrice = jsonpathgetsingle(zilliantResp, jsonPath, "string");
+	jsonput(lineInfoJson,"zList_Price",zlistPrice);
+	jsonPath = "$.Price_Guidance[?(@.Line_Doc#=='"+lineInfoArrElem+"')].Segment_ID";
+	segmentID = jsonpathgetsingle(zilliantResp, jsonPath, "string");
+	jsonput(lineInfoJson,"Segment_ID",segmentID);
+	jsonPath = "$.Price_Guidance[?(@.Line_Doc#=='"+lineInfoArrElem+"')].Renewal_Increase%";
+	renewalInc = jsonpathgetsingle(zilliantResp, jsonPath, "string");
+	jsonput(lineInfoJson,"Renewal_Increase%",renewalInc);
+	jsonPath = "$.Price_Guidance[?(@.Line_Doc#=='"+lineInfoArrElem+"')].Cost";
+	zCost = jsonpathgetsingle(zilliantResp, jsonPath, "string");
+	jsonput(lineInfoJson,"Cost",zCost);
+	jsonPath = "$.Price_Guidance[?(@.Line_Doc#=='"+lineInfoArrElem+"')].Sales_History_Data";
+	salesHistoryData = jsonpathgetsingle(zilliantResp, jsonPath, "string");
+	jsonput(lineInfoJson,"Sales_History_Data",salesHistoryData);
+	jsonput(parsedZilliantResp,lineInfoArrElem,lineInfoJson);
+}
+salesScoreUrl = jsonpathgetsingle(zilliantResp, "$.Reporting_Urls.Sales_Score_URL", "string");
+custScoreUrl = jsonpathgetsingle(zilliantResp, "$.Reporting_Urls.Customer_Score_URL", "string");
+salesHistoryUrl = jsonpathgetsingle(zilliantResp, "$.Reporting_Urls.Sales_History_URL", "string");
+acctType = jsonpathgetsingle(zilliantResp, "$.Price_Guidance_Information.Account_Type", "string");
+subAcctType = jsonpathgetsingle(zilliantResp, "$.Price_Guidance_Information.Sub_Account_Type", "string");
+optCustomer = jsonpathgetsingle(zilliantResp, "$.Price_Guidance_Information.Optimized_Customer", "string");
+
+jsonput(parsedZilliantResp,"Sales_Score_URL",salesScoreUrl);
+jsonput(parsedZilliantResp,"Customer_Score_URL",custScoreUrl);
+jsonput(parsedZilliantResp,"Sales_History_URL",salesHistoryUrl);
+jsonput(parsedZilliantResp,"Account_Type",acctType);
+jsonput(parsedZilliantResp,"Sub_Account_Type",subAcctType);
+jsonput(parsedZilliantResp,"Optimized_Customer",optCustomer);
+print parsedZilliantResp;
+return parsedZilliantResp;

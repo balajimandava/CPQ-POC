@@ -1,0 +1,220 @@
+/**
+@name Notify Sales Rep And/Or Delegate
+@api notifySalesRepAndOrDelegate
+@summary Get the email for the sales rep and/or delegate for the step notification.  To be included in every place that both should be notified
+@param inputJson Json
+@attribute _user_email
+@function String getEnvironmentVariable(String key, String defaultValue)
+@function String getSupplierCompanyName()
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-04|Tat.Leung            |user supplier company name for company name
+2018-02-07|Michael.Yeung		|Check for action type not submit/reject when adding owner and user emails
+2019-07-01|Mubarak Ali			|Modified to add Approvers email as part of ALM 1612
+2020-03-17|Atul Jain			|Removed commented code, and added debug mode to print statements.
+2020-10-27|Johnny Lin		|INC000013858697 check if ownerEmail is not null, then append to
+2021-02-19|Anudeep P			|Added new condition to send notifications to slected transaction owner. Defect - CPQ-4130 (Bug from CPQ-557 Enhancement).
+*/
+debugMode = false;
+ret = "";
+emails = string[];
+defaultEmailActions = String[] {
+    "reject",
+    "submit"
+};
+defaultEmailIncluded = false;
+cancelNotifyCS = false;
+
+ownerEmail = jsonget(inputJson, "ownerEmail");
+backupEmail = jsonget(inputJson, "backupEmail");
+ownerEnum = jsonget(inputJson, "ownerEnum");
+submittedByEnum = "";
+jsonget(inputJson, "submittedByEnum");
+backupENum = jsonget(inputJson, "backupENum");
+
+//Added Approvers email as part of ALM 1612
+EnumberArr = jsonget(inputJson, "approvers");
+if (debugMode) {
+print EnumberArr ;
+}
+
+if(EnumberArr <> "" AND not(isnull(EnumberArr)) ){
+company = jsonget(inputJson,"company");
+Enumber_str = "";
+Enumber_str = EnumberArr;
+Enumber_str = replace(Enumber_str,"\"","");
+Enumber_str = substring(Enumber_str, 1, len(Enumber_str)-1);
+str2 = string[];
+str2 = split(Enumber_str, ",");
+useList = json();
+str = json();
+jsonput(useList, "company", company); 
+if (debugMode) {
+print "Ali";
+print EnumberArr;
+print Enumber_str;
+print emails;
+}
+for each in str2{
+	jsonput(useList, "approvers", each); 
+	str = util.getUserDetails(useList);
+	append(emails, jsonget(str, "Email"));
+	} 
+}
+
+//not necissarily included
+if (jsonpathcheck(inputJson, "submittedByEnum")) {
+    submittedByEnum = jsonget(inputJson, "submittedByEnum");
+}
+
+action ="";	// 2018-02-07 MY  action is used later in the code
+if (jsonpathcheck(inputJson, "action")) {
+    action = jsonget(inputJson, "action");
+}
+
+if (action <> "") {
+    defaultEmailIncluded = (findinarray(defaultEmailActions, action) <> -1);
+    if (action == "cancelNotifyCS") {
+        customerServiceEmail = util.getEnvironmentVariable("customerService_email_address", "");
+        if (customerServiceEmail <> "") {
+            append(emails, customerServiceEmail);
+        }
+
+    } elif (action == "cancelNotifyCS_4942") {
+        customerServiceEmail = util.getEnvironmentVariable("customerService_email_address_4942", "");
+		DontAddCS=jsonget(inputJson, "DontAddCS");
+        if (debugMode) {
+		print customerServiceEmail ;
+		print "DontAddCS";
+		print DontAddCS;
+		}
+		//Pooja Gupta- Added condition for INC000012942258
+        if (customerServiceEmail <> "" AND DontAddCS<>"Yes") {
+            append(emails, customerServiceEmail);
+			if (debugMode) {
+			print "here";
+            print emails;
+			}
+        }
+
+    } elif (action == "cancelNotifyCS_4946") {
+        customerServiceEmail = util.getEnvironmentVariable("customerService_email_address_4946", "");
+        DontAddCS=jsonget(inputJson, "DontAddCS");
+		//Pooja Gupta- Added condition for INC000012942258
+        if (customerServiceEmail <> "" AND DontAddCS<>"Yes") {
+            append(emails, customerServiceEmail);
+        }
+    } elif (action == "activeTimerRenewalNotify") {
+        toEmailAddressCPRO = util.getEnvironmentVariable("CPRO_eMail_Address", "");
+        customerServiceEmail = util.getEnvironmentVariable("customerService_email_address", "");
+
+        if (toEmailAddressCPRO <> "") {
+            append(emails, toEmailAddressCPRO);
+        }
+
+        if (customerServiceEmail <> "") {
+            append(emails, customerServiceEmail);
+        }
+
+    } elif (action == "activeTimerRenewalNotify_4942") {
+        toEmailAddressCPRO = util.getEnvironmentVariable("CPRO_eMail_Address", "");
+        customerServiceEmail = util.getEnvironmentVariable("customerService_email_address_4942", "");
+
+        if (toEmailAddressCPRO <> "") {
+            append(emails, toEmailAddressCPRO);
+        }
+        if (customerServiceEmail <> "") {
+            append(emails, customerServiceEmail);
+        }
+    } elif (action == "activeTimerRenewalNotify_4946") {
+        toEmailAddressCPRO = util.getEnvironmentVariable("CPRO_eMail_Address", "");
+        customerServiceEmail = util.getEnvironmentVariable("customerService_email_address_4946", "");
+
+        if (toEmailAddressCPRO <> "") {
+            append(emails, toEmailAddressCPRO);
+        }
+        if (customerServiceEmail <> "") {
+            append(emails, customerServiceEmail);
+        }
+    } elif (action == "activeTimerExpiredAgreement") {
+        customerServiceEmail = util.getEnvironmentVariable("customerService_email_address", "");
+
+        if (customerServiceEmail <> "") {
+            append(emails, customerServiceEmail);
+        }
+
+    } elif (action == "activeTimerExpiredAgreement_4942") {
+        customerServiceEmail = util.getEnvironmentVariable("customerService_email_address_4942", "");
+
+        if (customerServiceEmail <> "") {
+            append(emails, customerServiceEmail);
+        }
+
+    } elif (action == "activeTimerExpiredAgreement_4946") {
+        customerServiceEmail = util.getEnvironmentVariable("customerService_email_address_4946", "");
+
+        if (customerServiceEmail <> "") {
+            append(emails, customerServiceEmail);
+        }
+
+    }
+}
+if (NOT ((action == "submit") OR (action == "reject")) AND (NOT defaultEmailIncluded OR(defaultEmailIncluded AND ownerEnum <> submittedByEnum)) AND NOT (isnull(ownerEmail))) {
+    append(emails, ownerEmail);  // 2018-02-07 MY  action cannot be submit or reject  //INC000013858697 check if ownerEmail is not null
+}
+
+if (_user_email <> backupENum AND NOT(defaultEmailIncluded AND submittedByEnum == backupENum)) {
+    salesTeamRS = BMQL("Select OutOfOffice from SalesTeams where eNumber = $ownerEnum");
+    outOfOffice = false;
+    for r in salesTeamRS {
+        outOfOffice = (get(r, "OutOfOffice") == "Y");
+    }
+    if (outOfOffice and backupEmail <> "") {
+        append(emails, backupEmail);
+    }
+}
+if (NOT ((action == "submit") OR (action == "reject")) AND (_user_email <> backupEmail AND _user_email <> ownerEmail)) {
+    //append in case it's an admin   
+    append(emails, _user_email);	// 2018-02-07 MY  action cannot be submit or reject
+}
+
+//New Condition to Send notifications to Transaction Owner CPQ-4130 - Start
+transOwnerEmailNotification = "";
+transOwnerEmailNotification = jsonget(inputJson, "transOwnerEmailNotification");
+if(transOwnerEmailNotification == "true"){
+		append(emails,ownerEmail);
+}
+//New Condition to Send notifications to Transaction Owner CPQ-4130 - End
+
+//CHECK TO SEE IF THESE EMAILS EXIST WITHIN CUSMAS AND FILTER THEM OUT -FOR TEST1/2 ONLY
+//COMMENT OUT TO SEND EMAILS AS IS - ACTIVATE TO ONLY SEND OUT EMAILS THAT ARENT WITHIN CUSMAS
+companyName = util.getSupplierCompanyName();
+if (debugMode) {
+print companyName ;
+}
+if (find(companyName, "eatontest") <> -1) {
+
+    filteredEmails = string[];
+    cusMasEmails = BMQL("Select SMTP_ADDR from CUSMAS where SMTP_ADDR in $emails");
+    filterEmails = string[];
+    for cusMasEmail in cusMasEmails {
+        email = get(cusMasEmail, "SMTP_ADDR");
+        append(filterEmails, email);
+    }
+    for email in emails {
+        if (findinarray(filterEmails, email) == -1 AND find(email, "Eaton.com") == -1) { // Added check for domain name
+            append(filteredEmails, email);
+        }
+    }
+    ret = join(filteredEmails, ",");
+	if (debugMode) {
+    print ret;
+	}
+} else {
+
+    ret = join(emails, ",");
+    
+}
+return ret;

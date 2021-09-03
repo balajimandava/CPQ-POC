@@ -1,0 +1,8 @@
+ret = 0.00;
+
+if(isnumber(input)){
+	ret = atof(input);
+}
+
+
+return ret;

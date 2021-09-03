@@ -1,0 +1,11 @@
+{
+  "name" : "Mass Update Link To Document Attribute",
+  "variableName" : "massUpdateLinkToDocumentAttribute",
+  "description" : "Maas Update Link To Document for updating the link for not using production links. This is to be run on Dev (eatontest2) and QA (eatontest4) machines only.",
+  "libraryFunctions" : [ "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "linkToDocument_t" ],
+  "systemAttributes" : [ ]
+}

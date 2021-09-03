@@ -1,0 +1,14 @@
+{
+  "name" : "Send Agreement",
+  "variableName" : "sendAgreement",
+  "description" : "Sends CPQ data to an external source (SOA)",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.getEnvironmentVariable", "util.getTableValue", "util.stringToFloat", "util.u_setCommerceAttribute" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "materialPricingGroup_l", "materialLineItem_l", "scale_l", "scaleFrom_l", "quantity_l", "uOM_l", "newNetPrice_l", "discount_l", "discountString_l", "validFrom_l", "validTo_l", "_parent_doc_number", "qqProductType_l", "lineItemDelete_l", "sapConditionRecordNumber_l", "_document_number", "customDiscountType_l", "agreementNetPrice_l", "agreementNetDiscount_l", "scaleTo_l", "qqPricePerEditable_l", "netFixedAmountString_l", "lineItemStatus_l" ],
+  "mainDocAttributes" : [ "bs_id", "customerNumber_t", "companyCode_t", "salesOrg_t", "distributionChannel_t", "division_t", "agreementPeriodOfInvoicing_t", "agreementDeliveryTerms_t", "agreementPaymentTerms_t", "transactionType_t", "accountTypeKTOKD_t", "agreementValidFrom_t", "agreementValidTo_t", "currency_t", "owner_t", "salesOffice_t", "salesGroup_t", "silver_t", "silverValue_t", "copper_t", "copperValue_t", "aluminium_t", "aluminiumValue_t", "surchargeExemption_t", "soldToNumber_t", "minimumOrderVolume_t", "initialLineItems_t", "transactionName_t", "customerName_t", "eRecordID_t", "transactionDescription_t", "sendDSPAsVistex_t", "agreementHierarchy_t", "qqBusinessLineForSalesOrg_t", "qq_CD_SelectedAdditionalSoldTo_t", "transactionNumber_t", "vistexAgreement_t", "nationalAccount_t", "shipToNumber_t", "qq_CD_selectedShipTo_t", "qq_CD_SelectedAdditionalShipTo_t", "externalDescription_t", "releaseStatus_t", "agreementPreviousValidTo_t", "lastSentLineDetails_t", "qqSegment_t", "qqSubSegment_t", "qqAccountType_t", "qqSubAccountType_t", "qqProjectName_t", "qqCity_t", "qqCountry_t", "qqRegion_t", "previouslySentLineDetails_t", "vendorNumber_t", "customerRep_t", "qqApplication_t", "qqSubApplication_t", "bookPriceDate_t", "transactionOwner_t", "salesContactNumber_t", "salesAgencyNumber_t", "endCustomerArraySet2_t", "endCustomerNo_t", "primaryEndCustomerFlag_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_user_time_zone", "_system_user_login" ]
+}

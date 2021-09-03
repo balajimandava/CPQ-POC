@@ -1,0 +1,14 @@
+{
+  "name" : "Generate Create OR Update Contract Payload",
+  "variableName" : "generateCreateORUpdateContractPayload",
+  "description" : "If qqSAPQuoteNumber_t is not empty then it will be update contract payload otherwise create contract payload",
+  "libraryFunctions" : [ "util.xmlToJSONConverter" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputValues",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "_sequence_number", "parentLineNumber_l", "materialLineItem_l", "quantity_l", "uOM_l", "materialLineItemShortDescription_l", "qqLeadTime_l", "customerPartNumber_l", "configNotes_l", "qqNotes_l", "discountType_l", "discountString_l", "overridePerUnit_l", "listPrice_l", "premium_l", "cost_l", "unitPriceString_l", "lineItemStatus_l", "externalConfigVCData_l", "includedInTheContract_l", "oldListPrice_l", "_group_sequence_number", "customDiscountType_l", "newNetPrice_l", "discount_l", "qqTotal_l", "cPIPriceIncrease_l", "designation_l", "itemCategory_l" ],
+  "mainDocAttributes" : [ "bs_id", "salesOrg_t", "purchaseOrderNumber_t", "distributionChannel_t", "division_t", "transactionType_t", "agreementDeliveryTerms_t", "incoterm2_t", "validFrom_t", "validTo_t", "pricingDate_t", "cpiType_t", "soldToNumber_t", "shipToNumber_t", "endCustomerNo_t", "customerSupportNumber_t", "salesAgencyNumber_t", "qq_MnlShpTo_Language_t", "currency_t", "psd_warranty_t", "psd_liquidatedDamages_t", "liquidatedDamagesSpecifications_t", "qqCustomTnCNoteDescription_t", "customNotesText_t", "salesContactNumber_t", "customerName_t", "customerName2_t", "customerStreet_t", "customerCity_t", "customerState_t", "customerPostalCodeZip_t", "customerCountry_t", "qqProjectName_t", "qqCity_t", "qqRegion_t", "qqCountry_t", "opportunityNumber_t", "qqSegment_t", "qqSubSegment_t", "qqApplication_t", "qqSubApplication_t", "qqAccountType_t", "qqSubAccountType_t", "externalNote_t", "qqSAPQuoteNumber_t", "agreementValidFrom_t", "agreementValidTo_t", "transactionNumber_t", "selectedCustomerArraySet2_t", "previousContractNumber_t", "cpiAdjustmentPercent_t" ],
+  "systemAttributes" : [ ]
+}

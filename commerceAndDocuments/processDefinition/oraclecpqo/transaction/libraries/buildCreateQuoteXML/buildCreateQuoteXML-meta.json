@@ -1,0 +1,14 @@
+{
+  "name" : "Build Create Quote XML",
+  "variableName" : "buildCreateQuoteXML",
+  "description" : "Build the create quote SOAP xml for calling SOA.",
+  "libraryFunctions" : [ "commerce.buildCreateQuoteLineXML", "util.checkBizGroupCondition" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bs_id", "opportunityAccountID_t", "qq_MnlShpTo_Address1_t", "qq_MnlShpTo_Address2_t", "qq_MnlShpTo_City_t", "qq_MnlShpTo_Country_t", "qq_MnlShpTo_Zip_t", "qq_MnlShpTo_Region_t", "salesOrg_t", "division_t", "distributionChannel_t", "customerNumber_t", "agreementDeliveryTerms_t", "agreementPaymentTerms_t", "incoterm2_t", "minimumOrderVolume_t", "surchargeExemption_t", "silver_t", "silverValue_t", "copper_t", "copperValue_t", "aluminium_t", "aluminiumValue_t", "qqApplication_t", "qqSubApplication_t", "currency_t", "owner_t", "opportunityNumber_t", "opportunityName_t", "agreementValidFrom_t", "agreementValidTo_t", "submittedDate_t", "soldToNumber_t", "shipToNumber_t", "preparedByENumber_t", "transactionNumber_t", "pricingDate_t", "qqProjectName_t", "qqCity_t", "qqRegion_t", "qqCountry_t", "customerCurrency_t", "qqTotalValue_t", "qqSegment_t", "qqSubSegment_t", "qqExpectedDecisionDate_t", "transactionType_t", "headerDiscount_t", "headerDiscountOrPercentOff_t", "accountTypeKTOKD_t", "nscaleRequestID_t", "headerDiscountAmount_t", "qqBusinessLineForSalesOrg_t", "transactionName_t", "qqAccountType_t", "qqSubAccountType_t", "qq_MnlShpTo_Name1_t", "qq_MnlShpTo_Name2_t", "qq_MnlShpTo_Language_t", "nationalAccount_t", "bookPriceDate_t", "endCustomerNo_t", "salesGroup_Menu_t", "psd_priceGroup_t", "psd_customerGroup_t", "qqCustomTnCNoteDescription_t", "customNotesText_t", "psd_liquidatedDamages_t", "psd_warranty_t", "customerSupportNumber_t", "salesAgencyNumber_t", "salesContactNumber_t", "liquidatedDamagesSpecifications_t", "selectedCustomerArraySet2_t", "primaryEndCustomerFlag_t", "lotPrice_t" ],
+  "systemAttributes" : [ ]
+}

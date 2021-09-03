@@ -1,0 +1,61 @@
+/**
+@name Get Discount Limit for Bussmann
+@api getDiscountLimitForBussmann
+@summary Retrieve the discount limits for Bussmann
+@param mpgList String[]
+@param salesOrg String
+@param salesGroup String
+@function Json getApproverForBussmann(String[] ph4List)
+@function Json resolvePH4ForMPG(String[] mpgList)
+@function Json resolveVPGForMPG(String[] mpgList, String salesOrg)
+@function JsonArray u_getJsonDataForQuery(String query)
+@function String lookupDAG(String salesOrg, String salesGroup)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-30|Tat.Leung            |Initial version
+*/
+// resolve DAG
+dag = util.lookupDAG(salesOrg, salesGroup);
+
+// resolve PH4
+mpgPH4Map = util.resolvePH4ForMPG(mpgList);
+ph4List = jsonpathgetmultiple(mpgPH4Map, "$.ph4Data[*].PH4", false);
+
+// get approvers
+ph4ListStr = replace(jsonarraytostr(ph4List), "\"", "");
+ph4ListStr = replace(ph4ListStr, "[", "");
+ph4ListStr = replace(ph4ListStr, "]", "");
+ph4Array = split(ph4ListStr, ",");
+approverData = util.getApproverForBussmann(ph4Array);
+
+// resovle VPG
+mpgVPGMap = util.resolveVPGForMPG(mpgList, salesOrg);
+vpgList = jsonpathgetmultiple(mpgVPGMap, "$.vpgData[*].VPG", false);
+
+// get discount limits
+vpgListStr = replace(jsonarraytostr(vpgList), "\"", "'");
+vpgListStr = replace(vpgListStr, "[", "(");
+vpgListStr = replace(vpgListStr, "]", ")");
+
+query = "select DAG, VPG, Sales_Discount, ISR_Discount, ISR_Margin, Contract_Discount, Contract_Margin from Thresholds_Bussmann where DAG = '" + dag + "' and VPG in " + vpgListStr;
+discountLimitArray = util.u_getJsonDataForQuery(query);
+
+// add MPG to each discount limit record
+loop = range(jsonarraysize(discountLimitArray));
+for i in loop {
+    currenctLimit = jsonarrayget(discountLimitArray, i, "json");
+    vpg = jsonget(currenctLimit, "VPG");
+    mpg = jsonpathgetsingle(mpgVPGMap, "$.vpgData[?(@.VPG=='" + vpg + "')].MPG", "string", "");
+    ph4 = jsonpathgetsingle(mpgPH4Map, "$.ph4Data[?(@.MPG=='" + mpg + "')].PH4", "string", "");
+    approver = jsonpathgetsingle(approverData, "$.approvers[?(@.PH4=='" + ph4 + "')]", "json", json());
+    jsonput(currenctLimit, "MPG", mpg);
+    jsonput(currenctLimit, "PH4", ph4);
+    jsonput(currenctLimit, "approver", approver);
+}
+
+// return result
+result = json();
+jsonput(result, "discountLimits", discountLimitArray);
+return result;

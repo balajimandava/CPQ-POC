@@ -1,0 +1,32 @@
+//************************************************************************************************************
+//** Function:    Function to update End Customer numbers for B-Line business group. It will be used to 
+//**		  determine whether End Customers for a Transaction are updated on Revise, Copy or Version. 
+//**		  Based on that approval will be triggered.
+//**
+//** Return type: String
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- --------------------------------------------------------------
+//**      	15-April-2020 	Rahul Uttarwar 	Initial version
+//************************************************************************************************************
+returnVal = "";
+endCustJsonArr = jsonarray();
+vRang = range(jsonarraysize(endCustomerArraySet2_t)); // get range of end customers 
+
+for eachCustomer in vRang{
+  endCustJson = json();
+  eachEndCustomer = jsonarrayget(endCustomerArraySet2_t, eachCustomer, "json"); // get each end customer
+  customer_EndCus2_t = jsonget(eachEndCustomer, "customer_EndCus2_t","string"); // get customer number
+
+  if(NOT ISNULL(customer_EndCus2_t) AND customer_EndCus2_t <> ""){
+    jsonput(endCustJson, "EndCustNumber", customer_EndCus2_t);
+    jsonarrayappend(endCustJsonArr, endCustJson);
+  }
+}
+
+
+if(jsonarraysize(endCustJsonArr)>= 0){
+  returnVal = returnVal + "1~endCustomerNumbers_t~" + jsonarraytostr(endCustJsonArr) + "|";
+}
+
+return returnVal;

@@ -1,0 +1,30 @@
+//	2020-03-24|Atul Jain			|Removed commented code, and added debug mode to print statements.
+
+returnStr = "";
+debugMode = false;
+sb = stringbuilder();
+//Below commented dictionary is a sample paramdict need to be passed.
+stdNotesJson = util.restReturnArraySetJSON(paramDict);
+
+jsonPath = "$.items..noteName_notesArraySet";//selected notes name
+stdNotesJsonItemArr = jsonpathgetmultiple(stdNotesJson,jsonPath);
+if(debugMode)
+{
+	print stdNotesJson;
+	print stdNotesJsonItemArr;
+}
+jsonArrSize = jsonarraysize(stdNotesJsonItemArr);
+arrToLoopJsonArr = range(jsonArrSize);
+
+for each in arrToLoopJsonArr{
+	arrElement = jsonarrayget(stdNotesJsonItemArr,each);
+	if(jsonArrSize>1){
+		sbappend(sb, arrElement, "/");
+	}else{
+		returnStr = arrElement;
+		return returnStr;
+	}
+}
+returnStr = sbtostring(sb);
+
+return returnStr;

@@ -1,0 +1,69 @@
+/**
+* To Update  the MPG, MPG Description, Item Description.
+*/
+
+lang = "";
+lang1 = "";
+if (salesRepLanguage_t == "de") {
+        lang = "MAKTXMAKTXDE";
+	lang1 = "MATGRP5_TEXTDE";	
+}else {
+        lang = "MAKTXEN";
+	lang1 = "MATGRP5_TEXTEN";	
+}
+
+columnNames = String[]{"MAKTXEN", "MAKTXDE", "MVGR5", "MATGRP5_TEXTEN","MATGRP5_TEXTEN"};   
+	
+cols= join(columnNames,",");
+
+//4942 Transactions List
+transListArray  = String[]{"S00021083E","P00024343E1","P00024593E1","P00024658E1","S00023384E1","S00024189E2","S00024471E","S00024679E","S00025016E","S00025267E1","S00025267E2","S00025391E1","S00025452E","S00025622E1","S00025815E","S00026026E1","S00026346E","S00026527E","S00026733E","S00026841E","S00026870E2","S00026903E1","S00027083E2","S00028860E1","S00028862E2","S00029066E2","S00029135E2","S00029151E2","S00029193E6","S00029199E1","S00029435E1","S00059866E","S00059875E1"};
+
+//4946 Transactions List
+ret = "";
+tmpgDesc = "";
+mLineItemDesc = "";
+if(findinarray(transListArray, transactionNumber_t) <> -1)
+{ 
+	for line in transactionLine{	 
+		mno = line.materialLineItem_l;
+		mpg = line.materialPricingGroup_l;
+		mpgDesc = line.materialPricingGroupShortDescription_l;
+		mLineItemDesc = line.materialLineItemShortDescription_l;
+		sorg = salesOrg_t;
+		dChannel = distributionChannel_t;
+						
+		records = bmql("SELECT $cols from mat01 WHERE MATNR = $mno AND VKORG = $sorg AND VTWEG = $dChannel");
+		for record in records{
+		   
+		        //Get Pricing Group Description and Material Line Item based on Sales Rep language Selection  		
+			if (get(record, lang) == "") {
+				tItemDec = get(record, "MAKTXEN");	
+				tmpgDesc= get(record, "MATGRP5_TEXTEN");
+			}
+			else {
+
+				tItemDec = get(record, lang);	
+				tmpgDesc= get(record, lang1);
+			}
+		
+		     tmpg = substring(get(record,"MVGR5"),1);    
+		     //if the Pricing Group is blank
+		     if(mpg == "")
+		     {
+		       ret = ret + line._document_number+"~materialPricingGroup_l~"+tmpg+"|";
+		     }
+		     //if the Pricing Group Description is blank	
+		     if(mpgDesc == "")
+		     {
+		       ret = ret + line._document_number+"~materialPricingGroupShortDescription_l~"+tmpgDesc+"|"; 
+		     }
+		     //if the Material Line Item Description is Blank
+		     if(mLineItemDesc == "")
+		     {
+		        ret = ret + line._document_number+"~materialLineItemShortDescription_l~"+mLineItemDesc+"|";
+		     }
+		} 
+    }
+}
+return ret;

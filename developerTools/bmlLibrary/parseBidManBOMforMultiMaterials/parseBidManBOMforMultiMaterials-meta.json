@@ -1,0 +1,12 @@
+{
+  "name" : "parseBidManBOMforMultiMaterials",
+  "variableName" : "parseBidManBOMforMultiMaterials",
+  "description" : "parse Bid manager BOM into parent line and array of child line items for Multi Material Configurations",
+  "libraryFunctions" : [ "util.getStringDict", "util.parseXMLToDelimiterStr", "util.setEmpyForNullString" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "bom",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

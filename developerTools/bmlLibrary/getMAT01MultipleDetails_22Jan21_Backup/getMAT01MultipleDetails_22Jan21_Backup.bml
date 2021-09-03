@@ -1,0 +1,146 @@
+/************************************************************************************************************************************/
+//Created By: Smriti Chaturvedi
+//Created On: 17-Jan-2019
+//Purpose: To handle all the material query on MAT01
+// 2020-03-24   |Atul Jain  |Removed commented code, and added debug mode to print statements.
+// 2020-04-13   |Nithin     |Added Invalid Material Status code for PSD Business
+// 2020-10-22   |Neha       |Removed multiple BMQL for ES-EMEA and optimized the code as part of Project 52469																				
+// 2020-10-27   |Malli      |Added 4302,4303, 4308 sales org specific code for Material Status	
+// 2021-01-18	|Shardul S  |Performance imp fixes
+/************************************************************************************************************************************/
+
+retJson = json();//Return JSON holds the values to be returned
+
+message ="";
+debugMode = false; 
+
+materialItemArr = jsonget(inputJson, "materialitem","jsonarray");
+materialItemStr = jsonarraytostr(materialItemArr);
+materialItemStr= replace(materialItemStr,"\"","");
+materialItemStr = substring(materialItemStr, 1, len(materialItemStr)-1);
+materialItemArrStr=split(materialItemStr,",");
+
+if(debugMode)
+{
+	print materialItemArrStr;
+}
+
+distributionChannel = jsonget(inputJson, "distributionChannel");
+language = jsonget(inputJson, "language");
+salesOrg = jsonget(inputJson, "salesOrg");
+businessGrp = jsonget(inputJson, "businessgroup");
+searchResultSet = recordset();
+materialLineItemMapping=jsonget(inputJson,"materialLineItemMapping","json");
+
+
+if(businessGrp == "BUSSMANN"  OR businessGrp == "CH-EMEA")
+{ 
+	searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO FROM MAT01 WHERE VTWEG = $distributionChannel AND VKORG = $salesOrg AND MATNR in $materialItemArrStr AND VMSTA in('Z2','Z3','ZQ') AND MTART<>'DIEN'");
+}
+
+if(businessGrp == "ES-EMEA") 
+{ 
+	VMSTA_dict = dict("string");
+	VMSTA_str = "";
+	put(VMSTA_dict,"4942","('Z2','Z3','Z5','MA','M6','M7')");
+	put(VMSTA_dict,"4946","('Z2','Z3','Z5','MA','M5','M6','M7')");
+	put(VMSTA_dict,"4919","('Z2','Z3','Z5','MA','M6','M7')");
+	put(VMSTA_dict,"4302","('Z2','Z3','Z5','MA','M6','M7')");
+	put(VMSTA_dict,"4303","('Z2','Z3','Z5','MA','M6','M7')");
+	put(VMSTA_dict,"4308","('Z2','Z3','Z5','MA','M6','M7')");
+	if(containskey(VMSTA_dict,salesOrg)){
+	VMSTA_str = get(VMSTA_dict,salesOrg);
+	}
+	
+	MSTAV_dict = dict("string");
+	MSTAV_str = "";
+	put(MSTAV_dict,"4942","('Z2','Z3','Z5','MA','M6','M7')");
+	put(MSTAV_dict,"4946","('Z2','Z3','Z5','MA','M5','M6','M7')");
+	put(MSTAV_dict,"4919","('Z2','Z3','Z5','MA','M6','M7')");
+	put(MSTAV_dict,"4302","('Z2','Z3','Z5','MA','M6','M7')");
+	put(MSTAV_dict,"4303","('Z2','Z3','Z5','MA','M6','M7')");
+	put(MSTAV_dict,"4308","('Z2','Z3','Z5','MA','M6','M7')");
+	if(containskey(MSTAV_dict,salesOrg)){
+	MSTAV_str = get(MSTAV_dict,salesOrg);
+	}
+	fields = dict("string");
+	lang = dict("string");
+	whereClauseConditions = stringbuilder();
+	put(fields,"$salesOrg",salesOrg);
+	put(fields,"$distributionChannel",distributionChannel);
+	put(fields,"$VMSTA_str",VMSTA_str);
+	put(fields,"$MSTAV_str",MSTAV_str);
+	
+	sbappend(whereClauseConditions,"VKORG = $salesOrg AND VTWEG = $distributionChannel AND MTART <> 'DIEN' ");
+	sbappend(whereClauseConditions," AND (VMSTA IS NULL OR VMSTA in",VMSTA_str,")");
+	sbappend(whereClauseConditions," AND (MSTAV IS NULL OR MSTAV in",MSTAV_str,")");
+	
+	prefixedMaterialGroupIds_str ="('"+join(materialItemArrStr,"','")+"')";	
+	sbappend(whereClauseConditions," AND MATNR  IN ",prefixedMaterialGroupIds_str );
+	whereClauseConditions_str = sbtostring(whereClauseConditions);	
+	searchResultSet = bmql("select MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO FROM MAT01 WHERE $whereClauseConditions_str",lang,fields);
+	if(debugMode)
+	{
+		print whereClauseConditions;
+	}
+}
+if(businessGrp == "B-LINE") 
+{ 
+	searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO FROM MAT01 WHERE (VKORG = $salesOrg AND VTWEG = $distributionChannel AND MATNR IN $materialItemArrStr AND VMSTA in('Z2','ZQ') AND MTART<>'DIEN')");
+}
+//Added Invalid Material Status code for PSD Business 
+if(businessGrp == "PSD") 
+{    
+	searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, VMSTA FROM MAT01 WHERE (VKORG = $salesOrg AND VTWEG = $distributionChannel AND MATNR IN $materialItemArrStr AND VMSTA in('Z2','Z3','ZB','ZJ','ZN')) ");
+		
+}													  
+msg= "";
+
+for result in searchResultSet
+{
+	materialItemId = get(result , "MATNR");	
+	if(debugMode)
+	{
+		print "materid id " +materialItemId;
+	}
+	jsonremove(materialLineItemMapping,materialItemId);
+}
+
+
+
+
+msg= " "+util.getRemark("MATERIAL_STATUS", language) +" "+"-"+util.getRemark("LINE", language);
+
+jsonmaterialLineItemMappingstr =jsontostr(materialLineItemMapping);
+
+jsonmaterialLineItemMappingstr= replace(jsonmaterialLineItemMappingstr,"\"","");
+jsonmaterialLineItemMappingstr= replace(jsonmaterialLineItemMappingstr,":",msg);
+jsonmaterialLineItemMappingstr = substring(jsonmaterialLineItemMappingstr, 1, len(jsonmaterialLineItemMappingstr)-1);
+jsonmaterialLineItemMappingArr=split(jsonmaterialLineItemMappingstr,",");
+
+if(debugMode)
+{
+    print jsonmaterialLineItemMappingArr;
+}
+
+print jsonmaterialLineItemMappingArr;
+if(sizeofarray(jsonmaterialLineItemMappingArr) >0)
+{	
+	if(len(message) > 0)
+	{
+			
+		message= message + ","+ jsonmaterialLineItemMappingstr+"";    
+	}
+	else
+	{
+		message= jsonmaterialLineItemMappingstr; 
+	}
+}
+	
+jsonput(retJson, "message", message);
+if(debugMode)
+{
+	print "obsolete material";
+	print retJson;
+}
+return retJson;

@@ -1,0 +1,33 @@
+/****************************************************************************************************************
+//** Description: Function to get applicable approval levels for particular conditions and sales org in ESEMEA BG
+//**
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	7-Sept-2020 	Rahul Uttarwar 	Initial version
+****************************************************************************************************************/
+returnJson = json();
+
+columns = "ApprovalType, SalesOrg, Level, Applicable";
+approvalLevelRecs = bmql("SELECT $columns FROM ESEMEA_Appr_Levels WHERE SalesOrg = $salesOrg_t");
+
+for eachRec in approvalLevelRecs{
+	internalJsonObj = json();
+	ApprovalTypeFondFlag = false;
+
+	approvalTypeArr = jsonkeys(returnJson);
+	approvalTypeStr = get(eachRec, "ApprovalType");
+
+	if(findinarray(approvalTypeArr, approvalTypeStr) <> -1){
+		internalJsonObj = jsonget(returnJson, approvalTypeStr, "json", json());
+		ApprovalTypeFondFlag = true;
+	}
+	
+	jsonput(internalJsonObj, get(eachRec, "Level"), lower(get(eachRec, "Applicable")));
+	
+	if(not ApprovalTypeFondFlag){
+		jsonput(returnJson, approvalTypeStr, internalJsonObj);
+	}
+}
+
+return returnJson;

@@ -1,0 +1,72 @@
+//************************************************************************************************************
+//** Function:    Get Terms
+//** Type:        BML Utility Function   
+//**
+//** Description: Return the options to populate the menu with for the specified term.
+//**              Also returns the options that trigger approval (non-standard) and the default option. 
+//** 
+//** Return type: Json  
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------------
+//**              31/08/2017    PKhanal         Initial version (425)
+//**              13/09/2017    PKhanal         Added the code for returning the standard and non-standard terms
+//******************************************************************************************************************
+
+retJson = json();
+
+salesOrg = jsonget(termInfo, "SalesOrg", "String", "");
+term = jsonget(termInfo, "VariableName", "String", "");
+
+allTerms = String[];
+standardTerms = String[];
+nonStandardTerms = String[];
+default = "";
+
+tableTerms = bmql("select Key, Default, NonStandard from AllAttributes where SalesOrg=$salesOrg and Variable=$term");
+
+mark = "Y";
+
+for row in tableTerms{
+	
+	// set the default value for the term
+	if (get(row, "Default") == "Y") {
+		default = default + get(row, "Key");
+		// if the default code is a blank then use the varaiable name "blank"
+		if (default == "") {
+			default = "blank";
+		}
+		
+	}
+	
+	// put all the values in the array for all the values
+	if (get(row, "Key") == "") {
+		append(allTerms, "blank");
+	}
+	else {
+		append(allTerms, get(row, "Key"));
+	}
+	
+	// if the value is non-standard then put it in the non-standard array
+	if (get(row, "NonStandard") == "Y") {
+		append(nonStandardTerms, get(row, "Key"));
+	}
+	// otherwise put it in the standard values array
+	else {
+		append(standardTerms, get(row, "Key"));
+	}
+	
+		
+}
+
+// Join all the values in strings delimited by ~
+allTermsString = join(allTerms, "~");
+standardTermsString = join(standardTerms, "~");
+nonStandardTermsString = join(nonStandardTerms, "~");
+
+jsonput(retJson, "default", default);
+jsonput(retJson, "allTerms", allTermsString);
+jsonput(retJson, "standardTerms", standardTermsString);
+jsonput(retJson, "nonStandardTerms", nonStandardTermsString);
+
+return retJson;

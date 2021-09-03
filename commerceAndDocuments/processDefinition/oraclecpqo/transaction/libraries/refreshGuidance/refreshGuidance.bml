@@ -1,0 +1,482 @@
+/**
+@Refresh Guidance
+@refreshGuidance
+This library does authentication and then connects to Zilliant to get guidance
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2021-01-18|Pooja Gupta	        |CPQ-3754 Fetches guidance from Zilliant
+2021-02-17|Gautam               |CPQ-147 Read only Marketing Info
+2021-02-25|Anudeep				|CPQ-4308 Exchange Rate conversion
+2021-02-02|Anudeep				|CPQ-4262 - Current Average Price mapping
+2021-03-04|Gautam               |CPQ-4304       Added code to check if subaccount and account type is null then throw error
+2021-04-20|Gautam               Added code to get the Standard guidance API from Environment Table 
+2021-05-04|Gautam              |Added code to change the format of values recieved from Zilliant CPQ-5028
+2021-05-04|Gautam              |Added Currency to get Threshold Approval CPQ-5869
+*/
+//Default Values
+userLanguage = _system_current_user_language;
+start =1.0;
+target =1.0;
+salesFloor =1.0;
+divMin =1.0;
+cost=0.0;
+segmentId="";
+pyAmount="";
+pyQty="";
+YTDQuantity="";
+YTDAvgPrice="";
+pyAveragePriceValue =0.0;
+YTDAvgPriceValue = 0.0;
+startGuidance ="";
+targetGuidance="";
+salesFloorGuidance = "";
+divMinGuidance = "";
+zcost = "";
+YTDRevenue="";
+timeUpdated=0;
+inputParamJson=json();
+result="";
+error="";
+response = json();
+zresponse = json();
+formattedRespJson  = json();
+formattedRespJson = json();
+customerGroup = qqCustomerGroup_t;
+currency = currency_t ;
+//Check if this sales org is enabled for guidance
+ZilliantGuidanceEnable= "No";
+//Validate if Zilliant API is enabled for this particular sales org
+approvalTriggers = bmql("select key, value from ApprovalTriggers where salesOrg=$salesOrg_t AND key='ZilliantGuidanceEnable'");
+for row in approvalTriggers{
+	ZilliantGuidanceEnable= get(row, "value");
+}
+if(ZilliantGuidanceEnable== "No" OR ZilliantGuidanceEnable=="")
+{
+	/*for line in transactionLine{
+			docNum = line._document_number;
+			result = result + docNum + "~startMultiplier_l~" + string(start) + "|"	
+							+ docNum + "~targetMultiplier_l~" + string(target) + "|"
+							+ docNum + "~salesFloorMultiplier_l~" + string(salesFloor) + "|"
+							+ docNum + "~disctrictMinimumMultiplier_l~" + string(divMin) + "|";
+	}*/
+	result = result + "1~guidanceEnableFlag_t~false|";
+	return result;
+}
+
+//code added by gautam to clear variables
+result = result + "1~zilliantResponse_t~|";
+result = result + "1~marketingInformationValue_t~|";
+result = result + "1~NullMarketingInfoErrorMessage_t~|";
+result = result + "1~errorMessage_t~|";
+/////////////////////////////////////////////////
+//starttime = getcurrenttimeinmillis();
+//Prepare Payload
+requestPayload = commerce.zilliantRequestPayload();
+////print requestPayload ;
+payload = jsonget(requestPayload,"Payload");
+docNumberJson = jsonget(requestPayload,"docNumberJson","json");
+//print "json";
+//print docNumberJson;
+costSourceJson = jsonget(requestPayload,"costSourceJson","json");
+//print costSourceJson;
+materialPricingGroupJson = jsonget(requestPayload,"materialPricingGroupJson","json");
+//print materialPricingGroupJson;
+productTypeJson = jsonget(requestPayload,"productTypeJson","json");
+//print productTypeJson;
+costJson = jsonget(requestPayload,"costJson","json");
+//print costJson;
+count = jsonget(requestPayload,"lineItemCount","string","0");
+jsonput(inputParamJson,"Req_Payload",payload);
+//Update input once connect to zilliant is updated.
+
+//old code
+//thresholdData = util.getApprovalThresholds(json("{\"salesOrg\": \"" + salesOrg_t + "\", \"customerGroup\": \"" + customerGroup + "\"}"));
+
+//new code CPQ-5869 added currency 
+thresholdData = util.getApprovalThresholds(json("{\"salesOrg\": \"" + salesOrg_t + "\", \"customerGroup\": \"" + customerGroup + "\",\"currency\": \"" + currency + "\"}"));
+print thresholdData;
+mpgsInThresholdsJSON = jsonkeys(thresholdData);
+if(atoi(count)>0){
+        isError = false;
+        actionClicked = "";
+        //CPQ-4304
+		//check for AccountType and SubAccountType not set by user then throw error
+		if(((qqAccountType_t == "" OR isnull(qqAccountType_t)) AND (qqSubAccountType_t == "" OR isnull(qqSubAccountType_t))))
+		{	
+			ERROR_MESSAGE_NULLMARKETINGINFO = util.getRemark("ERROR_MESSAGE_NULLMARKETINGINFO ", userLanguage);
+			result = result + "1~NullMarketingInfoErrorMessage_t~"+ ERROR_MESSAGE_NULLMARKETINGINFO +"|";
+		}
+        //starttime1 = getcurrenttimeinmillis();
+               //added by gautam to call the URL from database Environment variable on 20/Apr/2021
+                jsonput(inputParamJson,"APICall","Standard Guidance");
+		response = util.connectToZilliant(inputParamJson);
+		//endTime1 = getcurrenttimeinmillis();
+		//ExecutionTime1 = (endTime1 - startTime1)/1000;
+		//print "Stop Time1";
+		//print ExecutionTime1;
+		//print "*********";
+		//print response;
+		//print "**********";
+		zresponse = jsonget(response,"interfaceResponse","json");
+		//print zresponse ;
+		error = jsonget(response,"interfaceError","String");
+		//errorflag=  error<>"";
+		if(error<>""){/*
+			for line in transactionLine{
+				docNum = line._document_number;
+				result = result + docNum + "~startMultiplier_l~" + string(start) + "|"	
+								+ docNum + "~targetMultiplier_l~" + string(target) + "|"
+								+ docNum + "~salesFloorMultiplier_l~" + string(salesFloor) + "|"
+								+ docNum + "~disctrictMinimumMultiplier_l~" + string(divMin) + "|";
+			}*/
+			result = result + "1~guidanceEnableFlag_t~false|";
+			isError = true;
+		}else{
+	        //formattedRespJson = util.formatZilliantResponse(zresponse);
+			subAcc = jsonpathgetsingle(zresponse, "$.frm2_GetSubAccountType.outputResults[?(@.frm2_GetSubAccountType)].frm2_GetSubAccountType[0]","string","");
+			jsonput(formattedRespJson,"subAccountType",subAcc);
+			accountType = jsonpathgetsingle(zresponse, "$.frm2_GetAccountType.outputResults[?(@.frm2_GetAccountType)].frm2_GetAccountType[0]","string");
+			jsonput(formattedRespJson,"accountType",accountType);
+			zCustomerId = jsonpathgetsingle(zresponse, "$.frm2_GetzCustomerId.outputResults[?(@.frm2_GetzCustomerId)].frm2_GetzCustomerId[0]","string");
+			jsonput(formattedRespJson,"zCustomerId",zCustomerId);
+			salesHistoryURL = jsonpathgetsingle(zresponse, "$.frm2_GetSalesHistoryURL.outputResults[?(@.frm2_GetSalesHistoryURL)].frm2_GetSalesHistoryURL[0]","string");
+			jsonput(formattedRespJson,"salesHistoryURL",salesHistoryURL);
+			priceReportURL = jsonpathgetsingle(zresponse, "$.frm2_GetPriceReportURL.outputResults[?(@.frm2_GetPriceReportURL)].frm2_GetPriceReportURL[0]","string");
+			jsonput(formattedRespJson,"priceReportURL",priceReportURL);
+			salesScoreURL = jsonpathgetsingle(zresponse, "$.frm2_GetSalesScoreURL.outputResults[?(@.frm2_GetSalesScoreURL)].frm2_GetSalesScoreURL[0]","string");
+			jsonput(formattedRespJson,"salesScoreURL",salesScoreURL);
+			customerScoreURL = jsonpathgetsingle(zresponse, "$.frm2_GetCustomerScoreURL.outputResults[?(@.frm2_GetCustomerScoreURL)].frm2_GetCustomerScoreURL[0]","string");
+			jsonput(formattedRespJson,"customerScoreURL",customerScoreURL);
+			docNumArr = jsonpathgetsingle(zresponse, "$.frm2_GetDocNo.outputResults[?(@.frm2_GetDocNo)].frm2_GetDocNo","jsonarray");
+			zListPriceArr = jsonpathgetsingle(zresponse, "$.frm2_GetZListPrice.outputResults[?(@.frm2_GetZListPrice)].frm2_GetZListPrice","jsonarray");
+			zProductIdArr = jsonpathgetsingle(zresponse, "$.frm2_GetzProductId.outputResults[?(@.frm2_GetzProductId)].frm2_GetzProductId","jsonarray");print zProductIdArr;
+			currencyMultiplierArr = jsonpathgetsingle(zresponse, "$.frm2_GetCurrencyMultiplier.outputResults[?(@.frm2_GetCurrencyMultiplier)].frm2_GetCurrencyMultiplier","jsonarray");
+			renewalIncreasePctArr = jsonpathgetsingle(zresponse, "$.frm2_GetRenewalIncreasePct.outputResults[?(@.frm2_GetRenewalIncreasePct)].frm2_GetRenewalIncreasePct","jsonarray");
+			getCostArr = jsonpathgetsingle(zresponse, "$.frm2_GetCost.outputResults[?(@.frm2_GetCost)].frm2_GetCost","jsonarray");
+			businessIncludeFlagArr = jsonpathgetsingle(zresponse, "$.frm2_GetBusinessIncludeFlag.outputResults[?(@.frm2_GetBusinessIncludeFlag)].frm2_GetBusinessIncludeFlag","jsonarray");
+			getCurrencyArr = jsonpathgetsingle(zresponse, "$.frm2_GetCurrency.outputResults[?(@.frm2_GetCurrency)].frm2_GetCurrency","jsonarray");
+			guidance = jsonpathgetsingle(zresponse, "$.frm2_GetGuidance.outputResults[?(@.frm2_GetGuidance)].frm2_GetGuidance","jsonarray");
+			pySalesHistoryArr = jsonpathgetsingle(zresponse, "$.frm2_GetSalesHistoryPY.outputResults[?(@.frm2_GetSalesHistoryPY)].frm2_GetSalesHistoryPY","jsonarray");
+			YTDSalesHistoryArr = jsonpathgetsingle(zresponse, "$.frm2_GetSalesHistoryYTD.outputResults[?(@.frm2_GetSalesHistoryYTD)].frm2_GetSalesHistoryYTD","jsonarray");
+			sizeOfDocNum = jsonarraysize(docNumArr);
+			sizeArr = range(sizeOfDocNum);
+			//CPQ-4308 - start
+			targetCurrency  = currency_t; 
+			inputData = dict("anytype"); 
+			put(inputData, "targetCurrency",targetCurrency); 
+			
+			for each in sizeArr{
+					start =1.0;
+					target =1.0;
+					salesFloor =1.0;
+					divMin =1.0;
+					mpgAPIEnable="N";
+					pyAvgPrice="";
+					cost=0.0;
+					segmentId="";
+					pyAmount="";
+					pyQty="";
+					YTDQuantity="";
+					YTDAvgPrice="";
+					pyAveragePriceValue =0.0;
+					YTDAvgPriceValue = 0.0;
+					startGuidance ="";
+					targetGuidance="";
+					salesFloorGuidance = "";
+					divMinGuidance = "";
+					zcost = "";
+					YTDRevenue="";
+					//Format response
+					lineJson = json();
+					docNumFromArray = jsonarrayget(docNumArr, each,"string");
+					guidanceString = jsonarrayget(guidance,each);
+					guidanceArray = string[];
+					if(guidanceString<>"null")
+					{
+						guidanceArray = split(guidanceString, "~");
+						startGuidance = guidanceArray[0];
+						targetGuidance = guidanceArray[1];
+						salesFloorGuidance = guidanceArray[2];
+						divMinGuidance = guidanceArray[3];
+						segmentId = guidanceArray[4];
+					}
+					pySalesHistoryString = jsonarrayget(pySalesHistoryArr,each);
+					pySalesHistoryArray = string[];
+					if(pySalesHistoryString<>"null")
+					{
+						pySalesHistoryArray = split(pySalesHistoryString, "~");
+						pyAvgPrice = pySalesHistoryArray[0];
+						pyQty = pySalesHistoryArray[1];
+						pyAmount = pySalesHistoryArray[2];
+					}
+					YTDSalesHistoryString = jsonarrayget(YTDSalesHistoryArr,each);
+					YTDSalesHistoryArray = string[];
+					if(YTDSalesHistoryString<>"null")
+					{
+						YTDSalesHistoryArray = split(YTDSalesHistoryString, "~");
+						YTDAvgPrice = YTDSalesHistoryArray[0];
+						YTDQuantity = YTDSalesHistoryArray[1];
+						YTDRevenue = YTDSalesHistoryArray[2];
+					}
+					docNumFromArray = jsonarrayget(docNumArr, each,"string");
+					docNum = jsonget(docNumberJson,docNumFromArray);
+					costSource = jsonget(costSourceJson,docNumFromArray);
+					mpg = jsonget(materialPricingGroupJson,docNumFromArray);
+					mpgData = jsonget(thresholdData, mpg);
+					productType= jsonget(productTypeJson,docNumFromArray);
+					if(NOT isnull(mpgData)){
+						mpgAPIEnable = jsonget(json(mpgData), "PriceScopeAPI","string","Y");
+					}
+					businessEnable = jsonarrayget(businessIncludeFlagArr, each,"string");
+					
+					//CPQ-4308 - start
+					baseCurrency  = jsonarrayget(getCurrencyArr, each,"string"); //AP
+					exchangeRate = 1.0;
+					applyExchange = false;
+					if(NOT isnull(targetCurrency) and baseCurrency <> targetCurrency){
+						put(inputData, "baseCurrency",baseCurrency);
+						exchangeRate =  util.getExchangeRate(inputData);
+						if(exchangeRate <> 1.0){
+							applyExchange = true;
+						}
+					}else{
+						applyExchange = true;
+					}
+					
+					//CPQ-4308 - end
+					if((findinarray(mpgsInThresholdsJSON, mpg) <> -1) AND (mpgAPIEnable=="Y") AND (productType <> "configuration") AND(businessEnable == "Y")){
+						//print startGuidance;
+						
+						if(startGuidance<>"null" AND startGuidance<>"")
+						{
+							//print startGuidance;
+							//print "startGuidance";
+							start= atof(startGuidance);
+						}
+						//if(NOT isnull(targetGuidance) OR targetGuidance<>"null")
+							if(targetGuidance<>"" AND targetGuidance<>"null")
+						{
+							//print "targetGuidance";
+							//print targetGuidance;
+							target= atof(targetGuidance);
+						}
+						//if(NOT isnull(salesFloorGuidance) OR salesFloorGuidance<>"null")
+						if(salesFloorGuidance<>"" AND salesFloorGuidance<>"null")
+						{
+							//print "salesFloor";
+							//print salesFloor;
+							salesFloor= atof(salesFloorGuidance);
+						}
+						//if(NOT isnull(divMinGuidance) OR divMinGuidance<>"null")
+						if(divMinGuidance<>"" AND divMinGuidance<>"null")
+						{
+							//print "divMin";
+							//print divMin;
+							divMin= atof(divMinGuidance);
+						}
+					}
+					
+					zcost = jsonarrayget(getCostArr, each,"string");
+					//print isnull(zcost);
+					//print (zcost=="null");
+					if((zcost=="null" OR zcost=="") OR (productType == "configuration")){
+							costatLine = jsonget(costJson,docNumFromArray);
+							if(NOT isnull(costatLine))
+							{
+								cost = atof(costatLine);
+							}
+					}else{
+					   		costSource= "Price Scope";
+							//CPQ-4308
+							if(applyExchange){
+								//print "zcost";
+								//print docNumFromArray;
+								//print zcost;
+								cost= atof(zcost) * exchangeRate;
+							}
+					}
+					pyAmountVal = "";
+					if(pyAmount=="null" OR pyAmount=="")
+					{
+						pyAmountVal="";
+					}
+					//CPQ-4308 - START
+					elif(applyExchange){
+						//print "pyAmount";
+						//print pyAmount;
+						pyAmountFlt = atof(pyAmount);
+						pyAmountVal = string(round(pyAmountFlt * exchangeRate,2));
+						//gautam CPQ-5028
+						pyAmountVal = replace(pyAmountVal,".",currencyDecimalSeparator_t);
+						
+						
+					}else
+					{
+					  //gautam CPQ-5028
+					   pyAmountVal = replace(pyAmountVal,".",currencyDecimalSeparator_t);
+						
+					}
+					//CPQ-4308 - END 
+					if(pyQty=="null" OR pyQty=="")
+					{
+						pyQty="";
+					}
+					else
+					{
+					   //gautam CPQ-5028   
+				           pyQty= replace(string(util.stringToFloat(pyQty)),".",currencyDecimalSeparator_t);
+					}
+					
+					
+					if(pyAvgPrice=="" OR pyAvgPrice=="null")
+					{
+						pyAveragePriceValue = 0.0;
+					}
+					else
+					{
+						//cpq-4308
+						if(applyExchange){
+							//print "pyAvgPrice";
+							//print pyAvgPrice;
+							pyAveragePriceValue= atof(pyAvgPrice);
+							pyAveragePriceValue = round(pyAveragePriceValue * exchangeRate,2);
+						}
+					}
+					if(YTDQuantity=="null" OR YTDQuantity=="")
+					{
+						YTDQuantity="";
+					}
+					else
+					{
+					      //gautam CPQ-5028
+					      YTDQuantity = replace(string(util.stringToFloat(YTDQuantity)),".",currencyDecimalSeparator_t);
+					}
+					//Added below code for CPQ-4262
+					if(YTDAvgPrice=="" OR YTDAvgPrice=="null"){
+						YTDAvgPriceValue = 0.0;
+					}else{
+						//cpq-4308
+						if(applyExchange){
+							//print "YTDAvgPrice";
+							//print YTDAvgPrice;
+							YTDAvgPriceValue= atof(ytdAvgPrice);
+							YTDAvgPriceValue = round(YTDAvgPriceValue * exchangeRate,2);
+							
+						}
+					}
+					YTDRevenueVal = "";
+					//print "YTDRevenue";
+					//print YTDRevenue;
+					if(YTDRevenue=="" OR YTDRevenue=="null")
+					{
+						YTDRevenueVal="";
+					}
+								
+					//CPQ-4308 - START
+					elif(applyExchange){
+						//print "YTDRevenue";
+						//print YTDRevenue;
+						YTDRevenueFlt = atof(YTDRevenue);
+						YTDRevenueVal = string(round(YTDRevenueFlt * exchangeRate,2));
+						//gautam CPQ-5028
+						YTDRevenueVal = replace(YTDRevenueVal,".",currencyDecimalSeparator_t);
+						
+					}else
+					{
+					        //gautam CPQ-5028
+						YTDRevenueVal = replace(YTDRevenueVal,".",currencyDecimalSeparator_t);
+						
+					}
+					//CPQ-4308 - END	  
+					result = result + docNum + "~startMultiplier_l~" + string(start) + "|"	
+					+ docNum + "~targetMultiplier_l~" + string(target) + "|"
+					+ docNum + "~salesFloorMultiplier_l~" + string(salesFloor) + "|"
+					+ docNum + "~disctrictMinimumMultiplier_l~" + string(divMin) + "|"
+					+ docNum + "~cost_l~" + string(cost) + "|" //Applied Currency Exchange
+					+ docNum + "~costSource_l~"+ costSource+"|"
+					+ docNum + "~segmentId_t~" + segmentId + "|"
+					+ docNum + "~pYAmount_l~" + pyAmountVal + "|" //Applied Currency Exchange
+					+ docNum + "~pYQuantity_l~" + pyQty + "|"
+					+ docNum + "~previousAveragePrice_l~" + string(pyAveragePriceValue) + "|" //Applied Currency Exchange
+					+ docNum + "~yTDAmount_l~" + YTDRevenueVal + "|" //Applied Currency Exchange
+					+ docNum + "~yTDQuantity_l~" + YTDQuantity + "|"
+					+ docNum + "~averagePrice_l~" + string(YTDAvgPriceValue) + "|"; //Applied Currency Exchange
+									
+					jsonput(lineJson, "ZListPrice", jsonarrayget(zListPriceArr, each));
+					jsonput(lineJson, "zProductId", jsonarrayget(zProductIdArr, each));
+					jsonput(lineJson, "PYAvgPriceArr", pyAvgPrice);
+					jsonput(lineJson, "YTDRevenue", YTDRevenue);
+					jsonput(lineJson, "GuidanceStart", startGuidance);
+					jsonput(lineJson, "YTDQuantity", YTDQuantity);
+					jsonput(lineJson, "YTDAvgPrice", YTDAvgPrice);
+					jsonput(lineJson, "CurrencyMultiplier", jsonarrayget(currencyMultiplierArr, each,"string"));
+					jsonput(lineJson, "PYQuantity", pyQty);
+					jsonput(lineJson, "PYRevenue", pyAmount);
+					jsonput(lineJson, "SegmentId", segmentId);
+					jsonput(lineJson, "GuidanceTarget", targetGuidance);
+					jsonput(lineJson, "RenewalIncreasePct", jsonarrayget(renewalIncreasePctArr, each,"string"));
+					jsonput(lineJson, "GuidanceDivisionMinimum", divMinGuidance);
+					jsonput(lineJson, "GuidanceFloor", salesFloorGuidance);
+					jsonput(lineJson, "GetCost", zcost);
+					jsonput(lineJson, "BusinessIncludeFlag", businessEnable);
+					jsonput(lineJson, "GetCurrency", baseCurrency);
+					jsonput(formattedRespJson, docNumFromArray , lineJson);
+				}
+				//code by Gautam for Read only Marketing Info CPQ-147 
+				accountType = "null";
+				subAccountType = "null";
+				//if not null values returned
+				if(NOT(isnull(jsonget(formattedRespJson,"accountType"))) AND NOT(isnull(jsonget(formattedRespJson,"subAccountType")))){
+					accountType = jsonget(formattedRespJson,"accountType");
+					subAccountType = jsonget(formattedRespJson,"subAccountType");
+				}
+				marketingInfoJson = json();
+				if((accountType <> "null" AND subAccountType <> "null") OR (accountType <> "null" AND subAccountType == ""))
+				{
+					isAccountTypeValid  = false;
+					subAccountTypes = BMQL("Select SubAccountType From AllwdSubAccntTypVals Where AccountType = $accountType");
+					for subAccountTypeRec in subAccountTypes {
+						isAccountTypeValid = true;
+						break;
+					}		
+				//check for only AccountType recieved and SubAccountType is blank and viceversa
+				if(isAccountTypeValid){
+				  ////print "again  in here";
+				  jsonput(marketingInfoJson ,"AccountType",accountType);
+				  jsonput(marketingInfoJson ,"SubAccountType",subAccountType);
+				  jsonput(marketingInfoJson ,"InformationReceived",TRUE);
+				  //set the values to attributes
+				  result = result  + "1~qqAccountType_t~"+ accountType + "|";
+				  result  = result  + "1~qqSubAccountType_t~"+ subAccountType+ "|";
+				  //clear message if succesfully recieved marketing Info
+				  result = result + "1~NullMarketingInfoErrorMessage_t~|";
+				}else{
+				  //fetch the value from Database based on UserLanguage
+				  //message = WARNING_MESSAGE_GUIDANCEVALUESINVALID;//guidance values are invalid
+				  //append(notificationsArray, "<p>" + message + "</p>");
+				  jsonput(marketingInfoJson ,"InformationReceived",FALSE);
+				}
+				}else{
+					jsonput(marketingInfoJson ,"InformationReceived",FALSE);
+					//show notification/error message
+				   //ERROR_MESSAGE_NULLMARKETINGINFO = util.getRemark("ERROR_MESSAGE_NULLMARKETINGINFO ", userLanguage);
+					//result = result + "1~NullMarketingInfoErrorMessage_t~"+ ERROR_MESSAGE_NULLMARKETINGINFO +"|";
+				}
+				result = result + "1~marketingInformationValue_t~"+ jsontostr(marketingInfoJson) + "|";
+				result = result + "1~zilliantResponse_t~" + jsontostr(formattedRespJson) + "|";
+				result = result + "1~guidanceEnableFlag_t~true|";
+			}
+			if(isError)
+			{
+				ERROR_MESSAGE_GUIDANCECALL_FAILURE = util.getRemark("ERROR_MESSAGE_GUIDANCECALL_FAILURE", userLanguage);
+				result = result + "1~errorMessage_t~"+ ERROR_MESSAGE_GUIDANCECALL_FAILURE  +"|";
+			}
+}
+//endTime = getcurrenttimeinmillis();
+//ExecutionTime = (endTime - startTime)/1000;
+//print "Stop Time";
+//print ExecutionTime;
+//print "Result****";
+//print result;
+//print "Result****";
+return result ;

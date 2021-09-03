@@ -1,0 +1,37 @@
+/**
+@name Get User Access Details
+@api getUserAccessDetails
+@summary Preparing user access json from TransactionLookup data table
+@param inputJson Json
+@return json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2019-02-01|Gaurav Singh         |Initial version
+*/
+//Fetch Transaction Type from inputjson
+transactionType = jsonget(inputJson, "transactionType");
+companyName = jsonget(inputJson, "supplierCompanyName");
+returnJson = json();
+retStringArray = string[];
+
+//Select groups to get access and of what type for this transaction type
+transactionLookupRecords = bmql("select USERNAME, GROUPNAME, ACCESSTYPE FROM TransactionLookup where TRANSACTIONTYPE=$transactionType");
+//Prepare the return string
+for eachRecord in transactionLookupRecords{
+	//Append User Names and Group Names to get the access to the transaction
+	userName = get(eachRecord, "USERNAME");
+	groupName = get(eachRecord, "GROUPNAME");
+	profileName = get(eachRecord, "ACCESSTYPE");
+	//Give Access to users
+	if(userName <> ""){
+		append(retStringArray, userName + "~" + companyName + "~" + profileName);
+	}
+	//Give Access to groups
+	if(groupName <> ""){
+		append(retStringArray, groupName + "~" + companyName + "~" + profileName);
+	}
+}
+//Prepare the return json
+jsonput(returnJson, "accessString", join(retStringArray, "|"));
+return returnJson;

@@ -1,0 +1,9 @@
+{
+  "name" : "Test for output doc",
+  "variableName" : "testForOutputDoc",
+  "description" : "Can be deleted any time",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "attributes" : [ ]
+}

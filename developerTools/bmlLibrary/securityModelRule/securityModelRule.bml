@@ -1,0 +1,47 @@
+/**
+ 
+ Gautam
+ 
+ **/
+
+    recommendedUserGroup  = "";
+    isAgreement = "";
+    businessLine = jsonget(data, "businessLine", "string", "");
+    salesOrg = jsonget(data, "salesOrg", "string", "");
+    transactionType = jsonget(data, "transactionType", "string", "");
+    supplierCompanyName = jsonget(data, "supplierCompanyName", "string", "");
+    createdUserGroup =  jsonget(data, "quotedcreatedUser","string",""); 
+
+ 
+ 
+    rs = bmql("SELECT UserGroup,ISAgreement FROM NewUserGroupModel WHERE BusinessGroup = $businessLine AND SalesOrg = $salesOrg AND TransactionType = $transactionType");
+     for eachRec in rs{
+        recommendedUserGroup = get(eachRec, "UserGroup");
+        isAgreement  = get(eachRec, "ISAgreement");
+    }
+	
+	//if column contains LoggedInUserGroup instead of groupName
+    if(isAgreement  == "False")
+    {
+        sbappend(retVal,recommendedUserGroup,"~",supplierCompanyName,"~","Admin","|");
+    }
+    if(isAgreement  == "True"){
+        quoteCreatedUserArr = string[];
+		
+		if(createdUserGroup <> "")
+		{
+			if(find(createdUserGroup,"+") <> -1){
+				quoteCreatedUserArr = split(createdUserGroup,"+");
+			}else{
+				quoteCreatedUserArr[0] = createdUserGroup;
+			}
+			for eachUser in  quoteCreatedUserArr{
+			     if(eachUser  == recommendedUserGroup)
+			     {
+				sbappend(retVal,eachUser ,"~",supplierCompanyName,"~","Admin","|");
+			     }
+			}
+		}
+    }
+    
+    return "";

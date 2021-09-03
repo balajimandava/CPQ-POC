@@ -1,0 +1,91 @@
+/**
+@name isPerformerExist
+@api isPerformerExist
+@summary check if performer exist in the system.  performer can be group or user and company can be partner org or internal (eaton).
+@param performer String
+@param company String
+@param siteID String
+@return Boolean
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-27|michael.yeung        |
+2020-03-19|Atul Jain		|Added debugMode to print statements 
+2021-03-05|Shardul S		|Converted parameter to Json restrict call on api
+*/
+ret = false;
+debugMode = false;
+
+performer = jsonget(data, "performer", "string", "");
+company = jsonget(data, "company", "string", "");
+siteID = jsonget(data, "siteID", "string", "");
+apiType = jsonget(data, "apiType", "string", "");
+
+performerDict = dict("string");
+siteInput = lower(siteID);
+webserviceUser = "";
+webservicePassword = "";
+users = bmql("SELECT FieldName, Value1, SiteID from Site_Specific");
+
+
+for row in users {
+	site = get(row, "SiteID");
+	if (site == siteInput) {
+		webserviceUser = get(row, "FieldName");
+		webservicePassword = get(row, "Value1");
+	}
+}		
+if(apiType == "user")
+{ 
+	// 1: User lookup
+	soapURL = "https://" + siteInput + ".bigmachines.com/v2_0/receiver/users"; 
+	soapResponse = "";
+
+	put(performerDict, "cpqWebApiUsername", webserviceUser );
+	put(performerDict, "cpqWebApiPassword", webservicePassword );
+	put(performerDict, "cpqWebApiLogin", performer+"@"+company);
+	templateFileLocation = "$BASE_PATH$/WebServices/UserDetailsSOAP.xml";
+	
+	soapRequest = applytemplate(templateFileLocation, performerDict);
+	if (debugMode) {
+	print "isperformerexists";
+	print soapRequest;
+	}
+	soapResponse = urldatabypost(soapURL, soapRequest, "ERROR"); 
+	
+	if (debugMode) {
+	 print soapResponse;
+	}
+	if (soapResponse <> "ERROR") {
+		// user found, return;
+		print "user";
+		return true;
+	}
+}
+elif(apiType == "group")
+{
+
+	// 2: user not found, check group
+	performerDict = dict("string");
+	soapURL = "https://" + siteInput + ".bigmachines.com/v2_0/receiver/groups"; 
+	soapResponse = "";
+	
+	put(performerDict, "cpqWebApiUsername", webserviceUser );
+	put(performerDict, "cpqWebApiPassword", webservicePassword );
+	put(performerDict, "companyName", company);
+	put(performerDict, "userGroup", performer);
+	
+	templateFileLocation = "$BASE_PATH$/WebServices/UserGroupSOAP.xml";
+	
+	soapRequest = applytemplate(templateFileLocation, performerDict);
+	soapResponse = urldatabypost(soapURL, soapRequest, "ERROR"); 
+	if (debugMode) {
+	 print apiType;
+	 print soapResponse ;
+	}
+	if (soapResponse <> "ERROR" and find(soapResponse, "not found")==-1) {
+		// user found, return;
+		return true;
+	}
+}
+return ret;

@@ -1,0 +1,12 @@
+{
+  "name" : "Transaction Upload Status Log",
+  "variableName" : "transactionUploadStatusLog",
+  "description" : "Project#52469-Austria Deployment|E9913664|Function to log status of transactions getting uploaded",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "StrDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

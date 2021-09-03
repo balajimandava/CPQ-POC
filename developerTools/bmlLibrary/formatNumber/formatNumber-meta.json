@@ -1,0 +1,12 @@
+{
+  "name" : "Format Number",
+  "variableName" : "formatNumber",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

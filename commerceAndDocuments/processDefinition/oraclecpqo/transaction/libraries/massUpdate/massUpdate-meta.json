@@ -1,0 +1,11 @@
+{
+  "name" : "Mass Update",
+  "variableName" : "massUpdate",
+  "description" : "WARNING!!!  This function will update each transaction, please be certain you have everything as it should be.",
+  "libraryFunctions" : [ "commerce.assemblePreviousApprovedValues", "commerce.updateMaterialPricingGroupDescription", "commerce.updateMissingMPGs", "commerce.updateUpdateDescription", "util.checkBizGroupCondition", "util.getCUSMAS", "util.getSiteSpecificData", "util.getStringDict", "util.parsingDate" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "materialPricingGroupShortDescription_l", "materialLineItem_l", "materialLineItemShortDescription_l", "materialPricingGroup_l", "approvedDiscount_l", "discountPercentString_l", "approvedNetFixedAmount_l", "netFixedAmountString_l" ],
+  "mainDocAttributes" : [ "status_t", "salesOrg_t", "transactionName_t", "transactionNumber_t", "salesRepLanguage_t", "distributionChannel_t", "preparedByEmail_t", "qqCustomerGroup_t", "salesGroup_t", "priceGroup_t", "qqBusinessLineForSalesOrg_t", "transactionType_t", "qq_Contact2Name_t", "nationalAccount_t", "qq_Contact3Name_t", "createdBy_t", "qq_customerReferenceShipTo", "customerNumber_t", "ntSelectedSalesOrg_t", "ntDistributionChannel_t", "salesOffice_t", "qqRootTransactionNumber_t", "parent_transaction_id_createRenewal", "expireandrenew_t", "selectedCustomerArraySet_t", "selectedCustomerArraySet2_t", "createRenewalFlag_t", "parentERFlag_t", "oldPriceListDate_t", "agreementValidFrom_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_user_time_zone" ]
+}

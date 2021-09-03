@@ -1,0 +1,37 @@
+/*
+Generates a new Bid Group Number for a transaction
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+30/12/2020|Anita		|Initial version
+	
+*/
+returnValue = "";
+fstDigit = "";
+//First digit should be fetched from BusinessGroup data table according to the Sales Org Selected
+resultSet = BMQL("SELECT TransactionNumCode FROM BusinessGroup WHERE SalesOrg = $ntSelectedSalesOrg_t");
+for each in resultSet{
+	fstDigit = get(each, "TransactionNumCode");
+	break;
+}
+//Digit 2-3 are today's year
+todaysDate = _system_date;
+todaysYear = substring(todaysDate, 2, 4);
+//Digit 4-5 are today's month
+todaysMonth = substring(todaysDate, 5, 7);
+//Digit 6-7 are today's month
+todaysDay = substring(todaysDate, 8, 10);
+//Digit 8-9 should be the Country Code of Primary Sold To Customer
+getCusmasDetail = json();
+jsonput(getCusmasDetail, "VKORG", ntSelectedSalesOrg_t);
+jsonput(getCusmasDetail, "VTWEG", ntDistributionChannel_t);
+jsonput(getCusmasDetail, "CustomerNumber", customerNumber_t);
+countryCodeJSON = util.getCUSMASDetails(getCusmasDetail);
+countryCode = jsonget(countryCodeJSON, "LAND1", "string", "");
+//Digit 10 is hyphen
+hyphen = "-";
+//Digit 11-14 should be unique numeric character
+counterVar = string(_system_transaction_counter_value);
+uniqChar = substring(counterVar,1,5);
+bidGroupNumber = fstDigit + todaysYear + todaysMonth + todaysDay + countryCode + hyphen + uniqChar ;
+returnValue = "1~bidGroupNumber_t~" + bidGroupNumber + "|";
+return returnValue;

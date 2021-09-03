@@ -1,0 +1,21 @@
+{
+  "name" : "Get JSON Data From Table",
+  "variableName" : "u_getJsonDataFromTable",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "columns",
+    "type" : "String[]"
+  }, {
+    "name" : "table",
+    "type" : "String"
+  }, {
+    "name" : "whereClause",
+    "type" : "String"
+  }, {
+    "name" : "conditions",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

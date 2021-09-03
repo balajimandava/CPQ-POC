@@ -1,0 +1,12 @@
+{
+  "name" : "Get List Price Multiple",
+  "variableName" : "getListPriceMultiple",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ "_current_date" ]
+}

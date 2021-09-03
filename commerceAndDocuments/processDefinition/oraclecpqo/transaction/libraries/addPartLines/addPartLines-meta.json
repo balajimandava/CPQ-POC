@@ -1,0 +1,14 @@
+{
+  "name" : "Add Part Lines",
+  "variableName" : "addPartLines",
+  "description" : "",
+  "libraryFunctions" : [ "util.clickAnAction" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number" ],
+  "mainDocAttributes" : [ "bs_id", "currentSelectedMaterialItems_t", "qq_NewItem_ProductLine_t", "qq_NewItem_MaterialItem_t", "qq_NewItem_NetPrice_t", "qq_NewItem_ProposedMaterialNum_t", "qq_NewItem_Notes_t", "qq_NewItem_Cost_t", "qq_NewItem_NetPriceCopy_t", "qq_NewItem_ProposedMaterialNumCopy_t", "newItem_BrandCopy_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_user_groups" ]
+}

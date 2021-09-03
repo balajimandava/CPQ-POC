@@ -1,0 +1,12 @@
+{
+  "name" : "Parsing Date",
+  "variableName" : "parsingDate",
+  "description" : "This function will calculate difference in 2 dates in terms of days, hour, minutes",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputDateJSON",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

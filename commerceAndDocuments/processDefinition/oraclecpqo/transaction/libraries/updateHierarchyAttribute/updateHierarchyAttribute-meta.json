@@ -1,0 +1,11 @@
+{
+  "name" : "Update Hierarchy Attribute",
+  "variableName" : "updateHierarchyAttribute",
+  "description" : "",
+  "libraryFunctions" : [ "util.getCUSMASDetails" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "customerNumber_t", "customerRecordKey_t", "preparedBySalesOrg_t", "ntDistributionChannel_t", "salesOrg_t", "agreementHierarchy_t", "ntSelectedSalesOrg_t" ],
+  "systemAttributes" : [ ]
+}

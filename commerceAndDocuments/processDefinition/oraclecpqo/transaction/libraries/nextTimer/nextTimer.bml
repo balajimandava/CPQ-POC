@@ -1,0 +1,88 @@
+//************************************************************************************************************
+//** Function:    Next Timer (nextTimer)
+//** Type:        Commerce Library Function   
+//**
+//** Description: Returns the date of the next timmer event based on the runFrom date passed.
+//**
+//** parmsDict:	  runFrom -- MM/DD/YYYY HH:mm:ss contains the date and time to run the UTIL from
+//**
+//** Return type: Date -- This is the Date of the next trigger
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              2017.10.10    dBo Haizlip	Initial version
+//**
+//************************************************************************************************************
+retDate= getdate();
+
+//  55375580 55376297
+
+//  Midnight
+runTime= "00:00:00";
+dateFormat= "yyyy-MM-dd";
+Date1isBeforeDate2= -1;
+triggerDates= integer[];
+allDates= dict("date");
+
+runFrom= "";
+if (containskey(parmsDict,"runFrom")) {
+  runFrom= get(parmsDict,"runFrom");
+} else {
+  return retDate;
+}
+
+runFromDate= strtojavadate(runFrom,dateFormat);
+
+agreementValidFrom= substring(agreementValidFrom_t,0,10);
+agreementValidFromDate= strtojavadate(agreementValidFrom,dateFormat);
+append(triggerDates,atoi(datetostr(agreementValidFromDate,"yyyyMMdd")));
+
+//  0 if Today's Date and 2nd date are equal. 
+// -1 if Today's date-time is before 2nd date-time.
+//  1 if Today's date-time is after 2nd date-time.
+
+printListFrom= "";
+printListTo= "";
+if (extendCurrentListPrices_t) {
+  priceListFrom= substring(priceListFrom_t,0,10);
+  priceListFromDate= strtojavadate(priceListFrom,dateFormat);
+  append(triggerDates,atoi(datetostr(priceListFromDate,"yyyyMMdd")));
+  //  If we are before the start of the Price List From date then this is the next trigger...
+  priceListTo= substring(priceListTo_t,0,10);
+  priceListToDate= strtojavadate(priceListTo,dateFormat);
+  //  Trigger is the day after so we must add 1 day to the date
+  append(triggerDates,atoi(datetostr(adddays(priceListToDate,1),"yyyyMMdd")));
+}
+
+agreementValidTo= substring(agreementValidTo_t,0,10);
+agreementValidToDate= strtojavadate(agreementValidTo,dateFormat);
+
+//  Trigger is the day after so we must add 1 day to the date
+append(triggerDates,atoi(datetostr(adddays(agreementValidToDate,1),"yyyyMMdd")));
+renewalDays = util.getEnvironmentVariable("Renewal_Notification_Days", "");
+
+//  These are the dates a user is notified of pending expiration (89 days, 35 days and 14 days).
+splitDays= split(renewalDays,":-:");
+for eachDay in splitDays {
+  daysOutToNotify= atoi(eachDay);
+  dateToNotify= adddays(agreementValidToDate,daysOutToNotify * -1);
+  append(triggerDates,atoi(datetostr(dateToNotify,"yyyyMMdd")));
+  dateCompare= comparedates(runFromDate,dateToNotify);
+}
+
+//  Sort all the dates
+sortedTriggerDates= sort(triggerDates,"asc","numeric");
+//  Loop thru the sorted dates and use the one at is after runFromDate
+for eachDateInt in sortedTriggerDates {
+  eachDate= strtojavadate(string(eachDateInt),"yyyyMMdd");
+  compareToRunDate= comparedates(runFromDate,eachDate);
+  if (compareToRunDate == Date1isBeforeDate2) {
+    retDate= eachDate;
+    return retDate;
+  }
+}
+
+//  If we got to here then there is nothing else to trigger
+retDate= strtojavadate("9999-12-31 00:00:00","yyyy-MM-dd HH:mm:ss");
+
+return retDate;

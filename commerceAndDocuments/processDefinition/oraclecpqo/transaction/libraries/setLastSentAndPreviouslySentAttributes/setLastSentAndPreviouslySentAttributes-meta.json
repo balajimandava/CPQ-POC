@@ -1,0 +1,14 @@
+{
+  "name" : "Set Last Sent and Previously Sent attributes",
+  "variableName" : "setLastSentAndPreviouslySentAttributes",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.transactionDetailsJson" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "bsID",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bs_id", "previouslySentLineDetails_t", "lastSentLineDetails_t", "agreementValidTo_t", "agreementPreviousValidTo_t" ],
+  "systemAttributes" : [ ]
+}

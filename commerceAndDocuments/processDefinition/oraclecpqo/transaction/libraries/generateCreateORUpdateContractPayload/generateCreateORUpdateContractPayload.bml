@@ -1,0 +1,413 @@
+/**************************************************************************************************************
+@name Generate Create OR Update Contract Payload
+@api generateCreateORUpdateContractPayload
+@param inputValues -- Json
+@Description: This is used to prepare the contract create/update json payload
+
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2021-01-20|Dhananjay		|initial version
+2021-07-12|Praveen Sahu		|Added default value for Unit of measure
+************************************************************************************************************/
+
+createContractPayload = json();
+contract = json();
+
+//Header Payload START
+header = json();
+jsonput(header ,"applicationName","CPQ");
+jsonput(header ,"transactionId",bs_id);
+//If qqSAPQuoteNumber_t is not empty then the payload is for contract update.
+if(qqSAPQuoteNumber_t <> ""){
+	jsonput(header ,"contractNumber",qqSAPQuoteNumber_t);
+}
+jsonput(header,"salesOrg",salesOrg_t);
+jsonput(header,"poNumber",transactionNumber_t);
+jsonput(header,"distributionChannel",distributionChannel_t);
+jsonput(header,"division",division_t);
+jsonput(header,"transactionType",transactionType_t);
+jsonput(header,"agreementDeliveryTerms",agreementDeliveryTerms_t);
+jsonput(header,"incotermsDescription",incoterm2_t);
+jsonput(header,"orgQualifier","ZCPQ");
+
+validFromDateString = replace(substring(agreementValidFrom_t, 0, 10), "-", "");
+validToDateString = replace(substring(agreementValidTo_t, 0, 10), "-", "");
+pricingDateString = replace(substring(pricingDate_t, 0, 10), "-", "");
+
+jsonput(header,"agreementValidFrom",validFromDateString);
+jsonput(header,"agreementValidTo",validToDateString);
+jsonput(header,"pricingDate",pricingDateString);
+//jsonput(header,"orderReason","");
+jsonput(header,"priceListType",cpiType_t);
+jsonput(header,"primarySoldToNumber",soldToNumber_t);
+soldToNumbers = jsonarray();
+soldToNumbersJson = json();
+jsonput(soldToNumbersJson,"selectedCustomer",selectedCustomerArraySet2_t);
+soldToPath = "$.selectedCustomer[?(@.customer_selctdCust2_t != '"+soldToNumber_t+"')]";
+if(jsonpathcheck(soldToNumbersJson, soldToPath)){
+	soldToNumbersArray = jsonpathgetmultiple(soldToNumbersJson, soldToPath+".customer_selctdCust2_t");
+	if(jsonarraysize(soldToNumbersArray) > 0){
+		soldToNumbersLoop = range(jsonarraysize(soldToNumbersArray));
+		for eahSoldToIndx in soldToNumbersLoop{
+			eachSoldToNum = jsonarrayget(soldToNumbersArray, eahSoldToIndx,"string");
+			eachSoldToJson = json();
+			jsonput(eachSoldToJson,"soldToNumber",eachSoldToNum);
+			jsonarrayappend(soldToNumbers, eachSoldToJson);
+		}
+	}
+}
+//print soldToNumbers;
+if(jsonarraysize(soldToNumbers) > 0){
+	jsonput(header,"soldToNumbers",soldToNumbers);
+}
+
+jsonput(header,"shipToNumber",shipToNumber_t);
+jsonput(header,"preparedByNumber",shipToNumber_t);
+jsonput(header,"primaryEndCustomerNumber",endCustomerNo_t);
+jsonput(header,"customerSupportNumber",customerSupportNumber_t);
+jsonput(header,"salesAgencyNumber",salesAgencyNumber_t);
+jsonput(header,"shipToLanguage",qq_MnlShpTo_Language_t);
+jsonput(header,"currency",currency_t);
+
+//Usage Indicator Logic START
+usageIndicator = "";
+if(distributionChannel_t == "10"){
+	usageIndicator = "002";
+	if(soldToNumber_t == shipToNumber_t){
+		usageIndicator = "001";
+	}
+}elif(distributionChannel_t == "30"){
+	usageIndicator = "002";
+}
+if(usageIndicator <> ""){
+	jsonput(header,"usageIndicator",usageIndicator);
+}
+//Usage Indicator Logic END 
+
+//jsonput(header,"languageCode",4);
+
+//Order Notes Logic START
+orderNotes = "";
+if(psd_warranty_t <> "Standard"){
+	orderNotes = psd_warranty_t;
+}
+if(orderNotes <> ""){
+	jsonput(header,"orderNotes",orderNotes);
+}
+//Order Notes Logic END
+if(externalNote_t <> ""){
+	jsonput(header,"externalNotes",externalNote_t);
+}
+//Internal Order Notes Logic START
+orderReason = "";
+internalOrderNotes = "";
+if(psd_liquidatedDamages_t){
+	orderReason = "Z34";
+	internalOrderNotes = liquidatedDamagesSpecifications_t;
+}
+if(internalOrderNotes <> ""){
+	jsonput(header,"internalOrderNotes",internalOrderNotes);
+}
+//Internal Order Notes Logic END
+
+//Clarifications And Exceptions Logic START
+tncNotesDesc = replace(qqCustomTnCNoteDescription_t,"|"," ");
+qqCustomTnCNoteDescription = tncNotesDesc;//replace(tncNotesDesc,"#@#","LINE_BREAK");
+customNotesText = replace(customNotesText_t,"|"," ");
+customNotesText = replace(customNotesText ,"\n","#@#");
+clarificationsAndExceptions = "";
+if(qqCustomTnCNoteDescription <> "" AND customNotesText <> ""){
+	clarificationsAndExceptions = qqCustomTnCNoteDescription +"#@#"+customNotesText;
+}else{
+	clarificationsAndExceptions = qqCustomTnCNoteDescription+customNotesText;
+}
+if(clarificationsAndExceptions <> ""){
+	jsonput(header,"clarifications",clarificationsAndExceptions);
+}
+//Clarifications And Exceptions Logic END
+
+headerKeys = jsonkeys(header);
+for eachKey in headerKeys{
+	eachVal = jsonget(header, eachKey,"string","");
+	if(eachVal == ""){
+		jsonremove(header, eachKey);
+	}
+}
+
+//Addresses Logic START
+addressesObj = json();
+addresses = jsonarray();
+shipToAddress = json();
+jsonput(shipToAddress,"contactNumber",salesContactNumber_t);
+jsonput(shipToAddress,"name1",customerName_t);
+jsonput(shipToAddress,"name2",customerName2_t);
+jsonput(shipToAddress,"street1",customerStreet_t);
+jsonput(shipToAddress,"city",customerCity_t);
+//jsonput(shipToAddress,"state",customerState_t);
+stateCode = "";
+regionNamesRS = BMQL("Select RegionCode From SAPRegions Where CountryCode = $customerCountry_t And Region = $customerState_t");
+for eachRec in regionNamesRS{
+	stateCode  = get(eachRec,"RegionCode");
+}
+jsonput(shipToAddress,"state",stateCode);
+jsonput(shipToAddress,"postalCode",customerPostalCodeZip_t);
+jsonput(shipToAddress,"country",customerCountry_t);
+shipToAddressKeys = jsonkeys(shipToAddress);
+for eachKey in shipToAddressKeys{
+	eachVal = jsonget(shipToAddress, eachKey,"string","");
+	if(eachVal == ""){
+		jsonremove(shipToAddress, eachKey);
+	}
+}
+jsonarrayappend(addresses , shipToAddress);
+jsonput(addressesObj,"address",addresses);
+jsonput(header,"addresses",addressesObj);
+//Addresses Logic END
+
+//ProjectDeatils Logic START
+projectDeatils = json();
+jsonput(projectDeatils,"name",qqProjectName_t);
+jsonput(projectDeatils,"city",qqCity_t);
+jsonput(projectDeatils,"region",qqRegion_t);
+jsonput(projectDeatils,"country",qqCountry_t);
+jsonput(projectDeatils,"opportunityNumber",opportunityNumber_t);
+jsonput(projectDeatils,"segment",qqSegment_t);
+jsonput(projectDeatils,"subSegment",qqSubSegment_t);
+jsonput(projectDeatils,"application",qqApplication_t);
+jsonput(projectDeatils,"subApplication",qqSubApplication_t);
+jsonput(projectDeatils,"accountType",qqAccountType_t);
+jsonput(projectDeatils,"subAccountType",qqSubAccountType_t);
+jsonput(projectDeatils,"previousContractNumber",previousContractNumber_t);
+projectDeatilsKeys = jsonkeys(projectDeatils);
+for eachKey in projectDeatilsKeys{
+	eachVal = jsonget(projectDeatils, eachKey,"string","");
+	if(eachVal == ""){
+		jsonremove(projectDeatils, eachKey);
+	}
+}
+jsonput(header,"projectDeatils",projectDeatils);
+//ProjectDeatils Logic END
+
+//Line Items Logic START
+lineItemArray = jsonarray();
+for line in transactionLine{
+	if(line.lineItemStatus_l == "awarded" OR (qqSAPQuoteNumber_t <> "" AND line.includedInTheContract_l)){
+		lineItem = json();
+		documentNumber = line._document_number;
+		lineNumber = line._group_sequence_number;
+		parentLineNumber = line.parentLineNumber_l;
+		materialNumber = line.materialLineItem_l;
+		sequenceNumber = line._sequence_number;
+		quantity = line.quantity_l;
+		unitOfMeasure = line.uOM_l;
+		materialDescription = line.materialLineItemShortDescription_l;
+		deliveryTime = line.qqLeadTime_l;
+		customerPartNumber = line.customerPartNumber_l;
+		externalNotes = line.configNotes_l;
+		notes = line.qqNotes_l;
+		discountType = line.discountType_l;
+		totalDiscount = string(line.newNetPrice_l);//line.discountString_l;
+		conditionPerUnit = line.overridePerUnit_l;
+		listPrice = line.oldListPrice_l;
+		premium = line.premium_l;
+		fixedSurecharge = line.cost_l;
+		conditionFixedSurcharge = line.cPIPriceIncrease_l;
+		designation = line.designation_l;
+		itemCategory = line.itemCategory_l;
+		
+		if(documentNumber <> ""){
+			jsonput(lineItem,"lineItemId",documentNumber);
+			jsonput(lineItem,"documentNumber",documentNumber);
+		}
+		if(itemCategory<> ""){
+			jsonput(lineItem,"itemCategory",itemCategory);
+		}
+		jsonput(lineItem,"lineNumber",lineNumber);
+		if(parentLineNumber <> ""){
+			jsonput(lineItem,"parentLineNumber",parentLineNumber);
+		}
+		if(materialNumber <> ""){
+			jsonput(lineItem,"materialNumber",materialNumber);
+		}
+				
+		jsonput(lineItem,"quantity",quantity);
+		if(unitOfMeasure <> ""){
+			jsonput(lineItem,"unitOfMeasure",unitOfMeasure);
+		}else{
+			jsonput(lineItem,"unitOfMeasure","EA"); // INC000014593113 - Setting a default value to avoid any issue in SAP
+		}		
+			
+		//jsonput(lineItem,"unitPrice",line.unitPriceString_l);
+		unitPriceString = "";
+		if(quantity > 0){
+			unitPrice = line.oldListPrice_l;
+			if(line.customDiscountType_l=="percent"){
+				unitPrice = line.oldListPrice_l*(1-(line.discount_l/100));
+			}elif(line.customDiscountType_l=="amt"){
+				unitPrice = line.qqTotal_l;
+			}
+			unitPriceString = string(unitPrice/quantity);
+		}
+		if(unitPriceString <> ""){
+			jsonput(lineItem,"unitPrice",replace(unitPriceString,"$",""));
+		}
+		if(qqSAPQuoteNumber_t <> "" AND line.includedInTheContract_l AND line.lineItemStatus_l == "cancelled"){
+			jsonput(lineItem,"rejectionCode","96");
+		}
+		if(materialDescription <> ""){
+			jsonput(lineItem,"materialDescription",materialDescription);
+		}
+		if(deliveryTime <> ""){
+			jsonput(lineItem,"deliveryTime",deliveryTime);
+		}
+		
+		if(customerPartNumber <> ""){
+			jsonput(lineItem,"customerPartNumber",customerPartNumber);
+		}
+		
+		if(designation <> ""){
+			jsonput(lineItem,"externalNotes",designation);
+		}
+		if(externalNotes <> ""){
+			clarificationsandExceptions_l = stringbuilder();
+			configNotesArray = split(externalNotes,"@#@");
+			notesCount = 0;
+			for configNote in configNotesArray{
+				notesAry = split(configNote,"$,$");
+				if(sizeofarray(notesAry)>1 AND NOT(isnull(notesAry[1]))){
+					if(notesCount > 0){
+						sbappend(clarificationsandExceptions_l ,"#@#",notesAry[1]);
+					}else{
+						sbappend(clarificationsandExceptions_l ,notesAry[1]);
+					}
+					notesCount = notesCount + 1;
+				}
+			}
+			jsonput(lineItem, "notes", sbtostring(clarificationsandExceptions_l));
+		}
+		/*if(notes  <> ""){
+			jsonput(lineItem, "notes", notes);
+		}*/
+		condition = json();
+		if(discountType <> ""){
+			jsonput(condition, "discountType", discountType);
+		}
+		if(totalDiscount <> ""){
+			jsonput(condition, "totalDiscount", totalDiscount);
+		}
+		jsonput(condition, "conditionPerUnit", conditionPerUnit);
+		//jsonput(condition, "conditionType", "");
+		jsonput(condition, "listPrice", listPrice);
+		if(premium <> ""){
+			jsonput(condition, "premium", premium);
+		}
+		if(conditionFixedSurcharge > 0){
+			//jsonput(condition, "conditionFixedSurcharge", conditionFixedSurcharge);
+			jsonput(condition, "conditionFixedSurcharge", cpiAdjustmentPercent_t);
+		}
+		jsonput(condition, "fixedSurecharge", fixedSurecharge);
+		conditions = json();
+		jsonput(conditions , "condition", condition);
+		jsonput(lineItem, "conditions", conditions);
+		
+		if(line.externalConfigVCData_l <> ""){
+			inputXML = replace(line.externalConfigVCData_l,"&lt;","<");
+			inputXML = replace(inputXML,"&gt;",">");
+			inputValuesDict = dict("anytype");
+			put(inputValuesDict,"inputXML",inputXML);
+			put(inputValuesDict,"templetName","Global");
+			vcDataJson = util.xmlToJSONConverter(inputValuesDict);
+			//print inputXML;
+			//print vcDataJson;
+			vcData = jsonget(vcDataJson,"VCData","json",json()); 
+			E1CUREF = jsonget(vcData,"E1CUREF","json",json()); 
+			
+			instanceConfiguration = json();
+			instanceConfigId = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUREF.CONFIG_ID","string",""); 
+			instanceId = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUREF.INST_ID","string","");
+			configDataRootId = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUCFG.ROOT_ID","string","");
+			
+			jsonput(instanceConfiguration,"posex",lineNumber);
+			jsonput(instanceConfiguration,"configId",sequenceNumber);
+			jsonput(instanceConfiguration,"instanceId",instanceId);
+			jsonput(instanceConfiguration,"rootId",configDataRootId);
+			//jsonput(lineItem, "instanceConfiguration", instanceConfiguration);
+			
+			instanceDetails = json();
+			instanceDetailsConfigId = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUINS.CONFIG_ID","string",""); 
+			instanceDetailsId = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUINS.INST_ID","string","");
+			objectType = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUINS.OBJ_TYPE","string",""); 
+			classType = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUINS.CLASS_TYPE","string","");
+			objectKey = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUINS.OBJ_KEY","string",""); 
+			jsonput(instanceDetails,"posex",lineNumber);
+			jsonput(instanceDetails,"configId",sequenceNumber);
+			jsonput(instanceDetails,"instanceId",instanceDetailsId);
+			jsonput(instanceDetails,"objectType",objectType);
+			jsonput(instanceDetails,"classType",classType);
+			jsonput(instanceDetails,"objectKey",objectKey);
+			//jsonput(lineItem, "instanceDetails", instanceDetails);
+			jsonput(instanceConfiguration, "instanceDetails", instanceDetails);
+			
+			characteristicValuationArray = jsonarray();
+			characteristicValuationData = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUVAL.item","jsonarray",jsonarray());
+			charValArraySize = jsonarraysize(characteristicValuationData);
+			charValuationLoop = range(charValArraySize);
+			for eachValIndx in charValuationLoop{
+				eachCharValuationData = jsonarrayget(characteristicValuationData, eachValIndx, "json");
+				characteristicValuation = json();
+				characteristicId = jsonpathgetsingle(eachCharValuationData, "$.INST_ID","string","");
+				charName = jsonpathgetsingle(eachCharValuationData, "$.CHARC","string","");
+				charVal = jsonpathgetsingle(eachCharValuationData, "$.VALUE","string","");
+				
+				jsonput(characteristicValuation ,"instanceId",characteristicId);
+				jsonput(characteristicValuation ,"characteristicName",charName);
+				jsonput(characteristicValuation ,"characteristicValue",charVal);
+				//jsonput(lineItem, "characteristicValuation", characteristicValuation);
+				jsonarrayappend(characteristicValuationArray, characteristicValuation);
+			}
+			//jsonput(lineItem, "characteristicValuation", characteristicValuationArray);
+			jsonput(instanceConfiguration, "characteristicValuation", characteristicValuationArray);
+			configuratorData = json();
+			configDataConfigId = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUPRT.CONFIG_ID","string","");
+			configDataInstanceId = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUPRT.INST_ID","string","");
+			configDataParentId = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUPRT.PARENT_ID","string","");
+			configDataObjectType = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUPRT.OBJ_TYPE","string","");
+			configDataClassType = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUPRT.CLASS_TYPE","string","");
+			configDataPartOfNo = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUPRT.PART_OF_NO","string","");
+			configDataObjectKey = jsonpathgetsingle(vcDataJson, ".VCData_Type$.E1CUPRT.OBJ_KEY","string","");
+			//configDataRootId = jsonpathgetsingle(vcDataJson, "$.VCData_Type.E1CUCFG.ROOT_ID","string","");
+			
+			jsonput(configuratorData,"configId",sequenceNumber);
+			jsonput(configuratorData,"instanceId",configDataInstanceId);
+			jsonput(configuratorData,"parentId",configDataParentId);
+			jsonput(configuratorData,"objectType",configDataObjectType);
+			jsonput(configuratorData,"classType",configDataClassType);
+			jsonput(configuratorData,"partOfNo",configDataPartOfNo);
+			jsonput(configuratorData,"objectKey",configDataObjectKey);
+			//jsonput(configuratorData,"rootId",configDataRootId);
+			if(configDataInstanceId <> "" OR configDataParentId <> ""  
+				OR configDataObjectType <> ""  OR configDataClassType <> ""  
+				OR configDataPartOfNo <> "" OR configDataObjectKey <> "" ){
+				//jsonput(lineItem, "configuratorData", configuratorData);
+				jsonput(instanceConfiguration, "configuratorData", configuratorData);
+			}
+			
+			jsonput(lineItem, "instanceConfiguration", instanceConfiguration);
+		}
+		
+		
+		
+		jsonarrayappend(lineItemArray , lineItem);
+	}
+	
+}
+lineItem = json();
+jsonput(lineItem ,"lineItem",lineItemArray);
+jsonput(header,"lineitems",lineItem);
+//Line Items Logic END
+
+jsonput(contract,"header",header);
+jsonput(createContractPayload,"contract",contract);
+return createContractPayload;

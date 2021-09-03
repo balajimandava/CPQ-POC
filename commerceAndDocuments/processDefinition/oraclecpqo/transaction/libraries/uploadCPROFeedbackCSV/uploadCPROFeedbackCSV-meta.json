@@ -1,0 +1,14 @@
+{
+  "name" : "Upload CPRO Feedback CSV",
+  "variableName" : "uploadCPROFeedbackCSV",
+  "description" : "Called by Upload CPRO Feedback action to parse and upload CPRO discount feedback.",
+  "libraryFunctions" : [ "util.getRemark", "util.parseCSV" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJSON",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "customDiscountType_l", "materialLineItem_l", "materialPricingGroup_l", "_document_number", "_parent_doc_number", "scaleFrom_l", "scaleTo_l", "netFixedAmountString_l", "discountPercentString_l", "qqProductType_l", "_sequence_number", "approvedMarginPer_l", "premium_l" ],
+  "mainDocAttributes" : [ "cPROFeedbackUpload_t", "userDecimalSeparator_t", "currencyDecimalSeparator_t", "currencySymbol_t", "isQuote_t", "isAgreement_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_current_user_language" ]
+}

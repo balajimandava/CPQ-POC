@@ -1,0 +1,11 @@
+{
+  "name" : "Read Only Marketing Info",
+  "variableName" : "readOnlyMarketingInfo",
+  "description" : "Reads the ReadOnlyMarketing Info from PriceGuidanceApi",
+  "libraryFunctions" : [ "util.getRemark" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number" ],
+  "mainDocAttributes" : [ "marketingInformationValue_t", "qqAccountType_t", "qqSubAccountType_t", "_transaction_document_number" ],
+  "systemAttributes" : [ "_system_current_user_language" ]
+}

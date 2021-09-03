@@ -1,0 +1,323 @@
+/**
+@name parseBidManBOM
+@api parseBidManBOM
+@summary parse Bid manager BOM into parent line and array of child line items.
+@param bom String
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-02|michael.yeung        |
+2018-07-18|michael.yeung        |
+2018-10-03|michael.yeung        |  Update based on 08/27/2018 meeting notes
+2018-10-10|michael.yeung        |
+2019-11-11|Harshit Mehta	| Project# 45670 : Added code to extract cost information from Bid Manager BOM XML.
+2020-01-31|Vijetha.N 		| Project# 49074 : Added Code to extract TechnicalNotes from Bid Manager BOM XML.
+2020-03-19|Atul Jain		|Added debug mode to print statement
+2020-03-27|Dhananjay		|Added LeadTimeIndicator and included the productLine in the return json
+2020-04-30|Dhananjay		|Added MaterialCost and included the cost in the return json
+2020-05-06|Dhananjay		|Reading the data from ExternalSytem and populating the o/p related strings:Notes,PerformanceData,SpecRFQ_Info,ProductSpecific and ItemDetail 
+2020-06-29|Shardul S		|Changes for project 52469;
+2020-08-11|Dhananjay		|Modified the logic to parse the ExternalSytem tag. And removed all the o/p document related strings logic
+2020-08-24|Ankit		|Added condition to identify LIPE regulators as Residential needs clearing Array. Needs long term fix
+2021-01-04|Nithin       |CPQ-3617 : Added CPI mapping
+2021-01-04|Dhananjay		|CPQ-3678 : Setup Remaining Configurators
+2021-02-16|Nithin               |CPQ-3669 : Adding mapping for PrintOnOutput
+2021-04-14|Dhananjay		|CPQ-4923 : Identifier when API Call is for a Flat Pack Item
+*/
+result = json();
+debugMode = false;
+/*
+
+8/27/18
+o    Terminal Boxes: one parent line item (no children). For Terminal Box, we can bring over the children and not display them
+o    Pushbuttons: parent and children (discount off of children, not the parent)
+o    Bussmann: parent and one child with no price for the QSCP takeoff (not VC)
+
+Bid Manager			CPQ				Notes
+SAPCatalogNumber	Catalog #		SAP Catalog Number
+CatalogNumber		Material #		SAP Material Number
+ProductID			Description		No field named "description" in Bid Man
+ListPrice			List Price		Bussmann takeoffs will use this
+Designation			Customer Part #	Bussmann will use this, Pushbuttons and Term Boxes can if they want, but currently not in their current business process
+ProductLine			TBD				Terminal Boxes team would like to see this added to CPQ to do reporting off of this. Would not need to be visible on LIG. Ex: "PREformance", "Terminal Box"
+ProductCode			TBD				Pushbuttons uses for reporting, for Terminal Boxes it should be the PH5 value
+MaterialCost		Cost			cost_l field in CPQ.
+
+*/
+
+
+xpathItems = string [];
+xpathItems[0] = "//BOM/BMTable_Neg.Items/TakeoffDataAccess.TakeoffSaveItem";
+xpathItems[1] = "//BOM/ExternalSytem";//As per New Design need to read the material# category# ect. from ExternalSytem tag
+xpathItems[2] = "//BOM/ProductSpecific";//ProductSpecific data to display on the output
+xpathItems[3] = "//BOM/ItemDetail";//ItemDetail data to display on the output
+xpathItems[4] = "//BOM/SpecRFQ_Info";//SpecRFQ_Info data to display on the output
+xpathItems[5] = "//BOM/PerformanceData";//PerformanceData data to display on the output
+xpathItems[6] = "//BOM/Notes";//Notes data to display on the output
+xpathItems[7] = "//ExternalSystem";//Flat Pack Desing Tag
+xpathItems[8] = "//BOM/ConfigurationType";//ConfigurationType
+
+xpathItemDetail = string [];
+xpathItemDetail[0] = "//ParentIndicator";
+xpathItemDetail[1] = "//ItemID";
+xpathItemDetail[2] = "//ParentItemID";
+xpathItemDetail[3] = "//CatalogNumber";
+xpathItemDetail[4] = "//SAPCatalogNumber";
+xpathItemDetail[5] = "//Quantity";
+xpathItemDetail[6] = "//ListPrice";
+xpathItemDetail[7] = "//BaseCurrency";
+xpathItemDetail[8] = "//ProductID";
+xpathItemDetail[9] = "//Designation";
+xpathItemDetail[10] = "//ProductLine";
+xpathItemDetail[11] = "//ProductCode";
+xpathItemDetail[12] = "//MaterialCost";
+xpathItemDetail[13] = "//TechnicalNotes";//Project# 49074
+xpathItemDetail[14] = "//LeadTimeIndicator";//Project# 49074
+xpathItemDetail[15] = "//TakeoffCode";//Project# 49074
+xpathItemDetail[16] = "//ListPrice"; //Project# 49074													 
+xpathItemDetail[17] = "//MaterialCost"; //Project# 49074
+xpathItemDetail[18] = "//IsPlaceholder"; //Project# 49074
+xpathItemDetail[19] = "//CompleteConfigurationFlag"; //Project# 49074
+xpathItemDetail[20] = "//BrandCode"; //Project# 49074
+xpathItemDetail[21] = "//CatalogNumber"; //Project# 49074
+xpathItemDetail[22] = "//MaterialNumber"; //Project# 49074
+xpathItemDetail[23] = "//ProductHierarchy"; //Project# 49074
+xpathItemDetail[24] = "//ProductDescription"; //Project# 49074
+xpathItemDetail[25] = "//ConfigurationID"; //Project# 49074
+xpathItemDetail[26] = "//PlantCode"; //Project# 49074
+CPIConfig = "";
+PrintOnOutput = "true";
+PriceIncluded = "false";
+//print bom;
+
+allItems = readxmlmultiple(bom, xpathItems);
+//print xpathItems[1];
+//print "Printing all items";
+//print allItems;
+//allItemsArray = get(allItems, xpathItems[0]);
+allItemsArray = get(allItems, xpathItems[1]);
+flatPackItemsArray = get(allItems, xpathItems[7]);
+/*print "allItemsArray = ";
+print allItemsArray;
+print "flatPackItemsArray = ";
+print flatPackItemsArray;*/
+externalSysTagExists = true;
+externalSytem_json = json();
+configurator = "";
+	//Added by Shardul
+	xpaths = string[1];
+	/*xpaths[0] = "//BOM/ExternalSytem/@Product";
+	output = readxmlsingle(bom, xpaths);
+	for xpath in xpaths{ 
+		configurator = get(output, xpath); 
+		print configurator ;
+	}
+	if(configurator=="" OR (not(isnull(configurator)) AND (find(configurator,"PSD")==-1 
+		AND find(configurator,"Capacitor Switch")==-1 AND find(configurator,"Arresters")==-1
+		AND find(configurator,"LIPE")==-1) AND find(configurator,"1Ph Pole Transformers")==-1
+		AND find(configurator,"Cutouts")==-1 AND find(configurator,"FCI")==-1) ) //Non PSD or Product is empty.
+	{
+		allItemsArray = string[];
+	}*/
+
+	//CPQ-3678::If the ExternalSytem tag exists, checking whether this is a valid PSD takeoff or not
+	if(NOT(isnull(flatPackItemsArray)) AND NOT(isempty(flatPackItemsArray))){//for Flatpack
+		inputValues = dict("anytype");
+		put(inputValues,"inputXML","<BOM>"+flatPackItemsArray[0]+"</BOM>");
+		eachXMLNodeInJson = util.xmlToJSONConverter(inputValues);
+		allItemsArray = get(allItems, xpathItems[7]);
+		if(NOT(isnull(eachXMLNodeInJson))){
+			externalSytem_json = jsonget(eachXMLNodeInJson,"ExternalSystem","json",json());
+		}
+		xpaths = string[1];
+		xpaths[0] = "//ExternalSystem/@CompleteConfigurationFlag";
+		completeConfigFalgInfo = readxmlsingle(flatPackItemsArray[0], xpaths);
+		if(containskey(completeConfigFalgInfo, xpaths[0])){
+			completeConfigFlag = get(completeConfigFalgInfo, xpaths[0]);
+			jsonput(externalSytem_json,"CompleteConfigurationFlag",completeConfigFlag);
+		}
+		
+	}elif(NOT(isnull(allItemsArray)) AND NOT(isempty(allItemsArray))){
+		inputValues = dict("anytype");
+		put(inputValues,"inputXML","<BOM>"+allItemsArray[0]+"</BOM>");
+		eachXMLNodeInJson = util.xmlToJSONConverter(inputValues);
+		if(NOT(isnull(eachXMLNodeInJson))){
+			externalSytem_json = jsonget(eachXMLNodeInJson,"ExternalSytem","json",json());
+		}
+		takeoffCode = jsonget(externalSytem_json,"TakeoffCode","string","");
+		isThisPSDModel = util.isPSDTakeOffModel(takeoffCode);
+		if(NOT(isThisPSDModel)){
+			allItemsArray = string[];
+		}
+	}
+	
+	//Changes made by Shardul end
+//If the ExternalSytem tag node doesn’t exist, we need to read the data from old tag
+if(isnull(allItemsArray) OR isempty(allItemsArray)){
+	allItemsArray = get(allItems, xpathItems[0]);
+	externalSysTagExists = false;
+}
+
+configurationType = "";
+configTypeInfo = get(allItems, xpathItems[8]);
+if(NOT(isnull(configTypeInfo))){
+	configurationType = configTypeInfo[0]; 
+}
+
+//print allItemsArray;
+if(NOT(isnull(allItemsArray))){ //Added to handle the exception if the bom xml is empty
+	for eachItemXML in allItemsArray {
+		 //print allItemsArray ;
+		 //print eachItemXML;
+		eachItem = readxmlsingle(eachItemXML, xpathItemDetail);
+		//print "eachItem = ";
+		//print eachItem;
+		if (debugMode) {
+			print eachItem;
+		}
+	        parentIndicator = util.getStringDict(eachItem, xpathItemDetail[0], "");
+	        itemID = util.getStringDict(eachItem, xpathItemDetail[1], "-1");
+	        parentItemID = util.getStringDict(eachItem, xpathItemDetail[2], "");
+	        catalogNumber = util.getStringDict(eachItem, xpathItemDetail[3], "");	// material #
+		SAPCatalogNumber = util.getStringDict(eachItem, xpathItemDetail[4], ""); // Catalog #
+	        productID = util.getStringDict(eachItem, xpathItemDetail[8], "");	// description
+
+	        quantity = util.getStringDict(eachItem, xpathItemDetail[5], "1");	// quantity
+	        listPrice = util.getStringDict(eachItem, xpathItemDetail[6], "");	// listPrice
+	        baseCurrency = util.getStringDict(eachItem, xpathItemDetail[7], "");
+	       // productID = util.getStringDict(eachItem, xpathItemDetail[8], "");	// description
+	        designation = util.getStringDict(eachItem, xpathItemDetail[9], "");	// customer part #
+	        productLine = util.getStringDict(eachItem, xpathItemDetail[10], "");
+	        productCode = util.getStringDict(eachItem, xpathItemDetail[11], "");
+		MaterialCost = util.getStringDict(eachItem, xpathItemDetail[12], "0.0"); //materialCost
+		technicalNotes = util.getStringDict(eachItem, xpathItemDetail[13], ""); //TechnicalNotes (Project# 49074)
+		leadTimeIndicator= util.getStringDict(eachItem, xpathItemDetail[14], ""); //LeadTimeIndicator (Project# 49074)
+		takeoffCode= util.getStringDict(eachItem, xpathItemDetail[15], ""); //LeadTimeIndicator (Project# 49074)
+		listPrice =  util.getStringDict(eachItem, xpathItemDetail[16], "0.0");																
+		cost  =  util.getStringDict(eachItem, xpathItemDetail[17], "0.0");
+		isPlaceholder =  util.getStringDict(eachItem, xpathItemDetail[18], "0");
+		completeConfig =  util.getStringDict(eachItem, xpathItemDetail[19], "Y");
+		brandCode = util.getStringDict(eachItem, xpathItemDetail[20], "");
+		productHierarchy = util.getStringDict(eachItem, xpathItemDetail[23], "");
+		configurationID = util.getStringDict(eachItem, xpathItemDetail[25], "");
+		plantCode = util.getStringDict(eachItem, xpathItemDetail[26], "");
+		itemCategory = "";
+		//Asper the new desing, we need to read the material #-- from tag MaterialNumber
+		//Asper the new desing, we need to read the Catalog #-- from tag MaterialNumber
+		//Asper the new desing, we need to read the description-- from tag ProductDescription
+		if(externalSysTagExists){print "External System ------";
+			/*catalogNumber = util.getStringDict(eachItem, xpathItemDetail[22], "");	// material #
+			SAPCatalogNumber = util.getStringDict(eachItem, xpathItemDetail[21], ""); // Catalog #
+			productID = util.getStringDict(eachItem, xpathItemDetail[24], "");	// description*/
+			/*CPQ-3678: Commented as we have capture the json object at the above
+			inputValues = dict("anytype");
+			put(inputValues,"inputXML","<BOM>"+eachItemXML+"</BOM>");
+			eachXMLNodeInJson = util.xmlToJSONConverter(inputValues);
+			externalSytem_json = json();
+			if(NOT(isnull(eachXMLNodeInJson))){
+				externalSytem_json = jsonget(eachXMLNodeInJson,"ExternalSytem","json",json());
+			}*/
+			catalogNumber = jsonget(externalSytem_json,"MaterialNumber","string","");
+			SAPCatalogNumber = jsonget(externalSytem_json,"CatalogNumber","string","");
+			productID = jsonget(externalSytem_json,"ProductDescription","string","");
+			productID = jsonget(externalSytem_json,"Description","string",productID);
+			listPrice =  jsonget(externalSytem_json,"ListPrice","string","0.0");
+			listPrice =  jsonget(externalSytem_json,"Price","string",listPrice);
+			if(listPrice == ""){
+				listPrice = "0.0";
+			}
+			MaterialCost = jsonget(externalSytem_json,"MaterialCost","string","0.0");
+			MaterialCost = jsonget(externalSytem_json,"Cost","string",MaterialCost);
+			if(MaterialCost == ""){
+				MaterialCost = "0.0";
+			}
+			cost = jsonget(externalSytem_json,"MaterialCost","string","0.0");
+			technicalNotes = jsonget(externalSytem_json,"TechnicalNotes","string","");
+			leadTimeIndicator = jsonget(externalSytem_json,"LeadTimeIndicator","string","");
+			takeoffCode = jsonget(externalSytem_json,"TakeoffCode","string","");
+			isPlaceholder = jsonget(externalSytem_json,"IsPlaceholder","string","0");
+			completeConfig = jsonget(externalSytem_json,"CompleteConfigurationFlag","string","Y");
+			brandCode = jsonget(externalSytem_json,"BrandCode","string","");
+			productHierarchy = jsonget(externalSytem_json,"ProductHierarchy","string","");
+			configurationID = jsonget(externalSytem_json,"ConfigurationID","string","");
+			plantCode = jsonget(externalSytem_json,"PlantCode","string","");
+			designation = jsonget(externalSytem_json,"Designation","string","");
+			CPIConfig = jsonget(externalSytem_json,"CPI","string",""); //CPQ-3617
+			PrintOnOutput = jsonget(externalSytem_json,"PrintOnOutput","string","true"); //CPQ-3669
+			PriceIncluded = jsonget(externalSytem_json,"PriceIncluded","string","false"); //CPQ-3669
+			itemCategory = jsonget(externalSytem_json,"ItemCategory","string","");
+			quantity = jsonget(externalSytem_json,"Quantity","string","1");		
+			productcode = jsonget(externalSytem_json,"productCode","string","");		
+		}
+		
+		if( parentIndicator == "C") {
+			print "Inside Parent Indicator C";
+			childItem = json();
+			jsonput(childItem, "itemID", itemID);
+			jsonput(childItem, "parentItemID", parentItemID);
+			jsonput(childItem, "catalogNumber", catalogNumber);
+			jsonput(childItem, "SAPCatalogNumber", SAPCatalogNumber);
+			jsonput(childItem, "quantity", quantity);
+			jsonput(childItem, "listPrice", listPrice);
+			jsonput(childItem, "baseCurrency", baseCurrency);
+			jsonput(childItem, "productID", productID);
+			jsonput(childItem, "designation", designation);
+			jsonput(childItem, "productCode", productCode);
+			jsonput(childItem, "MaterialCost", MaterialCost);
+			jsonput(childItem, "TechnicalNotes", technicalNotes);//Project# 49074
+			jsonput(childItem, "leadTimeIndicator", leadTimeIndicator);//Project# 49074
+			jsonput(childItem, "productLine", productLine);//Project# 49074
+			jsonput(childItem, "takeoffCode", takeoffCode);//Project# 49074
+			jsonput(childItem, "listPrice", listPrice);//Project# 49074																				 
+			jsonput(childItem, "cost", cost);//Project# 49074
+			jsonput(childItem, "isPlaceholder", isPlaceholder);//Project# 49074
+			jsonput(childItem, "completeConfig", completeConfig);//Project# 49074
+			jsonput(childItem, "brandCode", brandCode);//Project# 49074
+			jsonput(childItem, "productHierarchy", productHierarchy);//Project# 49074
+			jsonput(childItem, "configurationID", configurationID);//Project# 49074
+			jsonput(childItem, "plantCode", plantCode);//Project# 49074
+			jsonput(childItem, "CPIConfig", CPIConfig);//CPQ-3617
+			jsonput(childItem, "PrintOnOutput", PrintOnOutput);//CPQ-3669
+			jsonput(childItem, "PriceIncluded", PriceIncluded);//CPQ-3669
+			jsonput(childItem, "itemCategory", itemCategory);
+			jsonput(childItem, "configurationType", configurationType);
+			
+			childrenJsonArray= jsonget(result,"children","jsonarray",jsonarray());
+			jsonarrayappend(childrenJsonArray, childItem);
+			jsonput(result, "children", childrenJsonArray);
+		} else {
+			print "Inside Else of parent Indicator - Not C";
+			jsonput(result, "itemID", itemID);
+			jsonput(result, "parentItemID", parentItemID);
+			jsonput(result, "parentMaterialItem", catalogNumber);
+			jsonput(result, "catalogNumber", catalogNumber);
+			jsonput(result, "SAPCatalogNumber", SAPCatalogNumber);
+			jsonput(result, "quantity", quantity);
+			jsonput(result, "listPrice", listPrice);
+			jsonput(result, "baseCurrency", baseCurrency);
+			jsonput(result, "productID", productID);
+			jsonput(result, "designation", designation);
+			jsonput(result, "productCode", productCode);
+			jsonput(result, "MaterialCost", MaterialCost);
+			jsonput(result, "TechnicalNotes", technicalNotes);//Project# 49074
+			jsonput(result, "leadTimeIndicator", leadTimeIndicator);//Project# 49074
+			jsonput(result, "productLine", productLine);//Project# 49074
+			jsonput(result, "takeoffCode", takeoffCode);//Project# 49074							
+			jsonput(result, "cost", cost);//Project# 49074
+			jsonput(result, "isPlaceholder", isPlaceholder);//Project# 49074
+			jsonput(result, "completeConfig", completeConfig);//Project# 49074
+			jsonput(result, "brandCode", brandCode);//Project# 49074
+			jsonput(result, "productHierarchy", productHierarchy);//Project# 49074
+			jsonput(result, "configurationID", configurationID);//Project# 49074
+			jsonput(result, "plantCode", plantCode);//Project# 49074
+			jsonput(result, "CPIConfig", CPIConfig);//CPQ-3617
+			jsonput(result, "PrintOnOutput", PrintOnOutput);//CPQ-3669
+			jsonput(result, "PriceIncluded", PriceIncluded);//CPQ-3669
+			jsonput(result, "itemCategory", itemCategory);
+			jsonput(result, "configurationType", configurationType);
+		}
+	 }
+ }
+return result;

@@ -1,0 +1,3 @@
+result = "<table style='background-color:blue'><tbody><tr><td>HTML Table &#8364;</td></tr></tbody></table>";
+
+return result;

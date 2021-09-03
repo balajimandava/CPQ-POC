@@ -1,0 +1,14 @@
+{
+  "name" : "Assemble Transaction Values",
+  "variableName" : "assembleTransactionValues",
+  "description" : "Extract Transaction values for the provided bs id",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.u_logJson", "util.u_logJsonArray", "util.u_logString", "util.u_logStringDict" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "INPUT",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

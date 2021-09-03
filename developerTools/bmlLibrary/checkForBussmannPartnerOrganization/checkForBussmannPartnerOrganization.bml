@@ -1,0 +1,11 @@
+partnerUserBMQL = bmql("SELECT UserId FROM UserCustomerLookup WHERE UserId = $currentUserEmail");
+
+for eachUser in partnerUserBMQL {
+    distiChannel = get(eachUser, "UserId ");
+   if(distiChannel <> "")
+   {
+    return true;
+    }
+}
+
+return false;

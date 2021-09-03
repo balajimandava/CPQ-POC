@@ -1,0 +1,996 @@
+/*******************************************************************************************************
+//** Description: Approval process for B-LINE business group
+//**		  
+//**History:
+//**	Date         	Author       	Comment 
+//**	------------- 	--------------- ------------------------
+//**	05-Aug-2021 	Dhananjay 		Initial version
+//**
+//********************************************************************************************************/
+
+startTime = getcurrenttimeinmillis();
+
+//Variable Declaration
+finalJSONObj = json();
+finalJSONStr = "";
+resultStr = stringbuilder();
+finalMessageArray = string[];
+maxLevelOfApproval = 0;
+superUser="";
+previousApprovedValues= json();
+previouslyApproved= false;
+previouslyApprovedMaterialitems=String[];
+lineItemInfo = dict("dict<anytype>");
+isRevise= (previousAction_t == "revise");
+if (previousApprovedValues_t <> "") {
+	previousApprovedValues= json(previousApprovedValues_t);
+	previouslyApproved= true;
+}
+materialJsonArray = jsonarray();
+for line in transactionLine{
+	item = line.materialLineItem_l;
+	jsonarrayappend(materialJsonArray,item);
+}
+salesOrg = salesOrg_t;
+distributionChannel = distributionChannel_t;
+qqBusinessLineForSalesOrg = qqBusinessLineForSalesOrg_t;
+quoteStatus = status_t;
+transitionstepvalue=_system_current_step_var;
+actionName = jsonget(inputData,"action_name","string","");
+
+level3GroupedApprovals = string[];
+append(level3GroupedApprovals,"bline_territoryApproval");
+append(level3GroupedApprovals,"bline_totalTransactionPriceApproval");
+append(level3GroupedApprovals,"bline_validityPeriodApproval");
+append(level3GroupedApprovals,"bline_newItemApproval");
+
+level4GroupedApprovals = string[];
+append(level4GroupedApprovals ,"bline_deliveryTermsApproval");
+
+groupedApprovalsDict = dict("anytype");
+put(groupedApprovalsDict,"bline_discountThresholdQuoteRepApproval",level3GroupedApprovals);
+put(groupedApprovalsDict,"bline_bookPriceDateApproval",level4GroupedApprovals);
+
+itemJson = json();
+jsonput(itemJson, "materials", materialJsonArray);
+jsonput(itemJson, "catalogNumbers", materialJsonArray);
+jsonput(itemJson, "lang", language_t);
+jsonput(itemJson, "salesOrg", salesOrg);
+jsonput(itemJson, "distributionChannel", distributionChannel);
+multipleItemsJson = util.getMAT01DetailsForMultipleItems(itemJson);
+
+//This is to get only lebels in the JSON
+//To avoid the unnecessary data table calls.
+jsonput(inputData,"get_approvalLevelLabels_only",true);
+approversInfo = commerce.getBlineApprovers(inputData);
+//This label using in the banner
+approvalLevelLabels = jsonget(approversInfo, "approvalLevelLabels","json",json());
+//print approvalLevelLabels;
+feedbackflag= false;
+//If the action is Approve, then setting the current reason approval from Pending to Approved Where there is no pending approvers
+//Else preparing the required approvals
+if(actionName == "Approve" AND transactionLineApprovalInformation_t <> ""){
+	curr_reason_variable_name = jsonget(inputData,"_transaction_curr_reason_variable_name","string","");
+	finalJSONObj = json(transactionLineApprovalInformation_t);
+	currentApprovalNodeDetails = jsonget(finalJSONObj,curr_reason_variable_name,"json",json());
+	approvalLevel = jsonget(currentApprovalNodeDetails,"approvalLevel","string","");
+	approvalStatusKey = "level"+approvalLevel+"ApprovalStatus";
+	jsonput(currentApprovalNodeDetails,approvalStatusKey,"Approved");
+	jsonput(finalJSONObj,curr_reason_variable_name,currentApprovalNodeDetails);
+	maxLevelOfApproval = jsonget(finalJSONObj,"maxLevelOfApproval","integer",0);
+	
+	if(containskey(groupedApprovalsDict,curr_reason_variable_name)){
+		groupedApprovals = get(groupedApprovalsDict,curr_reason_variable_name,"string[]");
+		for eachReason in  groupedApprovals{
+			currentApprovalNodeDetails = jsonget(finalJSONObj,eachReason,"json",json());
+			approvalLevel = jsonget(currentApprovalNodeDetails,"approvalLevel","string","");
+			approvalStatusKey = "level"+approvalLevel+"ApprovalStatus";
+			jsonput(currentApprovalNodeDetails,approvalStatusKey,"Approved");
+			jsonput(finalJSONObj,curr_reason_variable_name,currentApprovalNodeDetails);
+		}
+	}
+	
+	ph5Digits = string[];
+	finalJSONStr = jsontostr(finalJSONObj);
+	pmApprovalRequire = false;
+	for line in transactionLine{
+		prodHArray = String[];
+		materialItem = line.materialLineItem_l;
+		documentNum = line._document_number;
+		listPrice = line.oldListPrice_l;
+		productType = line.qqProductType_l;
+		priceIncluded = line.priceIncluded_l;
+		prodHierarchy = line.materialPricingGroupFullText_l;
+		requestedDiscount = line.discountPercent_l;
+		lineSeqNum = line._sequence_number;
+		linediscountval=line.discountPercent_l;
+		feedbackval=line.feedbackDiscountPercent_l;
+		requirePMApproval = line.requirePMApproval_l;
+		if(requirePMApproval){
+			pmApprovalRequire = true;
+		}
+		eachLineInfo = dict("anytype");
+		PH5 = "";
+		
+		//Added by vasundhara for ALM-2007 - If list price is zero and Approved net price is more than 0 then also feedback has to be applied
+		if((linediscountval <> feedbackval OR ((line.netFixedAmountString_l <> line.approvedNetFixedAmount_l) AND line.oldListPrice_l == 0)) AND NOT(line.priceIncluded_l)) {
+			feedbackflag=true; // TO identify if feedback is applied.
+		}
+		
+		//Capturing the information to determine the discount thresholds
+		//If qqProductType_l is group, then prodHierarchy = line.materialPricingGroupFullText_l
+		//If the qqProductType_l is other than group, then consider the prodHierarchy, from MAT01 table for the current material.
+		if(line.qqProductType_l <> "group"){
+			records = json();
+			eachItemStr = jsonget(multipleItemsJson,materialItem);
+			if(NOT isnull(eachItemStr)){
+				records = json(eachItemStr);
+			}
+			prodHierarchy = jsonget(records, "PH5", "string", "");
+			PH5 = substring(prodHierarchy,9,12);
+			append(ph5Digits,PH5);
+		} else{
+			PH5 = substring(prodHierarchy,9,12);
+			append(ph5Digits,PH5);
+		}
+		put(eachLineInfo,"prodHArray",prodHArray);
+		put(eachLineInfo,"PH5",PH5);
+		put(eachLineInfo,"requirePMApproval_l",requirePMApproval);
+		put(lineItemInfo,documentNum,eachLineInfo);
+	}
+	
+	if(pmApprovalRequire){
+		//Product Line Managers for each PH5 value
+		//print ph5Digits;
+		pLMRecordSet = BMQL("SELECT DISTINCT PH5,PLM_E_Num, PLM_Name FROM BLine_Approver_Table WHERE PH5 IN $ph5Digits");
+		productLineManagers = dict("dict<string>");
+		for eachRec in pLMRecordSet{
+			ph5Val = get(eachRec,"PH5");
+			PLM_E_Num = get(eachRec,"PLM_E_Num");
+			PLM_Name = get(eachRec,"PLM_Name");
+			plmInfo = dict("string");
+			put(plmInfo,"PLM_E_Num",PLM_E_Num);
+			put(plmInfo,"PLM_Name",PLM_Name);
+			put(productLineManagers,ph5Val,plmInfo);
+		}
+		//print productLineManagers;
+		
+		lineItems = keys(lineItemInfo);
+		linesJsonArr = jsonarray();
+		productManagerApprovers = string[]; //this is using to avoid the duplicate values.
+		//Looping through the each line item details
+		for eachLine in lineItems{
+			eachLineInfo = get(lineItemInfo,eachLine);
+			requirePMApproval = get(eachLineInfo ,"requirePMApproval_l","boolean");
+			PH5 = get(eachLineInfo ,"PH5","string");
+			if(requirePMApproval){
+				if(containskey(productLineManagers,PH5)){
+					conditionObj = json();
+					productLineManager = get(productLineManagers,PH5);
+					productLineManagerENum = get(productLineManager,"PLM_E_Num");
+					productLineManagerName = get(productLineManager,"PLM_Name");
+					approvalLevelLabel = jsonget(approvalLevelLabels,"level5ApprovalLabel","string","");
+					if(len(productLineManagerENum)== 8 AND startswith(productLineManagerENum, "E")){
+						productLineManagerName = productLineManagerName + " ("+approvalLevelLabel+")";
+					}
+					jsonput(conditionObj,"approvalLevel","5");
+					jsonput(conditionObj, "level5ApprovalStatus", "Pending");
+					jsonput(conditionObj, "line_doc_nums", eachLine);
+					discountApproval= true;
+					if(maxLevelOfApproval < 5){
+						maxLevelOfApproval = 5;
+					}
+					level5Approvers = jsonarray();
+					level5ApproversNames = jsonarray();
+					
+					if(jsonpathcheck(finalJSONObj, "$.bline_discountThresholdProductManagerApproval")){
+						conditionObj = jsonget(finalJSONObj, "bline_discountThresholdProductManagerApproval","json",json());
+						existingLineNumber = jsonget(conditionObj, "line_doc_nums", "string","");
+						level5Approvers = jsonget(conditionObj, "level5Approver", "jsonarray",jsonarray());
+						level5ApproversNames = jsonget(conditionObj, "level5ApproversNames", "jsonarray",jsonarray());
+						if(findinarray(productManagerApprovers, productLineManagerENum) == -1){
+							jsonarrayappend(level5Approvers,productLineManagerENum);
+							jsonarrayappend(level5ApproversNames,productLineManagerName);
+							jsonput(conditionObj, "level5Approver", level5Approvers);
+							append(productManagerApprovers,productLineManagerName);
+						}
+						jsonput(conditionObj ,"level5ApprovalStatus","Pending");
+						jsonput(conditionObj, "line_doc_nums", existingLineNumber +","+eachLine);
+					}else{
+						jsonarrayappend(level5Approvers,productLineManagerENum);
+						jsonarrayappend(level5ApproversNames,productLineManagerName);
+						jsonput(conditionObj, "level5Approver", level5Approvers);
+						jsonput(conditionObj, "level5ApproversNames", level5ApproversNames);
+						jsonput(conditionObj ,"level5ApprovalStatus","Pending");
+						append(productManagerApprovers,productLineManagerName);
+					}
+					jsonput(finalJSONObj, "bline_discountThresholdProductManagerApproval", conditionObj);
+					
+					sbappend(resultStr,eachLine,"~approverName_l~",productLineManagerName,"|");
+					sbappend(resultStr,eachLine,"~approvalRequired_l~true|");
+				}
+			}
+		}
+	}
+	
+}else{
+	
+	//Getting the required approvers details
+	jsonput(inputData,"get_approvalLevelLabels_only",false);
+	approversInfo = commerce.getBlineApprovers(inputData);
+	//print approversInfo;
+	agencyNumber = jsonget(approversInfo,"Agency_Number","string","");
+	
+	level2Approver = jsonget(approversInfo,"sales_analyst","jsonarray",jsonarray());
+	level2ApproversNames = jsonget(approversInfo,"salesAnalystApproversNames","jsonarray",jsonarray());
+	
+	level3Approver = jsonget(approversInfo,"quote_rep_approvers","jsonarray",jsonarray());
+	level3ApproversNames = jsonget(approversInfo,"quoteRepApproversNames","jsonarray",jsonarray());
+	
+	quote_lead_approvers = jsonget(approversInfo,"quote_lead_approvers","jsonarray",jsonarray());
+	level4ApproverJson = json();
+	jsonput(level4ApproverJson, "level4Approver",quote_lead_approvers);
+	level4Approver = jsonpathgetmultiple(level4ApproverJson, "$.level4Approver[*].quoteManagerENum");
+	level4ApproversNames = jsonpathgetmultiple(level4ApproverJson, "$.level4Approver[*].quoteManagerName");
+	quoteManagerNameOnLIG = jsonpathgetmultiple(level4ApproverJson, "$.level4Approver[*].quoteManagerNameOnLIG");
+	
+	// Getting the list of Delivery Terms which don't require approval.
+	deliveryTermsFrmCUSMAS = string[];
+	deliveryRS = BMQL("Select Distinct INCO1 From CUSMAS Where KUNNR = $customerNumber_t AND VKORG = $salesOrg_t");
+	for eachRow in deliveryRS {
+		append(deliveryTermsFrmCUSMAS, get(eachRow, "INCO1"));
+	}
+	
+	//Delivery Terms -- Approval
+	if((transactionType_t == "DS" 
+	  OR transactionType_t=="WQ")) {
+		deliveryTerms = agreementDeliveryTerms_t;
+		if(findinarray(deliveryTermsFrmCUSMAS, deliveryTerms) == -1) {
+			if(jsonarraysize(level4Approver) > 0){
+				if(maxLevelOfApproval < 4){
+					maxLevelOfApproval = 4;
+				}
+				nonStandardDeliveryTermsApproval = json();
+				jsonput(nonStandardDeliveryTermsApproval ,"approvalLevel","4");
+				jsonput(nonStandardDeliveryTermsApproval ,"level4Approver",level4Approver);
+				jsonput(nonStandardDeliveryTermsApproval ,"level4ApproversNames",level4ApproversNames);
+				jsonput(nonStandardDeliveryTermsApproval ,"level4ApprovalStatus","Pending");
+				jsonput(finalJSONObj, "bline_deliveryTermsApproval", nonStandardDeliveryTermsApproval);
+			}
+		}
+	}
+	
+	if((transactionType_t == "DS" 
+	  OR transactionType_t=="WQ" 
+	  OR transactionType_t == "RQ"
+	  OR transactionType_t == "CSP")){
+	  	if((find(quoteSubmitter_t,"approverWithMarginBline") == -1)){
+			//Territory -- Approval
+			territoryRecordSet = BMQL ("Select Territory from Territory WHERE Agency_Number = $agencyNumber");
+			agentRegionNotInTerritory = true;
+			for territoryRecord in territoryRecordSet{
+				territoryVal = get(territoryRecord,"Territory");
+				if(qqCountryRegion_t == territoryVal){
+					agentRegionNotInTerritory = false;
+					break;
+				}
+			}
+			if(agentRegionNotInTerritory){
+				if(jsonarraysize(level3Approver) > 0){
+					if(maxLevelOfApproval < 3){
+						maxLevelOfApproval = 3;
+					}
+					territoryAuthorityApproval = json();
+					jsonput(territoryAuthorityApproval ,"approvalLevel","3");
+					jsonput(territoryAuthorityApproval ,"level3Approver",level3Approver);
+					jsonput(territoryAuthorityApproval ,"level3ApproversNames",level3ApproversNames);
+					jsonput(territoryAuthorityApproval ,"level3ApprovalStatus","Pending");
+					jsonput(finalJSONObj, "bline_territoryApproval", territoryAuthorityApproval);
+				}
+			}
+			//Total Transaction Price Approval
+			//Bypass in case of Pricing Manager submit the quote ALM#2155
+			if((qqTotalValue_t > 100000.00) AND find(quoteSubmitter_t, "bLinePricingManagerTeam") == -1){
+				if(jsonarraysize(level3Approver) > 0){
+					if(maxLevelOfApproval < 3){
+						maxLevelOfApproval = 3;
+					}
+					totalTransactionValueApproval = json();
+					jsonput(totalTransactionValueApproval ,"approvalLevel","3");
+					jsonput(totalTransactionValueApproval ,"level3Approver",level3Approver);
+					jsonput(totalTransactionValueApproval ,"level3ApproversNames",level3ApproversNames);
+					jsonput(totalTransactionValueApproval ,"level3ApprovalStatus","Pending");
+					jsonput(finalJSONObj, "bline_totalTransactionPriceApproval", totalTransactionValueApproval);
+				}
+			}
+		}
+		//Book Price Date:
+		if(bookPriceDate_t <> ""){
+			createdDate = strtojavadate(createdDate_t,"yyyy-MM-dd");
+			bookPriceDate = strtojavadate(bookPriceDate_t,"yyyy-MM-dd");
+			if(comparedates(bookPriceDate, createdDate ) == -1){
+				if(jsonarraysize(level4Approver) > 0){
+					if(maxLevelOfApproval < 4){
+						maxLevelOfApproval = 4;
+					}
+					bookPriceDateApproval = json();
+					jsonput(bookPriceDateApproval ,"approvalLevel","4");
+					jsonput(bookPriceDateApproval ,"level4Approver",level4Approver);
+					jsonput(bookPriceDateApproval ,"level4ApproversNames",level4ApproversNames);
+					jsonput(bookPriceDateApproval ,"level4ApprovalStatus","Pending");
+					jsonput(finalJSONObj, "bline_bookPriceDateApproval", bookPriceDateApproval);
+				}
+			}
+		}
+		//Validity Period:
+		approvalTriggers = bmql("select value from ApprovalTriggers where salesOrg=$salesOrg_t AND TransactionType=$transactionType_t AND key='agreementValidDays'");
+		for record in approvalTriggers {
+			days=get(record ,"value");
+			agreementValidDays = atoi(days);
+		}
+		if(agreementValidFrom_t <> "" AND agreementValidTo_t <> ""){
+			validDays = getdiffindays(strtojavadate(agreementValidFrom_t, "yyyy-MM-dd HH:mm:ss"), strtojavadate(agreementValidTo_t, "yyyy-MM-dd HH:mm:ss"));
+			if(validDays>agreementValidDays AND (find(quoteSubmitter_t,"approverWithMarginBline") == -1)){
+				if(jsonarraysize(level3Approver) > 0){
+					if(maxLevelOfApproval < 3){
+						maxLevelOfApproval = 3;
+					}
+					validityPeriodApproval = json();
+					jsonput(validityPeriodApproval ,"approvalLevel","3");
+					jsonput(validityPeriodApproval ,"level3Approver",level3Approver);
+					jsonput(validityPeriodApproval ,"level3ApproversNames",level3ApproversNames);
+					jsonput(validityPeriodApproval ,"level3ApprovalStatus","Pending");
+					jsonput(finalJSONObj, "bline_validityPeriodApproval", validityPeriodApproval);
+				}
+			}
+		}
+	}
+	
+	if(transactionType_t == "RQ"
+	  OR transactionType_t == "CSP"){
+		endCustomerUpdatedFlag = false;
+		isSubmitteByFnMUser = false;
+		submitterDetails = split(quoteSubmitter_t, "@#@");
+		submitterGroups = submitterDetails[1];
+		
+		isSubmitteByFnMUser = (find(submitterGroups, "approverWithMarginBline") <> -1); // True for FnM user
+		
+		if(endCustomerNumbers_t <> "" AND NOT isSubmitteByFnMUser){
+			jsonOldEndCustList = jsonarray(endCustomerNumbers_t);
+		
+			if(jsonarraysize(jsonOldEndCustList) <> jsonarraysize(endCustomerArraySet2_t)){
+				endCustomerUpdatedFlag = true;
+			}
+			else{
+				vRang = range(jsonarraysize(endCustomerArraySet2_t)); // get range of end customers 
+				
+				for eachCustomer in vRang{
+					endCustJson = json();
+					eachEndCustomer = jsonarrayget(endCustomerArraySet2_t, eachCustomer, "json"); // get each end customer
+					customer_EndCus2_t = jsonget(eachEndCustomer, "customer_EndCus2_t","string"); // get customer number
+					
+					if (find (endCustomerNumbers_t, customer_EndCus2_t) == -1){
+						endCustomerUpdatedFlag = true;
+						break;
+					}
+				}
+			}
+		}elif((endCustomerNumbers_t == "" AND NOT isSubmitteByFnMUser) 
+			AND (jsonarraysize(endCustomerArraySet2_t) > 0 OR jsonarraysize(nt_selectedEndCustomerArrayset_t) > 0) ){ // This is for new Transactions
+			
+			endCustomerUpdatedFlag = true;
+		}
+		if(endCustomerUpdatedFlag){
+			if(jsonarraysize(level3Approver) > 0){
+				if(maxLevelOfApproval < 3){
+					maxLevelOfApproval = 3;
+				}
+				endCustomerApproval = json();
+				jsonput(endCustomerApproval ,"approvalLevel","3");
+				jsonput(endCustomerApproval ,"level3Approver",level3Approver);
+				jsonput(endCustomerApproval ,"level3ApproversNames",level3ApproversNames);
+				jsonput(endCustomerApproval ,"level3ApprovalStatus","Pending");
+				jsonput(finalJSONObj, "bline_endCustomerApproval", endCustomerApproval);
+			}
+		}
+	}
+	
+	//Capturing the information for Discount and Line Level Approvals
+	transactionType = "";
+	bLineTransactionTypeRecordSet = BMQL("SELECT BLine_TransactType from TransationTypeCode WHERE TransactionType = $transactionType_t");
+	for bLineTransactionTypeRecord in bLineTransactionTypeRecordSet{
+		transactionType = get(bLineTransactionTypeRecord,"BLine_TransactType");
+		break; //only one record is expected.
+	}
+	
+	//Capturing the NEW ITEM MATERIALS for B-LINE 
+	newMaterialItems_qry = bmql("SELECT Item FROM NewMaterialItems WHERE BusinessGroup = $qqBusinessLineForSalesOrg");
+	newMaterialItems = string[];
+	for eachNewMaterialRec in newMaterialItems_qry{
+		append(newMaterialItems,get(eachNewMaterialRec,"Item"));
+	}
+	
+		
+	lookupValueArray = String[]; //Contains LookupValue which needs to search in Thresholds_BLine table under Lookup_Value column.
+	lineItemDetails = json();
+	ph5Digits = string[];
+	//lineItemInfo = dict("dict<anytype>");
+	
+	for line in transactionLine{
+		prodHArray = String[];
+		materialItem = line.materialLineItem_l;
+		documentNum = line._document_number;
+		listPrice = line.oldListPrice_l;
+		productType = line.qqProductType_l;
+		priceIncluded = line.priceIncluded_l;
+		prodHierarchy = line.materialPricingGroupFullText_l;
+		requestedDiscount = line.discountPercent_l;
+		lineSeqNum = line._sequence_number;
+		eachLineInfo = dict("anytype");
+		PH5 = "";
+		/************START COPY/REVISE/VERSION logic for line item***************************************************************************/
+		previouslyApprovedLine=false;
+		currencySymbol = currencySymbol_t;
+		currencydecimalseparatorval=currencyDecimalSeparator_t;
+		discountNetAmount= util.stringToFloat(replace(replace(replace(line.discountString_l, currencySymbol, ""), "%", ""), currencydecimalseparatorval, "."));
+		path= "$..[?(@.materialLineItem_l=='" + line.materialLineItem_l + "')]";	  
+		previousApprovalManyJsonPath= jsonpathgetmultiple(previousApprovedValues,path,true);	
+		discountType = line.customDiscountType_l;
+		
+		 if (previouslyApproved){
+			loopCNT= range(jsonarraysize(previousApprovalManyJsonPath));
+			previouslyApprovedItemFound= false;
+			eachItemJson= json();
+			for eachPathIdx in loopCNT{
+				pathName= jsonarrayget(previousApprovalManyJsonPath,eachPathIdx,"string");
+				eachItemJson= jsonpathgetsingle(previousApprovedValues,pathName,"json");
+				previouslyApprovedItemFound= true;		  
+				previouslyApprovedDiscountType= jsonpathgetsingle(eachItemJson,"$.customDiscountType_l.value","string","");
+				previouslyApprovedDiscountNetValueString= jsonget(eachItemJson,"discountString_l","string","0.0");	
+		
+				//Getting feedback values to compare with current discount 
+				previouslyApprovedFeedbackValue= jsonget(eachItemJson,"feedbackDiscount_l","string","0.0");	
+				previouslyApprovedMaterial= jsonpathgetsingle(eachItemJson,"$.materialLineItem_l","string","");
+				if (NOT(ISNULL(previouslyApprovedMaterial))){
+					append(previouslyApprovedMaterialitems,previouslyApprovedMaterial);
+				}
+				 
+				if(isnull(previouslyApprovedDiscountNetValueString)){
+					previouslyApprovedDiscountNetValueString = "";
+				}	
+				if(isnull(previouslyApprovedFeedbackValue)){
+					previouslyApprovedFeedbackValue = "";
+				}
+				previouslyApprovedDiscountNetValue= util.stringToFloat(replace(replace(replace(previouslyApprovedDiscountNetValueString, currencySymbol, ""), "%", ""), currencydecimalseparatorval, "."));		
+				feedbackAmount= util.stringToFloat(replace(replace(replace(previouslyApprovedFeedbackValue, currencySymbol, ""), "%", ""), currencydecimalseparatorval, "."));		
+		
+				// If this is a new verion (isVersion) and the row discountType=amt then approval is required again
+				if (previouslyApprovedItemFound) {  //  Only check if we found the item
+					if (isRevise) {
+					  // No approval needed if the previous approval was a percent and the current discount is less or equal
+					 if (previouslyApprovedDiscountType == "percent" AND discountNetAmount <= previouslyApprovedDiscountNetValue AND discountType == "percent"
+						AND feedbackAmount == discountNetAmount){	
+							previouslyApprovedLine= true;
+						}
+					// If it was an amount and the amount is lowered then approval is needed
+					  elif (previouslyApprovedDiscountType == "amt" AND discountNetAmount >= previouslyApprovedDiscountNetValue AND discountType == "amt" 
+							AND feedbackAmount == discountNetAmount)
+						{
+						  previouslyApprovedLine= true;
+						}
+					//Comparing Feedback Values and current values for DE1811 by Tanya Arora
+						elif(feedbackAmount <> discountNetAmount){
+							// If feedback values is not same as current discount values then needs to be approved
+						   previouslyApprovedLine = false;
+						}
+					}
+				}
+		
+			} 
+			if(findinarray(previouslyApprovedMaterialitems,line.materialLineItem_l)==-1){
+					previouslyApprovedLine = false;
+			}
+			
+			//  Skip the rest of the checks if this is a previously approved line
+			if (previouslyApprovedLine) {
+				//put(eachLineInfo,"previouslyApprovedLine",previouslyApprovedLine);
+				continue;
+			}
+			
+		}
+		 
+		/************END COPY/REVISE/VERSION logic for line item***************************************************************************/
+		
+		
+		//If Quote is in pending Approval status then requested discount needs to consider as feedback discount.
+		//For all other status check discountPercent_l value.
+		if(transitionstepvalue == "pendingApproval"){
+			requestedDiscount = line.feedbackDiscountPercent_l;
+		}
+		put(eachLineInfo,"requestedDiscount",requestedDiscount);
+		put(eachLineInfo,"lineSeqNum",lineSeqNum);
+		
+		if((transactionType_t == "DS" 
+			OR transactionType_t=="WQ" )){
+			
+			//NEWITEM Approvals
+			if(findinarray(newMaterialItems,materialItem) <> -1 AND (find(quoteSubmitter_t,"approverWithMarginBline") == -1)){
+				if(jsonarraysize(level3Approver) > 0){
+					if(maxLevelOfApproval < 3){
+						maxLevelOfApproval = 3;
+					}
+					
+					newItemApproval = json();
+					jsonput(newItemApproval ,"approvalLevel","3");
+					jsonput(newItemApproval ,"level3Approver",level3Approver);
+					jsonput(newItemApproval ,"level3ApproversNames",level3ApproversNames);
+					jsonput(newItemApproval ,"level3ApprovalStatus","Pending");
+					jsonput(finalJSONObj, "bline_newItemApproval", newItemApproval);
+
+					approversNamesStr = jsonarraytostr(level3ApproversNames);
+					approversNamesStr = replace(approversNamesStr ,"[\"","");
+					approversNamesStr = replace(approversNamesStr ,"\",\"",",");
+					approversNamesStr = replace(approversNamesStr ,"\"]","");
+					sbappend(resultStr,documentNum,"~approverName_l~",approversNamesStr,"|");
+					sbappend(resultStr,documentNum,"~approvalRequired_l~true|");
+				}
+			}
+		}
+		
+		//Zero List Price Approvals
+		if(listPrice == 0.0 AND materialItem <> "" AND productType <>"group" 
+			AND (find(quoteSubmitter_t,"approverWithMarginBline") == -1) AND NOT(priceIncluded)){
+			
+			if(jsonarraysize(level3Approver) > 0){
+				if(maxLevelOfApproval < 3){
+					maxLevelOfApproval = 3;
+				}
+				zeroListPriceApproval= json();
+				jsonput(zeroListPriceApproval,"approvalLevel","3");
+				jsonput(zeroListPriceApproval,"level3Approver",level3Approver);
+				jsonput(zeroListPriceApproval,"level3ApproversNames",level3ApproversNames);
+				jsonput(zeroListPriceApproval,"level3ApprovalStatus","Pending");
+				jsonput(finalJSONObj, "bline_zeroListPriceApproval", zeroListPriceApproval);
+				
+				approversNamesStr = jsonarraytostr(level3ApproversNames);
+				approversNamesStr = replace(approversNamesStr ,"[\"","");
+				approversNamesStr = replace(approversNamesStr ,"\",\"",",");
+				approversNamesStr = replace(approversNamesStr ,"\"]","");
+				sbappend(resultStr,documentNum,"~approverName_l~",approversNamesStr,"|");
+				sbappend(resultStr,documentNum,"~approvalRequired_l~true|");
+			}
+		}
+		
+		//Capturing the information to determine the discount thresholds
+		//If qqProductType_l is group, then prodHierarchy = line.materialPricingGroupFullText_l
+		//If the qqProductType_l is other than group, then consider the prodHierarchy, from MAT01 table for the current material.
+		if(line.qqProductType_l <> "group"){
+			records = json();
+			eachItemStr = jsonget(multipleItemsJson,materialItem);
+			if(NOT isnull(eachItemStr)){
+				records = json(eachItemStr);
+			}
+			prodHierarchy = jsonget(records, "PH5", "string", "");
+			append(prodHArray,"Material_" + materialItem);
+			if(findinarray(lookupValueArray,materialItem) == -1){
+				append(lookupValueArray,materialItem);
+			}
+			
+			PH6PH7 = substring(prodHierarchy,12,18);
+			append(prodHArray,"PH6PH7_" + PH6PH7);
+			if(findinarray(lookupValueArray,PH6PH7) == -1){
+				append(lookupValueArray,PH6PH7);
+			}
+			PH7 = substring(prodHierarchy,15,18);
+			append(prodHArray,"PH7_" + PH7);
+			if(findinarray(lookupValueArray,PH7) == -1){
+				append(lookupValueArray,PH7);
+			}
+			PH5 = substring(prodHierarchy,9,12);
+			append(prodHArray,"PH5_" + PH5);
+			if(findinarray(lookupValueArray,PH5) == -1){
+				append(lookupValueArray,PH5);
+			}
+			
+			PH4 = substring(prodHierarchy,6,9);
+			append(prodHArray,"PH4_" +PH4);
+			if(findinarray(lookupValueArray,PH4) == -1){
+				append(lookupValueArray,PH4);
+			}
+			append(ph5Digits,PH5);
+		} else{
+			PH5 = substring(prodHierarchy,9,12);
+			append(prodHArray,"PH5_" + PH5);
+			if(findinarray(lookupValueArray,PH5) == -1){
+				append(lookupValueArray,PH5);
+			}
+			
+			PH4 = substring(prodHierarchy,6,9);
+			append(prodHArray,"PH4_" + PH4);
+			if(findinarray(lookupValueArray,PH4) == -1){
+				append(lookupValueArray,PH4);
+			}
+			append(ph5Digits,PH5);
+		}
+		put(eachLineInfo,"prodHArray",prodHArray);
+		put(eachLineInfo,"PH5",PH5);
+		put(eachLineInfo,"requirePMApproval_l",line.requirePMApproval_l);
+		put(lineItemInfo,documentNum,eachLineInfo);
+		
+		/************Currency Profile Check ****************/
+		currencyflag=false;
+		feedbackvalue= line.discountPercentNetApprovedString_l;	
+		currencyThousandseparatorval=currencyThousandsSeparator_t;
+		feedbackdecimal=find(feedbackvalue,currencydecimalseparatorval);
+		feedbackthousandval=find(feedbackvalue,currencyThousandseparatorval);
+		if((feedbackdecimal == -1) AND (feedbackthousandval== -1)){
+			currencyflag = false;
+		}
+		elif (feedbackdecimal == -1){
+			currencyflag = true;
+		}
+		sbappend(resultStr,documentNum,"~currencyflag_l~",string(currencyflag),"|");
+
+		/************END of Currency Profile Check ****************/
+	}
+	
+	//Product Line Managers for each PH5 value
+	//print ph5Digits;
+	pLMRecordSet = BMQL("SELECT DISTINCT PH5,PLM_E_Num, PLM_Name FROM BLine_Approver_Table WHERE PH5 IN $ph5Digits");
+	productLineManagers = dict("dict<string>");
+	for eachRec in pLMRecordSet{
+		ph5Val = get(eachRec,"PH5");
+		PLM_E_Num = get(eachRec,"PLM_E_Num");
+		PLM_Name = get(eachRec,"PLM_Name");
+		plmInfo = dict("string");
+		put(plmInfo,"PLM_E_Num",PLM_E_Num);
+		put(plmInfo,"PLM_Name",PLM_Name);
+		put(productLineManagers,ph5Val,plmInfo);
+	}
+	//print productLineManagers;
+	
+	//print lineItemInfo;
+	agencyAssignment = "";
+	stringDictParam = dict("string");
+	agencyAssignmentPath = "$.quote_lead_approvers[?(@.agencyNumber=='"+agencyNumber+"')].agencyAssignment";
+	if(jsonpathcheck(approversInfo,agencyAssignmentPath)){
+		agencyAssignment = jsonpathgetsingle(approversInfo,agencyAssignmentPath,"string","");
+	}
+	//print lookupValueArray;
+	//print agencyAssignment;
+	//print transactionType;
+	lookupDict = util.getBLineThreshold(lookupValueArray, agencyAssignment, transactionType, stringDictParam);
+	
+	//print lookupDict;
+	whatLevelOfDiscountApprovalRequired = "";
+	lineItems = keys(lineItemInfo);
+	linesJsonArr = jsonarray();
+	productManagerApprovers = string[]; //this is using to avoid the duplicate values.
+	//Looping through the each line item details
+	for eachLine in lineItems{
+		eachLineInfo = get(lineItemInfo,eachLine);
+		requestedDiscount = get(eachLineInfo ,"requestedDiscount","float");
+		requirePMApproval = get(eachLineInfo ,"requirePMApproval_l","boolean");
+		requestedDiscount = requestedDiscount/100;
+		PH5 = get(eachLineInfo ,"PH5","string");
+		
+		//Threshold Variables
+		salesAgentThreshold = 0.0;
+		salesAnalystThreshold = 0.0;
+		quoteRepsThreshold = 0.0;
+		quotesLeadsThreshold = 0.0;
+		productManagerThreshold  = 0.0;
+	
+		prodHArray = string[];
+		conditionObj = json();
+		discountApproval= false;
+		approvalRequired = false;
+		sbappend(resultStr,eachLine,"~approverName_l~|");
+		if(containskey(eachLineInfo,"prodHArray")){
+			prodHArray = get(eachLineInfo ,"prodHArray","string[]");
+			for eachProdH in prodHArray{
+				if(containskey(lookupDict,eachProdH)){
+				//print "******"+eachProdH+"***********";
+					thresholdDataDict = get(lookupDict,eachProdH);
+					if(isNumber(get(thresholdDataDict,"Sales_Agents"))){
+						salesAgentThreshold = atof(get(thresholdDataDict,"Sales_Agents"));
+					}
+					if(isNumber(get(thresholdDataDict,"Sales_Analyst"))){
+						salesAnalystThreshold = atof(get(thresholdDataDict,"Sales_Analyst"));
+					}
+					
+					if(isNumber(get(thresholdDataDict,"Quotes_Reps"))){
+						quoteRepsThreshold = atof(get(thresholdDataDict,"Quotes_Reps"));
+					}
+					if(isNumber(get(thresholdDataDict,"Quotes_Leads"))){
+						quotesLeadsThreshold = atof(get(thresholdDataDict,"Quotes_Leads"));
+					}
+					
+					if(isNumber(get(thresholdDataDict,"Product_Manager"))){
+						productManagerThreshold = atof(get(thresholdDataDict,"Product_Manager"));
+					}
+					
+					break;
+				}
+			}
+			/*print "******"+eachLine+"***********";
+			print "requestedDiscount ::"+string(requestedDiscount);
+			print salesAgentThreshold;
+			print salesAnalystThreshold;
+			print quoteRepsThreshold;
+			print quotesLeadsThreshold;
+			print productManagerThreshold;
+			print "****end OIF **"+eachLine+"***********";*/
+			
+			if(requestedDiscount > (salesAgentThreshold) AND salesAgentThreshold> 0.0
+				AND (find(quoteSubmitter_t,"approverWithMarginBline") == -1) 
+			    AND find(quoteSubmitter_t,"bussmannInsideSales") == -1) // condition is modified in order to handle the condition based on F&M Group in case of Thresholds
+			{
+				discountApproval= true;
+				if(maxLevelOfApproval < 2){
+					maxLevelOfApproval = 2;
+				}
+				whatLevelOfDiscountApprovalRequired = string(maxLevelOfApproval);
+				jsonput(conditionObj,"approvalLevel","2");
+				jsonput(conditionObj, "level2Approver", level2Approver);
+				jsonput(conditionObj, "level2ApproversNames", level2ApproversNames);
+				jsonput(conditionObj, "level2ApprovalStatus", "Pending");
+				jsonput(conditionObj, "line_doc_nums", eachLine);
+
+				if(jsonpathcheck(finalJSONObj, "$.bline_discountThresholdSalesAnalystApproval")){
+					conditionObj = jsonget(finalJSONObj, "bline_discountThresholdSalesAnalystApproval","json",json());
+					existingLineNumber = jsonget(conditionObj, "line_doc_nums", "string","");
+					jsonput(conditionObj, "line_doc_nums", existingLineNumber +","+eachLine);
+				}
+				jsonput(finalJSONObj, "bline_discountThresholdSalesAnalystApproval", conditionObj);
+				
+				approversNamesStr = jsonarraytostr(level2ApproversNames);
+				approversNamesStr = replace(approversNamesStr ,"[\"","");
+				approversNamesStr = replace(approversNamesStr ,"\",\"",",");
+				approversNamesStr = replace(approversNamesStr ,"\"]","");
+				sbappend(resultStr,eachLine,"~approverName_l~",approversNamesStr,"|");
+				approvalRequired = true;
+			}
+			
+			if(requestedDiscount > salesAnalystThreshold AND salesAnalystThreshold > 0.0){
+				if(jsonarraysize(level3Approver) > 0){
+					conditionObj = json();
+					jsonput(conditionObj,"approvalLevel","3");
+					jsonput(conditionObj, "level3Approver", level3Approver);
+					jsonput(conditionObj,"level3ApproversNames",level3ApproversNames);
+					jsonput(conditionObj, "level3ApprovalStatus", "Pending");
+					jsonput(conditionObj, "line_doc_nums", eachLine);
+					discountApproval= true;
+					if(maxLevelOfApproval < 3){
+						maxLevelOfApproval = 3;
+					}
+					whatLevelOfDiscountApprovalRequired = string(maxLevelOfApproval);
+					if(jsonpathcheck(finalJSONObj, "$.bline_discountThresholdQuoteRepApproval")){
+						conditionObj = jsonget(finalJSONObj, "bline_discountThresholdQuoteRepApproval","json",json());
+						existingLineNumber = jsonget(conditionObj, "line_doc_nums", "string","");
+						jsonput(conditionObj, "line_doc_nums", existingLineNumber +","+eachLine);
+					}
+					jsonput(finalJSONObj, "bline_discountThresholdQuoteRepApproval", conditionObj);
+					
+					approversNamesStr = jsonarraytostr(level3ApproversNames);
+					approversNamesStr = replace(approversNamesStr ,"[\"","");
+					approversNamesStr = replace(approversNamesStr ,"\",\"",",");
+					approversNamesStr = replace(approversNamesStr ,"\"]","");
+					sbappend(resultStr,eachLine,"~approverName_l~",approversNamesStr,"|");
+					approvalRequired = true;
+				}
+			}
+			
+			if((requestedDiscount > quoteRepsThreshold AND quoteRepsThreshold > 0.0)
+				AND (requestedDiscount < productManagerThreshold)){
+				if(jsonarraysize(level4Approver) > 0){
+					conditionObj = json();
+					jsonput(conditionObj,"approvalLevel","4");
+					jsonput(conditionObj, "level4Approver", level4Approver);
+					jsonput(conditionObj,"level4ApproversNames",level4ApproversNames);
+					jsonput(conditionObj, "level4ApprovalStatus", "Pending");
+					jsonput(conditionObj, "line_doc_nums", eachLine);
+					discountApproval= true;
+					if(maxLevelOfApproval < 4){
+						maxLevelOfApproval = 4;
+					}
+					whatLevelOfDiscountApprovalRequired = string(maxLevelOfApproval);
+					if(jsonpathcheck(finalJSONObj, "$.bline_discountThresholdQuotesLeadsApproval")){
+						conditionObj = jsonget(finalJSONObj, "bline_discountThresholdQuotesLeadsApproval","json",json());
+						existingLineNumber = jsonget(conditionObj, "line_doc_nums", "string","");
+						jsonput(conditionObj, "line_doc_nums", existingLineNumber +","+eachLine);
+					}
+					jsonput(finalJSONObj, "bline_discountThresholdQuotesLeadsApproval", conditionObj);
+					
+					approversNamesStr = jsonarraytostr(quoteManagerNameOnLIG);
+					approversNamesStr = replace(approversNamesStr ,"[\"","");
+					approversNamesStr = replace(approversNamesStr ,"\",\"",",");
+					approversNamesStr = replace(approversNamesStr ,"\"]","");
+					sbappend(resultStr,eachLine,"~approverName_l~",approversNamesStr,"|");
+					approvalRequired = true;
+				}
+			}
+			
+			if((requestedDiscount > quotesLeadsThreshold AND quotesLeadsThreshold > 0.0) OR requirePMApproval){
+				if(containskey(productLineManagers,PH5)){
+					conditionObj = json();
+					productLineManager = get(productLineManagers,PH5);
+					productLineManagerENum = get(productLineManager,"PLM_E_Num");
+					productLineManagerName = get(productLineManager,"PLM_Name");
+					approvalLevelLabel = jsonget(approvalLevelLabels,"level5ApprovalLabel","string","");
+					if(len(productLineManagerENum)== 8 AND startswith(productLineManagerENum, "E")){
+						productLineManagerName = productLineManagerName + " ("+approvalLevelLabel+")";
+					}
+					jsonput(conditionObj,"approvalLevel","5");
+					jsonput(conditionObj, "level5ApprovalStatus", "Pending");
+					jsonput(conditionObj, "line_doc_nums", eachLine);
+					discountApproval= true;
+					if(maxLevelOfApproval < 5){
+						maxLevelOfApproval = 5;
+					}
+					whatLevelOfDiscountApprovalRequired = string(maxLevelOfApproval);
+					level5Approvers = jsonarray();
+					level5ApproversNames = jsonarray();
+					
+					if(jsonpathcheck(finalJSONObj, "$.bline_discountThresholdProductManagerApproval")){
+						conditionObj = jsonget(finalJSONObj, "bline_discountThresholdProductManagerApproval","json",json());
+						existingLineNumber = jsonget(conditionObj, "line_doc_nums", "string","");
+						level5Approvers = jsonget(conditionObj, "level5Approver", "jsonarray",jsonarray());
+						level5ApproversNames = jsonget(conditionObj, "level5ApproversNames", "jsonarray",jsonarray());
+						if(findinarray(productManagerApprovers, productLineManagerENum) == -1){
+							jsonarrayappend(level5Approvers,productLineManagerENum);
+							jsonarrayappend(level5ApproversNames,productLineManagerName);
+							jsonput(conditionObj, "level5Approver", level5Approvers);
+							append(productManagerApprovers,productLineManagerName);
+						}
+						jsonput(conditionObj, "line_doc_nums", existingLineNumber +","+eachLine);
+					}else{
+						jsonarrayappend(level5Approvers,productLineManagerENum);
+						jsonarrayappend(level5ApproversNames,productLineManagerName);
+						jsonput(conditionObj, "level5Approver", level5Approvers);
+						jsonput(conditionObj, "level5ApproversNames", level5ApproversNames);
+						append(productManagerApprovers,productLineManagerName);
+					}
+					jsonput(finalJSONObj, "bline_discountThresholdProductManagerApproval", conditionObj);
+					
+					sbappend(resultStr,eachLine,"~approverName_l~",productLineManagerName,"|");
+					approvalRequired = true;
+				}
+			}
+		}
+		sbappend(resultStr,eachLine,"~approvalRequired_l~",string(approvalRequired),"|");
+
+		/*if(discountApproval){
+			jsonarrayappend(linesJsonArr, lineObj);
+		}*/
+	}
+	
+	jsonput(finalJSONObj, "maxLevelOfApproval", maxLevelOfApproval);
+	if(maxLevelOfApproval > 0){
+		finalJSONStr = jsontostr(finalJSONObj);
+	}
+	sbappend(resultStr,"1~whatLevelOfDiscountApprovalRequired_t~",whatLevelOfDiscountApprovalRequired,"|");
+}
+
+///////////////////////Superuserlogic//////////////////////////////////////////
+superUserRecordSet = BMQL("SELECT SuperUserEnumber from SuperUser WHERE BusinessGroup = $qqBusinessLineForSalesOrg");
+for superUserRecord in superUserRecordSet{
+	superUserValue = get(superUserRecord,"SuperUserEnumber");
+	if(len(superUser) > 0){
+		superUser=superUser+"#@#"+superUserValue;
+	}
+	else{
+		superUser =superUserValue;
+	}
+}
+		
+//Capturing all remarks in an array
+userLanguage = "en";
+remarkRowIndx = string[];
+append(remarkRowIndx,"WARNING_MESSAGE_1");//required by
+append(remarkRowIndx,"WARNING_MESSAGE_2");//DiscountApproval
+append(remarkRowIndx,"WARNING_MESSAGE_25");//NonStandardDeliveryTermsApproval
+append(remarkRowIndx,"WARNING_MESSAGE_7");//NewItemApproval
+append(remarkRowIndx,"WARNING_MESSAGE_26");//ZeroListPriceApproval
+append(remarkRowIndx,"WARNING_MESSAGE_16");//TotalTransactionValueApproval
+append(remarkRowIndx,"WARNING_MESSAGE_TERRITORY");//TerritoryAuthorityApproval
+append(remarkRowIndx,"WARNING_MESSAGE_BOOKPRICEDATE");//BookPriceDateApproval
+append(remarkRowIndx,"WARNING_MESSAGE_15");//ValidityPeriodApproval
+append(remarkRowIndx,"WARNING_MESSAGE_EndCust");//EndCustomerApproval
+
+//Querying RemarksByLang to get the Remark label for the above list of remarks
+//This will reduce the number of Data table call to RemarksByLang 
+columns = string[] { "RowIndx", "Remark"};
+table = "RemarksByLang";
+conditions = dict("string");
+put(conditions, "$userLanguage", userLanguage);
+rowIndxInValus = "('"+join(remarkRowIndx,"','")+"')";
+whereClause = "Language = $userLanguage and RowIndx IN "+rowIndxInValus;
+//This is existing library and it will returns the table query result in a JSON Array object
+result = util.u_getJsonDataFromTable(columns, table, whereClause, conditions);
+
+//Adding the query returned JSON array in to JSON object(to parse the JSON Array using the standard functions)
+//Replacing the RowIndx with approval reason variable names.
+remarksByLang_json = json();
+jsonput(remarksByLang_json,"RemarksByLang",result);
+
+jsonpathset(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='WARNING_MESSAGE_2')].RowIndx", "DiscountApproval");
+jsonpathset(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='WARNING_MESSAGE_25')].RowIndx", "bline_deliveryTermsApproval");
+jsonpathset(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='WARNING_MESSAGE_7')].RowIndx", "bline_newItemApproval");
+jsonpathset(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='WARNING_MESSAGE_26')].RowIndx", "bline_zeroListPriceApproval");
+jsonpathset(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='WARNING_MESSAGE_16')].RowIndx", "bline_totalTransactionPriceApproval");
+jsonpathset(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='WARNING_MESSAGE_TERRITORY')].RowIndx", "bline_territoryApproval");
+jsonpathset(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='WARNING_MESSAGE_BOOKPRICEDATE')].RowIndx", "bline_bookPriceDateApproval");
+jsonpathset(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='WARNING_MESSAGE_15')].RowIndx", "bline_validityPeriodApproval");
+jsonpathset(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='WARNING_MESSAGE_EndCust')].RowIndx", "bline_endCustomerApproval");
+
+discountThresholdKeys = string[];
+append(discountThresholdKeys ,"bline_discountThresholdSalesAnalystApproval");
+append(discountThresholdKeys ,"bline_discountThresholdQuoteRepApproval");
+append(discountThresholdKeys ,"bline_discountThresholdQuotesLeadsApproval");
+append(discountThresholdKeys ,"bline_discountThresholdProductManagerApproval");
+
+
+approvalKeys = jsonkeys(finalJSONObj);
+//print "approvalKeys *********";
+//print finalJSONObj;
+discountApprovalsMessage = dict("string");
+requiredByLabel = jsonpathgetsingle(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='WARNING_MESSAGE_1')].Remark","string","");
+for eachKey in approvalKeys{
+	remarksByLangKey = eachKey;
+	if(findinarray(discountThresholdKeys,eachKey)<>-1){
+		remarksByLangKey = "DiscountApproval";
+	}
+	if(jsonpathcheck(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='"+remarksByLangKey+"')]")){
+		eachApprovalNodeDetails = jsonget(finalJSONObj,eachKey,"json",json());
+		maxLevelOfApprovalLoop = range(maxLevelOfApproval);
+		for eachApprovalLevel in maxLevelOfApprovalLoop{
+			approvalLevel = string(eachApprovalLevel+1);
+			//level4Approver
+			approvalLabel = jsonpathgetsingle(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='"+remarksByLangKey+"')].Remark","string","");
+			approvalStatus = jsonget(eachApprovalNodeDetails,"level"+(approvalLevel)+"ApprovalStatus","string","");
+			approverNamesList = jsonget(eachApprovalNodeDetails,"level"+(approvalLevel)+"ApproversNames","string","");
+			approversList = replace(approverNamesList,"[\"","");
+			approversList = replace(approversList,"\",\"",",");
+			approversList = replace(approversList,"\"]","");
+			
+			if(approvalStatus <> "" AND approvalStatus <> "Approved"){
+				if(remarksByLangKey <> "DiscountApproval"){
+					messageText = "<b>" + approvalLabel + "&nbsp;</b>"+requiredByLabel +" "+ approversList ;//+" (Level "+approvalLevel+")";
+					append(finalMessageArray, messageText);
+				}else{
+					if(containskey(discountApprovalsMessage, "DiscountApproval")){
+						discountApproverNames = get(discountApprovalsMessage, "DiscountApproval");
+						discountApproverNames = discountApproverNames  + ", " +approversList;
+						put(discountApprovalsMessage,"DiscountApproval",discountApproverNames);
+					}else{
+						put(discountApprovalsMessage,"DiscountApproval",approversList);
+					}
+				}
+			}
+		}
+	}
+}
+//print discountApprovalsMessage;
+if(containskey(discountApprovalsMessage, "DiscountApproval")){
+	discountApproverNames = get(discountApprovalsMessage, "DiscountApproval");
+	approvalLabel = jsonpathgetsingle(remarksByLang_json, "$.RemarksByLang[?(@.RowIndx=='DiscountApproval')].Remark","string","");
+	messageText = "<b>" + approvalLabel + "&nbsp;</b>"+requiredByLabel +" "+ discountApproverNames;
+	append(finalMessageArray, messageText);
+}
+
+//Preparing the return String
+if (sizeofarray(finalMessageArray) > 0 AND quoteStatus <> "approved" AND quoteStatus <> "rejected"){
+	notificationMessage = join(finalMessageArray, "/n");
+	sbappend(resultStr,"1~agreementWarningMessages_t~",notificationMessage,"|");
+}else{
+	sbappend(resultStr,"1~agreementWarningMessages_t~|");
+}
+sbappend(resultStr,"1~transactionLineApprovalInformation_t~",finalJSONStr,"|");
+sbappend(resultStr,"1~superUserEmail_t~",superUser ,"|");
+sbappend(resultStr,"1~feedbackApplied_t~",string(feedbackflag),"|");
+
+endTime = getcurrenttimeinmillis();
+print endTime-startTime;
+
+return sbtostring(resultStr);

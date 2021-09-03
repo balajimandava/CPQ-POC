@@ -1,0 +1,30 @@
+/**
+@name 		Get Zilliant Info
+@api 		getZilliantInfo
+@summary 	Query Zilliant_API_Info table to fetch required params.
+@param  	inputJsonParam
+@return 	String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+25/01/2021|Vijetha              |49501 - Util to fetch required param for Get Authentication token.
+*/
+siteId = Site_ID;
+fieldName = Field_Name;
+apiType = API_Type;
+//siteId = "eatontest2";
+//fieldName = "ZILLIANT_CLIENT_ID";
+//apiType = "GUIDANCE";
+
+siteDataRs = bmql("SELECT FieldName, Value1, Value2 FROM Zilliant_API_Info WHERE SiteID =$siteId AND FieldName = $fieldName AND API_Type = $apiType");
+returnValue = "";
+for each in siteDataRs{
+	fieldValue = get(each,"Value1");
+	apiUrl = get(each,"Value2");
+	if(apiType == "GUIDANCE"){
+		returnValue = fieldValue;
+	}elif(apiType == "GUIDANCE_URL"){
+		returnValue = apiUrl;
+	}
+}
+return returnValue;

@@ -1,0 +1,14 @@
+{
+  "name" : "Populate VC Pricing",
+  "variableName" : "populateVCPricing",
+  "description" : "Retrieve VC pricing from SAP.  If all VC pricing data need to be refreshed, add \"fp_refreshVCPrice\" to the data JSON parameter.",
+  "libraryFunctions" : [ "commerce.buildVCPricerXML", "commerce.sapConditions", "util.getEnvironmentVariable", "util.getStringDict", "util.stringToFloat", "util.u_getLineFromJson", "util.u_setCommerceAttribute" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_model_variable_name", "externalConfigVCData_l", "needVCPricing_l", "_document_number", "qqProductType_l", "_sequence_number", "materialLineItem_l", "quantity_l", "_parent_doc_number", "_group_sequence_number" ],
+  "mainDocAttributes" : [ "transactionNumber_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_user_time_zone" ]
+}

@@ -1,0 +1,18 @@
+{
+  "name" : "Get Zilliant Info",
+  "variableName" : "getZilliantInfo",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "Site_ID",
+    "type" : "String"
+  }, {
+    "name" : "Field_Name",
+    "type" : "String"
+  }, {
+    "name" : "API_Type",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

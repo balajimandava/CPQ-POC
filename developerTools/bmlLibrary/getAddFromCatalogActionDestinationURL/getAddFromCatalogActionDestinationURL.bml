@@ -1,0 +1,22 @@
+siteID = lower(_supplier_company_name);
+user = util.getSiteSpecificData(siteID);
+transactionId = get(inputParamDict,"transactionId","string");//119701764
+actionName= get(inputParamDict,"actionName","string");//addBidManagerTakeOff
+enpointUrl = "https://"+siteID +".bigmachines.com/rest/v8/commerceDocumentsOraclecpqoTransaction/"+transactionId +"/actions/"+actionName;
+destinationURL = "";
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+authorization =  "Basic "+encodebase64(login+":"+password);
+header = dict("string");
+put(header,"Authorization",authorization);
+put(header,"Content-Type","application/json");
+
+payload_json = json();
+jsonput(payload_json,"cacheInstanceId","-1");
+wsResponse = urldata(enpointUrl, "POST",header,jsontostr(payload_json));
+if(get(wsResponse,"Status-Code") == "200"){
+	resBody = get(wsResponse,"Message-Body");
+	resBody_json = json(resBody);
+	destinationURL = jsonget(resBody_json,"destinationURL");
+}
+return destinationURL;

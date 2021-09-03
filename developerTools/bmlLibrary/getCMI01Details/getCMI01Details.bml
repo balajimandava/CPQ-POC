@@ -1,0 +1,27 @@
+retJson = json();
+kdmat = "";
+
+
+     
+vkorg = jsonget(partJson,"VKORG");
+vtweg = jsonget(partJson,"VTWEG");
+matnr = jsonget(partJson,"MATNR");
+customerNum = jsonget(partJson,"customerNumber");
+originalCustomerNum = customerNum;
+if (startswith(customerNum , "00000")) {
+	customerNum =  substring(customerNum , -5);
+}
+
+if (startswith(customerNum , "0000")) {
+	customerNum =  substring(customerNum , -6);
+}
+CMI01recordSet = BMQL("SELECT KDMAT from CMI01 WHERE VKORG=$vkorg AND VTWEG=$vtweg AND MATNR=$matnr AND ( KUNNR=$customerNum OR KUNNR = $originalCustomerNum)");
+
+for eachRec in CMI01recordSet {
+	kdmat = get(eachRec,"KDMAT");
+	break;	
+}
+
+jsonput(retJson,"KDMAT",kdmat);
+
+return retJson;

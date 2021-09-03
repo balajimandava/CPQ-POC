@@ -1,0 +1,20 @@
+ret = "";
+retList = "";
+if(util.checkBizGroupCondition("displayOverlappingWarning", transactionType_t, salesOrg_t)) {
+	overlappingTransactions = commerce.getCustomerOverlappingTransactions();
+	loopCtrl = range(jsonarraysize(overlappingTransactions));
+	for i in loopCtrl {
+		existingTransaction = jsonarrayget(overlappingTransactions, i, "json");
+		transactionNumber = jsonget(existingTransaction, "transactionNumber_t", "string", "");
+		customer = jsonget(existingTransaction, "customerNumber_t", "string", "");
+		
+		if(retList <> "" ) {
+			retList = retList + ", ";
+		}
+		retList = retList + transactionNumber + " " +util.getRemark("WARNING_OVERLAP_2", _system_current_user_language) + ": " + customer;
+	}
+	if (retList <> "" ) {
+		ret = util.getRemark("WARNING_OVERLAP_1", _system_current_user_language) + ": " + retList ; 
+	}
+}
+return ret;

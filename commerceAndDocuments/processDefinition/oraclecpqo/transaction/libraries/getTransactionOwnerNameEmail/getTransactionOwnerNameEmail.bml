@@ -1,0 +1,73 @@
+/**
+@name Get Transaction Owner Name/Email
+@api getTransactionOwnerNameEmail
+@summary 
+@attribute transactionOwner_t
+@attribute qq_Contact2Name_t
+@attribute qq_Contact2Email_t
+@attribute qq_Contact3Name_t
+@attribute qq_Contact3Email_t
+@attribute qq_Contact4Name_t
+@attribute qq_Contact4Email_t
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------                                                                            
+30Sep2020 |Shardul S		|Initial Creation
+24Dec2020 |Gautam               |CPQ-557
+*/
+
+ownername = createdBy_t;
+
+if(inputParam == "email")
+{
+	ownername = preparedByEmail_t;
+}
+
+if(transactionOwner_t=="salesContact")
+{
+	if(inputParam == "name")
+	{
+		ownername = qq_Contact2Name_t;
+	}
+	elif(inputParam == "email")
+	{
+		ownername = qq_Contact2Email_t;
+	}	
+}
+elif(transactionOwner_t=="customerSupport")
+{
+	if(inputParam == "name")
+	{
+		ownername = qq_Contact4Name_t;
+	}
+	elif(inputParam == "email")
+	{
+		ownername = qq_Contact4Email_t;
+	}
+}
+elif(transactionOwner_t=="salesAgency")
+{
+	if(inputParam == "name")
+	{
+		ownername = qq_Contact3Name_t;
+	}
+	elif(inputParam == "email")
+	{
+		ownername = qq_Contact3Email_t;
+	}
+}
+//Logic to be added as part of CPQ-557
+elif(transactionOwner_t=="createdBy")
+{
+	if(inputParam == "name")
+	{
+		ownername = createdBy_t;
+	}
+	elif(inputParam == "email")
+	{
+		ownername = preparedByEmail_t;
+	}
+}
+
+return ownername;

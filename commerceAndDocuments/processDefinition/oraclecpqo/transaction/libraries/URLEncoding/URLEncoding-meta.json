@@ -1,0 +1,14 @@
+{
+  "name" : "URL Encoding",
+  "variableName" : "URLEncoding",
+  "description" : "Used for URL encoding",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "url",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

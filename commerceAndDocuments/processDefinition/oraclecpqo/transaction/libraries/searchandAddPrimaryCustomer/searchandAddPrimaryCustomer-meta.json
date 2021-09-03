@@ -1,0 +1,14 @@
+{
+  "name" : "Search And Add Primary Customer",
+  "variableName" : "searchandAddPrimaryCustomer",
+  "description" : "C360-CPQ interface. This function will search for the passed customer number, sales org and distribution channel return customer number.",
+  "libraryFunctions" : [ "commerce.ntCustomerSearch", "commerce.populateArraySet", "commerce.searchEndCustomers", "util.getCUSMASDetails", "util.triggerAnyActionUsingRESTAPI" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "nt_endCustomerNo_t", "bs_id", "selectedCustomerData_t", "selectedCustomerArraySet_t", "customerNumber_t", "nt_selectedEndCustomerArrayset_t", "qq_customerSearchField_t", "qqSendAutomatically_t" ],
+  "systemAttributes" : [ "_system_company_name" ]
+}

@@ -1,0 +1,11 @@
+{
+  "name" : "Get Customer Block Details",
+  "variableName" : "getCustomerBlockDetails",
+  "description" : "",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.getCUSMASDetails" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qq_selectedCustomerData_t", "ntSelectedSalesOrg_t", "qq_ntTransactionType_t", "selectedCustomerArraySet_t", "ntDistributionChannel_t" ],
+  "systemAttributes" : [ "_system_user_groups", "_system_current_user_language" ]
+}

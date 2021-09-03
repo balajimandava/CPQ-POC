@@ -1,0 +1,15 @@
+{
+  "name" : "Get Line From JSON",
+  "variableName" : "u_getLineFromJson",
+  "description" : "Get an item from a quote json object.  The function will always return a valid line item \nwith _document_number populated.  The structure of the JSON is as follows.  It is the \nsame JSON from the CPQ REST API.\n\n    { \n        \"quoteNumber_t\": 123,\n        \"quoteLevelAttribute_t\": \"value\",\n        ...\n     \t\"items\": [\n             {\n                 \"_document_number\": 2,\n                 \"aQuoteLineAttr_l\": \"value\",\n                 ...\n             },\n             {\n                 \"_document_number\": 3,\n                 \"aQuoteLineAttr_l\": \"value1\",\n                 ...\n             }\n             ...\n        ]\n    }",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  }, {
+    "name" : "docNum",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

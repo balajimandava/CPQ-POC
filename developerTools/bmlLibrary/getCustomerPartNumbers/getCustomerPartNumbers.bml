@@ -1,0 +1,10 @@
+db = bmql("select KUNNR, MATNR,KDMAT from CMI01");
+allData = json();
+
+for row in db {
+  data = json();
+  jsonput(data, get(row, "KUNNR"), get(row, "KDMAT"));
+  jsonput(allData, get(row, "MATNR"), data);
+}
+
+return allData;

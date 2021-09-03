@@ -1,0 +1,829 @@
+/*****************************
+@Revision
+Date		Name			Comments
+2018/09/06	Harshit Mehta		Defect# 1417 : Calcuate date difference.
+2018/09/11	Michael Yeung 		Add Overlapping warning message.
+2018/11/05     	Kamal Wadhwani    	Defect 1605 - Changed format of field as per currency
+2018/11/26	Gaurav Singh		ALM-1727: Changes for setting Old Net % as blank in case customer is changed for a copy transaction
+21/03/2019      Sharath A		Defect# 1915 : Assigning the Date Parsing value to individual Attributes.
+2019/05/17     	Harshit Maheshwari 	ALM-2012 . Generate a HTML string in the form of dropdown comprising of all emails associated with the vendor 
+2019/05/24     	Harshit Maheshwari 	ALM-1737 . Set sales realted attributes 
+2019/08/19	Gaurav Singh		Commented changes by Harshit Maheshwari for ALM-2012 from Save action and moved to Get Eaton Contacts library
+2019/11/06 	Pooja Gupta		ALM - 2027 Added code for Customer Block
+2019/12/02      Nithin	        	ALM - 1832 New attributes have been added for calculation margin values based on scale logic
+2020/02/03	Rahul Uttarwar		Eagle Implementation- User can manually change contacts from Eaton Contact Tab, that shouldn't be overwritten.
+2020/02/10      Vijetha             	Moved ValidTo Modify tab logic to Advanced Modify After Formulas Save action. To fix the order issue.
+2020/02/20      Priyanka            	Moved Bid Expiration Date Modify tab logic to Advanced Modify After Formulas Save action. 
+					And modified the logic to calculate Bid expiration Date only when Bid Date is not empty.
+2020/04/16      Gautam                  Zilliant Issue no CPQ-98 Added condition to avoid appending CustomerNo in End customer Details if the BusinessType is  ES-EMEA and Transaction Type is  CSP
+2020/04/28	Mubarak Ali		Populate Volume Bonus Columns In Report
+2010/06/18      KUMAR			Defect INC000013404367 fix : Updated valid to date calculation to include timezone.
+2020/06/26	Rahul			Eagle Development|Rahul|26June20|Added for Jira# CPQ-2091
+2020/08/26	Subha			Eagle Development|Subha|26August20|Added a condition for PSD approver name to set for JIRA#CPQ-2357
+2020/09/05      Gautam                  CPQ-125 ES-EMEA End Customer Guidance
+2020.10.05	Vijetha			As part of Review step, to reduce the load on Save and to re-use the same logic on Ready for Review this commerce library has been created. Logic from after formulas of Save action has been moved to this library. Some attribute need to be sent from the calling action using Json parameter.
+2020.12.29	Gautam                  added code for CPQ-557 to modify the transaction owner Name based on transaction owner attribute
+2021.01.06      Nithin                  Eagle Development|Rahul|26June20|Added for Jira# CPQ-1172,added code for cPIPriceIncrease_l
+2021.01.13	Shardul 		Added Sold to for legacy eaton group for PSD
+2021.01.19      Nithin                  CPQ-3251 : Refresh Pricing should automatically run on “Save and Review”
+2021.01.28      Nithin      		CPQ-4008 - The CPI % should only be applied to line items where the Config Attribute and Brand matches on the Line Item Details to the CPI Table. 
+2021.01.28      Nithin      		CPQ-4012 - Bid Expiration Date is cleared out.
+2021.03.04      Nithin      		CPQ-4335 - CPQ-4335 LPM data should not update to lines if status is awarded.
+2021.03.09	Anita			CPQ-4431 moved code for defaulting Bid group# and description from "saveActionAdvModifyBeforeFormulas"
+2021.04.20	Anita			CPQ-4938 Added rounding for multiplier
+2021.05.19	Anita			Added conditions for new currency as part of 53390 
+2021.06.22      Nithin                  INC000014589828 - Added SalesFloor and Divmin Logic
+2021.08.18  Praveen			Added code for CPQ-4555 - Added duplicate material in the message
+*****************************/
+debugMode = false;
+retString= "";
+retJSON = jsonarray();
+MaterialId = json();
+lineDataJson = json();
+mliJson = json();
+mliIDArr=string[];
+scaleFrArr = string[];
+scaleToArr = integer[];
+TotalRequestPrice=0.0;
+ApprovedTotalRequestedPrice=0.0;
+sumOfQtyCost = 0.0;
+ApprovedTotalPrice = 0.0;
+ApprovedTotalMargin = 0.0;
+primeCount = 0;
+endCustCount = 0;
+notificationMessage = "";
+notificationsArray = string[];
+CPIBrand = split(cpiBaseString_t,",");
+
+//import updated values from inputParamJson sent from corresponding action.
+qqBusinessLineForSalesOrg_t = jsonget(inputParamJson,"qqBusinessLineForSalesOrg_t","string");
+salesOrg_t = jsonget(inputParamJson,"salesOrg_t","string");
+distributionChannel_t = jsonget(inputParamJson,"distributionChannel_t","string");
+transactionType_t = jsonget(inputParamJson,"transactionType_t","string");
+agreementValidFrom_t = jsonget(inputParamJson,"agreementValidFrom_t","string");
+oldCustomerNo_t = jsonget(inputParamJson,"oldCustomerNo_t","string");
+customerNumber_t = jsonget(inputParamJson,"customerNumber_t","string");
+previousAction_t = jsonget(inputParamJson,"previousAction_t","string");
+approverNameL2_t = jsonget(inputParamJson,"approverNameL2_t","string");
+approverNameL3_t = jsonget(inputParamJson,"approverNameL3_t","string");
+approverNameL4_t = jsonget(inputParamJson,"approverNameL4_t","string");
+salesDistrict_t = jsonget(inputParamJson,"salesDistrict_t","string");
+agreementValidTo_t = jsonget(inputParamJson,"agreementValidTo_t","string");
+qq_nt_ValidTo_t = jsonget(inputParamJson,"qq_nt_ValidTo_t","string");
+bidDate_t = jsonget(inputParamJson,"bidDate_t","string");
+bidExpirationDate_t = jsonget(inputParamJson,"bidExpirationDate_t","string");
+endCustomerName_t = jsonget(inputParamJson,"endCustomerName_t","string");
+endCustomerNameUpdated_t = jsonget(inputParamJson,"endCustomerNameUpdated_t","Boolean");
+endCustomerNo_t = jsonget(inputParamJson,"endCustomerNo_t","string");
+ntSelectedSalesOrg_t = jsonget(inputParamJson,"ntSelectedSalesOrg_t","string");
+ntDistributionChannel_t = jsonget(inputParamJson,"ntDistributionChannel_t","string");
+callingAction = jsonget(inputParamJson, "action","string");
+
+
+userLanguage = _system_current_user_language;
+baseURL = "https://" + _system_supplier_company_name + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction/" + bs_id + "/transactionLine";
+company = util.getSupplierCompanyName();
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+headers = dict("string");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+lineFields = string[] {
+	"_document_number",
+	"materialLineItem_l",
+	"scaleFrom_l",
+	"scaleTo_l"
+	
+};
+parameters = join(lineFields, ",");
+quoteHeaderResp = urldatabyget(baseURL,"fields="+parameters,"ERROR",-5000, headers);
+if(quoteHeaderResp <> "ERROR"){
+	lineDataJson = json(quoteHeaderResp);
+	jsonpathremove(lineDataJson, "$..links");
+}
+TIME_ZONE = "GMT-6";
+INPUT_DATE_FORMAT = "dd-MM-yyyy HH:mm:ss";
+inputDateJSON = json();
+
+retString= retString + "1~overlappingDateMessage_t~"+commerce.checkForOverlappingTransaction()+ "|";
+//Uncommenting the below line for approvals-03/08/2020//
+retString= retString+ commerce.setApprovalRequired();
+
+if(_system_current_step_var == "start_step") // RahulU-Eagle Implementation- User can manually change contacts from Eaton Contact Tab, that shouldn't be overwritten.
+{
+	retString= retString+ commerce.getEatonContacts();
+	if(qqBusinessLineForSalesOrg_t == "PSD"){ // Eagle Development|Rahul|26June20|Added for Jira# CPQ-2091
+		retString = retString +"1~contactforChangeContact_t~|";
+	}
+}
+
+duplicateItems = commerce.getDupilcateItems();
+
+//Added code for CPQ-4555
+duplicateItemList="";
+itemCount=0;
+for items in duplicateItems{
+	itemCount=itemCount+1;
+	if(itemCount>10){
+		itemCount=0;
+		duplicateItemList=duplicateItemList+"\n"; // This will show only 10 duplicate records in one row.
+	}
+	duplicateItemList=duplicateItemList+items+",";
+}	
+//End CPQ-4555
+
+
+if(  sizeofarray(duplicateItems)>0 ) {
+	if(_system_current_user_language == "de"){
+		//Modified the below code for CPQ-4555 - Added duplicate materials in the message
+		  retString= retString + "1~duplicateLineMessage_t~"+"Es wurden doppelte Artikel gefunden. : "+ substring(duplicateItemList,0,len(duplicateItemList)-1)+ "|";
+	} else {
+		//Modified the below code for CPQ-4555 - Added duplicate materials in the message
+		  retString= retString + "1~duplicateLineMessage_t~"+"Transaction has duplicate line items : "+ substring(duplicateItemList,0,len(duplicateItemList)-1)+ "|"; 
+	}				
+					
+} else {
+	retString= retString + "1~duplicateLineMessage_t~|";
+
+}
+
+inputDict= dict("string");
+allAgreementsUpdate= commerce.updateAllAgreements(inputDict);
+
+if (containskey(allAgreementsUpdate,"CommerceUpdates")) {
+	retString=retString+get(allAgreementsUpdate,"CommerceUpdates");
+}
+
+retString= retString + "1~searchAggreement_t~"+commerce.captureSearchAllValues() + "|";
+
+retString= retString + commerce.pricingAfterFormulas("save");
+
+// Added for QQ-807 - Start //
+/*	if(_system_current_step_var == "draft") {
+
+	
+	//Defect# 1417 : Change Start
+	//Approval Date and Submitted Date format is MM/dd/yyyy HH:mm:ss
+	createdDate = strtojavadate(createdDate_t,"MM/dd/yyyy HH:mm:ss");
+	requestReceivedDate = getDate();
+	if(NOT isnull(qqQuoteReceivedDate_t) AND qqQuoteReceivedDate_t <> ""){
+		requestReceivedDate = strtojavadate(qqQuoteReceivedDate_t,"MM/dd/yyyy HH:mm:ss");
+	}
+	jsonput(inputDateJSON,"date1",datetostr(createdDate ,INPUT_DATE_FORMAT));
+	jsonput(inputDateJSON,"date2",datetostr(requestReceivedDate,INPUT_DATE_FORMAT));
+	jsonput(inputDateJSON,"inputDateFormat",INPUT_DATE_FORMAT);
+	jsonput(inputDateJSON,"timeZone",TIME_ZONE);
+	
+	timeToEnterJSON = util.parsingDate(inputDateJSON);
+	
+
+	minsDiff = jsonget(timeToEnterJSON,"minsDiff","String","0");
+	hoursDiff = jsonget(timeToEnterJSON,"hoursDiff","String","0");
+	daysDiff = jsonget(timeToEnterJSON,"daysDiff","String","0");
+	retString = retString + "1~timeToEnter_t~" + daysDiff + ":" + hoursDiff + ":" + minsDiff + "|";
+	retString = retString + "1~timeToEnterDays_t~" + daysDiff +  "|";
+	retString = retString + "1~timeToEnterHours_t~" + hoursDiff + "|";
+	retString = retString + "1~timeToEnterMinutes_t~" + minsDiff + "|";
+	//Defect# 1417 : Change End
+	
+} */
+// Added for QQ-807 - End //
+salesOrg = salesOrg_t;
+distributionChannel = distributionChannel_t;
+currency = currency_t ;
+transactionType = transactionType_t;
+agreementValidFrom= substring(agreementValidFrom_t,0,10);
+agreementValidFrom = datetostr(strtodate(agreementValidFrom, "MM/dd/yyyy",_system_user_time_zone),"yyyy-MM-dd",_system_user_time_zone);
+priceDict = dict("string");
+put(priceDict,"currentDate",agreementValidFrom);	
+put(priceDict,"salesOrg",salesOrg);
+put(priceDict,"distributionChannel",distributionChannel);
+put(priceDict,"currency",currency);
+put(priceDict,"business",qqBusinessLineForSalesOrg_t);
+
+/*//nithin : CPQ-3251 Start
+LPMResponse = "";
+LPMIntData = json();
+if(qqBusinessLineForSalesOrg_t  == "PSD" AND callingAction == "review")
+{
+inParams = dict("string");
+put(inParams ,"selectedDocNumber", "0");
+put(inParams ,"configExtraInfo", "");
+put(inParams ,"modelPath", "");
+put(inParams ,"bsId", bs_id);
+put(inParams ,"searchResult", "");
+put(inParams ,"bmProcess", "CPQ.PSD.LPMGet");
+LPMResponse = util.commonCallToBM(inParams);
+	if(LPMResponse <> "")
+	{
+	LPMIntData = json(LPMResponse);
+	}
+}
+//nithin : CPQ-3251 End.
+*/
+
+for line in transactionLine{
+	marginPercentage="";
+	CPIPrice = 0.0;
+	if(cpiAdjustmentPercent_t <> "" AND NOT(ISNULL(cpiAdjustmentPercent_t))) 
+	{
+	if(line.qqProductType_l == "configuration" AND (upper(cPIConfigAttr) <> upper(line.CPIConfig_l)) )
+	{
+	CPIPrice = 0.0;
+	}
+	elif(findinarray(CPIBrand, line.brand_l) == -1)
+	{
+	CPIPrice = 0.0;
+	}
+	else{
+	CPIPrice = line.newNetPrice_l + (line.newNetPrice_l * atof(cpiAdjustmentPercent_t)/100);
+	retString= retString + line._document_number+"~cPIPriceIncrease_l~"+string(CPIPrice) +"|";
+    }
+	}
+	
+	/*
+        if(qqBusinessLineForSalesOrg_t == "PSD" AND NOT(line.overrideMultiplier_l) AND LPMResponse <> "" AND callingAction == "review" AND line.lineItemStatus_l <> "awarded" ){
+        //CPQ-3251 : Refresh Pricing should automatically run on “Save and Review”
+		LPMIntRec = jsonpathgetsingle(LPMIntData , "$..items[?(@.item_id =='"+ line._document_number + "')]","json",json());
+		multiplier = jsonget(LPMIntRec, "multiplier","string","0.0");
+		MinPer = jsonget(LPMIntRec, "min_pc","string","0.0");
+		SalesFloor = jsonget(LPMIntRec, "sales_floor","string","0.0");
+		
+		retString= retString + line._document_number+"~multiplier_l~"+string(round(atof(multiplier),3))+"|";				//CPQ-4938 roundoff
+		retString= retString + line._document_number+"~disctrictMinimumMultiplier_l~"+string(round(atof(MinPer),3))+"|";	//CPQ-4938 roundoff
+		retString= retString + line._document_number+"~salesFloorMultiplier_l~"+string(round(atof(SalesFloor),3))+"|";		//CPQ-4938 roundoff
+		retString= retString + line._document_number+"~pricingDate_l~"+_system_date+"|";
+		//INC000014589828 Starting
+		DivMin = line.cost_l *atof(MinPer);		
+		if((line.oldListPrice_l*atof(multiplier)*atof(SalesFloor)) < (DivMin))
+		{
+		retString= retString + line._document_number+"~salesFloor_l~"+string(round(DivMin,3))+"|";
+		}
+		else
+		{
+		retString= retString + line._document_number+"~salesFloor_l~"+string(round(line.oldListPrice_l*round(atof(multiplier),3)*round(atof(SalesFloor),3),2))+"|";
+		}
+		retString= retString + line._document_number+"~divisionMinimum_l~"+string(round(DivMin,3))+"|";
+		if((line.oldListPrice_l*atof(multiplier)) < (DivMin))
+		{
+		retString= retString + line._document_number+"~currentNetPricePerUOM_l~"+string(round(DivMin,3))+"|";
+		}
+		else
+		{
+		retString= retString + line._document_number+"~currentNetPricePerUOM_l~"+string(round(line.oldListPrice_l*round(atof(multiplier),3),2))+"|";
+		}
+		}
+		*/
+		//INC000014589828 Ending
+	        
+	qqApprovedMarginPercent="";
+	// Defect 1605 - Changed format of field as per currency
+		// 53390: Added conditions for all currencies
+		if(currency_t=="USD" OR currency_t=="ILS"){
+			marginPercentage=replace(string(line.marginPercentage_l),",",".");
+			retString= retString + line._document_number+"~qqMarginString~"+marginPercentage+"|";
+			qqApprovedMarginPercent=replace(string(line.qqApprovedMarginPercent_l),",",".");
+			retString= retString + line._document_number+"~qqmarginApprovedString~"+qqApprovedMarginPercent+"|";
+		}
+		elif(currency_t=="EUR" OR currency_t=="CZK" OR currency_t=="HUF" OR currency_t=="PLN" OR currency_t=="RON" OR currency_t=="TRY"){
+			marginPercentage=replace(string(line.marginPercentage_l),".",",");
+			qqApprovedMarginPercent=replace(string(line.qqApprovedMarginPercent_l),".",",");
+			retString= retString + line._document_number+"~qqMarginString~"+marginPercentage+"|";
+			retString= retString + line._document_number+"~qqmarginApprovedString~"+qqApprovedMarginPercent+"|";
+		}
+		elif(currency_t=="CHF"){
+		marginPercentage=replace(string(line.marginPercentage_l),",",".");
+		retString= retString + line._document_number+"~qqMarginString~"+marginPercentage+"|";
+		qqApprovedMarginPercent=replace(string(line.qqApprovedMarginPercent_l),",",".");
+		retString= retString + line._document_number+"~qqmarginApprovedString~"+qqApprovedMarginPercent+"|";
+	}
+	// Defect 1605 - Changed format of field as per currency
+	//Gaurav: Changes for ALM-1727 start
+	//If it is a newly copied transaction and customer is not same as that of original then set the old net percent to ""
+	if(_system_current_step_var == "start_step" AND oldCustomerNo_t <> customerNumber_t AND previousAction_t == "copy"){
+		retString= retString + line._document_number+"~oldDiscountString_l~|";
+	}
+	
+	//Added the condition for Non PSD quotes to set the below approvers for CPQ-2357//	
+	/*if(line.approver_l=="2" AND qqBusinessLineForSalesOrg_t <> "PSD"){
+	  retString = retString + line._document_number + "~approverName_l~" + approverNameL2_t+ "|";
+	}
+	if(line.approver_l=="3" AND qqBusinessLineForSalesOrg_t <> "PSD"){
+	  retString = retString + line._document_number + "~approverName_l~" + approverNameL3_t+ "|";
+	}
+	if(line.approver_l=="4" AND qqBusinessLineForSalesOrg_t <> "PSD"){
+	  retString = retString + line._document_number + "~approverName_l~" + approverNameL4_t+ "|";
+	}
+	if(NOT line.approvalRequired_l){
+		retString = retString + line._document_number + "~approverName_l~|";
+	}*/
+	//Gaurav: Changes for ALM-1727 End
+	//Nithin: Changes for ALM-1832 start
+	if(line.cost_l <> 0 AND string(line.cost_l) <> "" AND line.lineItemStatus_l <> "cancelled"){
+	   if(line.scaleFrom_l == "" and line.scaleTo_l == ""){
+			
+			TotalRequestPrice = TotalRequestPrice + ((1-(line.headerDiscount_l/100))*line.qqTotal_l);
+			ApprovedTotalRequestedPrice = ApprovedTotalRequestedPrice + ((1-(line.headerDiscount_l/100))*line.qqApprovedTotal_l);
+			
+			sumOfQtyCost = sumOfQtyCost + (line.quantity_l*line.cost_l);
+						 
+			ApprovedTotalPrice = ApprovedTotalPrice + line.qqApprovedTotal_l;
+
+		}
+	}
+	//Nithin: Changes for ALM-1832 end
+	oldListPrice = line.oldListPrice_l;
+	materialLineItem=line.materialLineItem_l;
+	
+	if(qqBusinessLineForSalesOrg_t == "PSD" AND line.qqProductType_l == "configuration"){
+	   print "config";
+
+		dbResults = bmql("Select KBETR From PRI01 Where MATNR = $materialLineItem And VKORG = $salesOrg_t AND KBETR = $oldListPrice");
+		print 1;
+		print dbResults;
+		print 1;
+		listPrice = "";
+		for res in dbResults 
+		{
+			listPrice = get(res, "KBETR");
+			break;
+		}   
+		if(listPrice=="")
+		{ 
+			price = "Price";
+			retString= retString + line._document_number+"~pricingError_l~"+price+"|";
+		}
+	}
+	 /* if(qqBusinessLineForSalesOrg_t == "PSD" AND line.salesFloor_l < line.divisionMinimum_l)
+		 {
+		 Divmin = line.divisionMinimum_l;
+		 retString= retString + line._document_number+"~salesFloor_l~"+string(Divmin)+"|";
+		 }
+	   if(qqBusinessLineForSalesOrg_t == "PSD" AND line.currentNetPricePerUOM_l < line.divisionMinimum_l)
+		 {
+		 netPrice = line.divisionMinimum_l;
+		 retString= retString + line._document_number+"~currentNetPricePerUOM_l~"+string(netPrice)+"|";
+		 }
+		*/
+	//CPQ - 1548 Pooja Added code to update list price on Copy
+	if(_system_current_step_var == "start_step" AND qqBusinessLineForSalesOrg_t == "ES-EMEA")
+	{		
+		put(priceDict,"materialNo",line.materialLineItem_l);
+		put(priceDict, "UOM", line.uOM_l);
+		priceJson = util.getListPrice(priceDict);
+		listPrice = jsonget(priceJson, "CurrentPrice","float", 0.00);
+		newListPrice = jsonget(priceJson, "FuturePrice","float", 0.00);
+		retString = retString + line._document_number + "~oldListPrice_l~"+string(listPrice)+"|";
+		retString = retString + line._document_number + "~newListPrice_l~"+string(newListPrice)+"|";
+	}
+	/*if(callingAction == "review"){
+		currentLineItemStatus = line.lineItemStatus_l;
+		if(currentLineItemStatus <> "approvalRequired"){
+			retString = retString + line._document_number + "~lineItemStatus_l~approved|";
+		}
+	}*/
+		
+}
+if(quoteHeaderResp <> "ERROR")
+{
+ApprovedTotalMargin = ApprovedTotalRequestedPrice - sumOfQtyCost;
+
+
+	
+totalMargin = TotalRequestPrice - sumOfQtyCost;
+ 
+retString = retString +"1~totalMargin_t~"+string(totalMargin) +"|";
+if(TotalRequestPrice <> 0)
+{
+totalMarginPer = (totalMargin/TotalRequestPrice)*100;
+
+retString = retString +"1~totalMarginPer_t~"+string(totalMarginPer) +"|";
+}
+if(ApprovedTotalPrice <> 0)
+{
+ApprovedMarginPer = (ApprovedTotalMargin/ApprovedTotalRequestedPrice)*100; 
+	
+retString = retString +"1~approvedMarginPer_t~"+string(ApprovedMarginPer) +"|";
+		
+}
+
+retString = retString +"1~approvedTotalPrice_t~"+string(ApprovedTotalPrice) +"|";
+retString = retString +"1~approvedTotalMargin_t~"+string(ApprovedTotalMargin) +"|";		
+
+}
+
+//Gaurav: Moved below code to Get Eaton Contacts Library itself for ALM-2382	
+//2019/05/17     Harshit Maheshwari ALM-2012 . Generate a HTML string in the form of dropdown comprising of all emails associated with the vendor | START
+
+//2019/05/17     Harshit Maheshwari ALM-2012 | END
+
+// 5/24/2019 : Harshit Maheshwari : JET UI : START  .ALM 1737
+if(qqBusinessLineForSalesOrg_t  == "B-LINE"){
+
+//Populate Sales related attributes
+
+	inputJ = json();
+	jsonput(inputJ, "arraySet", "Agent_Data");
+	jsonput(inputJ, "headerAttbChange", "true");
+			retString = retString + jsonget(commerce.populateArraySet(inputJ), "data", "string", "");
+
+}
+
+// 5/24/2019 : Harshit Maheshwari : JET UI : END
+//ALM 2027-Pooja Added code from Customer Block Json Modify->Save
+if(_system_current_step_var == "start_step"){
+customerBlock =commerce.getCustomerBlockDetails();
+customerBlockJson =json();
+customerBlockJson= json(customerBlock);
+retString = retString +"1~customerBlockJson_t~"+customerBlock +"|";
+	res ="";
+	if(customerBlock<>""){
+		res = jsonget(customerBlockJson,"message","string","");
+		
+	}
+	
+	//START ---- Project # 49074 : Send Automatically need to be false by default for PSD. User will override on his choice 04/02/2020: Vijetha
+
+	if((qqBusinessLineForSalesOrg_t == "PSD" AND (transactionType_t=="BA" OR transactionType_t=="WQ"))){
+		retString = retString +"1~qqSendAutomatically_t~false|";
+	}
+	//END ------Project # 49074 : Send Automatically need to be false by default for PSD. User will override on his choice 04/02/2020: Vijetha
+retString = retString +"1~customerBlockMessageText_t~"+res+"|";
+
+//Project # 49074 :Moving the below logic from Modify tab Save action to advanced modify of the Save action. This is to address the order of attributes issue 10/02/2020: Vijetha
+//if(agreementValidTo_t == "") { 
+	newToDate = "";
+	systemUserDatePref = replace(_system_user_date_pref,".","/");
+	systemUserDateArray = split(systemUserDatePref ,"/");
+	if(systemUserDateArray[0] == "dd"){
+		indx_0_val= systemUserDateArray[0];
+		indx_1_val= systemUserDateArray[1];
+		systemUserDateArray[0] = indx_1_val;
+		systemUserDateArray[1] = indx_0_val;
+	}
+	systemUserDatePref = join(systemUserDateArray,"/");
+	
+	inputParamDict = dict("anytype");
+	put(inputParamDict,"salesDistrict",salesDistrict_t);
+	put(inputParamDict,"TransactionType",transactionType_t);
+	put(inputParamDict,"SalesOrg",salesOrg_t);
+	//Defect INC000013404367 Fix : Commented the following line and considering the current date in user timezone and sending it as a paramter.
+	//put(inputParamDict,"validFrom",getDate(false));
+	currentDate = getDate(TRUE);
+	currentDateStr = datetostr(currentDate, "yyyy-MM-dd HH:mm:ss", _system_user_time_zone);
+	currentDate_asPerTimeZone = strtojavadate(currentDateStr, "yyyy-MM-dd HH:mm:ss", _system_user_time_zone);
+	//currentDate_asPerTimeZone = adddays(currentDate_asPerTimeZone, -1); //Deducting 1 day, as current BML function that calculates valid to date by adding 365 days is not deducting 1 day.*/
+	put(inputParamDict,"validFrom",currentDate_asPerTimeZone);
+	
+	if( isCopyOrVersion_t ) {
+	
+		if(agreementValidTo_t == "" OR isnull(agreementValidTo_t)) {
+			if(qq_nt_ValidTo_t <> "" AND not(isnull(qq_nt_ValidTo_t))) {
+				newToDate = qq_nt_ValidTo_t;
+			} else {
+				// Valid To must always be in the future
+				//Project # 49074 : Below util (getDefaultValidToDate_psd) call is to use salesDistrict_t as additional param to get the valid date. 03/02/2020: Vijetha
+				if((transactionType_t == "WQ" OR transactionType_t == "BA") AND qqBusinessLineForSalesOrg_t == "PSD"){
+					
+					newToDate = substring(datetostr(util.getDefaultValidToDate_psd(inputParamDict),systemUserDatePref,_system_user_time_zone),0,10);
+					
+				}else{
+					//Defect INC000013404367 Fix : Commented the following line and considering the current date in user timezone and sending it as a paramter to getDefaultValidToDate function.
+					//newToDate = substring(datetostr(util.getDefaultValidToDate(getDate(false), salesOrg_t, transactionType_t),systemUserDatePref,_system_user_time_zone),0,10);
+					currentDate = getDate(TRUE);
+					currentDateStr = datetostr(currentDate, "yyyy-MM-dd HH:mm:ss", _system_user_time_zone);
+					currentDate_asPerTimeZone = strtojavadate(currentDateStr, "yyyy-MM-dd HH:mm:ss", _system_user_time_zone);
+					currentDate_asPerTimeZone = adddays(currentDate_asPerTimeZone, -1); //Deducting 1 day, as current BML function that calculates valid to date by adding 365 days is not deducting 1 day.
+					newToDate = substring(datetostr(util.getDefaultValidToDate(currentDate_asPerTimeZone, salesOrg_t, transactionType_t),systemUserDatePref,_system_user_time_zone),0,10);
+				}
+				
+				//Defect INC000013404367Fix : Commenting the following line that adds time component to the date as timezone is being considered.
+				// Set the time for just after midnight for timer purposes later on...
+				//newToDate = newToDate+ " 23:59:59";
+			}
+		}
+		else{
+			if(qq_nt_ValidTo_t <> "" AND not(isnull(qq_nt_ValidTo_t))) {
+				newToDate = qq_nt_ValidTo_t;
+				//Project # 49074 : Below util (getDefaultValidToDate_psd) call is to use salesDistrict_t as additional param to get the valid date. 03/02/2020: Vijetha
+				if((transactionType_t == "WQ" OR transactionType_t == "BA") AND qqBusinessLineForSalesOrg_t == "PSD"){
+					
+					newToDate = substring(datetostr(util.getDefaultValidToDate_psd(inputParamDict),systemUserDatePref,_system_user_time_zone),0,10);
+					
+				}
+			}
+		}
+	
+	} else {
+		//Project # 49074 : Below util (getDefaultValidToDate_psd) call is to use salesDistrict_t as additional param to get the valid date. 03/02/2020: Vijetha
+		if((transactionType_t == "WQ" OR transactionType_t == "BA") AND qqBusinessLineForSalesOrg_t == "PSD"){
+			//Project# 49074: Reason for commenting the below code is, date format used is resulting wrong date output. Replacing hardcoded date format with system attributes like _system_user_date_pref and _system_user_time_zone
+			
+			newToDate = substring(datetostr(util.getDefaultValidToDate_psd(inputParamDict),systemUserDatePref,_system_user_time_zone),0,10);
+		}else{
+			//Defect INC000013404367 Fix : Commented the following line and considering the current date in user timezone and sending it as a paramter to getDefaultValidToDate function.
+			//newToDate = substring(datetostr(util.getDefaultValidToDate(getDate(false), salesOrg_t, transactionType_t),systemUserDatePref,_system_user_time_zone),0,10);
+			currentDate = getDate(true);
+			currentDateStr = datetostr(currentDate, "yyyy-MM-dd HH:mm:ss", _system_user_time_zone);
+			currentDate_asPerTimeZone = strtojavadate(currentDateStr, "yyyy-MM-dd HH:mm:ss", _system_user_time_zone);
+			currentDate_asPerTimeZone = adddays(currentDate_asPerTimeZone, -1); //Deducting 1 day, as current BML function that calculates valid to date by adding 365 days is not deducting 1 day.
+			newToDate = substring(datetostr(util.getDefaultValidToDate(currentDate_asPerTimeZone, salesOrg_t, transactionType_t), "yyyy-MM-dd HH:mm:ss",_system_user_time_zone),0,10);
+		}	
+		// Set the time for just after midnight for timer purposes later on...
+		//Defect INC000013404367 fix : Commented the following line which adds time factor to date variable.
+		//newToDate = newToDate+ " 23:59:59";
+	}
+	retString = retString + "1~agreementValidTo_t~"+newToDate+"|";
+	if(transactionType_t == "BA" AND qqBusinessLineForSalesOrg_t == "PSD" )
+	{
+	newBidExpDate = "";
+			   
+	systemUserDatePref = replace(_system_user_date_pref,".","/");
+		systemUserDateArray = split(systemUserDatePref ,"/");
+		if(systemUserDateArray[0] == "dd"){
+			indx_0_val= systemUserDateArray[0];
+			indx_1_val= systemUserDateArray[1];
+			systemUserDateArray[0] = indx_1_val;
+			systemUserDateArray[1] = indx_0_val;
+		}
+		
+		systemUserDatePref = join(systemUserDateArray,"/");
+	
+	inputParamDict = dict("anytype");
+	put(inputParamDict,"salesDistrict",salesDistrict_t);
+	put(inputParamDict,"TransactionType",transactionType_t);
+	put(inputParamDict,"SalesOrg",salesOrg_t);
+	put(inputParamDict,"validFrom",getDate(false));
+	put(inputParamDict,"type","D");
+	newBidDate = util.getDefaultValidToDate_psd(inputParamDict);
+	newBidDateString = substring(datetostr(newBidDate,systemUserDatePref,_system_user_time_zone),0,10);	
+	put(inputParamDict,"validFrom",newBidDate);
+	newBidExpDate1 = util.getDefaultValidToDate_psd(inputParamDict);	
+	newBidExpDateString = substring(datetostr(newBidExpDate1,systemUserDatePref,_system_user_time_zone),0,10);
+	retString = retString + "1~bidDate_t~"+newBidDateString+"|";
+	retString = retString + "1~bidExpirationDate_t~"+newBidExpDateString+"|";
+	retString = retString + "1~agreementValidFrom_t~"+newBidExpDateString+"|";  
+	put(inputParamDict,"type","Y");
+	put(inputParamDict,"validFrom",newBidExpDate1);
+	validTo = substring(datetostr(util.getDefaultValidToDate_psd(inputParamDict),systemUserDatePref,_system_user_time_zone),0,10);
+	retString = retString + "1~agreementValidTo_t~"+validTo+"|"; 
+	
+	}
+        
+	
+//}
+}
+//Project # 49074 : Bid expiration date should be calculated only when Bid date is selected. Logic to calculate Bid expiration date is same as Valid To date. Get a valid range from ValidDateRange data table and add the range to current date. 20/02/2020: Priyanka
+if(_system_current_step_var == "draft"){//Bid date will be selected in Draft step.
+bidDate = bidDate_t;
+bidExpDate = bidExpirationDate_t;
+newBidExpDate = "";
+//CPQ-4012 - Bid Expiration Date is cleared out. 
+if(bidExpDate <> "")
+{
+newBidExpDate = bidExpDate;
+}
+else
+{
+newBidExpDate = "";
+}
+
+if((bidDate <> "" and bidExpDate == "") AND (qq_ntTransactionType_t == "BA")) { 
+
+		
+		systemUserDatePref = replace(_system_user_date_pref,".","/");
+		systemUserDateArray = split(systemUserDatePref ,"/");
+		if(systemUserDateArray[0] == "dd"){
+			indx_0_val= systemUserDateArray[0];
+			indx_1_val= systemUserDateArray[1];
+			systemUserDateArray[0] = indx_1_val;
+			systemUserDateArray[1] = indx_0_val;
+		}
+		
+		systemUserDatePref = join(systemUserDateArray,"/");
+	
+	inputParamDict = dict("anytype");
+	put(inputParamDict,"salesDistrict",salesDistrict_t);
+	put(inputParamDict,"TransactionType",transactionType_t);
+	put(inputParamDict,"SalesOrg",salesOrg_t);
+	put(inputParamDict,"validFrom",getDate(false));
+	put(inputParamDict,"type","D");
+	
+	newBidExpDate = substring(datetostr(util.getDefaultValidToDate_psd(inputParamDict),systemUserDatePref,_system_user_time_zone),0,10);
+        
+}
+retString = retString + "1~bidExpirationDate_t~"+newBidExpDate+"|";
+}
+
+retString= retString + "1~endCustomerUpdatedWarningMessage_t~" + "|";
+if(jsonarraysize(endCustomerArraySet2_t) >= 1 AND NOT(ISNULL(endCustomerArraySet2_t))){
+	selectedCustRecordsJson = json();
+	jsonput(selectedCustRecordsJson, "records", endCustomerArraySet2_t);
+	//Fetch primary selected customer record
+	selectedCustRecordsJsonArray = jsonpathgetmultiple(selectedCustRecordsJson, "$.records[?(@.primary_EndCus_t==true)]");
+	
+	//49704 - Eagle Development - Added the below if condition to handle if no row is selected as primary in array set
+	if(jsonarraysize(selectedCustRecordsJsonArray) > 0){
+		endCustName = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "name_endCust2_t", "string", "");
+		endCustNo = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "customer_EndCus2_t", "string", "");  
+		/*As CPQ-658 Primary End Customer on the Output Templates,this changes is done.
+		  Passing all details of customer in one attribute.
+		  And then use this attribute in QQ Cover Letter + Output Document (Multi) and Cover Letter + Output Document (Multi)*/
+		endCustCity = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "city_endCust2_t", "string", "");
+		endCustRegion = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "region_endCust2_t", "string", "");
+		endCustCountry = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "country_endCust2_t", "string", "");
+		
+		endCustDetails = string[];//
+		
+		//Added by gautam on 16-04-2020
+		//Added condition to avoid appending CustomerNo in End customer Details if the BusinessType is  ES-EMEA and Transaction Type is  CSP
+		
+		//old condition
+		/*if(endCustNo <> ""){
+			append(endCustDetails,endCustNo);
+		}*/
+		
+		//replaced by
+		if((endCustNo <> "") AND (NOT(qqBusinessLineForSalesOrg_t =="ES-EMEA" AND transactionType_t =="CSP"))){
+			append(endCustDetails,endCustNo);
+		}
+		if(endCustName <> "" AND endCustomerName_t<>"" AND endCustomerNameUpdated_t){
+				append(endCustDetails,endCustomerName_t);
+		
+		}else{
+				append(endCustDetails,endCustName);
+			}
+		
+		/*
+		if(endCustName <> "" AND NOT endCustomerNameUpdated_t){
+			append(endCustDetails,endCustName);
+		}
+		else{
+			append(endCustDetails,endCustomerName_t);
+			
+		}
+		*/
+		if(endCustCity <> ""){
+			append(endCustDetails,endCustCity);
+		}
+		if(endCustRegion <> ""){
+			append(endCustDetails,endCustRegion);
+		}
+		if(endCustCountry <> ""){
+			append(endCustDetails,endCustCountry);
+		}
+		endCustDetailsStr = join(endCustDetails,", ");
+		
+		
+		//Gautam CPQ-125 ES-EMEA End Customer Guidance
+		if(qqBusinessLineForSalesOrg_t == "ES-EMEA")
+		{
+		
+			if(endCustomerNo_t <> "" AND endCustomerNo_t <> endCustNo)
+			{
+				//retString = retString + "1~agreementErrorMessages_t~" + endCustNo + "End customer has changed, PriceScope guidance has been refreshed" + "|";
+				WARNING_MESSAGE_PRIMARYCUSTCHANGED = util.getRemark("WARNING_PRIMARYENDCUSTOMER_CHANGED", userLanguage);
+				append(notificationsArray, "<p>" + WARNING_MESSAGE_PRIMARYCUSTCHANGED + "</p>");
+				
+			   if(sizeofarray(notificationsArray) > 0){
+				  notificationMessage = join(notificationsArray, "/n");
+				  retString = retString + "1~endCustomerUpdatedWarningMessage_t~" + notificationMessage + "|";
+				 }
+				 
+				 /*if(action == saveandreview)
+				 {
+				  //Zilliant - Fetch guidance from zilliant
+							  //inputJson=json();
+							  //result = result + commerce.refreshGuidance(inputJson);
+							}*/
+			}
+			
+		}
+		
+		if(NOT endCustomerNameUpdated_t){
+		retString = retString +"1~endCustomerName_t~" + endCustName+ "|";
+		}
+		retString = retString +"1~endCustomerNo_t~" + endCustNo+ "|";
+		retString = retString +"1~endCustomerDetails_t~" + endCustDetailsStr+ "|";
+		retString = retString +"1~primaryEndCustomerFlag_t~true|";
+		
+	}else{
+		
+		retString = retString +"1~primaryEndCustomerFlag_t~false|";
+		retString = retString +"1~endCustomerDetails_t~|";
+		
+		
+	}
+	
+}else{//If the selected End customer is empty then clearing the related attributes 
+	retString = retString +"1~endCustomerName_t~|";
+	retString = retString +"1~endCustomerNo_t~|";
+	retString = retString +"1~endCustomerDetails_t~|";
+}
+
+//commerce function
+/*jsonParam = Json();
+mystr = commerce.endCustomerGuidance(jsonParam);
+if(mystr <> "")
+{
+	retString = retString + mystr;
+}*/
+
+
+//if(_system_current_step_var <> "start_step"){
+	primeCount = commerce.returnArraysetCount(endCustomerArraySet2_t, "primary", "primary_EndCus_t");
+	endCustCount = commerce.returnArraysetCount(endCustomerArraySet2_t, "All", "customer_EndCus2_t");
+//}
+retString = retString + "1~primaryEndCustomerCount_t~" +string(primeCount) +"|";
+retString = retString + "1~endCustomerCount_t~" +string(endCustCount) +"|";
+retString = retString + "1~appliedExchangeRate_t~" +string(newExchangeRate_t) +"|";
+//INC000013490309 - Populate Volume Bonus Columns In Report
+retString = retString + commerce.populateVolumeBonusColumnsInReport() +"|";
+
+
+//CPQ 1548 - Pooja - Added code to populate Old Json Date on copy
+
+if( _system_current_step_var == "start_step") {
+oldDateJson = json();
+if( isCopyOrVersion_t ) {
+	agreementValidFrom= substring(agreementValidFrom_t,0,10);
+	oldDateValue = datetostr(strtodate(agreementValidFrom, "MM/dd/yyyy"),"yyyy-MM-dd");
+	jsonput(oldDateJson,"Valid From",oldDateValue);
+	currentoldPriceListDate ="";
+	if(oldPriceListDate_t<>"")
+	{
+	currentoldPriceListDate = datetostr(strtodate(oldPriceListDate_t, "MM/dd/yyyy",_system_user_time_zone),"yyyy-MM-dd",_system_user_time_zone);
+	}
+	jsonput(oldDateJson,"Old Price Date",currentoldPriceListDate);
+	retString = retString + "1~oldDatesJson_t~" +  jsontostr(oldDateJson)+ "|";
+	
+}
+}
+//update header total
+//headerTotValue = commerce.updateHeaderTotalValue();
+//retString = retString + "1~qqTotalValue_t~" +  string(headerTotValue) + "|";
+retString = retString + commerce.updateHeaderTotalValue();
+
+//added by gautam  Save CPQ-557
+ownerName = commerce.getTransactionOwnerNameEmail("name");
+retString = retString +"1~transactionOwnerName_t~" + ownerName  + "|";
+
+//Added for CPQ-4124 - Start //  Moved this code from "saveActionAdvModifyBeforeFormulas" as part of CPQ-4431
+if(_system_current_step_var == "start_step"){
+	if(qqBusinessLineForSalesOrg_t <> "PSD" AND NOT isCopyOrVersion_t){
+		retString = retString + commerce.generateBidGroupNo();
+		retString = retString + "1~bidGroupDescription_t~" + transactionName_t +  "|";
+	}
+}
+
+
+//Added for CPQ-4124 - End // 
+//retString = retString  + commerce.setCustomerDetails();
+//cpq-65
+//retString = retString + commerce.taggedGuidance();
+if(debugMode){
+print "cost";
+
+print "cost";
+print "scaleFrom and scaleTo is null";
+print "TotalRequestPrice";
+print ApprovedTotalRequestedPrice;
+print TotalRequestPrice;
+print "TotalRequestPrice";
+print "sumOfQtyCost";
+print sumOfQtyCost;
+print "sumOfQtyCost";
+print "+++++++++++";
+print "sumOfQtyCost";
+print sumOfQtyCost;
+print "sumOfQtyCost";
+print "ApprovedTotal";
+
+print "ApprovedTotal";
+print  "ApprovedExtendedMargin";
+
+print  "ApprovedExtendedMargin";
+print "ApprovedTotalPrice";
+print ApprovedTotalPrice;
+print "ApprovedTotalPrice";
+print "ApprovedTotalMargin";
+print ApprovedTotalMargin;
+print "ApprovedTotalMargin";
+print "Total Margin";
+print totalMargin;
+print "Total Margin";
+print "totalMarginPer";
+print totalMarginPer;
+print "totalMarginPer";
+print "ApprovedMarginPer";
+print ApprovedMarginPer;
+print "ApprovedMarginPer";
+print "crypton";
+print "crypton";
+
+	
+}
+print "return from Save After";
+print retString;
+return retString;

@@ -1,0 +1,44 @@
+/*
+@name Get BLine Threshold
+@api getBLineThreshold
+
+@summary : This function will extract threshold data for BLine
+@param  lookupValueArray String[]
+	agencyAssignment String
+	transactionType  String
+	stringDict String Dictionary
+
+@return String Dictionary
+
+@revision
+Rev. Date  	| Developer	| Notes/Comment
+------------------------------------------------------------------
+18-April-2018	| Harshit Mehta | Initial Code.
+*/
+//Create lookup Dictionary
+lookupDict = dict("dict<string>");
+
+thresholdData = BMQL("Select Lookup_Type,Lookup_Value,Sales_Agents, Sales_Analyst,Quotes_Reps, Quotes_Leads, Product_Manager FROM Thresholds_BLine WHERE Lookup_Value IN $lookupValueArray AND Agent_Assignment = $agencyAssignment AND Transaction_Type = $transactionType");
+
+//loop over all rows.
+for thresholdRow in thresholdData
+{
+		thresholdDataDict = dict("string");
+		put(thresholdDataDict,"Sales_Agents",get(thresholdRow,"Sales_Agents"));
+		put(thresholdDataDict,"Sales_Analyst",get(thresholdRow,"Sales_Analyst"));
+		put(thresholdDataDict,"Quotes_Reps",get(thresholdRow,"Quotes_Reps"));
+		put(thresholdDataDict,"Quotes_Leads",get(thresholdRow,"Quotes_Leads"));
+		put(thresholdDataDict,"Product_Manager",get(thresholdRow,"Product_Manager"));	
+		put(lookupDict,get(thresholdRow , "Lookup_Type") + "_" + get(thresholdRow,"Lookup_Value"),thresholdDataDict);
+}
+
+/***Return data would be in below format :
+PH5 => LookUpType
+E30 => Lookup Value
+{PH5_E30={Sales_Agents=0.4, Quotes_Manager=0.66, Quotes_Reps=0.65, Pricing_Manager=0.67, Product_Manager=1}, 
+ PH5_A90={Sales_Agents=0.54, Quotes_Manager=0.66, Quotes_Reps=0.62, Pricing_Manager=0.66, Product_Manager=1}, 
+ Material_000000078205111296={Sales_Agents=0.5, Quotes_Manager=0.58, Quotes_Reps=0.54, Pricing_Manager=0.63, Product_Manager=1}, 
+ PH5_MC0={Sales_Agents=0.66, Quotes_Manager=0.78, Quotes_Reps=0.74, Pricing_Manager=0.78, Product_Manager=1}, 
+ PH5_STD={Sales_Agents=0.52, Quotes_Manager=0.68, Quotes_Reps=0.68, Pricing_Manager=0.68, Product_Manager=1}}
+*****/
+return lookupDict;

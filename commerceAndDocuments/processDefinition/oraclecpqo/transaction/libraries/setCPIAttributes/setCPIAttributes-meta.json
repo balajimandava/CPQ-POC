@@ -1,0 +1,14 @@
+{
+  "name" : "Set Commodity Price Index (CPI) Attributes",
+  "variableName" : "setCPIAttributes",
+  "description" : "Project#49074|",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputData",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "commodityPriceIndex_t", "cpiType_t", "cpiBase_t", "cpiAdjustmentDate_t", "cPIConfigAttr" ],
+  "systemAttributes" : [ "_system_user_date_pref" ]
+}

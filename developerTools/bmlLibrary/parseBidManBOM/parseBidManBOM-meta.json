@@ -1,0 +1,12 @@
+{
+  "name" : "parseBidManBOM",
+  "variableName" : "parseBidManBOM",
+  "description" : "parse Bid manager BOM into parent line and array of child line items.",
+  "libraryFunctions" : [ "util.getStringDict", "util.isPSDTakeOffModel", "util.parseXMLToDelimiterStr", "util.setEmpyForNullString", "util.xmlToJSONConverter" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "bom",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

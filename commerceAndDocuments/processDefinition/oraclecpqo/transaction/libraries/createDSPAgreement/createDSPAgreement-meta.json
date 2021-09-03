@@ -1,0 +1,11 @@
+{
+  "name" : "Create DSP Agreements",
+  "variableName" : "createDSPAgreement",
+  "description" : "Rahul - In Progress",
+  "libraryFunctions" : [ "util.transactionUploadStatusLog" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ "_system_company_name" ]
+}

@@ -1,0 +1,12 @@
+{
+  "name" : "Advanced Forwarding Rule Backup",
+  "variableName" : "advancedForwardingRule_backup",
+  "description" : "Consolidated Advanced Forwarding Rule for step transition.",
+  "libraryFunctions" : [ "util.getBLineGroups", "util.getBussmannGroups", "util.getCHEMEAGroups", "util.getESEMEAGroups", "util.getTransactionData" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

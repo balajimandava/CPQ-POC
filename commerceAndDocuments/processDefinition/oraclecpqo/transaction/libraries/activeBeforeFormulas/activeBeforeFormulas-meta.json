@@ -1,0 +1,14 @@
+{
+  "name" : "Active - Before Formulas",
+  "variableName" : "activeBeforeFormulas",
+  "description" : "This UTIL runs in the Before Formulas for the CPQ action called Active",
+  "libraryFunctions" : [ "commerce.nextTimer", "commerce.updateCustomerMaster", "util.getEnvironmentVariable" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "parmsDict0",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "active_Timer_t", "agreementValidTo_t", "extendCurrentListPrices_t", "choosePricelist_t", "accountTypeKTOKD_t", "priceListFrom_t", "qqBusinessLineForSalesOrg_t", "isAgreement_t", "uploadedAgreement_t", "agreementUploadDetails_t", "syncToSAP_t" ],
+  "systemAttributes" : [ "_system_date" ]
+}

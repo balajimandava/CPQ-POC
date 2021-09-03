@@ -1,0 +1,11 @@
+{
+  "name" : "Create OR Update Contract",
+  "variableName" : "createORUpdateContract",
+  "description" : "qqSAPQuoteNumber_t is not empty then using the update contract URL otherwise create contract URL",
+  "libraryFunctions" : [ "commerce.generateCreateORUpdateContractPayload", "util.getEnvironmentVariable", "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qqSAPQuoteNumber_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_user_time_zone" ]
+}

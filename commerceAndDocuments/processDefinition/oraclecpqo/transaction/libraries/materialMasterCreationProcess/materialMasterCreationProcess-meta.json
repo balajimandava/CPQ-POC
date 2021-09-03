@@ -1,0 +1,11 @@
+{
+  "name" : "Material Master Creation Process",
+  "variableName" : "materialMasterCreationProcess",
+  "description" : "",
+  "libraryFunctions" : [ "util.getEnvironmentVariable", "util.getMAT01DetailsForMultipleItems", "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.ignoreTheMaterialMasterCreation", "util.u_convertJsonArrayToStringArray" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "lineItemStatus_l", "qqProductType_l", "qqCatalogNumber_l", "materialLineItem_l", "materialMasterPayload_l", "materialMasterBOMPayload_l", "_document_number", "brand_l", "takeOffModel_l" ],
+  "mainDocAttributes" : [ "salesOrg_t", "distributionChannel_t", "bs_id", "materialMasterCreationStatus_t", "materialMasterResponse_t" ],
+  "systemAttributes" : [ "_system_selected_document_number" ]
+}

@@ -1,0 +1,108 @@
+//17-03-2020|Atul Jain|Added debug mode to print statement
+
+//  Added check for date ranges.
+
+retJSON= json();
+
+  tranXPATHS= string[]{"//transactionType_t"};
+  debugMode = false;
+  customerNumber= "";
+  salesOrg= "";
+  transType= "";
+  validFromDate= "";
+  validToDate= "";
+  returnALL= FALSE;
+  
+  //  Status types we look for the order we will use them
+  statusList= string[]{"approved","sapComplete","active"};
+  
+  if (containskey(inputDict,"Customer Number")) {
+    customerNumber= get(inputDict,"Customer Number");
+  }
+  
+  if (containskey(inputDict,"Sales Org")) {
+    salesOrg= get(inputDict,"Sales Org");
+  }
+  
+  if (containskey(inputDict,"Transaction Type")) {
+    transType= get(inputDict,"Transaction Type");
+  }
+  
+  if (containskey(inputDict,"Valid From Date")) {
+    validFromDate= replace(substring(get(inputDict,"Valid From Date"),0,10),"-","");
+  }
+  if (debugMode) {
+  print validFromDate;
+  }
+  
+  if (containskey(inputDict,"Valid To Date")) {
+    validToDate= replace(substring(get(inputDict,"Valid To Date"),0,10),"-","");
+  }
+  if (debugMode) {
+  print validToDate;
+  }
+  
+  if (containskey(inputDict,"Return ALL")) {
+    returnALL= TRUE;
+  }
+  if (debugMode) {
+  print returnALL;
+  }
+  
+  //  Dictionary to hold the agreement numbers based on status above
+  statusD= dict("string");
+  
+  //  Look for active and sapComplete agreements that have a from and do date that this agreement fall under
+  allAgreementsBMQL= bmql("SELECT AgreementNumber,Status " +
+  			  "FROM AllAgreements " +
+  			  "WHERE CustomerNumber = $customerNumber AND " +
+  			  "VKORG = $salesOrg AND " + 
+  			  "Status IN $statusList AND " +
+  			  "ValidFrom <= $validFromDate AND ValidTo >= $validToDate");
+  //print allAgreementsBMQL;
+  
+  for eachAgreement in allAgreementsBMQL {
+    agreementNumber= get(eachAgreement,"AgreementNumber");
+    agreementStatus= get(eachAgreement,"Status");
+    
+	//Added by vasundhara - ALM-1953
+	company = lower(util.getSupplierCompanyName());
+	primaryQuoteRestUrl = "https://" + company + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction/" + agreementNumber;
+	//Get API Username and Password.
+	user = util.getSiteSpecificData(company);
+	login = jsonget(user, "FieldName", "string", "");
+	password = jsonget(user, "Value1", "string", "");
+
+	// Rest Header  
+	headers = dict("string");
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+
+	response = urldata(primaryQuoteRestUrl, "get",headers);
+	body = get(response, "Error-Message");
+	checkType = "";
+	if(isnull (body)){
+		transData= util.getTransactionData(agreementNumber,tranXPATHS);
+		checkType= jsonget(transData,"transactionType_t","string","");
+	}
+	// Check for the same transaction type 
+    if (checkType <> transType) {
+      // Skip it if they are not the same transaction type
+      continue;
+    }
+    
+    put(statusD,agreementStatus,agreementNumber);
+  }
+  
+  for eachStatus in statusList {
+    if (containskey(statusD,eachStatus)) {
+      if (NOT returnALL) {
+        jsonput(retJSON,customerNumber,get(statusD,eachStatus));
+        break;  //  1st one wins
+      } else {
+        jsonput(retJSON,get(statusD,eachStatus),eachStatus);
+      }
+    }
+  }
+  
+return retJSON;

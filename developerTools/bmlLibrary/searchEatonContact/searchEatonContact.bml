@@ -1,0 +1,90 @@
+//************************************************************************************************************
+//** Function:    Search for contact and vendor for Eaton Contact tab based on specified parameters
+//**
+//** Description: Process Eaton Contact Search function
+//**
+//** Return type: String
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              7-Jan-2020    Rahul Uttarwar    Initial version
+//**              20-Feb-2020   Rahul Uttarwar    Implemented code review comments
+//************************************************************************************************************
+// Get parameters from the input dictionary
+salesOrg    = util.getStringDict(searchParams, "salesOrg", "");
+distributionChannel = util.getStringDict(searchParams, "distributionChannel", "");
+contactType = util.getStringDict(searchParams, "contactType", "");
+
+KTOKD = "Z210";
+searchResultSet = recordset();
+
+searchTerm = util.getStringDict(searchParams, "filterItemSearchTerm", "");
+
+searchTerm = trim(searchTerm);
+lowerSearchTerm  = trim(searchTerm);
+upperSearchTerm  = trim(searchTerm);
+properSearchTerm = trim(searchTerm);
+
+if( searchTerm == "" or searchTerm == "@@BLANK@@") {
+   searchTerm = "%";  // Add wildcard symbol around search term
+} else {
+   searchTerm = "%" + searchTerm + "%";  // Add wildcard symbol around search term
+}
+if( lowerSearchTerm == "" or lowerSearchTerm == "@@BLANK@@") {
+   lowerSearchTerm = "%";  // Add wildcard symbol around search term
+} else {
+   lowerSearchTerm = "%" + lower(lowerSearchTerm) + "%";  // Add wildcard symbol around search term
+}
+if( upperSearchTerm == "" or upperSearchTerm == "@@BLANK@@") {
+   upperSearchTerm = "%";  // Add wildcard symbol around search term
+} else {
+   upperSearchTerm = "%" + upper(upperSearchTerm) + "%";  // Add wildcard symbol around search term
+}
+
+if( properSearchTerm == "" or properSearchTerm == "@@BLANK@@") {
+   properSearchTerm = "%";  // Add wildcard symbol around search term
+} else {
+   properWords = string[];
+   searchWords = split(properSearchTerm, " ");
+   properSearchTerm = "";
+   for eachWord in searchWords {
+      if( len(eachWord) >= 2 ) {
+         append(properWords, upper(substring(eachWord,0,1))+lower(substring(eachWord,1)));
+      } else {
+         append(properWords, upper(eachWord));
+      }
+   }
+   properSearchTerm = "%" + join (properWords, "%" ) + "%";  // Add wildcard symbol around search term
+}
+
+// Format response as a JSON array
+result = jsonarray();
+selectColmns = "";
+
+if( contactType == "salesContact" OR contactType == "customerSupport" ){
+   selectColmns = "KUNNR, NAME1";
+   searchResultSet = bmql("SELECT DISTINCT NAME1, KUNNR FROM CUSMAS WHERE VKORG = $salesOrg AND VTWEG = $distributionChannel AND KTOKD = $KTOKD AND (NAME1 LIKE $searchTerm OR NAME1 LIKE $lowerSearchTerm OR NAME1 LIKE $upperSearchTerm OR NAME1 LIKE $properSearchTerm OR KUNNR LIKE $searchTerm)");
+}elif( contactType == "salesAgency" ) {
+   selectColmns = "LIFNR, NAME1";
+   searchResultSet = bmql("SELECT DISTINCT NAME1, LIFNR FROM VENDOR WHERE NAME1 LIKE $searchTerm OR NAME1 LIKE $lowerSearchTerm OR NAME1 LIKE $upperSearchTerm OR NAME1 LIKE $properSearchTerm OR LIFNR LIKE $searchTerm");
+}else {
+   partnerDetails = jsonarray();
+   jsonarrayappend(result, partnerDetails);
+}
+
+//Process result set
+for row in searchResultSet {
+   partnerDetails = jsonarray();
+   columns = split(selectColmns, ",");
+   jsonarrayappend(partnerDetails, "");  // Empty value for checkbox in data table
+
+   for column in columns {
+      jsonarrayappend(partnerDetails, get(row, column)); // Partner Number
+   }
+   jsonarrayappend(result, partnerDetails);
+   if(jsonarraysize(result) > 499){
+      break;
+   }
+}
+   
+return result;

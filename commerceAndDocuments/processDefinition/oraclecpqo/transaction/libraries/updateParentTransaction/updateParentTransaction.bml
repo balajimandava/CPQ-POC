@@ -1,0 +1,35 @@
+/**
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2019-01-30|Pooja Gupta          |ALM 1648 -Code to update old transaction value on Exipire and Renew for ESEMEA
+2019-09-08|Pooja Gupta		|ALM 1648- Added code to populate child SAP completion date on Parent transaction.
+2021-02-01|Johnny Lin		|INC000014188250 - updated childAgreementSAPCompletion hours format to be 24 hours
+*/
+siteID = _system_supplier_company_name;
+user = util.getSiteSpecificData(siteID);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+parent_id=jsonget(jsonlib,"parentId");
+sessionId=jsonget(jsonlib,"SessionId");
+
+validToDate= strtojavadate(agreementValidFrom_t, "yyyyy-MM-dd");
+newValidFromDate= util.u_addToDate(validToDate,"DAYS",-1);
+newValidFromDateStr=datetostr(newValidFromDate,"yyyy-MM-dd hh:mm:ss");
+
+//Below attribute is used in reporting
+//childAgreementSAPCompletion = datetostr(getDate(),"yyyy-MM-dd hh:mm:ss");  //INC000014188250 changed
+childAgreementSAPCompletion = datetostr(getDate(),"yyyy-MM-dd HH:mm:ss");  //INC000014188250 updated with hour format HH
+serviceEndpoint= "https://" + _system_supplier_company_name +".bigmachines.com/v2_0/receiver/commerce/oraclecpqo";
+TodayDate=getdate();
+// Set headers for request message
+requestHeaders = dict("string");
+response = "";
+requestBody="<?xml version='1.0' encoding='UTF-8'?><soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/'><soapenv:Header><wsse:Security xmlns:wsse='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd' xmlns:wsu='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd'><wsse:UsernameToken wsu:Id='UsernameToken-2'><wsse:Username>"+login+"</wsse:Username><wsse:Password Type='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText'>"+password+"</wsse:Password></wsse:UsernameToken></wsse:Security></soapenv:Header><soapenv:Body><bm:updateTransaction xmlns:bm='http://xmlns.oracle.com/cpqcloud/commerce/oraclecpqo' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'><bm:transaction><bm:id>"+parent_id+"</bm:id><bm:process_var_name>oraclecpqo</bm:process_var_name><bm:supplier_company_name>"+_system_supplier_company_name+"</bm:supplier_company_name><bm:data_xml><bm:transaction bm:bs_id='"+parent_id+"' bm:data_type='0' bm:document_name='Transaction' bm:document_number='1' bm:document_var_name='transaction' bm:process_var_name='oraclecpqo' bm:supplier_company_name='"+_system_supplier_company_name+"'><bm:document_number>1</bm:document_number><bm:agreementValidTo_t>" + newValidFromDateStr + "</bm:agreementValidTo_t><bm:childAgreementSAPCompletion_t>"+childAgreementSAPCompletion+"</bm:childAgreementSAPCompletion_t><bm:syncToSAP_t>false</bm:syncToSAP_t></bm:transaction></bm:data_xml><bm:action_data><bm:action_var_name>apiSave_t</bm:action_var_name></bm:action_data></bm:transaction></bm:updateTransaction></soapenv:Body></soapenv:Envelope>";
+response = urldatabypost(serviceEndpoint, requestBody, "ERROR occurred during service call (Expire and Renew Call)", requestHeaders, true);
+requestBody2="<?xml version='1.0' encoding='UTF-8'?><soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/'><soapenv:Header><wsse:Security xmlns:wsse='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd' xmlns:wsu='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd'><wsse:UsernameToken wsu:Id='UsernameToken-2'><wsse:Username>"+login+"</wsse:Username><wsse:Password Type='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText'>"+password+"</wsse:Password></wsse:UsernameToken></wsse:Security></soapenv:Header><soapenv:Body><bm:updateTransaction xmlns:bm='http://xmlns.oracle.com/cpqcloud/commerce/oraclecpqo' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'><bm:transaction><bm:id>"+parent_id+"</bm:id><bm:process_var_name>oraclecpqo</bm:process_var_name><bm:supplier_company_name>"+_system_supplier_company_name+"</bm:supplier_company_name><bm:data_xml><bm:transaction bm:bs_id='"+parent_id+"' bm:data_type='0' bm:document_name='Transaction' bm:document_number='1' bm:document_var_name='transaction' bm:process_var_name='oraclecpqo' bm:supplier_company_name='"+_system_supplier_company_name+"'><bm:document_number>1</bm:document_number></bm:transaction></bm:data_xml><bm:action_data><bm:action_var_name>active_Timer</bm:action_var_name></bm:action_data></bm:transaction></bm:updateTransaction></soapenv:Body></soapenv:Envelope>";
+response2 = urldatabypost(serviceEndpoint, requestBody2, "ERROR occurred during service call (Expire and Renew Call)", requestHeaders, true);
+requestBody1="<?xml version='1.0' encoding='UTF-8'?><soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/'><soapenv:Header><wsse:Security xmlns:wsse='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd' xmlns:wsu='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd'><wsse:UsernameToken wsu:Id='UsernameToken-2'><wsse:Username>"+login+"</wsse:Username><wsse:Password Type='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText'>"+password+"</wsse:Password></wsse:UsernameToken></wsse:Security></soapenv:Header><soapenv:Body><bm:updateTransaction xmlns:bm='http://xmlns.oracle.com/cpqcloud/commerce/oraclecpqo' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'><bm:transaction><bm:id>"+parent_id+"</bm:id><bm:process_var_name>oraclecpqo</bm:process_var_name><bm:supplier_company_name>"+_system_supplier_company_name+"</bm:supplier_company_name><bm:data_xml><bm:transaction bm:bs_id='"+parent_id+"' bm:data_type='0' bm:document_name='Transaction' bm:document_number='1' bm:document_var_name='transaction' bm:process_var_name='oraclecpqo' bm:supplier_company_name='"+_system_supplier_company_name+"'><bm:document_number>1</bm:document_number></bm:transaction></bm:data_xml><bm:action_data><bm:action_var_name>updateTransactionRenewal</bm:action_var_name></bm:action_data></bm:transaction></bm:updateTransaction></soapenv:Body></soapenv:Envelope>";
+response1 = urldatabypost(serviceEndpoint, requestBody1, "ERROR occurred during service call (Expire and Renew Call)", requestHeaders, true);
+
+return response ;

@@ -1,0 +1,52 @@
+/**
+@name Convert Decimal
+@api convertDecimal
+@param inputNum String
+@param currencyDecimalSeprator String
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-09-07|Shibaji.Ganguly      | Initial Version.
+2018-09-21|Shibaji.Ganguly	| QQ-774 Related changed.
+2020-03-24|Atul Jain        | Added debug mode to print statements
+*/
+debugMode = false; 
+
+lclInputNum = inputNum;
+precPos = find(lclInputNum, ".");
+
+
+// Added for QQ-774 - Start //
+if(precPos == -1) {
+	// Not a decimal number, return as it is;
+	if(debugMode)
+    {
+    print "inputNum: " +  inputNum + " not a decimal number. Returning as it is."; 
+    }
+	return inputNum;
+}
+// Added for QQ-774 - End //
+
+decimalPart = substring(lclInputNum, precPos+1);
+decimalPartArr = split(decimalPart, "");
+
+if(sizeofarray(decimalPartArr) == 1) {
+	lclInputNum = lclInputNum + "0";
+}
+
+if(currencyDecimalSeprator <> "" AND NOT(isnull(currencyDecimalSeprator))) {
+	lclInputNum = replace(lclInputNum, ".", currencyDecimalSeprator);
+}
+
+if(debugMode)
+{
+print "inputNum: " + inputNum;
+print "precPos: " + string(precPos);
+print "decimalPartArr: "; print decimalPartArr;
+print "sizeofarray(decimalPartArr): " + string(sizeofarray(decimalPartArr));
+print "decimalPart: " + decimalPart;
+print "lclInputNum after: " + lclInputNum;
+print "lclInputNum before: " + lclInputNum;
+}
+return lclInputNum;

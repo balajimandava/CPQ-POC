@@ -1,0 +1,21 @@
+/**
+@name Enable Debug Log
+@api enableDebugLog
+@summary Enable debugging flags
+@function Json u_setLogLevel(String[][] categoryLevel)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-18|Tat.Leung            |
+*/
+categoryLevel = string[][] {
+    {"COM_ADD_NEW_ITEM", "4"},
+    {"COM_ADD_MAT_LINE_ITEM", "4"},
+    {"COM_UPDATE_LINE_ITEMS", "4"},
+    {"COM_APPROVAL", "4"},
+    {"CFG_EXTERNAL", "4"},
+    {"UTIL_ADD_MPG", "4"}
+};
+
+return util.u_setLogLevel(categoryLevel);

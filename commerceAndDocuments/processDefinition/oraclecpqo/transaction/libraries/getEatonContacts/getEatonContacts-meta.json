@@ -1,0 +1,11 @@
+{
+  "name" : "Get Eaton Contacts",
+  "variableName" : "getEatonContacts",
+  "description" : "",
+  "libraryFunctions" : [ "util.getCUSMAS", "util.getTransactionOwner" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "lineOwner_l" ],
+  "mainDocAttributes" : [ "customerNumber_t", "salesOrg_t", "qqBusinessLineForSalesOrg_t", "transactionType_t", "qq_customerReferenceShipTo", "nationalAccount_t", "createdBy_t", "isVendorQuote_t", "ntDistributionChannel_t", "creatorQuote_t", "preparedByEmail_t", "qq_Contact2Name_t", "qq_Contact3Name_t", "qq_Contact4Name_t" ],
+  "systemAttributes" : [ "_system_user_groups", "_system_company_name", "_system_user_login", "_system_user_name", "_system_user_phone", "_system_user_email", "_system_current_step_var" ]
+}

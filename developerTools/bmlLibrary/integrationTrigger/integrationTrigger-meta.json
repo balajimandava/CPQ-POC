@@ -1,0 +1,12 @@
+{
+  "name" : "Integration Trigger",
+  "variableName" : "integrationTrigger",
+  "description" : "Used to Send 1 or more Agreements to SAP.  Status and Step must=Approved or it is skipped.",
+  "libraryFunctions" : [ "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

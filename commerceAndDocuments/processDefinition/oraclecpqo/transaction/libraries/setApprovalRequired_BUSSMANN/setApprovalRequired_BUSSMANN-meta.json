@@ -1,0 +1,11 @@
+{
+  "name" : "setApprovalRequired_BUSSMANN",
+  "variableName" : "setApprovalRequired_BUSSMANN",
+  "description" : "BUSSMANN: \nDetermine if approval is required based on the new item and/or new item discounts.",
+  "libraryFunctions" : [ "commerce.setApprovalRequired_BUSSMANN_BLINE", "commerce.setEffectDateApproval", "util.getBussmannApproverData", "util.getDiscountLimitForBussmann", "util.getMAT01MultipleDetails", "util.getRemark", "util.stringToFloat", "util.u_buildCommerceReturnStrFromJson", "util.u_convertCommerceReturnStringToJSON", "util.u_getLineFromJson", "util.u_logJson", "util.u_logString", "util.u_logStringArray", "util.u_setCommerceAttribute" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "materialPricingGroup_l", "_document_number", "discountPercent_l", "materialLineItem_l", "oldListPrice_l", "marginPercentage_l", "feedbackDiscountPercent_l", "discountPercentNetApprovedString_l", "qqProductType_l", "discountString_l", "customDiscountType_l", "approverName_l", "requirePMApproval_l", "_sequence_number", "approvedNetFixedAmount_l", "approvedDiscount_l", "level2ThresholdVal", "takeOffModel_l", "priceIncluded_l" ],
+  "mainDocAttributes" : [ "salesOrg_t", "salesGroup_t", "validityPeriodApprovalRequired_t", "qqTotalValue_t", "productManagerApprovers_t", "requirePricingTeamApproval_t", "status_t", "currencyDecimalSeparator_t", "currencyThousandsSeparator_t", "quoteSubmitter_t", "previousAction_t", "previousApprovedValues_t", "currencySymbol_t", "agreementValidFrom_t", "agreementValidTo_t", "distributionChannel_t", "qqBusinessLineForSalesOrg_t", "emailSubjectStatus_t", "qqNewItemApprovalRequired_t", "requireBussmannPricingTeamApproval_t", "zeroListPriceApprovalRequired_t", "totalValueApprovalRequired_t", "isBussmannDistributor_t", "isSiemensUser_t", "isLegacyEaton_t" ],
+  "systemAttributes" : [ "_system_current_step_var", "_system_current_user_language" ]
+}

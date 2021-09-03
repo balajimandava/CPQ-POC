@@ -1,0 +1,15 @@
+{
+  "name" : "Get Uploaded Transaction Details Json",
+  "variableName" : "getUploadedTransactionDetailsJson",
+  "description" : "This function will return transaction data in JSON format.",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "buySide_ID",
+    "type" : "String"
+  }, {
+    "name" : "jsonParam",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

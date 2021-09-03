@@ -1,0 +1,14 @@
+{
+  "name" : "PSD Get Banner Text and Current Approval Level2",
+  "variableName" : "readJSONToGetApprovalInfo",
+  "description" : "PSD POC  - NOT IN USE - E9913664",
+  "libraryFunctions" : [ "commerce.pSDGetApproverDetails" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "JsonLineObject",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

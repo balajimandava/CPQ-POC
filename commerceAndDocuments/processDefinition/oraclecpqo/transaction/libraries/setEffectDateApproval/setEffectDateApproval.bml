@@ -1,0 +1,37 @@
+/**
+@name Set Effect Date Approval
+@api setEffectDateApproval
+@param data Json
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute transactionType_t
+@function Date u_addToDate(Date start, String type, Integer num)
+@function Json u_setCommerceAttribute(Json data, String docNum, String attribute, String value)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-31|Tat.Leung            |Initial version
+*/
+result = data;
+
+agreementTypes = string[] {
+    "CSP",
+    "DSP"
+};
+
+agreementDuration = jsonget(data, "fp_agreementDuration", "integer", 12);
+quoteDuration = jsonget(data, "fp_quoteDuration", "integer", 6);
+
+DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
+agreementValidFrom = strtojavadate(agreementValidFrom_t, DATE_FORMAT);
+agreementValidTO = strtojavadate(agreementValidTo_t, DATE_FORMAT);
+
+standardDurationInMonths = quoteDuration;
+if (findinarray(agreementTypes, transactionType_t) > -1) {
+    standardDurationInMonths = agreementDuration;
+}
+standardEndDate = util.u_addToDate(agreementValidFrom, "months", standardDurationInMonths);
+validityPeriodApprovalRequired = comparedates(standardEndDate, agreementValidTo) == -1;
+result = util.u_setCommerceAttribute(result, "1", "validityPeriodApprovalRequired_t", string(validityPeriodApprovalRequired));
+return result;

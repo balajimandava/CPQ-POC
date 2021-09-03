@@ -1,0 +1,21 @@
+{
+  "name" : "Parse CSV Multiple",
+  "variableName" : "parseCSVMultiple",
+  "description" : "",
+  "libraryFunctions" : [ "util.countOccurrences" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "quoteCurrencyDecimalSeparator",
+    "type" : "String"
+  }, {
+    "name" : "fileContentDict",
+    "type" : "Anytype Dictionary"
+  }, {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  }, {
+    "name" : "testDict",
+    "type" : "String[] Dictionary"
+  } ],
+  "attributes" : [ ]
+}

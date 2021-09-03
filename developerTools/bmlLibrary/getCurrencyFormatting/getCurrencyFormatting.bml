@@ -1,0 +1,37 @@
+//************************************************************************************************************
+//** Function:    Get Currency Formatting 
+//** Type:        Util Library Function   
+//**
+//** Description: Determines the currency separators and symbol for a given currency.  
+//*	          -isnumber() will fail when thousand separators are present, can remedy this by knowing what the separators are
+//** 
+//** Return type: String Dictionary  
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              26/04/2017    Shansen         Initial version
+//**		  17/03/2020	Atul Jain	Removed commented code
+//**		  03/06/2021	Anita 		CPQ-4718| Added if condition for getting currency symbol if it is placed at right side
+//************************************************************************************************************
+
+retDict=dict("string");
+if(currency<>""){
+	if(currency == "CZK" or currency == "ILS" or currency == "RON" or currency == "PLN" or currency == "TRY" or currency == "HUF")
+	{
+		currencyFormat=formatascurrency(1234.56, currency);
+		thousandSepIndex=find(currencyFormat, "1")+1;
+		decimalSepIndex=find(currencyFormat, "5")-1;
+		put(retDict, "thousandsSep", substring(currencyFormat,thousandSepIndex, thousandSepIndex+1));
+		put(retDict, "decimalSep", substring(currencyFormat,decimalSepIndex, decimalSepIndex+1));
+		put(retDict, "symbol", trim(substring(currencyFormat, 14, 18)));
+	}
+	else{
+		currencyFormat=formatascurrency(1234.56, currency);
+		thousandSepIndex=find(currencyFormat, "1")+1;
+		decimalSepIndex=find(currencyFormat, "5")-1;
+		put(retDict, "thousandsSep", substring(currencyFormat,thousandSepIndex, thousandSepIndex+1));
+		put(retDict, "decimalSep", substring(currencyFormat,decimalSepIndex, decimalSepIndex+1));
+		put(retDict, "symbol", trim(substring(currencyFormat, 0, thousandSepIndex-1)));
+	}
+}
+return retDict;

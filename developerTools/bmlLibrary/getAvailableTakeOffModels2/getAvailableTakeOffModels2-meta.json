@@ -1,0 +1,12 @@
+{
+  "name" : "Get Available Take Off Models 2",
+  "variableName" : "getAvailableTakeOffModels2",
+  "description" : "",
+  "libraryFunctions" : [ "util.u_convertJsonArrayToStringArray", "util.u_getJsonDataForQuery" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "params",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

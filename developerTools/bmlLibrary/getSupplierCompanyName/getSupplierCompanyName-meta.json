@@ -1,0 +1,9 @@
+{
+  "name" : "Get Supplier Company Name",
+  "variableName" : "getSupplierCompanyName",
+  "description" : "Return the site's company name, aka supplier company name.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "attributes" : [ "_site_url" ]
+}

@@ -1,0 +1,12 @@
+{
+  "name" : "Get CUSMAS",
+  "variableName" : "getCUSMAS",
+  "description" : "Returns records from the CUSMAS data table based on parameter's passed",
+  "libraryFunctions" : [ ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "parmsDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

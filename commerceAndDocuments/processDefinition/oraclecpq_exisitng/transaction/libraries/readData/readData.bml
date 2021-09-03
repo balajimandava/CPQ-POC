@@ -1,0 +1,136 @@
+//********************** Read all agreement data from ExitingAgreements Table
+columns = "KUNNR,BUKRS,VKORG,VTWEG,SPART,DATAB,DATBI,AccountType,VistexAgreement,INCO1,ZTERM,PERFK,PLTYP,KOTABNR,KSCHL,HIENR,MVGR5,KBETR,KONWA,MATNR,KPEIN,KSTBM";
+
+rowSeparator = "#@#";
+columnSeparator = "$,$";
+allAgreementDict = dict("string");
+
+allAgreementData = bmql("Select $columns from ExistingAgreements");
+//print allAgreementData;
+for agreementData in allAgreementData{
+	// Get Column values
+	KUNNR = get(agreementData,"KUNNR");
+	BUKRS = get(agreementData,"BUKRS");
+	VKORG = get(agreementData,"VKORG");
+	VTWEG = get(agreementData,"VTWEG");
+	SPART = get(agreementData,"SPART");
+	
+	DATAB = get(agreementData,"DATAB");
+	DATBI = get(agreementData,"DATBI");
+	AccountType = get(agreementData,"AccountType");
+	VistexAgreement = get(agreementData,"VistexAgreement");
+	INCO1 = get(agreementData,"INCO1");
+	
+	ZTERM = get(agreementData,"ZTERM");
+	PERFK = get(agreementData,"PERFK");
+	PLTYP = get(agreementData,"PLTYP");
+	KOTABNR = get(agreementData,"KOTABNR");
+	KSCHL = get(agreementData,"KSCHL");
+	
+	HIENR = get(agreementData,"HIENR");
+	MVGR5 = get(agreementData,"MVGR5");
+	KBETR = get(agreementData,"KBETR");
+	KONWA = get(agreementData,"KONWA");
+	MATNR = get(agreementData,"MATNR");
+	
+	KPEIN = get(agreementData,"KPEIN");
+	KSTBM = get(agreementData,"KSTBM");
+	
+	//Build Uniqyue key
+	key = KUNNR + DATAB + DATBI; // unique key for same agreement data
+	
+	// Save column values in Line Json
+	columnDetailsJson = json();
+	
+	jsonput(columnDetailsJson,"KOTABNR",KOTABNR); //line
+	jsonput(columnDetailsJson,"KSCHL",KSCHL); //line
+	
+	jsonput(columnDetailsJson,"HIENR",HIENR);
+	jsonput(columnDetailsJson,"MVGR5",MVGR5); // line
+	jsonput(columnDetailsJson,"KBETR",KBETR); // line
+	jsonput(columnDetailsJson,"KONWA",KONWA); // line
+	jsonput(columnDetailsJson,"MATNR",MATNR); //line
+	
+	jsonput(columnDetailsJson,"KPEIN",KPEIN); // line
+	jsonput(columnDetailsJson,"KSTBM",KSTBM); //line
+	
+	rowJson = json();
+	
+
+	if(containskey(allAgreementDict,key)){ // if agreement exists
+		currentAgreementData = get(allAgreementDict,key);
+		currentAgreementDataJson = json(currentAgreementData);
+		
+		rowCount =  jsonget(currentAgreementDataJson,"rowCount","integer");
+		rowCount = rowCount+1;
+		
+		jsonput(currentAgreementDataJson,"rowCount",rowcount);
+		jsonput(currentAgreementDataJson,"row"+string(rowcount),columnDetailsJson);
+	
+		put(allAgreementDict,key,jsontostr(currentAgreementDataJson));
+		//print "currentAgreementDataJson";print currentAgreementDataJson; 
+	}else{ // If first line of new agreement
+		rowcount = 1;
+		jsonput(rowJson,"rowCount",rowcount);
+		jsonput(rowJson,"row"+string(rowcount),columnDetailsJson);
+		
+		headerDetailsJson = json();
+		jsonput(headerDetailsJson,"KUNNR",KUNNR);
+		jsonput(headerDetailsJson,"BUKRS",BUKRS);
+		jsonput(headerDetailsJson,"VKORG",VKORG);
+		jsonput(headerDetailsJson,"VTWEG",VTWEG);
+		jsonput(headerDetailsJson,"SPART",SPART);
+		
+		jsonput(headerDetailsJson,"DATAB",DATAB);
+		jsonput(headerDetailsJson,"DATBI",DATBI);
+		jsonput(headerDetailsJson,"AccountType",AccountType);
+		jsonput(headerDetailsJson,"VistexAgreement",VistexAgreement);
+		jsonput(headerDetailsJson,"INCO1",INCO1);
+		
+		jsonput(headerDetailsJson,"ZTERM",ZTERM);
+		jsonput(headerDetailsJson,"PERFK",PERFK);
+		jsonput(headerDetailsJson,"PLTYP",PLTYP);
+
+		jsonput(rowJson,"header",headerDetailsJson);
+		
+		put(allAgreementDict,key,jsontostr(rowJson));
+	}
+}
+
+agreementNos = keys(allAgreementDict);
+
+agreementCount = 1;
+for agreement in agreementNos{
+	print "********Agreement " +string(agreementCount) + " ***********";
+	//print get(allAgreementDict,agreement);
+	currentAgreementJson = json(get(allAgreementDict,agreement));
+	
+	mpgs = jsonpathgetmultiple(currentAgreementJson, "$..MVGR5");
+	print mpgs;
+	arrayRange =  range(jsonarraysize(mpgs));
+	uniqueMpgDict = dict("string");
+	
+	//Get MPG data numbers
+	for i in arrayRange{
+		mpg = jsonarrayget(mpgs, i,"string");
+		if(mpg<>""){ //remove blanks
+			put(uniqueMpgDict,mpg,mpg);
+		}
+		
+	}
+	print keys(uniqueMpgDict);
+	
+	rowcount = jsonget(currentAgreementJson,"rowCount","integer");
+	print rowCount;
+	rowRange = range(rowCount);
+	
+	for i in rowRange{
+		rowNo = i + 1; //since it starts from 0
+		rowJson = jsonget(currentAgreementJson,"row"+string(rowNo));
+		print "Row " + string(rowNo) + " ===========";
+		print rowJson;
+	}
+	
+	agreementCount = agreementCount + 1;
+}	
+return "";

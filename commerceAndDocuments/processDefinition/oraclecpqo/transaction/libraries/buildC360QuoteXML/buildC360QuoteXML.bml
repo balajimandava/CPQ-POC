@@ -1,0 +1,169 @@
+/**
+@name buildC360QuoteXML
+@api buildC360QuoteXML
+@summary Build Quote XML for C360 SOAP call.
+@param data Json
+@attribute agreementDeliveryTerms_t
+@attribute agreementPaymentTerms_t
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute aluminiumValue_t
+@attribute aluminium_t
+@attribute bs_id
+@attribute c360LastSentCustomerId_t
+@attribute copperValue_t
+@attribute copper_t
+@attribute currency_t
+@attribute customerCity_t
+@attribute customerCountry_t
+@attribute customerCurrency_t
+@attribute customerName2_t
+@attribute customerName_t
+@attribute customerNumber_t
+@attribute customerPhone_t
+@attribute customerPostalCodeZip_t
+@attribute customerState_t
+@attribute customerStreet2_t
+@attribute customerStreet_t
+@attribute distributionChannel_t
+@attribute division_t
+@attribute incoterm2_t
+@attribute minimumOrderVolume_t
+@attribute opportunityAccountID_t
+@attribute opportunityName_t
+@attribute opportunityNumber_t
+@attribute owner_t
+@attribute preparedByENumber_t
+@attribute pricingDate_t
+@attribute qqApplication_t
+@attribute qqCity_t
+@attribute qqCountry_t
+@attribute qqExpectedDecisionDate_t
+@attribute qqProjectName_t
+@attribute qqRegion_t
+@attribute qqSegment_t
+@attribute qqSubApplication_t
+@attribute qqSubSegment_t
+@attribute qqTotalValue_t
+@attribute qq_MnlShpTo_Address1_t
+@attribute qq_MnlShpTo_Address2_t
+@attribute qq_MnlShpTo_City_t
+@attribute qq_MnlShpTo_Country_t
+@attribute qq_MnlShpTo_Region_t
+@attribute qq_MnlShpTo_Zip_t
+@attribute salesOrg_t
+@attribute shipToNumber_t
+@attribute silverValue_t
+@attribute silver_t
+@attribute soldToNumber_t
+@attribute submittedDate_t
+@attribute surchargeExemption_t
+@attribute transactionName_t
+@attribute transactionNumber_t
+@attribute transactionType_t
+@function String buildC360QuoteLineXML(Json data)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-04-06|michael.yeung        | 
+2018-04-08|michael.yeung        |
+2018-04-09|michael.yeung        |
+2018-04-12|michael.yeung        |
+2018-04-16|michael.yeung        |
+2018-04-19|michael.yeung        |  Do not send last account ID customer ID from last is different
+2018-04-20|michael.yeung        |
+2018-04-24|michael.yeung        |
+Pooja Gupta		|Added code for conversion of "<",">" symbol as part of defect 1765
+
+*/
+template = "$BASE_PATH$/WebServices/c360_quote_template.xml";
+
+payload = dict("string");
+
+put(payload, "CPQSOAC360", jsonget(data, "CPQSOAC360", "string", ""));
+put(payload, "CPQSOAC360PW", jsonget(data, "CPQSOAC360PW", "string", ""));
+
+resetAcctId = jsonget(data, "resetAcctId", "boolean", false);
+subsegment = true;
+put(payload, "bs_id", jsonget(data, "bs_id", "string", bs_id));
+put(payload, "customerName_t", jsonget(data, "customerName_t", "string", customerName_t));
+put(payload, "customerName2_t", jsonget(data, "customerName2_t", "string", customerName2_t));
+if( customerNumber_t == c360LastSentCustomerId_t AND not resetAcctId) {
+	put(payload, "opportunityAccountID_t", jsonget(data, "opportunityAccountID_t", "string", opportunityAccountID_t));
+} else {
+	put(payload, "opportunityAccountID_t", "");
+}	
+put(payload, "customerStreet_t", jsonget(data, "customerStreet_t", "string", customerStreet_t));
+put(payload, "customerStreet2_t", jsonget(data, "customerStreet2_t", "string", customerStreet2_t));
+put(payload, "customerCity_t", jsonget(data, "customerCity_t", "string", customerCity_t));
+put(payload, "customerPostalCodeZip_t", jsonget(data, "customerPostalCodeZip_t", "string", customerPostalCodeZip_t));
+put(payload, "customerCountry_t", jsonget(data, "customerCountry_t", "string", customerCountry_t));
+put(payload, "customerState_t", jsonget(data, "customerState_t", "string", customerState_t));
+put(payload, "customerPhone_t", jsonget(data, "customerPhone_t", "string", customerPhone_t));
+
+put(payload, "salesOrg_t", jsonget(data, "salesOrg_t", "string", salesOrg_t));
+put(payload, "division_t", jsonget(data, "division_t", "string", division_t));
+put(payload, "distributionChannel_t", jsonget(data, "distributionChannel_t", "string", distributionChannel_t));
+put(payload, "customerNumber_t", jsonget(data, "customerNumber_t", "string", customerNumber_t));
+put(payload, "agreementDeliveryTerms_t", jsonget(data, "agreementDeliveryTerms_t", "string", agreementDeliveryTerms_t));
+put(payload, "agreementPaymentTerms_t", jsonget(data, "agreementPaymentTerms_t", "string", agreementPaymentTerms_t));
+put(payload, "incoterm2_t", jsonget(data, "incoterm2_t", "string", incoterm2_t));
+put(payload, "minimumOrderVolume_t", jsonget(data, "minimumOrderVolume_t", "string", minimumOrderVolume_t));
+put(payload, "surchargeExemption_t", jsonget(data, "surchargeExemption_t", "string", string(surchargeExemption_t)));
+put(payload, "silver_t", jsonget(data, "silver_t", "string", silver_t));
+put(payload, "silverValue_t", jsonget(data, "silverValue_t", "string", string(silverValue_t)));
+put(payload, "copper_t", jsonget(data, "copper_t", "string", copper_t));
+put(payload, "copperValue_t", jsonget(data, "copperValue_t", "string", string(copperValue_t)));
+put(payload, "aluminium_t", jsonget(data, "aluminium_t", "string", aluminium_t));
+put(payload, "aluminiumValue_t", jsonget(data, "aluminiumValue_t", "string", string(aluminiumValue_t)));
+put(payload, "qqApplication_t", jsonget(data, "qqApplication_t", "string", qqApplication_t));
+put(payload, "qqSubApplication_t", jsonget(data, "qqSubApplication_t", "string", qqSubApplication_t));
+put(payload, "currency_t", jsonget(data, "currency_t", "string", currency_t));
+put(payload, "owner_t", jsonget(data, "owner_t", "string", owner_t));
+put(payload, "opportunityNumber_t", jsonget(data, "opportunityNumber_t", "string", opportunityNumber_t));
+
+validFromDateString = jsonget(data, "agreementValidFrom_t", "string", agreementValidFrom_t);
+validFromDateString = substring(validFromDateString, 0, 10);
+validToDateString = jsonget(data, "agreementValidTo_t", "string", agreementValidTo_t);
+validToDateString = substring(validToDateString, 0, 10);
+submittedDateString = jsonget(data, "submittedDate_t", "string", submittedDate_t);
+submittedDateString = substring(submittedDateString, 0, 10);
+pricingDateString = jsonget(data, "pricingDate_t", "string", pricingDate_t);
+pricingDateString = substring(pricingDateString, 0, 10);
+
+transactionNumber = jsonget(data, "transactionNumber_t", "string", transactionNumber_t);
+transactionName = jsonget(data, "transactionName_t", "string", transactionName_t);
+
+put(payload, "validFrom_t", validFromDateString);
+put(payload, "validTo_t", validToDateString);
+put(payload, "submittedDate_t", submittedDateString);
+put(payload, "soldToNumber_t", jsonget(data, "soldToNumber_t", "string", soldToNumber_t));
+put(payload, "shipToNumber_t", jsonget(data, "shipToNumber_t", "string", shipToNumber_t));
+put(payload, "preparedByENumber_t", jsonget(data, "preparedByENumber_t", "string", preparedByENumber_t));
+put(payload, "transactionType_t", jsonget(data, "transactionType_t", "string", transactionType_t));
+put(payload, "poNumber_t", transactionNumber);
+put(payload, "transactionNumber_t", transactionNumber);
+put(payload, "transactionName_t", transactionName);
+put(payload, "opportunityName_t", transactionNumber + " " + transactionName );
+put(payload, "pricingDate_t", pricingDateString);
+put(payload, "qqProjectName_t", jsonget(data, "qqProjectName_t", "string", qqProjectName_t));
+put(payload, "qqCity_t", jsonget(data, "qqCity_t", "string", qqCity_t));
+put(payload, "qqRegion_t", jsonget(data, "qqRegion_t", "string", qqRegion_t));
+put(payload, "qqCountry_t", jsonget(data, "qqCountry_t", "string", qqCountry_t));
+put(payload, "customerCurrency_t", jsonget(data, "customerCurrency_t", "string", customerCurrency_t));
+put(payload, "qqTotalValue_t", jsonget(data, "qqTotalValue_t", "string", string(qqTotalValue_t)));
+put(payload, "qqSegment_t", jsonget(data, "qqSegment_t", "string", qqSegment_t));
+
+//Pooja Gupta-Added code for conversion of "<",">" symbol as part of defect 1765
+put(payload, "qqSubSegment_t", replace(replace(jsonget(data, "qqSubSegment_t", "string", qqSubSegment_t),"<","<#@#"),">",">#@#"));
+put(payload, "qqExpectedDecisionDate_t", validToDateString);
+quoteLineXml = commerce.buildC360QuoteLineXML(data);
+put(payload, "QUOTE_LINES", quoteLineXml);
+
+quoteXml = applytemplate(template, payload, "");
+quoteXml = replace(quoteXml, "&lt;", "<");
+quoteXml = replace(quoteXml, "&gt;", ">");
+quoteXml=replace(replace(quoteXml,"<#@#","&lt;"),">#@#","&gt;");
+
+return quoteXml;

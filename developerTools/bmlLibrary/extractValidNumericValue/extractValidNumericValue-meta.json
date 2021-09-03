@@ -1,0 +1,21 @@
+{
+  "name" : "Extract Valid Numeric Value",
+  "variableName" : "extractValidNumericValue",
+  "description" : "Converter $123,123.00 or €123.456.00 to 123456.00.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "numberAsString",
+    "type" : "String"
+  }, {
+    "name" : "thousandSeparator",
+    "type" : "String"
+  }, {
+    "name" : "currencySymbol",
+    "type" : "String"
+  }, {
+    "name" : "type",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

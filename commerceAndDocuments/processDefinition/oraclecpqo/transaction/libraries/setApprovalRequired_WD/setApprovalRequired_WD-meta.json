@@ -1,0 +1,11 @@
+{
+  "name" : "setApprovalRequired_WD",
+  "variableName" : "setApprovalRequired_WD",
+  "description" : "Wiring Devices\nDetermine if approval is required based on the discounts.",
+  "libraryFunctions" : [ "commerce.assembleTransactionValues", "util.getApprovalThresholdsCHEMEA", "util.getApprovalThresholdsWD", "util.getEnvironmentVariable", "util.getMAT01MultipleDetails", "util.getRemark", "util.getSiteSpecificData", "util.stringToFloat", "util.stringToInteger", "util.u_logString" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "approvalRequired_l", "_document_number", "approver_l", "materialLineItem_l", "customDiscountType_l", "discount_l", "oldDiscountString_l", "oldListPrice_l", "materialPricingGroupFullText_l", "requirePMApproval_l", "level3ThresholdVal", "discountPercent_l", "feedbackDiscountPercent_l", "currencyflag_l", "discountPercentNetApprovedString_l", "qqProductType_l", "discountString_l", "productCode_l", "_sequence_number", "materialPricingGroup_l" ],
+  "mainDocAttributes" : [ "salesOrg_t", "discountApprovalRequired_t", "termsApprovalRequired_t", "_transaction_document_number", "whatLevelOfDiscountApprovalRequired_t", "overallTermsApprovalLevel_t", "whatLevelOfDeliveryTermsApprovalRequired_t", "agreementDeliveryTerms_t", "level2Email_t", "level3Email_t", "level4Email_t", "ntSelectedSalesOrg_t", "currencySymbol_t", "currencyDecimalSeparator_t", "totalValueApprovalRequired_t", "qqTotalValue_t", "qqTnC_t", "qqNonStandardTnCAttachment_t", "bs_id", "status_t", "cPROEmail_t", "feedbackApplied_t", "productApprovers_t", "approvalReasonValue_t", "currencyThousandsSeparator_t", "quoteSubmitter_t", "previousApprovedValues_t", "revisionNumber_t", "previousAction_t", "version_number_createRenewal", "parent_transaction_id_createRenewal", "parent_transaction_id_qqCreateNewVersion_t", "approvalLevel_t", "countPLMApprover_t", "setPLMCount_t", "distributionChannel_t", "qqBusinessLineForSalesOrg_t", "emailSubjectStatus_t", "expectedVolume_t", "expectedVolumeApprovalRequired_t", "totalValue_t" ],
+  "systemAttributes" : [ "_system_current_user_language", "_system_current_step_var", "_system_buyside_id" ]
+}

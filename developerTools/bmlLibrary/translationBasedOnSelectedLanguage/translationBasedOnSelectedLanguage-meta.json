@@ -1,0 +1,12 @@
+{
+  "name" : "Translation based on selected language",
+  "variableName" : "translationBasedOnSelectedLanguage",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

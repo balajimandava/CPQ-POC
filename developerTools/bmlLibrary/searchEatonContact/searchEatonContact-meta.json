@@ -1,0 +1,12 @@
+{
+  "name" : "Search Eaton Contact",
+  "variableName" : "searchEatonContact",
+  "description" : "Project#49074|E9913664|7thJan2020|Created new BML library function, used to search contact and vendor for Eaton Contact tab.",
+  "libraryFunctions" : [ "util.getStringDict" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "searchParams",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

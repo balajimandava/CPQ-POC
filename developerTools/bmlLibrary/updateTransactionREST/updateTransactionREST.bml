@@ -1,0 +1,38 @@
+/**
+@name Update Transaction (REST)
+@api updateTransactionREST
+@param newTransactionData Json
+@param action String
+@param link String
+@function Json getSiteSpecificData(String siteID)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-31|Tat.Leung            |
+2020-03-19|Atul Jain		|Added debugMode to print statements
+*/
+url = link + "/actions/" + action;
+debugMode = false;
+// get system user
+company = util.getSupplierCompanyName();
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+if (isnull(login) or isnull(password) or login == "" or password == "") {
+    throwerror("No API User is configured for this environment, please check data in Site_Specific data table", false);
+}
+
+headers = dict("string");
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+
+print "started two";
+
+response = urldata(url, "POST", headers, jsontostr(newTransactionData));
+statusCode = get(response, "Status-Code");
+if (atoi(statusCode) >= 300) {
+    throwerror("Cannot update transaction: " + link, false);
+}
+
+return get(response, "Message-Body");

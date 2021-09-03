@@ -1,0 +1,14 @@
+{
+  "name" : "PSD Get Banner Text and Current Approval Level",
+  "variableName" : "pSDGetBannerTextAndCurrentApprovalLevel",
+  "description" : "Project#49704|E9913664|22ndJuly2020|Function to get approval banner text and current approval level PSD.",
+  "libraryFunctions" : [ "commerce.pSDGetApproverDetails" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "JsonLineObject",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

@@ -1,0 +1,35 @@
+//************************************************************************************************************
+//** Function:    Pricing - Before Formulas 
+//** Type:        Commerce Library Function   
+//**
+//** Description: Calulates Pricing and Discounting for Material Line items 
+//** 
+//** Return type: String  
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              26/04/2017    vhingorani      Initial version
+//**
+//************************************************************************************************************
+
+//Intialize variables
+ret = "";
+systemDate = substring(_system_date,0,10);
+
+//Initialize Dictionaries
+pricingDict = dict("string");
+put(pricingDict,"systemDate",systemDate);
+put(pricingDict,"salesOrg",salesOrg_t);
+
+for line in transactionLine{
+	if(line._parent_doc_number==""){
+		print "Material Group"; 
+	}
+	else{
+		print "Material Line";
+		matrNo = line.materialLineItem_l;
+		put(pricingDict,"material",matrNo);
+	}
+}
+
+return ret;

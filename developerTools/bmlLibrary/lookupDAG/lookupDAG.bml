@@ -1,0 +1,21 @@
+/**
+@name Lookup DAG
+@api lookupDAG
+@summary Resolve DAG for a sales org and sales group combination
+@param salesOrg String
+@param salesGroup String
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-30|Tat.Leung            |Initial version
+*/
+result = "";
+
+query = "select DAG from SalesOrgToDAG where SalesOrg = '" + salesOrg + "' and SalesGroup in ('ALL', '" + salesGroup + "')";
+data = util.u_getJsonDataForQuery(query);
+if (jsonarraysize(data) > 0) {
+    result = jsonget(jsonarrayget(data, 0, "json"), "DAG");
+}
+
+return result;

@@ -1,0 +1,154 @@
+/**************************************************************************************************************
+@name Material Master Creation Process
+@api materialMasterCreationProcess
+@param 
+
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2020-11-02|Dhananjay            |initial version
+
+************************************************************************************************************/
+
+materialMasterCreationPayloadDict = dict("string");
+bomPayloadDict = dict("string");
+catalogNumJsonArray = jsonarray();
+eachLineDocNumDict = dict("string");
+statusMessage = json();
+selectedLines = split(_system_selected_document_number,"~");// Checking for selected line items
+if(sizeofarray(selectedLines) > 0 ) {
+	//Looping through the line items to check for the lines to send for material master creation
+	for eachLine in transactionLine{
+		lineItemStatus = eachLine.lineItemStatus_l;
+		catalogNum = eachLine.qqCatalogNumber_l;
+		productType = eachLine.qqProductType_l;
+		materialLineItem = eachLine.materialLineItem_l;
+		//This is the material master payload which will sent by Bid Manager
+		materialMasterCreationXML = eachLine.materialMasterPayload_l;
+		bomXML = eachLine.materialMasterBOMPayload_l;
+		//print materialMasterCreationXML ;
+		//print bomXML ;
+		lineItemStatus = eachLine.lineItemStatus_l;
+		documentNum = eachLine._document_number;
+		//If the material number is not equal with catalog number and product type or item type is configuration
+		//Then sending those lines to SAP through material master creation interface.
+		//If the material number matches with catalog number then sentting the line items status to Awarded
+		//if(lineItemStatus == "awarded" AND productType == "configuration"
+		if(findinarray(selectedLines, documentNum) <> -1 AND lineItemStatus <> "awarded" 
+			AND productType == "configuration" AND catalogNum <> materialLineItem 
+			AND materialMasterCreationXML <> ""){
+			if(catalogNum == "" AND materialLineItem <> ""){
+				catalogNum = materialLineItem;
+			}
+			put(materialMasterCreationPayloadDict, catalogNum,materialMasterCreationXML);
+			put(bomPayloadDict,catalogNum,bomXML);
+			jsonarrayappend(catalogNumJsonArray,catalogNum);
+			put(eachLineDocNumDict,documentNum,catalogNum);
+		}elif(findinarray(selectedLines, documentNum) <> -1 AND lineItemStatus <> "awarded" 
+			AND catalogNum == materialLineItem ){
+			setattributevalue(documentNum,"lineItemStatus_l","awarded");
+		}
+	}
+	//If any lines/catlog number required to send to material master creation
+	if(jsonarraysize(catalogNumJsonArray) > 0){
+		headers = dict("string");
+		siteID 	= "SOA";
+		company = util.getSupplierCompanyName();
+		siteID = company + siteID;
+		envData = util.getSiteSpecificData(siteID);
+		soaUserID = jsonget(envData, "FieldName","string","");
+		soaPassID = jsonget(envData, "Value1","string","");
+		materialMasterURL = util.getEnvironmentVariable("SOA_OAG_CREATE_MATERIAL_MASTER_URL", "");
+		
+		put(headers, "Content-Type", "application/json");
+		put(headers, "Authorization", "Basic " + encodebase64(soaUserID + ":" + soaPassID));
+	
+		inputJson = json();
+		
+		jsonput(inputJson, "materials",catalogNumJsonArray);
+		jsonput(inputJson, "lang", "en");
+		jsonput(inputJson, "salesOrg", salesOrg_t);
+		jsonput(inputJson, "distributionChannel", distributionChannel_t);
+		//Getting all material details, to identify th ematerials are existing in MAT01 or not
+		materialDetails = util.getMAT01DetailsForMultipleItems(inputJson);
+		lineItemJsonArray = jsonarray();
+		//print eachLineDocNumDict;
+		allLinesDocNums = keys(eachLineDocNumDict);
+		//If any one of the catlog number existing in the MAT01 table, 
+		//then setting the catalog number to material number and the item status will be Awarded
+		//otherwise, we need to send the material master XML to PI --> SAP.
+		for eachDocNum in allLinesDocNums{
+			eachCatalogNum = get(eachLineDocNumDict,eachDocNum);
+			print eachCatalogNum;
+			if(eachCatalogNum <> ""){
+				//isExistsInMAT01 = NOT(isjsonnull(materialDetails , eachCatalogNum));
+				isExistsInMAT01 = jsonpathcheck(materialDetails , "$."+eachCatalogNum);
+				//print isExistsInMAT01;
+				if(isExistsInMAT01){
+					setattributevalue(eachDocNum, "materialLineItem_l", eachCatalogNum);
+					setattributevalue(eachDocNum,"lineItemStatus_l","awarded");
+				}else{
+					//print "2222";
+					materialMasterCreationJsonStr = get(materialMasterCreationPayloadDict,eachCatalogNum);
+					materialMasterCreationJson = json(materialMasterCreationJsonStr);
+					lineItem = jsonpathgetsingle(materialMasterCreationJson , "$.materialMaster.lineItems.lineItem[*]","json",json());
+					jsonput(lineItem,"lineItemID",eachDocNum);
+					//jsonput(lineItem,"material",materialMasterCreationJson);
+					//print lineItem ;
+					
+					/*dateStr = datetostr(getdate(false),"yyy/MM/dd") ;
+					dateArry = split(dateStr,"/");
+					ValidFromPath = "$.material.materialSalesOrgData.materialSalesOrg[*].distributionSpecStatusValidFrom";
+					if(jsonpathcheck(lineItem, ValidFromPath)){
+						jsonpathset(lineItem, ValidFromPath, join(dateArry,""));
+					}*/
+					
+					
+					jsonarrayappend(lineItemJsonArray, lineItem);
+				}
+			}
+		}
+		
+		payloadJson = json();
+		lineItems = json();
+		jsonput(lineItems,"lineItem",lineItemJsonArray);
+		materialMaster = json();
+		jsonput(materialMaster,"transactionId",bs_id);
+		jsonput(materialMaster,"applicationName","CPQ");
+		//jsonput(materialMaster,"applicationName","");
+		jsonput(materialMaster,"lineItems",lineItems);
+		
+		jsonput(payloadJson,"materialMaster",materialMaster);
+		 
+		
+		materialMasterPayload = jsontostr(payloadJson);
+		
+		//print materialMasterPayload;
+		//Invoking the Material Master Creation inteface to send the pay load to PI --> SAP
+		//This is Asynchronous API call, Once the SAP processed the request, 
+		//PI will send back the response to CPQ (SAP --> PI --> CPQ)
+		responseD = urldata(materialMasterURL, "POST", headers, materialMasterPayload);
+		print responseD;
+		statusCode = get(responseD,"Status-Code");
+		if(statusCode == "200"){
+			
+			responseBody = get(responseD,"Message-Body");
+			if(responseBody <> ""){
+				responseJson = json(responseBody);
+				results = jsonget(responseJson,"results","string","");
+				if(results == "error"){
+					errorMessage = "Exception in 'ExecuteExternalProcess:  Parsing payload.. OR Service is not available..";
+					//throwerror(errorMessage);
+					jsonput(statusMessage,"materialMaster_error_response",errorMessage);
+				}else{
+					jsonput(statusMessage,"materialMaster_success_response","Material Master Creation Request sent to SAP.");
+				}
+			}
+		}elif(statusCode == "202"){
+			jsonput(statusMessage,"materialMaster_success_response","Material Master Creation Request sent to SAP.");
+		}
+	}
+	setattributevalue(1,"materialMasterCreationStatus_t",jsontostr(statusMessage));
+}
+return "";

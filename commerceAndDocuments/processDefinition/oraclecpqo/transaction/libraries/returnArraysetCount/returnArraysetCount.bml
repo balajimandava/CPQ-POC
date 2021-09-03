@@ -1,0 +1,20 @@
+selectedCustRecordsJson = json();
+jsonput(selectedCustRecordsJson, "records", identifier);
+ 	
+	filter = "";
+	if(type == "primary"){
+		filter = "$.records[?(@."+columnName+"==true)]";
+	}
+	else{
+		filter = "$.records[?(@."+columnName+")]";
+	}
+	count  = 0;print selectedCustRecordsJson;
+	
+		//Fetch primary selected customer record
+	    selectedCustRecordsJsonArray = jsonpathgetmultiple(selectedCustRecordsJson, filter);
+		
+		//49704 - Eagle Development - Added the below if condition to handle if no row is selected as primary in array set
+		if(jsonarraysize(selectedCustRecordsJsonArray) > 0){
+			count = jsonarraysize(selectedCustRecordsJsonArray);
+		}
+	return count;

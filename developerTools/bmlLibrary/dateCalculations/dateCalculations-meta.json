@@ -1,0 +1,12 @@
+{
+  "name" : "Date Calculations",
+  "variableName" : "dateCalculations",
+  "description" : "Gaurav: Monthly Difference calculation is added",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "INPUTJSON",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,70 @@
+company = util.getSupplierCompanyName();
+
+removeURL = "https://" + company + ".bigmachines.com/rest/v8/commerceDocumentsOraclecpqoTransaction/" + bsId + "/actions/_remove_transactionLine";
+
+// get system user
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+headers = dict("string");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+
+xPathDictionary = dict("string");
+put(xPathDictionary, "config_id", "//transactionLine/externalConfigData_l");
+put(xPathDictionary, "item_id", "//transactionLine/_document_number");
+
+xmlData = gettransaction(atoi(bsId)); // get transaction XML
+lineAttrKeys 	= keys(xPathDictionary);
+lineAttrNames 	= values(xPathDictionary);
+lineAttrValueDict = readxmlmultiple(xmlData, lineAttrNames);
+//print lineAttrValueDict ;
+lineAttrArray = get(lineAttrValueDict, lineAttrNames[0]);
+numOfLines = range(sizeofarray(lineAttrArray));
+numOfAttrs = range(sizeofarray(lineAttrNames));
+
+
+lineDocNumArrObj = get(lineAttrValueDict,"//transactionLine/_document_number");
+lineconfigId = get(lineAttrValueDict,"//transactionLine/externalConfigData_l");
+
+eachKey = "";
+eachLineVal = "";
+jsonObj1 = json();
+linesToDelete = jsonarray();
+
+for eachLine in numOfLines { // loop through all the lines
+    jsonObj = json();
+      for eachAttr in numOfAttrs{ // loop through all attributes of current line
+      //print numOfAttrs;
+        arrObj = get(lineAttrValueDict,lineAttrNames[eachAttr]);
+        eachKey = lineAttrKeys[eachAttr];
+        confID = "";
+        if (eachKey == "config_id" )
+        {
+          SAPconf = arrObj[eachLine];           
+          if(len(SAPconf) <> 0)
+          {	
+		startConfigId = find(SAPconf , "<SAP_ConfigurationID>");
+		  if( startConfigId > -1 ) {
+			startConfigIdValue = find(SAPconf , ">", startConfigId);
+			endstartConfigIdValue = find(SAPconf , "<", startConfigIdValue);
+			confID= subString(SAPconf, startConfigIdValue + 1, endstartConfigIdValue);			
+		  }
+		  if(confID == ConfigurationId)	{
+		  //arrObj = lineDocNumArrObj [eachAttr];
+		  print "hjj";
+		 }
+	}
+	}
+}
+}
+	
+/*if( jsonarraysize(linesToDelete)>0 ) {
+	jsonput( body, "selections", linesToDelete);
+	bodyStr = jsontostr(body);
+	print bodyStr;
+	results = urldatabypost(removeURL, bodyStr, "ERROR", headers, true);
+	print results;
+}*/
+
+return true;

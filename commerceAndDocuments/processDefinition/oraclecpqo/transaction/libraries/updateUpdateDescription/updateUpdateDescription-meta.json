@@ -1,0 +1,14 @@
+{
+  "name" : "Update Update Description",
+  "variableName" : "updateUpdateDescription",
+  "description" : "This function will update updateDescription table",
+  "libraryFunctions" : [ "util.getEnvironmentVariable" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "jsonParam",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bs_id", "transactionNumber_t", "agreementUploadDetails_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

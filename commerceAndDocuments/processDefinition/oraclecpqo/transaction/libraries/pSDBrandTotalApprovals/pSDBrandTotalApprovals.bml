@@ -1,0 +1,316 @@
+//*******************************************************************
+//** Description: Function to get the approval for Brand Total
+//**                       
+//**
+//** History:	Date			Author			Comment 
+//** 			-------------	--------------- ------------------------
+//** 			15-July-2020    Rahul Uttarwar 	Initial version
+//**            18-August-2020 	Subha			Commented and  added individually for the Capacity brands as the level of approvals are different-CPQ-2344
+//*******************************************************************
+
+brandTotalApprovalJSONObj = json();
+maxApprovalLevel = 0;
+
+productLineName = get(otherParamStringDict, "productLineName");
+lineBrand = get(otherParamStringDict, "lineBrand");
+approverKey = get(otherParamStringDict, "approverKey");
+docNumber = get(otherParamStringDict, "docNumber");
+quantity = atoi(get(otherParamStringDict, "quantity")); // added to get quantity for P13
+
+individaulBrandJSON = jsonget(brandTotJSONObj, productLineName, "json");
+oldIndividaulBrandJSON = jsonget(oldBrandTotJSONObj, productLineName, "json");
+total = 0;
+oldTotal = 0;
+
+thresoldPerLine = dict("string");
+
+approvalHistoryJSONObj = json();
+approvalHistoryLineJSONObj = json();
+approvalHistoryConditionJSONObj = json();
+if(pSDTransactionApprovalHistoryInfo_t <> "" AND NOT ISNULL(pSDTransactionApprovalHistoryInfo_t)){
+	approvalHistoryJSONObj = json(pSDTransactionApprovalHistoryInfo_t);
+}
+approvalHistoryLineJSONObj = jsonpathgetsingle(approvalHistoryJSONObj, "$.LinesObjet[?(@.LineNumber == '" + docNumber + "')]", "json", json());
+
+
+if(productLineName == "Capacitors"){
+	thresoldPerLine = get(brandTotalThresholdsDict, transactionType_t+"_"+lineBrand);
+}else{
+    thresoldPerLine = get(brandTotalThresholdsDict, lineBrand);
+}
+
+level1Threshold = atof(get(thresoldPerLine, "level1Threshold"))*newExchangeRate_t;
+level2Threshold = atof(get(thresoldPerLine, "level2Threshold"))*newExchangeRate_t;
+level3Threshold = atof(get(thresoldPerLine, "level3Threshold"))*newExchangeRate_t;
+level4Threshold = atof(get(thresoldPerLine, "level4Threshold"))*newExchangeRate_t;
+level5Threshold = atof(get(thresoldPerLine, "level5Threshold"))*newExchangeRate_t;
+level6Threshold = atof(get(thresoldPerLine, "level6Threshold"))*newExchangeRate_t;
+
+if(productLineName == "Regulators"){
+	valP09 = atof(jsonget(individaulBrandJSON, "P09", "string", "0"));
+	valP29 = atof(jsonget(individaulBrandJSON, "P29", "string", "0"));
+	valP49 = atof(jsonget(individaulBrandJSON, "P49", "string", "0"));
+	valP99 = atof(jsonget(individaulBrandJSON, "P99", "string", "0"));
+
+	oldValP09 = atof(jsonget(oldIndividaulBrandJSON, "P09", "string", "0"));
+	oldValP29 = atof(jsonget(oldIndividaulBrandJSON, "P29", "string", "0"));
+	oldValP49 = atof(jsonget(oldIndividaulBrandJSON, "P49", "string", "0"));
+	oldValP99 = atof(jsonget(oldIndividaulBrandJSON, "P99", "string", "0"));
+
+	total = valP09 + valP29 + valP49 + valP99;
+	oldTotal = oldValP09 + oldValP29 + oldValP49 + oldValP99;
+
+	if((level1Threshold <> -1 AND level2Threshold <> -1) AND (total > level1Threshold AND total <= level2Threshold)){
+		maxApprovalLevel = 2;
+	}elif((level2Threshold <> -1 AND level3Threshold <> -1) AND (total > level2Threshold AND total <= level3Threshold)){
+		maxApprovalLevel = 3;
+	}elif((level3Threshold <> -1 AND level4Threshold <> -1) AND total > level3Threshold){
+		maxApprovalLevel = 4;
+	}
+}elif(productLineName == "Network Protectors"){
+	valP27 = atof(jsonget(individaulBrandJSON, "P27", "string", "0"));
+	valP28 = atof(jsonget(individaulBrandJSON, "P28", "string", "0"));
+	valP31 = atof(jsonget(individaulBrandJSON, "P31", "string", "0"));
+
+	oldValP27 = atof(jsonget(oldIndividaulBrandJSON, "P27", "string", "0"));
+	oldValP28 = atof(jsonget(oldIndividaulBrandJSON, "P28", "string", "0"));
+	oldValP31 = atof(jsonget(oldIndividaulBrandJSON, "P31", "string", "0"));
+
+	total = valP27 + valP28 + valP31;
+	oldTotal = oldValP27 + oldValP28 + oldValP31;
+
+	if((level1Threshold <> -1 AND level2Threshold <> -1) AND (total > level1Threshold AND total <= level2Threshold)){
+		maxApprovalLevel = 2;
+	}elif((level2Threshold <> -1 AND level3Threshold <> -1) AND (total > level2Threshold AND total <= level3Threshold)){
+		maxApprovalLevel = 3;
+	}elif((level3Threshold <> -1 AND level4Threshold <> -1) AND total > level3Threshold){
+		maxApprovalLevel = 4;
+	}
+}elif(productLineName == "Switchgear"){
+	valP09 = atof(jsonget(individaulBrandJSON, "P03", "string", "0"));
+	valP23 = atof(jsonget(individaulBrandJSON, "P23", "string", "0"));
+	valP30 = atof(jsonget(individaulBrandJSON, "P30", "string", "0"));                             
+	valP33 = atof(jsonget(individaulBrandJSON, "P33", "string", "0"));
+
+	oldValP09 = atof(jsonget(oldIndividaulBrandJSON, "P03", "string", "0"));
+	oldValP23 = atof(jsonget(oldIndividaulBrandJSON, "P23", "string", "0"));
+	oldValP30 = atof(jsonget(oldIndividaulBrandJSON, "P30", "string", "0"));                   
+	oldValP33 = atof(jsonget(oldIndividaulBrandJSON, "P33", "string", "0"));
+
+	total = valP09 + valP23 + valP30 + valP33;
+	oldTotal = oldValP09 + oldValP23 + oldValP30 + oldValP33;
+
+	if((level1Threshold <> -1 AND level2Threshold <> -1) AND (total > level1Threshold AND total <= level2Threshold)){
+		maxApprovalLevel = 2;
+	}elif((level2Threshold <> -1 AND level3Threshold <> -1) AND total > level2Threshold){
+		maxApprovalLevel = 3;
+	}                           
+}elif(productLineName == "LIPE"){
+	level3group = 0;
+	oldLevel3group = 0;
+
+	valP01 = atof(jsonget(individaulBrandJSON, "P01", "string", "0"));
+	valP02 = atof(jsonget(individaulBrandJSON, "P02", "string", "0"));
+	valP04 = atof(jsonget(individaulBrandJSON, "P04", "string", "0"));
+	valP05 = atof(jsonget(individaulBrandJSON, "P05", "string", "0"));
+	valP22 = atof(jsonget(individaulBrandJSON, "P22", "string", "0"));
+	valP44 = atof(jsonget(individaulBrandJSON, "P44", "string", "0"));
+	valP45 = atof(jsonget(individaulBrandJSON, "P45", "string", "0"));
+	valP46 = atof(jsonget(individaulBrandJSON, "P46", "string", "0"));
+	valP47 = atof(jsonget(individaulBrandJSON, "P47", "string", "0"));
+	valP50 = atof(jsonget(individaulBrandJSON, "P50", "string", "0"));
+	valP51 = atof(jsonget(individaulBrandJSON, "P51", "string", "0"));
+	valP54 = atof(jsonget(individaulBrandJSON, "P54", "string", "0"));
+	valP60 = atof(jsonget(individaulBrandJSON, "P60", "string", "0"));
+	valP61 = atof(jsonget(individaulBrandJSON, "P61", "string", "0"));
+	valP62 = atof(jsonget(individaulBrandJSON, "P62", "string", "0"));
+	valP63 = atof(jsonget(individaulBrandJSON, "P63", "string", "0"));
+	valP68 = atof(jsonget(individaulBrandJSON, "P68", "string", "0"));
+
+	oldValP01 = atof(jsonget(oldIndividaulBrandJSON, "P01", "string", "0"));
+	oldValP02 = atof(jsonget(oldIndividaulBrandJSON, "P02", "string", "0"));
+	oldValP04 = atof(jsonget(oldIndividaulBrandJSON, "P04", "string", "0"));
+	oldValP05 = atof(jsonget(oldIndividaulBrandJSON, "P05", "string", "0"));
+	oldValP22 = atof(jsonget(oldIndividaulBrandJSON, "P22", "string", "0"));
+	oldValP44 = atof(jsonget(oldIndividaulBrandJSON, "P44", "string", "0"));
+	oldValP45 = atof(jsonget(oldIndividaulBrandJSON, "P45", "string", "0"));
+	oldValP46 = atof(jsonget(oldIndividaulBrandJSON, "P46", "string", "0"));
+	oldValP47 = atof(jsonget(oldIndividaulBrandJSON, "P47", "string", "0"));
+	oldValP50 = atof(jsonget(oldIndividaulBrandJSON, "P50", "string", "0"));
+	oldValP51 = atof(jsonget(oldIndividaulBrandJSON, "P51", "string", "0"));
+	oldValP54 = atof(jsonget(oldIndividaulBrandJSON, "P54", "string", "0"));
+	oldValP60 = atof(jsonget(oldIndividaulBrandJSON, "P60", "string", "0"));
+	oldValP61 = atof(jsonget(oldIndividaulBrandJSON, "P61", "string", "0"));
+	oldValP62 = atof(jsonget(oldIndividaulBrandJSON, "P62", "string", "0"));
+	oldValP63 = atof(jsonget(oldIndividaulBrandJSON, "P63", "string", "0"));
+	oldValP68 = atof(jsonget(oldIndividaulBrandJSON, "P68", "string", "0"));
+
+	group1 = valP02 + valP54 + valP60 + valP61 + valP68;
+	group2 = valP01 + valP05 + valP44 + valP46 + valP47 + valP62 + valP63;
+	group3 = valP04 + valP22 + valP45 + valP50 + valP51;
+
+	oldGroup1 = oldValP02 + oldValP54 + oldValP60 + oldValP61 + oldValP68;
+	oldGroup2 = oldValP01 + oldValP05 + oldValP44 + oldValP46 + oldValP47 + oldValP62 + oldValP63;
+	oldGroup3 = oldValP04 + oldValP22 + oldValP45 + oldValP50 + oldValP51;
+
+	total = group1 + group2 + group3;
+	oldTotal = oldGroup1 + oldGroup2 + oldGroup3;
+
+	if(lineBrand == "P02" OR lineBrand == "P54" OR lineBrand == "P60" OR lineBrand == "P61" OR lineBrand == "P68"){
+		level3group = group1;
+		oldLevel3group = oldGroup1;
+	}elif(lineBrand == "P01" OR lineBrand == "P05" OR lineBrand == "P44" OR lineBrand == "P46" OR lineBrand == "P47" OR lineBrand == "P62" OR lineBrand == "P63"){
+		level3group = group2;
+		oldLevel3group = oldGroup3;
+	}elif(lineBrand == "P04" OR lineBrand == "P22" OR lineBrand == "P45" OR lineBrand == "P50" OR lineBrand == "P51"){
+		level3group = group3;
+		oldLevel3group = oldGroup2;
+	}
+	
+	if((level1Threshold <> -1 AND level2Threshold <> -1) AND (total > level1Threshold AND total <= level2Threshold)){
+		maxApprovalLevel = 2;   
+	}elif((level3Threshold <> -1 AND level2Threshold <> -1) AND (total > level2Threshold AND total <= level3Threshold)){
+		maxApprovalLevel = 3;
+	}elif((level4Threshold <> -1 AND level3Threshold <> -1) AND (total > level1Threshold AND level3group <= level4Threshold)){
+		maxApprovalLevel = 4;
+		total = level3group;
+		oldTotal = oldLevel3group;
+	}elif((level5Threshold <> -1 AND level4Threshold <>-1) AND (total > level4Threshold AND total <= level5Threshold)){
+		maxApprovalLevel = 5;
+	}elif(level6Threshold <> -1 AND total > level5Threshold){
+		maxApprovalLevel = 6;
+	}
+}elif(productLineName == "Transformers"){
+	valP06 = atof(jsonget(individaulBrandJSON, "P06", "string", "0"));
+	valP16 = atof(jsonget(individaulBrandJSON, "P16", "string", "0"));
+	valP26 = atof(jsonget(individaulBrandJSON, "P26", "string", "0"));
+	valP10 = atof(jsonget(individaulBrandJSON, "P10", "string", "0"));
+	valP15 = atof(jsonget(individaulBrandJSON, "P15", "string", "0"));
+	valP25 = atof(jsonget(individaulBrandJSON, "P25", "string", "0"));
+
+	oldValP06 = atof(jsonget(oldIndividaulBrandJSON, "P06", "string", "0"));
+	oldValP16 = atof(jsonget(oldIndividaulBrandJSON, "P16", "string", "0"));
+	oldValP26 = atof(jsonget(oldIndividaulBrandJSON, "P26", "string", "0"));
+	oldValP10 = atof(jsonget(oldIndividaulBrandJSON, "P10", "string", "0"));
+	oldValP15 = atof(jsonget(oldIndividaulBrandJSON, "P15", "string", "0"));
+	oldValP25 = atof(jsonget(oldIndividaulBrandJSON, "P25", "string", "0"));
+              
+	if(lineBrand == "P06" OR lineBrand == "P16" OR lineBrand == "P26"){
+		total = valP06 + valP16 + valP26;
+		oldTotal = oldValP06 + oldValP16 + oldValP26;
+
+		if((level2Threshold <> -1 AND level3Threshold <> -1) AND (total > level2Threshold AND total <= level3Threshold)){
+			maxApprovalLevel = 3;
+		}elif((level3Threshold <> -1 AND level4Threshold <> -1) AND (total > level3Threshold )){
+			maxApprovalLevel = 4;
+		}				 
+	}if(lineBrand == "P10" OR lineBrand == "P15" OR lineBrand == "P25"){
+		total = valP10 + valP15 + valP25;
+		oldTotal = oldValP10 + oldValP15 + oldValP25;
+		//Added this individually as no approval is  required till $500,000 threshold -19/08/2020//
+		if((level2Threshold <> -1 AND level3Threshold <> -1) AND (total > level2Threshold AND total <= level3Threshold)){
+			maxApprovalLevel = 3;
+		}elif((level3Threshold <> -1 AND level4Threshold <> -1) AND (total > level3Threshold )){
+			maxApprovalLevel = 4;
+		}
+	}
+	//Commenting as added individually for the brands as the level of approvals are different-CPQ-2344//
+	/*if((level2Threshold <> -1 AND level3Threshold <> -1) AND (total > level2Threshold AND total < level3Threshold)){
+		maxApprovalLevel = 3;
+	}elif((level3Threshold <> -1 AND level4Threshold <> -1) AND (total > level3Threshold )){
+		maxApprovalLevel = 4;
+	}*/
+}elif(productLineName == "Capacitors" AND transactionType_t == "WQ"){
+	/* Added to include P13 only if quanity >30 */
+
+	flag = true;
+	/*if( (lineBrand == "P13" AND quantity > 30 ) OR lineBrand <> "P13"){//Ankush - Inactivated for INC000014398866
+
+		flag = true;
+	}*/
+	/* ---- END ---- */
+	if(flag){
+		total = atof(jsonget(individaulBrandJSON, lineBrand, "string", "0"));
+		oldTotal = atof(jsonget(oldIndividaulBrandJSON, lineBrand, "string", "0"));
+
+		if((level1Threshold <> -1 AND level2Threshold <> -1) AND (total > level1Threshold AND total <= level2Threshold)){
+			maxApprovalLevel = 2;
+		}elif((level2Threshold <> -1 AND level3Threshold <> -1) AND total > level2Threshold AND total <= level3Threshold){
+			maxApprovalLevel = 3;
+		}//Updated the condition for WQ as well to go for LEvel 4 approvals and updated the threshold for level3 approval
+		elif((level3Threshold <> -1 AND level4Threshold <> -1) AND total > level4Threshold){
+			maxApprovalLevel = 4;
+		}
+	}             
+}elif(productLineName == "Capacitors" AND transactionType_t == "BA"){
+	/* Added to include P13 only if quanity >30 */
+	/* Start - Ankush - Inactivated for INC000014398866 */
+	/*if(lineBrand == "P13" AND quantity > 30){
+		valP13 = atof(jsonget(individaulBrandJSON, "P13", "string", "0"));
+	}else{
+		valP13 = 0;
+	}*/
+	/* ---- END ----*/
+	valP13 = atof(jsonget(individaulBrandJSON, "P13", "string", "0"));
+	valP14 = atof(jsonget(individaulBrandJSON, "P14", "string", "0"));
+	valP18 = atof(jsonget(individaulBrandJSON, "P18", "string", "0"));
+	valP19 = atof(jsonget(individaulBrandJSON, "P19", "string", "0"));
+	valP21 = atof(jsonget(individaulBrandJSON, "P21", "string", "0"));
+
+	oldValP13 = atof(jsonget(oldIndividaulBrandJSON, "P13", "string", "0"));
+	oldValP14 = atof(jsonget(oldIndividaulBrandJSON, "P14", "string", "0"));
+	oldValP18 = atof(jsonget(oldIndividaulBrandJSON, "P18", "string", "0"));
+	oldValP19 = atof(jsonget(oldIndividaulBrandJSON, "P19", "string", "0"));
+	oldValP21 = atof(jsonget(oldIndividaulBrandJSON, "P21", "string", "0"));
+
+	total = valP13 + valP14 + valP18 + valP19 + valP21;
+	oldTotal = oldValP13 + oldValP14 + oldValP18 + oldValP19 + oldValP21;
+
+	if((level1Threshold <> -1 AND level2Threshold <> -1) AND (total > level1Threshold AND total <= level2Threshold)){
+		maxApprovalLevel = 2;
+	}elif((level2Threshold <> -1 AND level3Threshold <> -1) AND (total > level2Threshold AND total <= level3Threshold)){
+		maxApprovalLevel = 3;
+	}elif((level3Threshold <> -1 AND level4Threshold <> -1) AND total > level3Threshold){
+		maxApprovalLevel = 4;
+	}
+}
+
+approverDictObj = get(approversDict, approverKey);
+
+//Added for the revision changes//
+if(total >=oldTotal){
+	approvalHistoryConditionJSONObj = jsonget(approvalHistoryLineJSONObj, "Brand Total", "json", json());
+}
+
+if(maxApprovalLevel >= 2){
+	rangeOfApprovers = range(maxApprovalLevel-1);
+	for eachApprover in rangeOfApprovers{
+		level = eachApprover+2;
+		approverStr = "Level" + string(level) +"Approver";
+		approverVal = get(approverDictObj, approverStr);
+
+		if(level == 2 AND productLineName == "Transformers"){ // this is an exceptional case.
+			approverVal = "";
+		}
+
+		if(level == 3 AND productLineName == "LIPE"){ // this is an exceptional case.
+			if(containskey(lIPELevel3ApproversDict, salesOffice_t)){
+				lIPEApproverDictObj = get(lIPELevel3ApproversDict, salesOffice_t);
+				approverVal = get(lIPEApproverDictObj, "Level3Approver");
+			}
+		}
+
+		oldApprovalStatus = jsonget(approvalHistoryConditionJSONObj, "level"+string(level)+"ApprovalStatus");
+
+		if((NOT ISNULL(approverVal) AND approverVal <> "") AND (oldApprovalStatus <> "Approved")){
+			jsonput(brandTotalApprovalJSONObj, "level"+string(level)+"Approver", approverVal);
+			jsonput(brandTotalApprovalJSONObj, "level"+string(level)+"ApprovalStatus", "Pending");
+		}
+	}
+}
+returnJson = json();
+
+jsonput(returnJson, "brandTotalApprovalJSONObj", brandTotalApprovalJSONObj);
+jsonput(returnJson, "maxApprovalLevel", maxApprovalLevel);
+
+return returnJson;

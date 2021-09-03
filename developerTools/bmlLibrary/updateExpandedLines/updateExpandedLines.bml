@@ -1,0 +1,59 @@
+/**
+@name Update Expanded Lines
+@api updateExpandedLines
+@param inputDict StringDictionary
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-06|Tat.Leung            |Added logging statement for debugging,
+2018-01-06|Tat.Leung            |Change actionVarName from save_t to cleanSave_t
+*/
+// Initialise return string for setting attribute values
+returnString = "";
+
+sessionID= get(inputDict,"sessionID"); 
+bsID= get(inputDict,"bsID");
+siteID= get(inputDict,"siteID");
+expandedLineIds= get(inputDict,"expandedLineIds");
+
+// Get service endpoint from environment variables
+serviceEndpoint = "https://"+ siteID + ".bigmachines.com/v1_0/receiver";
+
+debugMode = false;
+
+// Set headers for request message
+requestHeaders = dict("string");
+put(requestHeaders, "Content-Type", "text/xml");
+put(requestHeaders, "Referer", serviceEndpoint);
+
+// Generate body of request message
+requestParameters = dict("string");
+put(requestParameters, "SESSION_ID",sessionID );
+put(requestParameters, "TRANSACTION_ID", bsID);
+put(requestParameters, "EXPANDEDLINEIDS", expandedLineIds);
+put(requestParameters, "ACTIONVARNAME","cleanSave_t"); // TAT 2018-01-05 changed action from save_t to cleanSave_t
+requestBody = applytemplate("$BASE_PATH$/WebServices/updateExpandedLinesList.xml", requestParameters);
+//if (debugMode) {
+//print requestBody;
+//}
+
+// Send request message to service endpoint
+if (debugMode) {
+    print "***  REQUEST HEADERS  ***";
+    print requestHeaders;
+    print "";
+    print "***  REQUEST BODY  ***";
+    print requestBody;
+    print "";
+}
+logStatus = util.u_logString("COM_LINE_UPDATE", 4, requestBody, "updateExpandedLines - requestBody");
+
+response = urldatabypost(serviceEndpoint, requestBody, "ERROR occurred durring service call (Expanded Line Ids)", requestHeaders, true);
+//if (debugMode) {
+//print response;
+//}
+logStatus = util.u_logString("COM_LINE_UPDATE", 4, response, "updateExpandedLines - response");
+
+return response;

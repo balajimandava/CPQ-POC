@@ -1,0 +1,35 @@
+/**
+@name Log String Dictionary
+@api u_logStringDict
+@summary Print a string dictionary object to the log.
+@param category String The logging category that the log message is labeled
+@param level Integer The logging level as defined in [Set Log Level](u_setLogLevel)
+@param strDict StringDictionary The string dictionary to print to the log
+@param label String The label to for the JSON object
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@return Boolean ```true``` if log message is printed; ```false``` if log message is not printed
+@package utils/Logging
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-11|tleung               |Initial version
+*/
+PW_LOGGING_SETTINGS = "PW_LOGGING_SETTINGS";
+
+logSettings = userSessionGet(PW_LOGGING_SETTINGS, "json");
+if (isNull(logSettings)) {
+    return false;
+}
+currentLevel = jsonGet(logSettings, category, "integer", 0);
+
+messagePrinted = false;
+if (level > 0 and level <= currentLevel) {
+    allKeys = keys(strDict);
+    message = string[];
+    for key in allKeys {
+    	append(message, "\"" + key + "\": \"" + get(strDict, key) + "\"");
+    }
+    messagePrinted = util.u_logString(category, level, "{ " + join(message, ", ") + " }", label);
+}
+
+return messagePrinted;

@@ -1,0 +1,24 @@
+translationJson = json();//JSON to store translated text
+translatedTextString = "";//String to convert translated text from json
+langAttr = jsonget(inputJson,"LANGUAGE","String", "");
+
+//Query Language Translations data table to get the provided translation
+translationRecords = bmql("select SOURCETEXT, TRANSLATEDTEXT from LANG_TRANSLATIONS where LANGUAGE = $langAttr");
+//Populate the json from the queried records
+for eachRecord in translationRecords{
+	if(get(eachRecord, "SOURCETEXT") <> "" AND get(eachRecord, "TRANSLATEDTEXT") <> ""){
+		//Check if , is a part of value then replace it with ** because by default json puts , to delimit between records
+		sourceText = replace(get(eachRecord, "SOURCETEXT"), ",", "**");
+		translatedText = replace(get(eachRecord, "TRANSLATEDTEXT"), ",", "**");
+		jsonput(translationJson, sourceText, translatedText);
+	}
+}
+//Remove special characters and prepare a key:value string from the json
+translatedTextString = replace(jsontostr(translationJson), "\"", "");
+translatedTextString = replace(translatedTextString, "{", "");
+translatedTextString = replace(translatedTextString, "}", "");
+//Change the delimiter from comma to @#$
+translatedTextString = replace(translatedTextString, ",", "@#$");
+//Change the ** back to , in the original values
+translatedTextString = replace(translatedTextString, "**", ",");
+return translatedTextString;

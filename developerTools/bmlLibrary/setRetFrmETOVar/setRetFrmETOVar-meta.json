@@ -1,0 +1,12 @@
+{
+  "name" : "Set Ret Frm ETO Var",
+  "variableName" : "setRetFrmETOVar",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

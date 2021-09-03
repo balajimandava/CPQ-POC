@@ -1,0 +1,108 @@
+/**************************************************************************************************************
+@name Parse Material Master BOM Items Linking Process
+@api materialMasterBOMItemsLinkingProcess
+@Description: This library is to create BOM Items for successfully created parent lines
+@param inputData:JSON
+
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2020-11-05|Dhananjay            |initial version
+
+************************************************************************************************************/
+
+bomPayloadDict = dict("string");
+eachLineDocNumDict = dict("string");
+statusMessage = json();
+retStr = stringbuilder();
+if(materialMasterCreationStatus_t <> ""){
+	statusMessage = json(materialMasterCreationStatus_t);
+}
+//Looping through all lines to get the BOM JSON payload for each line inputData JSON
+for eachLine in transactionLine{
+	catalogNum = eachLine.qqCatalogNumber_l;
+	productType = eachLine.qqProductType_l;
+	//bomJSONPayload = eachLine.materialMasterBOMPayload_l;
+	bomJSONPayload = replace(eachLine.materialMasterBOMPayload_l,"&quot;","\"");
+	documentNum = eachLine._document_number;
+	bomJSONPayloadJson = json();
+	if(bomJSONPayload <> ""){
+		bomJSONPayloadJson = json(bomJSONPayload);
+	}
+	if(jsonpathcheck(inputData, "$."+documentNum) AND jsonpathcheck(bomJSONPayloadJson, "$.billOfMaterials")){
+		put(bomPayloadDict,catalogNum,bomJSONPayload);
+		put(eachLineDocNumDict,documentNum,catalogNum);
+	}
+}
+allLinesDocNums = keys(eachLineDocNumDict);
+if(sizeofarray(allLinesDocNums) > 0){
+	headers = dict("string");
+	siteID 	= "SOA";
+	company = util.getSupplierCompanyName();
+	siteID = company + siteID;
+	envData = util.getSiteSpecificData(siteID);
+	soaUserID = jsonget(envData, "FieldName","string","");
+	soaPassID = jsonget(envData, "Value1","string","");
+	materialMasterBOMURL = util.getEnvironmentVariable("SOA_OAG_CREATE_MMASTER_BOM_URL", "");
+	
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", "Basic " + encodebase64(soaUserID + ":" + soaPassID));
+	
+	//Preparing the Material Master BOM creation payload
+	lineItemJsonArray = jsonarray();
+	for eachDocNum in allLinesDocNums{
+		eachCatalogNum = get(eachLineDocNumDict,eachDocNum);
+		bomItemLinkPayloadJsonStr = get(bomPayloadDict,eachCatalogNum);
+		bomItemLinkPayloadJson = json(bomItemLinkPayloadJsonStr);
+		//lineItem = jsonpathgetsingle(bomItemLinkPayloadJson, "$.billOfMaterials.lineItems.lineItem[*]","json",json());
+		lineItemsArray = jsonpathgetmultiple(bomItemLinkPayloadJson, "$.billOfMaterials.lineItems.lineItem[*]");
+		lineItemsLoop = range(jsonarraysize(lineItemsArray));
+		for eachItemIndex in lineItemsLoop{
+			lineItem = jsonarrayget(lineItemsArray, eachItemIndex,"json");
+			jsonput(lineItem,"lineItemID",eachDocNum);
+			jsonarrayappend(lineItemJsonArray, lineItem);
+		}
+		//jsonput(lineItem,"lineItemID",eachDocNum);
+		//jsonarrayappend(lineItemJsonArray, lineItem);
+		
+	}
+	
+	payloadJson = json();
+	lineItems = json();
+	jsonput(lineItems,"lineItem",lineItemJsonArray);
+	materialMaster = json();
+	jsonput(materialMaster,"transactionId",bs_id);
+	jsonput(materialMaster,"applicationName","CPQ");
+	jsonput(materialMaster,"lineItems",lineItems);
+	//print lineItems;
+	jsonput(payloadJson,"billOfMaterials",materialMaster);
+	
+	materialMasterBOMPayload = jsontostr(payloadJson);
+	//print materialMasterBOMPayload;
+	
+	responseD = urldata(materialMasterBOMURL , "POST", headers, materialMasterBOMPayload);
+	print responseD;
+	statusCode = get(responseD,"Status-Code");
+	if(statusCode == "200"){
+		
+		responseBody = get(responseD,"Message-Body");
+		if(responseBody <> ""){
+			responseJson = json(responseBody);
+			results = jsonget(responseJson,"results","string","");
+			if(results == "error"){
+				errorMessage = "Exception in 'ExecuteExternalProcess:  Parsing payload.. OR Service is not available..";
+				//throwerror(errorMessage);
+				jsonput(statusMessage,"materialMaster_error_response",errorMessage);
+			}else{
+				jsonput(statusMessage,"materialMaster_success_response","Material Master BOM Creation Request sent to SAP.");
+			}
+		}
+	}elif(statusCode == "202"){
+		jsonput(statusMessage,"materialMaster_success_response","Material Master BOM Creation Request sent to SAP.");
+	}
+	//setattributevalue(1,"materialMasterCreationStatus_t",jsontostr(statusMessage));
+	sbappend(retStr, "1~materialMasterCreationStatus_t~",jsontostr(statusMessage),"|");
+}
+
+return sbtostring(retStr);

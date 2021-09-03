@@ -1,0 +1,145 @@
+/***************************************************************************************************
+//** Description: Function to upload Austria Transactions
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	29-Oct-2020 	Rahul Uttarwar 	Initial version
+//***************************************************************************************************/
+
+siteID = _system_company_name;  //Expected value is eatontest2, eatontest4 etc.
+
+//API Acess
+apiUserID= "";
+apiPassID= "";
+
+// API Username and password is stroed in Site_Specific table so calling that table to fetch required information.
+siteBMQL= bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+for eachSite in siteBMQL {
+	apiUserID= get(eachSite,"FieldName");
+	apiPassID= get(eachSite,"Value1");
+}
+
+//Basic authentication required in WebService API call.
+auth_val = "Basic " + encodebase64(apiUserID + ":" + apiPassID);
+
+//--------------> STEP 1:CREATE Transaction Start
+	createUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction";
+	currency = "EUR";
+
+	// Rest parameters
+	jsonParams = json();
+	jsonput(jsonParams,"_currency_pref",currency);
+
+	params = jsontostr(jsonParams);
+
+	// Rest Header
+	headers = dict("string");  
+	put(headers, "Content-Type", "application/json");
+
+	results = urldatabypost(createUrl, params, "ERROR", headers, true);
+
+	id = jsonget(json(results),"_id");
+	result = "SUCCESS";
+
+	if(find(results,"ERROR")<>-1){
+		result = "FAIL";
+	}
+//STEP 1:CREATE Transaction End <-----------
+
+//--------------> STEP 1.1:Set Transaction attribute values start
+	setTrnsAttributesURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/apiSave_t";
+
+	document = json();
+	
+	jsonput(document,"ntSelectedSalesOrg_t","4919");
+	jsonput(document,"ntDistributionChannel_t","30");	
+	jsonput(document,"qq_nt_TransactionName_t","Transaction Upload Test3");
+	jsonput(document,"qq_ntTransactionType_t","DSP");
+	jsonput(document,"qq_customerSearchField_t","0000831384");
+	//jsonput(document,"materialItemQuickAdd_t","000000000001021950,000000000001021981");
+	jsonput(document,"quickItem_t","000000000001021950,000000000001021981");
+
+	// Rest parameters
+	setTrnsAttrJsonParams = json();
+	jsonput(setTrnsAttrJsonParams,"documents",document);
+	setTrnsAttrParams = jsontostr(setTrnsAttrJsonParams);
+
+	// Rest Header  
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", auth_val);
+
+	results = urldatabypost(setTrnsAttributesURL, setTrnsAttrParams, "ERROR", headers, true);
+
+//STEP 1.1:Set Transaction attribute values End <--------------
+
+//--------------> STEP 2:Search Customer Start
+	searchCustomerURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/jetSearchCustomer_t";
+
+	results = urldatabypost(searchCustomerURL, "", "ERROR", headers, true);
+
+//STEP 2:Search Customer End <----------------
+
+//-------------> STEP 3:Select Customer from Arrayset Start
+	//custSelectionArrSetURL = "https://eatontest2.bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/" + "127021624" + "/customerSelectionArraySet_t";
+	//results = urldatabyget(custSelectionArrSetURL,"","ERROR");
+
+	selectCustURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/nTSelectCustomer";
+	results = urldatabypost(selectCustURL, "", "ERROR", headers, true);
+
+//STEP 3:Select Customer from Arrayset End <-----------
+
+//-------------> STEP 4:Add Customer Start
+	selectCustURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/jetAddCustomer_t";
+	results = urldatabypost(selectCustURL, "", "ERROR", headers, true);
+
+//STEP 4:Add Customer End <-----------
+
+//-------------> STEP 5:Save Transaction Start
+	selectCustURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/cleanSave_t";
+	results = urldatabypost(selectCustURL, params, "ERROR", headers, true);
+	transactionNumber_t = jsonget(json(results),"transactionNumber_t");
+	print transactionNumber_t;
+//STEP 5:Save Transaction End <-----------
+
+//-------------> STEP 6:Bulk Search Materials and Pricing Groups Start
+	bulkSearchMaterialsURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/searchMaterialAndPriceGroup_t";
+		
+	results = urldatabypost(bulkSearchMaterialsURL, "", "ERROR", headers, true);
+
+	if(find(results,"ERROR")<>-1){
+		result = "FAIL";
+	}
+	print "----------";
+	print "Search Materials and Pricing Groups";
+	print result;
+//STEP 6:Bulk Search Materials and Pricing Groups  End <-----------
+
+//-------------> STEP 7:Bulk Add Selected Materials and Pricing Groups Start
+	bulkAddSelectURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/addSelected_MaterialSearch";
+		
+	results = urldatabypost(bulkAddSelectURL, "", "ERROR", headers, true);
+
+	if(find(results,"ERROR")<>-1){
+		result = "FAIL";
+	}
+	print "----------";
+	print "Add Selected Materials and Pricing Groups";
+	print result;
+//STEP 7:Bulk Add Selected Materials and Pricing Groups  End <-----------
+
+//-------------> STEP 8:Bulk Add to LIG Start
+	addSelectURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/addMaterialItemsWoGroups_t";
+		
+	results = urldatabypost(addSelectURL, "", "ERROR", headers, true);
+
+	if(find(results,"ERROR")<>-1){
+		result = "FAIL";
+	}
+	print "----------";
+	print "Add to LIG";
+	print result;
+//STEP 8:Bulk Add to LIG End <-----------
+
+
+return "";

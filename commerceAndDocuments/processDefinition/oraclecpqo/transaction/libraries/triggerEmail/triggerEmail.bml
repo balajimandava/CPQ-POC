@@ -1,0 +1,234 @@
+/**
+@name Trigger Email
+@api triggerEmail
+@summary Create parameters for Email action to trigger an email
+@param data Json
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+03/08/2019|Harshit Maheshwari   |Initial version
+05/10/2019|Smriti Chaturvedi	| Defct 1316- Updated the logic of subject based on business
+10/1/2019|balaji konagalla	| Alm 2586- included the language specific subjects
+18/09/2020|Gautam | CPQ-630 Output document redesign
+23/10/2020|Gautam | CPQ-3156 Added extra emailButton for displaying Quotation ES-EMEA and Global Template
+28/06/2021|Anita  | CPQ-5173 Added code for new currency changes
+*/
+
+ret = json();
+siteID = _system_supplier_company_name;
+transactionId = bs_id;
+subject="";
+
+//Defect 1316 : START
+
+actionVariableName = "autoEmail_t";
+if(viewQQoutputDraftActionBoolean_t){
+	actionVariableName = "autoEmail2_t";
+}
+//CPQ-3156
+if(viewQQoutputDraftActionBoolean_t AND qqBusinessLineForSalesOrg_t == "ES-EMEA")
+{
+    actionVariableName = "autoEmail3_t";
+}
+ccEmail = "";
+toEmail = emailAddress;
+/* ----- CPQ-5713 changes START ----- */
+// As we have different formats for different currencies, so to get the correct substring value with 2 decimal places for each currency we are using this index variable and setting the variable based on currency
+// if we do roundoff and then do format currency, it again gives 8 decimal place value, that's why we are using this approach
+index = 6;
+if(currency_t == "CZK" or currency_t == "HUF" or currency_t == "TRY" or currency_t == "PLN"){
+	index = 9;
+}elif(currency_t == "ILS" or currency_t == "RON"){
+	index = 10;
+}
+/* ----- CPQ-5713 changes END ----- */
+//Smriti - ALM-1316 - Added the logic of subject based on business group condition.
+if(qqBusinessLineForSalesOrg_t == "CH-EMEA" OR qqBusinessLineForSalesOrg_t == "BUSSMANN" )
+{
+	subject = "Eaton Electric ( Corporation) – Quotation Reference " +" "+ transactionNumber_t +" "+"-"+" "+ transactionName_t +" "+"-"+" "+ customerNumber_t +" "+"-"+" "+ qqCustomerNameCopy_t;
+	if(outputLanguage_t == "de") //Alm 2586
+	{
+	   subject = "Eaton Electric ( Corporation) – Unser Angebot- Kundennummer " +" "+ transactionNumber_t +" "+"-"+" "+ transactionName_t +" "+"-"+" "+ customerNumber_t +" "+"-"+" "+ qqCustomerNameCopy_t;
+	}
+}
+elif(qqBusinessLineForSalesOrg_t == "ES-EMEA")
+{
+		totVal =  substring(formatascurrency(qqTotalValue_t,currency_t),0,len(formatascurrency(qqTotalValue_t,currency_t))-index);
+		/* ----- CPQ-5713 changes START ----- */
+		// For some sales orgs we have currency symbol position at right. Added this code to append the currency symbol for these currencies because it is being truncated when doing substring
+		if(currency_t == "CZK" or currency_t == "HUF" or currency_t == "TRY" or currency_t == "PLN" or currency_t == "ILS" or currency_t == "RON"){
+			totVal = totVal + currencySymbol_t;
+		}
+		/* ----- CPQ-5713 changes END ----- */
+		subject = "Eaton – Quotation Reference " +" "+ transactionNumber_t +" "+"-"+" "+ customerNumber_t +" "+"-"+" "+ qqCustomerNameCopy_t +" "+"-"+" "+ totVal +" "+"-"+" "+ transactionName_t + " ";
+		// Neha: added for CPQ-3190
+		if(outputLanguage_t == "de") 
+		{
+		   subject = "Eaton Electric ( Corporation) – Angebotsreferenz " +" "+ transactionNumber_t +" "+"-"+" "+ transactionName_t +" "+"-"+" "+ customerNumber_t +" "+"-"+" "+ qqCustomerNameCopy_t;
+		}
+}
+
+elif(qqBusinessLineForSalesOrg_t == "PSD" )
+{
+	subject = "Eaton Electric ( Corporation) – Quotation Reference " +" "+ transactionNumber_t +" "+"-"+" "+ transactionName_t +" "+"-"+" "+ customerNumber_t;
+	
+}
+else
+{	
+	subject = "Eaton Electric ( Corporation) – quotation reference " + transactionNumber_t;
+ if(_system_current_user_language=="de")//Alm 2586
+	{
+	subject = "Eaton Electric ( Corporation) – Unser Angebot- Kundennummer " + transactionNumber_t;
+	}
+}
+
+/*
+elif(qqBusinessLineForSalesOrg_t == "ES-EMEA" AND transactionType_t == "DS")
+{
+    totVal =  substring(formatascurrency(qqTotalValue_t,currency_t),0,len(formatascurrency(qqTotalValue_t,currency_t))-6);
+	subject = "Eaton Electric ( Corporation) – Quotation Reference " +" "+ qq_MnlShpTo_Name1_t +" "+"-"+" "+qq_MnlShpTo_Name2_t+" "+"-"+" "+totVal+" "+"-"+" "+transactionNumber_t +" "+"-"+" " +transactionName_t;
+    if(outputLanguage_t == "de") //Alm 2586
+     {
+	subject = "Eaton Electric ( Corporation) – Unser Angebot- Kundennummer " +" "+ qq_MnlShpTo_Name1_t +" "+"-"+" "+qq_MnlShpTo_Name2_t+" "+"-Angebotswert"+" "+totVal+" "+"-"+" "+transactionNumber_t +" "+"-"+" " +transactionName_t;
+     }
+}
+
+elif(qqBusinessLineForSalesOrg_t == "ES-EMEA" AND transactionType_t == "WQ")
+{      
+        totVal =  substring(formatascurrency(qqTotalValue_t,currency_t),0,len(formatascurrency(qqTotalValue_t,currency_t))-6);
+	subject = "Eaton Electric ( Corporation) – Quotation Reference "+" "+ qq_customerReferenceShipTo +" "+"-"+" "+qq_shipToName_t +" "+"-"+" "+ qq_shipToName2_t+" "+"-" +" "+totVal+" "+"-"+" "+transactionNumber_t +" "+"-"+" "+ transactionName_t;
+       if(outputLanguage_t == "de") //Alm 2586
+	{ 
+	subject = "Eaton Electric ( Corporation) – Unser Angebot- Kundennummer "+" "+ qq_customerReferenceShipTo +" "+"-"+" "+qq_shipToName_t +" "+"-"+" "+ qq_shipToName2_t+" "+"-Angebotswert" +" "+totVal+" "+"-"+" "+transactionNumber_t +" "+"-"+" "+ transactionName_t;
+	}
+}
+
+
+
+
+*/
+
+if(siteID == "eaton"){
+	ccEmail =  qq_Contact2Email_t + ";" + cCEmail_t;
+}
+if(siteID <> "eaton"){
+	ccEmail =  cCEmail_t;
+}
+
+fromName = "";
+toName = "";
+salutation = "Sir or Madam";
+if(customerSalutation_t <> "" AND customerSalutation_t <> "sirOrMadam" AND customerRepresentative_t <> ""){
+	if(customerSalutation_t == "mr"){
+		salutation = "Mr " + customerRepresentative_t;
+	}
+	if(customerSalutation_t == "ms"){
+		salutation = "Ms " + customerRepresentative_t;
+	}
+	if(customerSalutation_t == "mrs"){
+		salutation = "Mrs " + customerRepresentative_t;
+	}
+}
+
+
+
+
+// Generate body of request message
+paramDict = dict("string");
+
+
+comments  = "";
+if(qqBusinessLineForSalesOrg_t == "ES-EMEA" AND salesOrg_t == "4942")
+{
+	
+	technicalEmail = "Technik-Bonn@eaton.com";
+	technicalPhone = "+49 228 602 3704";
+	
+    supportEmail = "Anfragen-Bonn@eaton.com";
+    supportContact = "+49 228 602 3703";
+	
+	orderEmail = "Bestellungen-Bonn@eaton.com";
+    orderContact = "+49 228 602 3702";
+	
+	wholeSaleOrderEmail = "Bestellungen-Handel-Bonn@eaton.com";
+    wholeSaleOrderPhone = "+49 228 602 3701";
+	 
+	//for ES-EMEA sales org 4942 specific parameters
+	put(paramDict, "TECHNICALEMAIL",technicalEmail);
+    put(paramDict, "TECHNICALPHONE",technicalPhone);
+	
+	put(paramDict, "SUPPORTEMAIL",supportEmail);
+    put(paramDict, "SUPPORTPHONE",supportContact);
+	
+	put(paramDict, "ORDEREMAIL",orderEmail);
+    put(paramDict, "ORDERPHONE",orderContact);
+	
+    put(paramDict, "WHOLESALEORDERSEMAIL", wholeSaleOrderEmail);
+    put(paramDict, "WHOLESALEORDERSPHONE", wholeSaleOrderPhone);
+	
+    comments = applytemplate("$BASE_PATH$/EatonEmailTemplates/4942_EmailBodyTemplate_German_English.txt", paramDict);
+	
+}
+elif(qqBusinessLineForSalesOrg_t == "ES-EMEA" AND salesOrg_t == "4946")
+{
+	
+	 orderEmail = "ordereffretikon@eaton.com";
+     orderContact = "+41 58 458 14 14";
+     supportEmail = "anfrageeffretikon@eaton.com";
+     supportContact = "+41 58 458 14 14";
+	 
+	 put(paramDict, "ORDEREMAIL",orderEmail);
+     put(paramDict, "ORDERPHONE",orderContact);
+     put(paramDict, "SUPPORTEMAIL", supportEmail);
+     put(paramDict, "SUPPORTPHONE", supportContact);	
+	 
+     comments = applytemplate("$BASE_PATH$/EatonEmailTemplates/4946_EmailBodyTemplate_German_English_Italian_French.txt", paramDict);
+	
+	
+}
+// Neha: 6 Jan 2021: Generic Code updated for : CPQ-2228
+elif(qqBusinessLineForSalesOrg_t == "ES-EMEA" AND (salesOrg_t <> "4942" AND salesOrg_t <> "4946"))
+{
+	//for ES-EMEA sales org 4919
+	
+   //  comments = applytemplate("$BASE_PATH$/EatonEmailTemplates/4919_EmailBodyTemplate_German_English.txt", paramDict);
+	comments = applytemplate("$BASE_PATH$/EatonEmailTemplates/"+salesOrg_t+"_EmailBodyTemplate.txt", paramDict);
+}
+// Neha: 7 Dec 2020: For France Output Document : CPQ-2228
+/*elif(qqBusinessLineForSalesOrg_t == "ES-EMEA" AND salesOrg_t == "4308")
+{
+	
+     comments = applytemplate("$BASE_PATH$/EatonEmailTemplates/4308_EmailBodyTemplate_French_English.txt", paramDict);
+
+}*/
+else
+{
+    comments = "<html><body>" + "Dear " + salutation + ", <br><br> Further to your request, we are pleased to send you the attached quotation. <br><br> For any further question, please contact your sales rep. <br><br> With Best Regards <br><br> Eaton </body></html>" ;
+}
+
+//comments = "<html><body>" + "Dear " + salutation + ", <br><br> Further to your request, we are pleased to send you the attached quotation. <br><br> For any further question, please contact your sales rep. <br><br> With Best Regards <br><br> Eaton </body></html>" ;
+
+//Defect 1316 : END
+
+//Input Parameters
+jsonput(inputJson,"siteID", siteID);
+jsonput(inputJson,"bsId", transactionId);
+jsonput(inputJson,"actionVariableName", actionVariableName);
+jsonput(inputJson,"toEmail", toEmail);
+jsonput(inputJson,"toName", toName);
+jsonput(inputJson,"ccEmail", ccEmail);
+jsonput(inputJson,"fromName", fromName);
+jsonput(inputJson,"subject", subject);
+jsonput(inputJson,"comments", comments);
+triggerEmail = json();
+triggerEmail = util.sendEmail(inputJson); //Trigger auto-email
+
+if(jsonget(triggerEmail, "successMessage") <> ""){
+	jsonput(ret, "message", jsonget(triggerEmail, "successMessage"));
+}
+else{
+	jsonput(ret, "message", jsonget(triggerEmail, "errorMessage"));
+}
+
+return ret;

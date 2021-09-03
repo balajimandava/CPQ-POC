@@ -1,0 +1,78 @@
+/**
+@name 		Clear Attacment Type and Selected Check Box
+@api 		clearAttacmentTypeAndSelectCheckBox
+@summary 	Clear Attachment Type and Selected Check Box for empty Attachments
+@param  	
+@return 	string
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+03/19/2020|Dhananjay   |Initial version
+*/
+retStr = stringbuilder();
+
+if((qqAttachment1_t == "") OR (qqAttachment1_t == "-1")){
+	sbappend(retStr,"1~addAttachmnet1~false|");
+	sbappend(retStr,"1~attachment1DocumentType_t~|");
+}
+if((qqAttachment2_t == "") OR (qqAttachment2_t == "-1")){
+	sbappend(retStr,"1~addAttachment2~false|");
+	sbappend(retStr,"1~attachment2DocumentType_t~|");
+}
+if((qqAttachment3_t == "") OR (qqAttachment3_t == "-1")){
+	sbappend(retStr,"1~addAttachment3~false|");
+	sbappend(retStr,"1~attachment3DocumentType_t~|");
+}
+if((qqAttachment4_t == "") OR (qqAttachment4_t == "-1")){
+	sbappend(retStr,"1~addAttachment4~false|");
+	sbappend(retStr,"1~attachment4DocumentType_t~|");
+}
+if((qqAttachment5_t == "") OR (qqAttachment5_t == "-1")){
+	sbappend(retStr,"1~addAttachment5~false|");
+	sbappend(retStr,"1~attachment5DocumentType_t~|");
+}
+if((qqattachment6_t == "") OR (qqattachment6_t == "-1")){
+	sbappend(retStr,"1~addAttachment6_t~false|");
+	sbappend(retStr,"1~attachment6DocumentType_t~|");
+}
+if((qqAttachment7_t == "") OR (qqAttachment7_t == "-1")){
+	sbappend(retStr,"1~addAttachment7_t~false|");
+	sbappend(retStr,"1~attachment7DocumentType_t~|");
+}
+if((qqAttachment8_t == "") OR (qqAttachment8_t == "-1")){
+	sbappend(retStr,"1~addAttachment8_t~false|");
+	sbappend(retStr,"1~attachment8DocumentType_t~|");
+}
+if((qqAttachment9_t == "") OR (qqAttachment9_t == "-1")){
+	sbappend(retStr,"1~addAttachment9_t~false|");
+	sbappend(retStr,"1~attachment9DocumentType_t~|");
+}
+if((qqAttachment10_t == "") OR (qqAttachment10_t == "-1")){
+	sbappend(retStr,"1~addAttachment10_t~false|");
+	sbappend(retStr,"1~attachment10DocumentType_t~|");
+}
+if((qqAttachment11_t == "") OR (qqAttachment11_t == "-1")){
+	sbappend(retStr,"1~addAttachment11_t~false|");
+	sbappend(retStr,"1~attachment11DocumentType_t~|");
+}
+if((qqAttachment12_t == "") OR (qqAttachment12_t == "-1")){
+	sbappend(retStr,"1~addAttachment12_t~false|");
+	sbappend(retStr,"1~attachment12DocumentType_t~|");
+}
+if((qqAttachment13_t == "") OR (qqAttachment13_t == "-1")){
+	sbappend(retStr,"1~addAttachment13_t~false|");
+	sbappend(retStr,"1~attachment13DocumentType_t~|");
+}
+if((qqAttachment14_t == "") OR (qqAttachment14_t == "-1")){
+	sbappend(retStr,"1~addAttachment14_t~false|");
+	sbappend(retStr,"1~attachment14DocumentType_t~|");
+}
+if((qqAttachment15_t == "") OR (qqAttachment15_t == "-1")){
+	sbappend(retStr,"1~addAttachment15_t~false|");
+	sbappend(retStr,"1~attachment15DocumentType_t~|");
+}
+if((qqAttachment16_t == "") OR (qqAttachment16_t == "-1")){
+	sbappend(retStr,"1~addAttachment16_t~false|");
+	sbappend(retStr,"1~attachment16DocumentType_t~|");
+}
+return sbtostring(retStr);

@@ -1,0 +1,12 @@
+{
+  "name" : "Parse Zilliant Response",
+  "variableName" : "parseZilliantResponse",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "zilliant_Response",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

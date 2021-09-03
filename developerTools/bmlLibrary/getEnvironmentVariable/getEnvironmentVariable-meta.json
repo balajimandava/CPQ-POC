@@ -1,0 +1,15 @@
+{
+  "name" : "Get Environment Variable",
+  "variableName" : "getEnvironmentVariable",
+  "description" : "Retrieves an environment variable value, based on the '_site_url' of the CPQ environment, and the variable key supplied. \n\nIf no environment-specific variable is defined, will attempt to use a global variable. \n\nIf no global variable is defined, will use the default value provided as a parameter.",
+  "libraryFunctions" : [ "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "key",
+    "type" : "String"
+  }, {
+    "name" : "defaultValue",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

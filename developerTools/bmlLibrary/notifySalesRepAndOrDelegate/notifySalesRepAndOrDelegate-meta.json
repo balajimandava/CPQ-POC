@@ -1,0 +1,12 @@
+{
+  "name" : "Notify Sales Rep And/Or Delegate",
+  "variableName" : "notifySalesRepAndOrDelegate",
+  "description" : "Get the email for the sales rep and/or delegate for the step notification.  To be included in every place that both should be notified",
+  "libraryFunctions" : [ "util.getEnvironmentVariable", "util.getSupplierCompanyName", "util.getUserDetails" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ "_user_email" ]
+}

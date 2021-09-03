@@ -1,0 +1,11 @@
+{
+  "name" : "Mass Update of Eaton Contacts",
+  "variableName" : "massUpdateOfEatonContacts",
+  "description" : "Created for EAGLE Project POC, shouldn't be migrated.",
+  "libraryFunctions" : [ "util.getCUSMAS" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qqBusinessLineForSalesOrg_t", "transactionType_t", "qq_customerReferenceShipTo", "customerNumber_t", "salesOrg_t", "salesOffice_t", "transactionNumber_t", "customerRep_t", "vendorNumber_t" ],
+  "systemAttributes" : [ ]
+}

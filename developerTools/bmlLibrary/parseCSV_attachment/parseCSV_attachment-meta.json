@@ -1,0 +1,15 @@
+{
+  "name" : "Parse CSV (Get Attachment content)",
+  "variableName" : "parseCSV_attachment",
+  "description" : "",
+  "libraryFunctions" : [ "util.countOccurrences" ],
+  "returnType" : "String[][]",
+  "parameters" : [ {
+    "name" : "quoteCurrencyDecimalSeparator",
+    "type" : "String"
+  }, {
+    "name" : "fileContentDict",
+    "type" : "Anytype Dictionary"
+  } ],
+  "attributes" : [ ]
+}

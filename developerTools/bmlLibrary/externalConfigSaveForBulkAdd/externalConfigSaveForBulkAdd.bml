@@ -1,0 +1,11 @@
+returnValue = "";
+endPointUrl = "https://eatontest2.bigmachines.com/rest/v3/productFamilies/bidManager/productLines/bidManager/models/takeOff/actions/_externalConfigurationSave";
+headerDict = dict("string");
+put(headerDict, "Content-Type", "application/json");
+transId = jsonget(inputJson, "transId");
+transIdNum = atoi(transId);
+requestParameters = json();
+jsonput(requestParameters, "bsId", transIdNum);
+inputParams = jsontostr(requestParameters);
+result = urldatabypost(endPointURL, inputParams, "Bulk Config Add Failed", headerDict, true);
+return returnValue;

@@ -1,0 +1,141 @@
+/**
+@name Get MAT01 Details For Multiple Items
+@api getMAT01DetailsForMultipleItems
+@summary Get data from all columns of MAT01 data table for multiple parts in the specified language. Default language is English.
+@param inputJson Json
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+15/09/2020|Dhananjay			|	Initial version 
+23/11/2020|Malli 		        | CPQ-2225 - Modified the logic to fetch the material description for languages
+18/02/2021|Malli 		       |CPQ-2225 - Modified the logic to fetch language paramer from input string i.e, using upper(language)
+*/
+
+
+// Part to query the table for
+parts = jsonget(inputJson, "materials", "jsonarray", jsonarray());//MATNR 
+salesOrg = jsonget(inputJson, "salesOrg", "string", "");
+distributionChannel = jsonget(inputJson, "distributionChannel", "string", "");
+catalogNumbers = jsonget(inputJson, "catalogNumbers", "jsonarray", jsonarray());//ZZCATNO
+crossRef = upper(jsonget(inputJson, "CrossReference", "String", ""));
+
+partsStr = "('')";
+if(jsonarraysize(parts) > 0){
+	partsStr = jsonarraytostr(parts);
+	partsStr = replace(partsStr,"]",")");
+	partsStr = replace(partsStr,"[","(");
+	partsStr = replace(partsStr,"\"","'");
+}
+
+//print partsStr;
+catalogNumbersStr = "('')";
+if(jsonarraysize(catalogNumbers) > 0){
+	catalogNumbersStr = jsonarraytostr(catalogNumbers);
+	catalogNumbersStr = replace(catalogNumbersStr,"]",")");
+	catalogNumbersStr = replace(catalogNumbersStr,"[","(");
+	catalogNumbersStr = replace(catalogNumbersStr,"\"","'");
+}
+//print catalogNumbersStr;
+
+found = false;
+lang = "";
+lang1 = "";
+language = upper(jsonget(inputJson, "lang", "String", "EN")); // Added by malli as we had issues sometimes on upper/lower case language
+if(language <> "EN"){ // This is added as part of CPQ-2225
+	language = "DE"; // for language oter than english, Description to be fetched from column MAKTXDE
+}
+lang = "MAKTX" + language;
+lang1 = "MATGRP5_TEXT" + language;
+/*if (jsonget(inputJson, "lang", "String", "EN") == "") {
+	lang = "MAKTX" + "EN";
+	lang1 = "MATGRP5_TEXT" + "EN";
+}
+else {
+	lang = "MAKTX" + upper(jsonget(inputJson, "lang", "String", "EN"));
+	lang1 = "MATGRP5_TEXT" + upper(jsonget(inputJson, "lang", "String", "EN"));
+}*/
+
+
+
+// Json object to return. Contains details of the part
+partsJson = json();
+//jsonput(partJson, "crossRef", "");//Added by Vasundhara - ALM-587 - Initializing the cross reference is Empty.
+
+columnNames = String[]{"MATNR", "MAKTXEN", "MAKTXDE", "VKORG","VTWEG","BONUS","MVGR5","MEINS","SCMNG","AUMNG",
+	"UOM","RBNRM","MSTAE","VMSTA","DateTimeStamp","LVORM", "DISCOUNTABLE", "ZZCATNO",
+	"PRODUCTLINE", "AltItemNumber", "SALESTEXT", "SALESTEXT2", "SALESTEXT3", 
+	"SALESTEXT4", "SALESTEXT5", "MPG", "PH5","MTART","MPG_TEXT","PH5_TEXT","MATGRP5_TEXTEN","MATGRP5_TEXTEN","MATGRP5_TEXTDE","RDPRF","UMREZ", "MEINH","EAN11", "MSTAV", "NTGEW", "GEWEI","MVGR1","PRODH"};  //ALM 1878:"NTGEW" and "GEWEI" columns Added by Sharath 
+	
+cols= join(columnNames,",");
+
+whereConditionValues = dict("string");
+qryLang = dict("string");
+put(whereConditionValues,"$salesOrg",salesOrg);
+put(whereConditionValues,"$distributionChannel",distributionChannel);
+whereClauseConditions = "((MATNR IN "+partsStr+" OR MATNR_SEARCH IN "+partsStr+") OR (ZZCATNO IN  "+catalogNumbersStr+" OR ZZCATNO IN "+partsStr+")) AND VKORG=$salesOrg";
+if( distributionChannel <> "") {
+	whereClauseConditions = whereClauseConditions + " AND VTWEG =$distributionChannel";
+}
+//print whereClauseConditions;
+partDetails = bmql("select $cols from MAT01 where $whereClauseConditions",qryLang ,whereConditionValues);
+if(haserror(partDetails)){
+	errMsg = getmessage(partDetails);
+	throwerror("Util: Get MAT01 Details For Multiple Items::"+errMsg);
+}else{
+	for row in partDetails {
+		found = true;
+		partJson = json();
+		materialNum = get(row, "MATNR");
+		jsonput(partJson, "MATNR", get(row, "MATNR"));
+		jsonput(partJson, "MPGDESC", get(row, "MPG_TEXT"));
+		jsonput(partJson, "PH5DESC", get(row, "PH5_TEXT"));
+		
+		if (get(row, lang) == "") {
+			jsonput(partJson, "DESC", get(row, "MAKTXEN"));	
+			jsonput(partJson, "MATGRPDESC", get(row, "MATGRP5_TEXTEN"));
+		}
+		else {
+			jsonput(partJson, "DESC", get(row, lang));
+			jsonput(partJson, "MATGRPDESC", get(row, lang1));
+		}
+		
+		jsonput(partJson, "VKORG", get(row, "VKORG"));
+		jsonput(partJson, "VTWEG", get(row, "VTWEG"));
+		jsonput(partJson, "BONUS", get(row, "BONUS"));
+		jsonput(partJson, "MVGR5", get(row, "MVGR5"));
+		jsonput(partJson, "MEINS", get(row, "MEINS"));
+		jsonput(partJson, "UOM", get(row, "UOM"));
+		jsonput(partJson, "RBNRM", get(row, "RBNRM"));
+		jsonput(partJson, "MSTAE", get(row, "MSTAE"));
+		jsonput(partJson, "VMSTA", get(row, "VMSTA"));
+		jsonput(partJson, "DateTimeStamp", get(row, "DateTimeStamp"));
+		jsonput(partJson, "LVORM", get(row, "LVORM"));
+		jsonput(partJson, "DISCOUNTABLE", get(row, "DISCOUNTABLE"));
+		jsonput(partJson, "ZZCATNO", get(row, "ZZCATNO"));
+		jsonput(partJson, "PRODUCTLINE", get(row, "PRODUCTLINE"));
+		jsonput(partJson, "AltItemNumber", get(row, "AltItemNumber"));
+		jsonput(partJson, "SALESTEXT", get(row, "SALESTEXT"));
+		jsonput(partJson, "SALESTEXT2", get(row, "SALESTEXT2"));
+		jsonput(partJson, "SALESTEXT3", get(row, "SALESTEXT3"));
+		jsonput(partJson, "SALESTEXT4", get(row, "SALESTEXT4"));
+		jsonput(partJson, "SALESTEXT5", get(row, "SALESTEXT5"));
+		jsonput(partJson, "MPG", get(row, "MPG"));
+		jsonput(partJson, "PH5", get(row, "PH5"));
+		jsonput(partJson, "MTART", get(row, "MTART"));
+		jsonput(partJson, "SCMNG", get(row, "SCMNG"));//Minimum Order Quantity 
+		jsonput(partJson, "AUMNG", get(row, "AUMNG"));//Rounding Quantity
+		jsonput(partJson, "RDPRF", get(row, "RDPRF"));
+		jsonput(partJson, "UMREZ", get(row, "UMREZ"));
+		jsonput(partJson, "MEINH", get(row, "MEINH"));
+		jsonput(partJson, "EAN11", get(row, "EAN11"));
+		jsonput(partJson, "MSTAV", get(row, "MSTAV"));
+		jsonput(partJson, "NTGEW", get(row, "NTGEW"));
+		jsonput(partJson, "GEWEI", get(row, "GEWEI"));
+		jsonput(partJson, "MVGR1", get(row, "MVGR1"));
+		jsonput(partJson, "PRODH", get(row, "PRODH"));
+		
+		jsonput(partsJson,materialNum,partJson);
+	}
+}
+return partsJson;

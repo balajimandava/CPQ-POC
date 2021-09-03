@@ -1,0 +1,247 @@
+/**
+@name Get Ship To Data
+@api getShipToData
+@summary 
+@attribute _system_company_name
+@attribute _system_user_login
+@attribute eRecordID_t
+@attribute isDistiQuote_t
+@attribute isVendorQuote_t
+@attribute ntDistributionChannel_t
+@attribute ntSelectedSalesOrg_t
+@attribute owner_t
+@attribute qq_ntsalesOrg_t
+@function Dictionary of String Dictionaries customerMasterInfo(String Dictionary inputDict)
+@function String Dictionary getRegionsForSalesOrg(String[] salesOrgs)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-04|Tat.Leung            |Disti support
+2018-02-12|Tat.Leung            |
+2018-02-27|Tat.Leung            |Preload sales region in dict to improve perfornace
+2018-04-19|michael.yeung        |
+2018-06-04|michael.yeung        | Move delegate lookup to customerMasterInfo, use user selected Sales Org/distribution channel if available (i.e. after user made selection on those on the start page)
+2018-06-08|michael.yeung        |
+*/
+//  37678048
+retShipToRecordsData = "";
+colSep = "$,$";
+rowSep = "#@#";
+
+salesOrgStr = qq_ntsalesOrg_t;
+salesOrgArr = split(salesOrgStr, rowSep);
+
+eRecordID = eRecordID_t;
+
+eRecordIDs = string[] {
+    eRecordID
+};
+
+regionLookup = util.getRegionsForSalesOrg(salesOrgArr);
+
+useSelectedSalesOrg = false;
+if( ntSelectedSalesOrg_t<>"" AND ntDistributionChannel_t<>"") {
+    useSelectedSalesOrg = true;
+    salesOrgArr = string[] {ntSelectedSalesOrg_t};
+}
+
+for salesOrg in salesOrgArr {
+
+    inputMasterInfo = dict("string");
+
+    if (isDistiQuote_t) {
+        append(eRecordIDs, _system_company_name);
+    } elif (isVendorQuote_t) {
+        append(eRecordIDs, substring(_system_company_name,1));
+    }
+
+
+    put(inputMasterInfo, "eRecordID", join(eRecordIDs, rowSep));
+    put(inputMasterInfo, "SalesOrg", salesOrg);
+    put(inputMasterInfo, "LoginID", owner_t);
+    put(inputMasterInfo, "IsDistiQuote", string(isDistiQuote_t));
+    put(inputMasterInfo, "IsVendorQuote", string(isVendorQuote_t));
+    put(inputMasterInfo, "selectedSalesOrg", ntSelectedSalesOrg_t);
+    put(inputMasterInfo, "selectedDistributionChannel", ntDistributionChannel_t);
+
+    if( useSelectedSalesOrg ) {
+        salesOrg = ntSelectedSalesOrg_t;
+    }
+
+    customerData = util.customerMasterInfo(inputMasterInfo);
+    if (containskey(customerData, "hierarchyDict")) {
+
+        hierarchyDict = get(customerData, "hierarchyDict");
+        allkeys = keys(hierarchyDict);
+        allKeysSorted = sort(allKeys, "asc", "text");
+
+        //HQ$,$L1$,$L2$,$L3$,$Name1$,$PSTLZ$,$STRAS
+
+        shipToId = string[];
+        for eachID in allKeysSorted {
+            hqNumber = "";
+            lastLevel = "";
+            splitIds = split(eachID, ".");
+            maxCNT = sizeofarray(splitIDs);
+            hqNumber = splitIds[0];
+            lastLevel = splitIds[maxCNT - 1];
+
+            if (maxCNT == 3) { // Entry containing non-blank Ship Tos Only.
+                if (findinarray(shipToId, salesOrg + "-" + splitIds[1] + "-" + splitIds[2]) == -1) {
+                    append(shipToId, salesOrg + "-" + splitIds[1] + "-" + splitIds[2]);
+                    shipToRecordRow = string[];
+
+                    hqCustInfoDict = get(customerData, hqNumber);
+                    hqName1 = util.getStringDict(hqCustInfoDict, "NAME1", "");
+                    append(shipToRecordRow, salesOrg); // Sales Org
+                    append(shipToRecordRow, hqNumber); // Hierarchy Number
+                    append(shipToRecordRow, splitIds[1]); // Sold To Number
+                    append(shipToRecordRow, splitIds[2]); // Ship To Number
+
+                    llShipToInfoDict = get(customerData, splitIds[2]);
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "NAME1", "")); // Ship To Name
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "PSTLZ", "")); // Postal Code
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "ORT01", "")); // City
+                    countryCode = util.getStringDict(llShipToInfoDict, "LAND1", ""); // Country Code
+                    regionCode = util.getStringDict(llShipToInfoDict, "REGIO", ""); // Region Code 
+
+                    crKey = countryCode + "_" + regionCode;
+                    regn = get(regionLookup, crKey);
+                    if (isnull(regn)) {
+                        regn = "";
+                    }
+
+
+                    if (regn == "ES-EMEA"
+                        OR regn == "CH-EMEA") {
+                        regn = "";
+                    }
+                    append(shipToRecordRow, regn);
+
+                    if (retShipToRecordsData <> "") {
+                        retShipToRecordsData = retShipToRecordsData + rowSep;
+                    }
+                    retShipToRecordsData = retShipToRecordsData + join(shipToRecordRow, colSep);
+                }
+
+                // 2017//11/27 Begin MY - sold to should be set as a valid ship to
+                // sold to is also the ship to
+                if (findinarray(shipToId, salesOrg + "-" + splitIds[1] + "-" + splitIds[1]) == -1) {
+                    append(shipToId, salesOrg + "-" + splitIds[1] + "-" + splitIds[1]);
+                    shipToRecordRow = string[];
+
+                    hqCustInfoDict = get(customerData, hqNumber);
+                    hqName1 = util.getStringDict(hqCustInfoDict, "NAME1", "");
+                    append(shipToRecordRow, salesOrg); // Sales Org
+                    append(shipToRecordRow, hqNumber); // Hierarchy Number
+                    append(shipToRecordRow, splitIds[1]); // Sold To Number
+                    append(shipToRecordRow, splitIds[1]); // Ship To Number
+                    llShipToInfoDict = get(customerData, splitIds[1]);
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "NAME1", "")); // Ship To Name
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "PSTLZ", "")); // Postal Code
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "ORT01", "")); // City
+                    countryCode = util.getStringDict(llShipToInfoDict, "LAND1", ""); // Country Code
+                    regionCode = util.getStringDict(llShipToInfoDict, "REGIO", ""); // Region Code 
+                    crKey = countryCode + "_" + regionCode;
+                    regn = get(regionLookup, crKey);
+                    if (isnull(regn)) {
+                        regn = "";
+                    }
+
+
+                    if (regn == "ES-EMEA"
+                        OR regn == "CH-EMEA") {
+                        regn = "";
+                    }
+                    append(shipToRecordRow, regn);
+
+                    if (retShipToRecordsData <> "") {
+                        retShipToRecordsData = retShipToRecordsData + rowSep;
+                    }
+                    retShipToRecordsData = retShipToRecordsData + join(shipToRecordRow, colSep);
+                }
+            } elif (maxCNT == 2) {
+                // sold to is also the ship to
+                if (findinarray(shipToId, salesOrg + "-" + splitIds[1] + "-" + splitIds[1]) == -1) {
+                    append(shipToId, salesOrg + "-" + splitIds[1] + "-" + splitIds[1]);
+                    shipToRecordRow = string[];
+
+                    hqCustInfoDict = get(customerData, hqNumber);
+                    hqName1 = util.getStringDict(hqCustInfoDict, "NAME1", "");
+                    append(shipToRecordRow, salesOrg); // Sales Org
+                    append(shipToRecordRow, hqNumber); // Hierarchy Number
+                    append(shipToRecordRow, splitIds[1]); // Sold To Number
+                    append(shipToRecordRow, splitIds[1]); // Ship To Number
+                    llShipToInfoDict = get(customerData, splitIds[1]);
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "NAME1", "")); // Ship To Name
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "PSTLZ", "")); // Postal Code
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "ORT01", "")); // City
+                    countryCode = util.getStringDict(llShipToInfoDict, "LAND1", ""); // Country Code
+                    regionCode = util.getStringDict(llShipToInfoDict, "REGIO", ""); // Region Code 
+                    crKey = countryCode + "_" + regionCode;
+                    regn = get(regionLookup, crKey);
+                    if (isnull(regn)) {
+                        regn = "";
+                    }
+
+                    if (regn == "ES-EMEA"
+                        OR regn == "CH-EMEA") {
+                        regn = "";
+                    }
+                    append(shipToRecordRow, regn);
+
+                    if (retShipToRecordsData <> "") {
+                        retShipToRecordsData = retShipToRecordsData + rowSep;
+                    }
+                    retShipToRecordsData = retShipToRecordsData + join(shipToRecordRow, colSep);
+                }
+            } elif (maxCNT == 1) {
+                // sold to is also the ship to
+                if (findinarray(shipToId, salesOrg + "-" + hqNumber + "-" + hqNumber) == -1) {
+                    append(shipToId, salesOrg + "-" + hqNumber + "-" + hqNumber);
+                    shipToRecordRow = string[];
+
+                    hqCustInfoDict = get(customerData, hqNumber);
+                    hqName1 = util.getStringDict(hqCustInfoDict, "NAME1", "");
+                    append(shipToRecordRow, salesOrg); // Sales Org
+                    append(shipToRecordRow, hqNumber); // Hierarchy Number
+                    append(shipToRecordRow, hqNumber); // Sold To Number
+                    append(shipToRecordRow, hqNumber); // Ship To Number
+                    llShipToInfoDict = get(customerData, hqNumber);
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "NAME1", "")); // Ship To Name
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "PSTLZ", "")); // Postal Code
+                    append(shipToRecordRow, util.getStringDict(llShipToInfoDict, "ORT01", "")); // City
+                    countryCode = util.getStringDict(llShipToInfoDict, "LAND1", ""); // Country Code
+                    regionCode = util.getStringDict(llShipToInfoDict, "REGIO", ""); // Region Code 
+                    crKey = countryCode + "_" + regionCode;
+                    regn = get(regionLookup, crKey);
+                    if (isnull(regn)) {
+                        regn = "";
+                    }
+
+                    if (regn == "ES-EMEA"
+                        OR regn == "CH-EMEA") {
+                        regn = "";
+                    }
+                    append(shipToRecordRow, regn);
+
+                    if (retShipToRecordsData <> "") {
+                        retShipToRecordsData = retShipToRecordsData + rowSep;
+                    }
+                    retShipToRecordsData = retShipToRecordsData + join(shipToRecordRow, colSep);
+                }
+
+                // 2017//11/27 End MY - sold to should be set as a valid ship to
+            }
+
+        }
+
+    }
+    if( useSelectedSalesOrg ) {
+        break;
+    }
+
+}
+return retShipToRecordsData;

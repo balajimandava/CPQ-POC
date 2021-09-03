@@ -1,0 +1,11 @@
+{
+  "name" : "Test Mass Script",
+  "variableName" : "testMassScript",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "materialPricingGroup_l", "materialPricingGroupShortDescription_l", "materialLineItemShortDescription_l", "materialLineItem_l", "_document_number" ],
+  "mainDocAttributes" : [ "salesOrg_t", "distributionChannel_t", "transactionNumber_t", "salesRepLanguage_t" ],
+  "systemAttributes" : [ ]
+}

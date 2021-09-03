@@ -1,0 +1,11 @@
+{
+  "name" : "Populate Volume Bonus Columns in Report",
+  "variableName" : "populateVolumeBonusColumnsInReport",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bonusArraySet_t" ],
+  "systemAttributes" : [ ]
+}

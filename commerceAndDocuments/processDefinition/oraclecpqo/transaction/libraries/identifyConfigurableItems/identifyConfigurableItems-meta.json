@@ -1,0 +1,14 @@
+{
+  "name" : "Identify Configurable Items",
+  "variableName" : "identifyConfigurableItems",
+  "description" : "",
+  "libraryFunctions" : [ "util.u_getJsonDataForQuery" ],
+  "returnType" : "Anytype Dictionary",
+  "parameters" : [ {
+    "name" : "inputData",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "salesOrg_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ ]
+}

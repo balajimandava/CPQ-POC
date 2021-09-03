@@ -1,0 +1,141 @@
+/**
+@name Model Level Price Roll Up
+@api modelLevelPriceRollUp
+@summary : This function will do rollup of different line item attributes at Model level.
+@return String
+@InputParam : May require in future but for now no use of below input paramters.
+		lineJson : Type => JSON
+		parentLineJson : Type => JSON
+	
+@revision
+Rev. Date |Developer                  |Notes / Comments
+----------|---------------------------|-------------------------------------------------------------------------
+04/29/2019|Harshit Mehta              |Initial Version
+06/25/2019|Balaji Konagalla           |Alm 2249: rollup the list price of line items to model level 
+05/19/2021|Anita			|Added conditions for new currency as part of 53390 
+*/
+
+///START Local Variable Declaration
+parentItemNumsJson = json(); //This json will contain model level prices.
+lineLevelStringAttributeArr = string[]{"approvedNetFixedAmount_l","netFixedAmountString_l"}; //ALM - 1931 Store attribute variable name shows on UI as number but attribute type is text (String)
+returnString = "";
+///END Local Variable Declaration
+
+parQty = "";
+getKey = string[];
+//*****************Line Loop START **********************************//
+for line in transactionLine
+{
+	if(line._parent_doc_number <> "")
+	{
+		currentLineJson = json();
+		jsonput(currentLineJson,"newNetPrice_l",line.newNetPrice_l);
+		jsonput(currentLineJson,"qqTotal_l",line.qqTotal_l);
+		jsonput(currentLineJson,"totalAfterHeaderDiscount_l",line.totalAfterHeaderDiscount_l);
+		jsonput(currentLineJson,"netFixedAmountString_l",line.netFixedAmountString_l);
+		jsonput(currentLineJson,"approvedNetFixedAmount_l",line.approvedNetFixedAmount_l);
+		jsonput(currentLineJson,"currentNetPricePerUOM_l",line.currentNetPricePerUOM_l);
+		jsonput(currentLineJson,"agreementNetDiscountRequested_l",line.agreementNetDiscountRequested_l);
+		jsonput(currentLineJson,"margin_l",line.margin_l);	
+		jsonput(currentLineJson,"qqApprovedPrice_l",line.qqApprovedPrice_l);
+		jsonput(currentLineJson,"qqApprovedTotal_l",line.qqApprovedTotal_l);
+		jsonput(currentLineJson,"qqApprovedMargin_l",line.qqApprovedMargin_l);
+		jsonput(currentLineJson,"agreementNetPriceRequested_l",line.agreementNetPriceRequested_l);
+		jsonput(currentLineJson,"agreementNetDiscount_l",line.agreementNetDiscount_l);
+		jsonput(currentLineJson,"agreementNetPrice_l",line.agreementNetPrice_l);
+		jsonput(currentLineJson,"oldListPrice_l",line.oldListPrice_l);//Alm 2249: rollup the list price of line items to model level 
+		currentLineAttributeArray = jsonkeys(currentLineJson);
+		
+		parentItem = jsonget(parentItemNumsJson,line._parent_doc_number,"json",json());
+		jsonput(parentItem,"_document_number",line._parent_doc_number);
+		//print currentLineAttributeArray;
+		
+		/* Neha: added for 52469 - call getTransactionLineLevelData to get the quantity of the parent item*/
+		lineDocNum = line._parent_doc_number;
+		bsId = line.transactionID_l;
+		configId="";
+
+		xPathDictionary = dict("string");
+		put(xPathDictionary, "item_id", "//transactionLine/_document_number");
+		put(xPathDictionary, "config_id", "//transactionLine/externalConfigData_l"); // to be updated
+		put(xPathDictionary, "read_only", "//transactionLine/_document_number");  // to be updated
+		put(xPathDictionary, "catalog_number", "//transactionLine/qqCatalogNumber_l");
+		put(xPathDictionary, "product_hierarchy", "//transactionLine/_document_number");  // to be updated
+		put(xPathDictionary, "quantity", "//transactionLine/quantity_l");
+		put(xPathDictionary, "design_status", "//transactionLine/engineeringDesignStatus_l");  // to be verified
+		put(xPathDictionary, "is_placeholder", "//transactionLine/isPlaceholder_l");//0 for normal case, 1 for prelim item
+	
+		lineData =  util.getTransactionLineLevelData(bsId, lineDocNum, xPathDictionary,configId);
+
+		
+		parData = jsonarraysize(lineData);
+		loop = range(parData);
+		for i in loop { 
+		    currentModel = jsonarrayget(lineData, i, "json");
+		    parQty = jsonget(currentModel, "quantity", "string", "");
+		}
+		print parQty;		
+
+		/* call getTransactionLineLevelData to get the quantity of the parent item ends*/
+
+		for eachAttribute in currentLineAttributeArray 
+		{
+			currentPrice = jsonget(currentLineJson,eachAttribute,"String","0.00");
+			parentPrice =  jsonget(parentItem,eachAttribute ,"String","0.00");
+			
+			//If attribute type is text and contains numeric value then correct number format should be prepared.
+			//i.e. for EUR currency value on UI would be like 39,12 but for calculation it should be like 39.12
+			// 53390: Added conditions for all currencies
+			if(findinarray(lineLevelStringAttributeArr,eachAttribute) > -1 AND (currency_t=="EUR" OR currency_t=="CZK" OR currency_t=="HUF" OR currency_t=="PLN" OR currency_t=="RON" OR currency_t=="TRY"))
+			{
+				currentPrice = replace(currentPrice,",",".");
+				parentPrice = replace(parentPrice,",",".");
+			}
+			
+			if(isNumber(currentPrice) AND isNumber(parentPrice))
+			{
+
+				newPrice = atof(currentPrice) + atof(parentPrice);
+
+				//If attribute type is text and contains numeric value then correct number format should be prepared.
+				//i.e. for EUR currency value would be like 39.12 but on UI it should be like 39,12
+				// 53390: Added conditions for all currencies
+				if(findinarray(lineLevelStringAttributeArr,eachAttribute) > -1 AND (currency_t=="EUR" OR currency_t=="CZK" OR currency_t=="HUF" OR currency_t=="PLN" OR currency_t=="RON" OR currency_t=="TRY"))
+				{
+					jsonput(parentItem,eachAttribute,replace(string(newPrice),".",","));
+				}
+				else
+				{
+					jsonput(parentItem,eachAttribute,string(newPrice));
+				}
+			}
+		}
+		//Set parentItem to back into parentItemNumsJson
+		jsonput(parentItemNumsJson,line._parent_doc_number,parentItem);
+		getKey = jsonkeys(parentItemNumsJson);
+	}
+}
+
+	/* Neha: added the code for 52469 to update parent qqtotal*/
+PRINT parentItemNumsJson;
+PRINT getKey;
+		if(NOT(isempty(getKey))	)
+		{
+		getKey = jsonkeys(parentItemNumsJson);
+		getItemString= jsonget(parentItemNumsJson, getKey[0] ,"string","");
+		getItemJson = json(getItemString);
+		getQQTotalJson= jsonget(getItemJson,"qqTotal_l","string","");
+		newQQTotal = atof(getQQTotalJson) * atoi(parQty);
+		jsonput(getItemJson , "qqTotal_l", newQQTotal);
+		jsonput(parentItemNumsJson,getKey[0] ,getItemJson);
+		}
+
+//*****************Line Loop END **********************************//
+//print parentItemNumsJson;
+//Extract data from parentItemNumsJson and generate final return string.
+modelItemJsonArray = jsonpathgetmultiple(parentItemNumsJson,"$.*");
+modelItemJson = json();
+jsonput(modelItemJson,"items",modelItemJsonArray);
+returnString = returnString + util.u_buildCommerceReturnStrFromJson(modelItemJson);
+
+return returnString;

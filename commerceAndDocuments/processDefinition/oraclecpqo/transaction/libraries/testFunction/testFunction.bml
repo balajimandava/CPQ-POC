@@ -1,0 +1,18 @@
+items = jsonarray();
+inputJson 	= json();
+	xPathDictionary = dict("string");
+	put(xPathDictionary, "item_id", "//transactionLine/_document_number");
+	put(xPathDictionary, "config_id", "//transactionLine/_document_number"); // to be updated
+	put(xPathDictionary, "read_only", "//transactionLine/_document_number");  // to be updated
+	put(xPathDictionary, "catalog_number", "//transactionLine/qqCatalogNumber_l");
+	put(xPathDictionary, "product_hierarchy", "//transactionLine/_document_number");  // to be updated
+	put(xPathDictionary, "quantity", "//transactionLine/quantity_l");
+	
+	for each in transactionLine{
+	   //lineData = util.getTransactionLineLevelData(bs_id, each._document_number, xPathDictionary);
+	   //jsonarrayappend(items, lineData);
+	   print 14;
+	}
+	
+	
+	return items;

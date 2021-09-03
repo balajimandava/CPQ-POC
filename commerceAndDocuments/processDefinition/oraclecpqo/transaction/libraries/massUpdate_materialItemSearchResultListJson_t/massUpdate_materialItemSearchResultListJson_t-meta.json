@@ -1,0 +1,11 @@
+{
+  "name" : "massUpdate_materialItemSearchResultListJson_t",
+  "variableName" : "massUpdate_materialItemSearchResultListJson_t",
+  "description" : "This will empty the attribute value for existing transactions.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "materialItemSearchResultListJson_t" ],
+  "systemAttributes" : [ ]
+}

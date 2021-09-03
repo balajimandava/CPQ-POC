@@ -1,0 +1,46 @@
+/**
+@name countOccurrences
+@api countOccurrences
+@summary count occurrences of the matching string.  Break string into 5000 characters to avoid potential CPQ array limit
+@param data String
+@param match String
+@return Integer
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-10-25|michael.yeung        |
+2020-03-24|Atul Jain            | Added debug mode to print statements
+*/
+debugMode = false;
+count = 0;
+    checkSize = 7000;
+    dataSize = len(data);
+    loopSize = dataSize / checkSize ;
+    remainder = fmod(dataSize,  checkSize );
+    
+    if( remainder > 0 ) {
+    	loopSize = loopSize + 1;
+    }
+    loopCnt = range(loopSize);
+    if(debugMode)
+    {
+     print loopCnt;
+    }
+    for idx in loopCnt {
+    	startStr = idx * checkSize;
+    	endStr = ((idx + 1) * checkSize) ;
+    	if ( endStr > len(data)  ) {
+		endStr = len(data) ;
+    	}
+    	curStr = subString(data, startStr, endStr);
+    	curSplit =split(curStr, match);
+        if(debugMode)
+        {
+         print endStr ;
+         print startStr;
+    	 print curStr;
+    	 print sizeofarray(curSplit );
+        }
+    	count = count + (sizeofarray(curSplit )-1);
+    }
+    return count;

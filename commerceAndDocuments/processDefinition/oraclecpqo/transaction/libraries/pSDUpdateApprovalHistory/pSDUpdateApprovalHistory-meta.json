@@ -1,0 +1,17 @@
+{
+  "name" : "PSD Update Approval History",
+  "variableName" : "pSDUpdateApprovalHistory",
+  "description" : "Project#49704|E9913664|22ndJuly2020|Function to update transaction json on approve action.",
+  "libraryFunctions" : [ "commerce.pSDGetApproverDetails", "commerce.pSDGetBannerTextAndCurrentApprovalLevel" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "CurrentReasonVarName",
+    "type" : "String"
+  }, {
+    "name" : "ApprovalFlag",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionLineApprovalInformation_t" ],
+  "systemAttributes" : [ "_system_user_groups", "_system_user_login" ]
+}

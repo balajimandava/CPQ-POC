@@ -1,0 +1,29 @@
+//2020-03-17|Atul Jain| Removed commented code. 
+//2021-06-15|Malli| CPQ-5206 Added logic to fetch threshold based on material and curerncy
+
+// approvalInputs is a JSON file
+// contains the salesOrg and the names of the columns to query in the table
+salesOrg = jsonget(approvalInputs,"salesOrg");
+customerGroup = jsonget(approvalInputs,"customerGroup");
+currency = jsonget(approvalInputs,"currency"); // CPQ-5206 , Added by malli
+cols = "DiscountGroup, SalesOrganisation, Currency,Level1Max, Level2Max, Level3Max, CustomerGroup, PriceScopeAPI , PriceScopeWorkflow,PriceScopeMaxLevel1,PriceScopeMaxLevel2,PriceScopeMaxLevel3";
+table = json();
+
+ApproversBML = bmql("SELECT $cols from Thresholds_ESEMEA WHERE SalesOrganisation=$salesOrg and Currency=$currency and (CustomerGroup IS NULL OR CustomerGroup=$customerGroup) ");
+//ApproversBML = bmql("SELECT $cols from Thresholds_ESEMEA WHERE SalesOrganisation=$salesOrg and (CustomerGroup IS NULL OR CustomerGroup=$customerGroup) ");
+for row in ApproversBML {
+	// json for the thresholds
+	rowJson = json();
+	jsonput(rowJson, "Level1Max", get(row, "Level1Max")); // > level 1
+	jsonput(rowJson, "Level2Max", get(row, "Level2Max")); // > level 2
+	jsonput(rowJson, "Level3Max", get(row, "Level3Max")); // > level 3
+	jsonput(rowJson, "PriceScopeAPI", get(row, "PriceScopeAPI")); // > level 1
+	jsonput(rowJson, "PriceScopeWorkflow", get(row, "PriceScopeWorkflow")); // > level 2
+	jsonput(rowJson, "PriceScopeMaxLevel1", get(row, "PriceScopeMaxLevel1"));
+	jsonput(rowJson, "PriceScopeMaxLevel2", get(row, "PriceScopeMaxLevel2"));
+	jsonput(rowJson, "PriceScopeMaxLevel3", get(row, "PriceScopeMaxLevel3"));
+	//put the thresholds json into the table json with the discount group as the key
+	jsonput(table, get(row, "DiscountGroup"), rowJson);
+}
+
+return table;

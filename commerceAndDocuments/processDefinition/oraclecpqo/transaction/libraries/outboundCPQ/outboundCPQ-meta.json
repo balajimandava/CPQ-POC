@@ -1,0 +1,14 @@
+{
+  "name" : "Outbound - CPQ",
+  "variableName" : "outboundCPQ",
+  "description" : "Sends CPQ data to an external source (SOA)",
+  "libraryFunctions" : [ "commerce.createORUpdateContract", "commerce.sendAgreement", "commerce.sendQuote" ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "parmsDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionType_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ ]
+}

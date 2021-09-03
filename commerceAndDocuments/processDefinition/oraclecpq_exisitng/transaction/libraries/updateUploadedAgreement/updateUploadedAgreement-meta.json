@@ -1,0 +1,11 @@
+{
+  "name" : "Update Uploaded Agreement",
+  "variableName" : "updateUploadedAgreement",
+  "description" : "Modify uploaded agreement for sorting and status changes.",
+  "libraryFunctions" : [ "util.getUploadedTransactionDetailsJson" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionName_t", "tableName_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

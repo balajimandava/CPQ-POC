@@ -1,0 +1,12 @@
+{
+  "name" : "Get Bussmann Groups",
+  "variableName" : "getBussmannGroups",
+  "description" : "Return the Bussmann groups that should have access to the quote",
+  "libraryFunctions" : [ "util.getTransactionData" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

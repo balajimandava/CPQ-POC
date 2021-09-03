@@ -1,0 +1,170 @@
+/**
+@name Build Bid Manager Model BOM
+@api buildBidManagerModelBOM
+@param selectedDocNumber String
+@param configExtraInfo String
+@param modelPath String
+@param bsId String
+@function Boolean u_logJson(String category, Integer level, Json jsonObject, String label)
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@function Json enableDebugLog()
+@function Json getSiteSpecificData(String siteID)
+@function Json parseBidManBOM(String bom)
+@function String getSupplierCompanyName()
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-08|Tat.Leung            |
+2018-04-26|Michael.Yeung        |
+2018-06-26|michael.yeung        |   Adding child lines base on BOM data
+2018-07-18|Harshit Mehta	| Adding header in urldata function
+2018-10-04|michael.yeung        | Update external configurator save action to group child line items with the same material items as one commerce line item. 
+2020-03-19|Atul Jain			|Removed commented code, and added debug mode to print statements.
+*/
+// enable logging
+
+debugMode = false;
+if(debugMode){
+	print util.enableDebugLog();
+}
+logStatus = util.u_logString("CFG_EXTERNAL", 4, selectedDocNumber, "selectedDocNumber");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, configExtraInfo, "configExtraInfo");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, modelPath, "modelPath");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, bsId, "bsId");
+
+company = util.getSupplierCompanyName();
+headers = dict("string");
+
+
+//GET API Username Password
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+
+// get latest external config data
+transactionRestUrl = "https://" + company + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction/" + bsId + "?fields=externalConfigData_t,externalConfigBOM_t,externalConfigVCData_t";
+quoteResponse = urldata(transactionRestUrl, "get",headers);
+status = get(quoteResponse, "Status-Code");
+if (atoi(status) >= 300) {
+    throwerror("Cannot find transaction with bs_id = " + bsId, false);
+}
+quoteData = json(get(quoteResponse, "Message-Body"));
+externalConfigBOM = jsonget(quoteData, "externalConfigBOM_t");
+externalConfigData = jsonget(quoteData, "externalConfigData_t");
+externalConfigVCData = jsonget(quoteData, "externalConfigVCData_t");
+
+result = json();
+jsonput(result, "status", "save");
+jsonput(result, "invocationAction", "Create Transaction");
+
+// Model Configuration
+jsonput(result, "invocationId", "36292358"); // action
+jsonput(result, "priceBookVarName", "_default_price_book");
+
+// build child lines
+childrenLines = JSONArray();
+
+bomXML = "";
+if( len(externalConfigBOM) >  0 ) {
+	bomXML  = replace(externalConfigBOM, "&lt;", "<");
+	bomXML = replace(bomXML, "&gt;", ">");
+}
+bomJSON = json();
+if(bomXML <> ""){
+	bomJSON = util.parseBidManBOM(bomXML);
+}
+
+childrenJsonArray= jsonget(bomJSON,"children","jsonarray",jsonarray());
+numChildren = jsonarraysize(childrenJsonArray);
+
+materialNumberArr = string[];
+materialQtyDict = dict("integer");
+materialItemIdDict = dict("string");
+
+if (numChildren > 0 ) {
+    loopRange = range(numChildren);
+    for each in loopRange {
+        childBOM = jsonarrayget(childrenJsonArray, each, "json" );
+        curMaterialNumber = jsonget(childBOM, "catalogNumber");
+        curQty = jsonget(childBOM, "quantity");
+        curItemId = jsonget(childBOM, "itemID");
+        if( findinarray(materialNumberArr, curMaterialNumber) > -1) {
+            // add duplicate material item Number lines quantity together
+            if( not isnull(curQty) and isnumber(curQty)) {
+                qty = atoi(curQty);
+                existingQty = get(materialQtyDict, curMaterialNumber);
+                put(materialQtyDict, curMaterialNumber, qty + existingQty );
+            } else {
+                existingQty = get(materialQtyDict, curMaterialNumber);
+                put(materialQtyDict, curMaterialNumber, 1 + existingQty );
+            }
+        } else {
+            // material item number not exist yet, add to array
+            append(materialNumberArr, curMaterialNumber);
+            put(materialItemIdDict, curMaterialNumber, curItemId);
+            if( not isnull(curQty) and isnumber(curQty)) {
+                qty = atoi(curQty);
+                put(materialQtyDict, curMaterialNumber, qty );
+            } else {
+                put(materialQtyDict, curMaterialNumber, 1 );
+            }
+        }
+    }
+    for eachMaterialNum in materialNumberArr {
+        child = JSON();
+        jsonput(child,"id", get(materialItemIdDict, eachMaterialNum));
+        jsonput(child,"parentId", selectedDocNumber);
+        jsonput(child,"partNumber", "EatonMat1");
+        jsonput(child,"quantity", string(get(materialQtyDict, eachMaterialNum)) );
+       
+       	/*Testing to pass the line items values directly
+       	fields= json();
+	jsonput( fields, "qqNotes_l", "This is From BOM Rule Bid Man Util");
+        jsonput(child,"fields", fields);*/
+      
+        jsonarrayappend(childrenLines, child);
+    }
+
+}
+
+configDataXml = "";
+if( len(externalConfigBOM) >  0 ) {
+	configDataXml  = replace(externalConfigBOM, "&lt;", "<");
+	configDataXml = replace(configDataXml, "&gt;", ">");
+}
+
+takeOffCode = "";
+startTakeOffCodeAttr = find(configDataXml, "<TakeoffCode>");
+if( startTakeOffCodeAttr > -1 ) {
+	startTakeOffCodeValue = find(configDataXml, ">", startTakeOffCodeAttr);
+	endTakeOffCodeValue = find(configDataXml, "<", startTakeOffCodeValue+3);
+	takeOffCode = subString(configDataXml, startTakeOffCodeValue + 1, endTakeOffCodeValue);
+}
+cfgExtraInfo = json();
+jsonput( cfgExtraInfo, "configHeaderId", takeOffCode);
+
+// build model line
+modelLine = JSON();
+jsonput(modelLine, "configExtraInfo", cfgExtraInfo);
+jsonput(modelLine, "_config_extra_info ", cfgExtraInfo);
+jsonput(modelLine, "partNumber", "test");
+jsonput(modelLine, "quantity", 1);
+jsonput(modelLine, "id", selectedDocNumber);
+if( numChildren > 0) {
+    jsonput(modelLine, "children", childrenLines);
+}
+
+jsonput(result, "modelLine", modelLine);
+logStatus = util.u_logJson("CFG_EXTERNAL", 4, result, "result");
+debugMode = true;
+if(debugMode){
+	print bsId;
+	print "Test:bsId";
+	print "BidMan Model Result";
+	print result;
+}
+return result;

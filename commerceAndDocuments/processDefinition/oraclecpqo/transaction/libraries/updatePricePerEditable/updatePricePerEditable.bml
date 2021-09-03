@@ -1,0 +1,28 @@
+retStr = "";
+for eachLine in transactionLine {
+	if(eachLine.materialLineItem_l <> "") {
+		retVal = "";
+		
+		if(eachLine.qqPricePerEditable_l > 0) {
+		    continue;
+		} elif(eachLine.qqPerUOM_l > 0) {
+			retVal = string(eachLine.qqPerUOM_l);
+		} else {
+		    matnr = eachLine.materialLineItem_l;
+		    dbResults = BMQL("Select KPEIN From PRI01 Where MATNR = $matnr And VKORG = $salesOrg_t");
+		    for res in dbResults {
+		        retVal = get(res, "KPEIN");
+		        break;
+		    }
+		    if(NOT(isnumber(retVal))) {
+		        retVal = "1";
+		    }
+		}
+		
+		if(retVal <> "") {
+			retStr = retStr + eachLine._document_number + "~qqPricePerEditable_l~" + retVal + "|";
+		}
+	}
+}
+
+return retStr;

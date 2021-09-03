@@ -1,0 +1,814 @@
+/**
+@name Set Output Document Attributes
+@api setOutputDocumentAttributes
+@summary This function will set values for output document related attributes.
+@attribute _document_number
+@attribute _system_user_date_pref
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute aluminumSurcharge_l
+@attribute coperSurcharge_l
+@attribute createdDate_t
+@attribute externalConfiguratorAttachment_l
+@attribute freight_l
+@attribute headerDiscountAmount_t
+@attribute headerDiscountOrPercentOff_t
+@attribute headerPercentOff_t
+@attribute newNetPrice_l
+@attribute oldListPrice_l
+@attribute outputLanguage_t
+@attribute outputTax_l
+@attribute qqBusinessLineForSalesOrg_t
+@attribute qqGroup_l
+@attribute qqTotalValue_t
+@attribute qqTotal_l
+@attribute quantity_l
+@attribute scaleFrom_l
+@attribute scaleTo_l
+@attribute silverSurcharge_l
+@attribute totalAfterHeaderDiscount_l
+@attribute validFrom_l
+@attribute validTo_l
+@attribute wasteDisposalFee_l
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-11-02|michael.yeung        |
+2019-05-07 |Sharath k a         | Added Sum of Net Price and Other Charge as part of ALM: 1976  
+2019-06-03 |Sharath k a         | Added  rounding code for Discount ALM: 2043  
+2019-06-03 |Sharath k a		| Removing the metal surchages value from  qqTotal becuase Metal Surchages added in the LIG without scaling logic. 	
+2019-11-23 |Vasundhara P	|Moved the translation code into util as a part of ALM-2597
+2020-04-08 |Dhananjay		|Added logic to find the uniq Groups and setting to selectedGroupArraySet_t attribute
+2020-09-09 |Dhananjay		|Populating outputDocumentFileName_t attribute with transaction#
+2020-09-28 |Dhananjay		|CPQ-2567:Cancelled Items should not be included in the Total Value
+2020-10-12 |Priyanka K  	|CPQ-3041:Blank drawing page is printing when a drawing has been removed
+2020-12-21 |Nithin L D          |CPQ-3598 - Need to ignore calculation for alternate not equal to null
+2021-01-29 |Neha 		| CPQ-4086 : The library function should be called again on Generate Output button click
+2021-03-01 |Nithin L D          |CPQ-4332 : Totals and Subtotals need to consider only for printOnOutput_l
+2021-03-24|Nithin L D           |CPQ-4678 : Invalid combination of selections in the Print on Output column from the materials with parent and child releation on Line Item Grid.
+2021-06-08 |Nithin L D			|INC000014478041 - fixed the sum of metal charges and sum of net price and the others
+2021-06-15 |Neha			|CPQ-4848/CPQ-5840 - Tier 2 implementation
+
+*/
+
+uniqGroups = String[];
+resultArray = String[];
+resultStringBuilder = stringbuilder();//Dhananjay: Fix for the incident INC000013014634
+showLineValidityDates = false;
+showBidManagerDrawings = false;
+showGroup1 = false;
+showGroup2 = false;
+showGroup3 = false;
+showGroup4 = false;
+showGroup5 = false;
+showGroup6 = false;
+showNoGroup = false;
+headerOutputTaxPercent = 0.0; //From SAP Output Tax is coming at line level but still for output we will need at header level.
+groupHeaderTotals = ""; //This attribute will contain individual group totals in comma (,) separated format...
+groupHeaderTotalsTier2 = "";
+formattedDateJsonString = ""; //This variable will contain user preferred format date in comma (,) separated format...
+groupHeaderJson = json();
+groupHeaderJsonTier2 = json();
+formattedDateJson = json();  //This attribute will contain date in user format preference.
+//find businessline 
+isESEMEA = qqBusinessLineForSalesOrg_t == "ES-EMEA";
+isCHEMEA = qqBusinessLineForSalesOrg_t == "CH-EMEA";
+headerDiscAsAmt = headerDiscountOrPercentOff_t == "amt";
+headerDiscAsPerc = headerDiscountOrPercentOff_t == "perc";
+//Gaurav: Added below attributes for ALM# 1493
+inputJson = json();//JSON to store translated text - ALM-2597
+translatedTextString = "";//String to convert translated text from json
+pipe_delimeter = "|";
+silverSurcharge = 0.0;
+copperSurcharge = 0.0;
+aluminiumSurcharge = 0.0;
+weightGross = 0.0;
+weightUnit  = "";
+lang = "";
+salesOrg = "";
+signatureArray = String[];
+sigDelimiter = "\n";
+signatureInfoStr  = "";
+//Start- Create Dict to format Date attributes
+attributeDateDict = dict("string");
+put(attributeDateDict, "agreementValidFrom_t" ,agreementValidFrom_t );
+put(attributeDateDict,"agreementValidTo_t",agreementValidTo_t);
+put(attributeDateDict,"createdDate_t",createdDate_t);
+groupsTotalValue = 0.0;
+groupsTotalValueTier2 = 0.0;
+estimatedTotalWeight = 0.0;
+//END - Create Dict to format Date attributes
+parentDocNum="";
+connectedToContractLinesInfo = json();
+printOnOutputdetails = json();
+if(connectedToContractLinesInfo_t <> "")
+{
+printOnOutputdetails = json(connectedToContractLinesInfo_t); 
+}
+//print printOnOutputdetails ;
+PrintOnOutPutFlag = false;
+PrintOnOutPut = "";
+parentDocNum = "";
+parentDocNumber = "NAN";
+PrintOnOutPutTotal = 0.0 ;
+hideSuggestedPrices  = true ; // CPQ-4848
+sumSuggestedTotal= 0; // CPQ-4848
+suggestedTotalWOVAT  = 0; //CPQ-4848
+for line in transactionLine
+{
+	//Start - Declare Local line level variable
+		quantity = line.quantity_l;	
+		currentGroup = line.qqGroup_l; //Fetch Current Group Value
+		currentLineHeaderDiscount = 0.0;
+		lineTotal = 0.0;
+		sublineTotal = 0.0;
+		transactionTotal = 0.0;
+		lineTotalTier2 = 0.0;
+		sublineTotalTier2 = 0.0;
+		transactionTotalTier2 = 0.0;
+		sumOfMetalSurcharge = 0.0;
+		sumOfNetPriceAndOtherPriceWithQty = 0.0;
+		transactionTotalWithVAT = 0.0;	
+		transactionTotalWithVATTier2 = 0.0;
+		//print line.printOnOutput_l;
+	//End - Declare Local line level variable
+	sumOfMetalSurcharge = (line.coperSurcharge_l + line.aluminumSurcharge_l + line.silverSurcharge_l) * quantity;  // INC000014478041
+	
+	// Neha: added for CPQ-4848 : Suggested Prices Calc
+		
+	listPrice = line.oldListPrice_l;
+	suggestedDP = line.suggestedDiscount_l;
+	suggestedSP = line.suggestedSellingPrice_l;
+        if (suggestedDP <> "")
+        {
+        	if((currency_t=="ILS" OR currency_t=="EUR" OR currency_t=="CZK" OR currency_t=="HUF" OR currency_t=="PLN" OR currency_t=="RON" OR currency_t=="TRY")) {
+            		suggestedDP = replace(suggestedDP, ",", ".");
+       		}
+       		else{
+       			suggestedDP = suggestedDP;	
+       		}
+       	}       		
+       		
+        if (suggestedSP <> ""){
+        	if((currency_t=="ILS" OR currency_t=="EUR" OR currency_t=="CZK" OR currency_t=="HUF" OR currency_t=="PLN" OR currency_t=="RON" OR currency_t=="TRY")) {  
+            		suggestedSP= replace(suggestedSP , ",", ".");
+       		}
+       		else
+       		{
+       			suggestedSP = suggestedSP;
+       		}
+       	}
+       	
+        if (suggestedDP <> ""){
+        	if((currency_t=="ILS" OR currency_t=="EUR" OR currency_t=="CZK" OR currency_t=="HUF" OR currency_t=="PLN" OR currency_t=="RON" OR currency_t=="TRY")) {  
+            		suggestedDP = replace(suggestedDP , ",", ".");
+       		}
+       		else
+       		{
+       			suggestedDP = suggestedDP ;
+       		}
+       	}
+       	
+       if (suggestedDP == "" OR atof(suggestedDP) == 0){  suggestedDP ="0.0";    }
+       	
+	suggestedTotal = 0.0;
+	stringsuggestedSP  = "";
+	stringsuggestedTotal = "";
+	stringsuggestedDP = "";
+	suggestedFloatSP  = 0.0;
+	if((suggestedDP <> "" AND NOT isnull(suggestedDP) AND atof(suggestedDP) > 0 ) AND (suggestedSP  == "" OR atof(suggestedSP) <= 0 OR isnull(suggestedSP))){
+		suggestedFloatSP = round(listPrice - (listPrice * (atof(suggestedDP)/100)),2);
+		suggestedTotal = round((suggestedFloatSP * quantity),2);
+		hideSuggestedPrices = false; // make it false		
+		
+	}
+	
+	if((suggestedDP == "" OR isnull(suggestedDP) OR atof(suggestedDP) <= 0) AND (suggestedSP <> "" AND NOT isnull(suggestedSP ) AND atof(suggestedSP) > 0)){
+		suggestedTotal = round((atof(suggestedSP) * quantity),2);
+		hideSuggestedPrices = false; // make it false
+		suggestedFloatSP = atof(suggestedSP);	
+	}
+
+	if((suggestedDP <> "" AND NOT isnull(suggestedDP) AND atof(suggestedDP) > 0 ) AND (suggestedSP <> "" AND NOT isnull(suggestedSP ) AND atof(suggestedSP) > 0)){
+		suggestedFloatSP = round(listPrice - (listPrice * (atof(suggestedDP)/100)),2);
+		suggestedTotal = round((suggestedFloatSP * quantity),2);
+		hideSuggestedPrices = false; // make it false	
+	}	
+        if ((currency_t=="ILS" OR currency_t=="EUR" OR currency_t=="CZK" OR currency_t=="HUF" OR currency_t=="PLN" OR currency_t=="RON" OR currency_t=="TRY")) {            
+            stringsuggestedSP = replace(string(suggestedFloatSP) , ".", ",");
+            stringsuggestedTotal= replace(string(suggestedTotal), ".", ",");
+            stringsuggestedDP= replace(suggestedDP, ".", ",");
+        } 
+        else
+        {
+           stringsuggestedSP = string(suggestedFloatSP);
+            stringsuggestedTotal= string(suggestedTotal);
+            stringsuggestedDP= suggestedDP  ;      	
+        } 
+        print "hideSuggestedPrices is";
+        print hideSuggestedPrices;   
+
+	sbappend(resultStringBuilder,line._document_number + "~suggestedSellingPrice_l~" + stringsuggestedSP,pipe_delimeter);
+	sbappend(resultStringBuilder,line._document_number + "~suggestedTotal_l~" + stringsuggestedTotal,pipe_delimeter);
+	sbappend(resultStringBuilder,line._document_number + "~suggestedDiscount_l~" + stringsuggestedDP,pipe_delimeter);
+
+	
+	if((line._parent_doc_number == "" AND line.priceAtChildLine_l) AND len(line.alternates_l)== 0 AND line.printOnOutput_l)
+	{
+		parentDocNumber = line._document_number;
+		sublineTotal = line.qqTotal_l - line.metalSurcharges_l;
+		sublineTotalTier2 = suggestedTotal ;
+		//sumOfMetalSurcharge = (line.coperSurcharge_l + line.aluminumSurcharge_l + line.silverSurcharge_l) * quantity;  // INC000014478041
+		PrintOnOutPutTotal = PrintOnOutPutTotal + line.qqTotal_l ;
+	
+	}
+	
+	if(( line._parent_doc_number <> "") AND len(line.alternates_l)== 0 AND parentDocNum <> line._parent_doc_number )
+	{
+	parentDocNum = line._parent_doc_number;
+	PrintOnOutPutFlag = line.printOnOutput_l;
+	PrintOnOutPut = "true";
+	}
+	if( line._parent_doc_number <> "" AND line._parent_doc_number == parentDocNum AND len(line.alternates_l)== 0 AND line.printOnOutput_l <> PrintOnOutPutFlag)
+	{
+        jsonput(connectedToContractLinesInfo,string(line._sequence_number),line._document_number);
+        }
+			
+	if(findinarray(uniqGroups,currentGroup)==-1){
+		append(uniqGroups,currentGroup);
+	}
+	
+	/*
+		For scale price scenario, business wants to use the price as the highest qty of the lowest range x the net price to calculate the total.  For example, there are 2 lines of scale price.  
+		1-10 Unit Price = 605,26
+		11-20 Unit Price = 591,81
+		The price for these two lines to be included in the total price would 10 x 605.26 = 6052.60
+		similarly lineTotalAfterHeaderDiscount will multiply by scaleTo value.
+	*/
+	//Comment out this is because Regina confirmed that Don't need to consider scaling quantity anymore
+ 	/*if(line.scaleFrom_l == "1" AND line.scaleTo_l <> "" AND isNumber(line.scaleTo_l))
+	{
+		quantity = atoi(line.scaleTo_l);
+	}*/
+	
+	//newNetPrice_l attribute contains item net price for 1 quantity. Sum of this attribute is mapped with subTotal price on output document(Excluding Surcharge and Header Discount)..
+	//lineTotal = line.qqTotal_l; //line.newNetPrice_l * quantity; //commented by:sharath on 12/12/2018, To fix Remedy Incident: INC000012076238
+	//Removing the metal surchages from  qqTotal becuase Metal Surchages added in the LIG without scaling logic. 
+	//Added below condition by Gunashree for #INC000013641197 
+	if(line.lineItemStatus_l <> "cancelled"){//CPQ-2567:Cancelled Items should not be included in the Total Value
+
+	lineTotal = line.qqTotal_l - line.metalSurcharges_l; 
+	if( ((line._parent_doc_number == "" AND NOT line.priceAtChildLine_l) OR line._parent_doc_number <> "" ) AND line._parent_doc_number <> parentDocNumber AND len(line.alternates_l)== 0 AND line.printOnOutput_l){ // Added by Gunashree for #INC000013641197 - 9/2/2020 And CPQ-3598 - Need to ignore calculation for alternate not equal to null
+	sublineTotal = line.qqTotal_l - line.metalSurcharges_l;
+	sublineTotalTier2 = suggestedTotal ;
+	//sumOfMetalSurcharge = (line.coperSurcharge_l + line.aluminumSurcharge_l + line.silverSurcharge_l) * quantity;  //INC000014478041
+	PrintOnOutPutTotal = PrintOnOutPutTotal + line.qqTotal_l ;
+	}
+			
+	wasteDisposalFee = line.wasteDisposalFee_l * quantity; //Defect# 1484 : Need to consider wasteDisposal Fee also.
+	freight = line.freight_l * quantity;
+	//sumOfMetalSurcharge = (line.coperSurcharge_l + line.aluminumSurcharge_l + line.silverSurcharge_l) * quantity;
+	silverSurcharge = line.silverSurcharge_l * quantity;
+	copperSurcharge = line.coperSurcharge_l * quantity;
+	aluminiumSurcharge = line.aluminumSurcharge_l * quantity;
+       if(line.weightGross_l <> ""){
+	    weightGross = atof(line.weightGross_l) * quantity;
+	    weightUnit = line.weightUnit_l;
+	    estimatedTotalWeight = estimatedTotalWeight + weightGross;
+	}
+			 
+	//Added By Sharath to By Pass the qqTotal value which has metal Surcharge(from LIG). ALM #1976
+	/*append(resultArray,line._document_number + "~qqTotalOutput_l~" + string(lineTotal));
+	append(resultArray,line._document_number + "~qqSilverSurchargeWithQty_l~" + string(silverSurcharge));
+	append(resultArray,line._document_number + "~qqCopperSurchargeWithQty_l~" + string(copperSurcharge));
+	append(resultArray,line._document_number + "~qqAluminiumSurchargeWithQty_l~" + string(aluminiumSurcharge));
+	append(resultArray,line._document_number + "~sumOfMetalSurchargeWithQty_l~" + string(sumOfMetalSurcharge));
+	append(resultArray,line._document_number + "~weightGrossOutput_l~" + string(weightGross));
+	append(resultArray,line._document_number + "~weightUnitOutput_l~" + weightUnit);*/
+	//Dhananjay: Fix for the incident INC000013014634
+	sbappend(resultStringBuilder,line._document_number + "~qqTotalOutput_l~" + string(lineTotal),pipe_delimeter);
+	sbappend(resultStringBuilder,line._document_number + "~qqSilverSurchargeWithQty_l~" + string(silverSurcharge),pipe_delimeter);
+	sbappend(resultStringBuilder,line._document_number + "~qqCopperSurchargeWithQty_l~" + string(copperSurcharge),pipe_delimeter);
+	sbappend(resultStringBuilder,line._document_number + "~qqAluminiumSurchargeWithQty_l~" + string(aluminiumSurcharge),pipe_delimeter);
+	sbappend(resultStringBuilder,line._document_number + "~sumOfMetalSurchargeWithQty_l~" + string(sumOfMetalSurcharge),pipe_delimeter);
+	sbappend(resultStringBuilder,line._document_number + "~weightGrossOutput_l~" + string(weightGross),pipe_delimeter);
+	sbappend(resultStringBuilder,line._document_number + "~weightUnitOutput_l~" + weightUnit,pipe_delimeter);
+	
+	if(line.discount_l >= 0)  //Added by Sharath ALM 2043  
+	{
+	      //append(resultArray,line._document_number + "~discount_l~" + string(round(line.discount_l,2)));	
+	      sbappend(resultStringBuilder,line._document_number + "~discount_l~" + string(round(line.discount_l,2)),pipe_delimeter);	
+	}   
+		
+	//attribute totalAfterHeaderDiscount_l already considered quantity so firstly it needs to divide by quantity_l and then multiply by quantity 
+	//Harshit TO DO ::: Need to verify if division needs to handle in separate attribute so header discount for single quantity can be referred at other places in application.
+    lineTotalAfterHeaderDiscount = 0;
+    if(line.quantity_l <> 0 ) {
+    	lineTotalAfterHeaderDiscount = ((line.totalAfterHeaderDiscount_l - line.metalSurcharges_l) / line.quantity_l) * quantity;
+    }
+		
+	//Start - Calculate HeaderDiscount 
+	   //Header discount needs to calculate only for percent type as if it is fixed amt then that would be quote total amount and discount will not available for each line.
+		if(headerDiscAsPerc AND string(headerPercentOff_t) <> "" AND headerPercentOff_t > 0)
+		{
+			//No need to consider quantity explicitly as lineTotal and lineTotalAfterHeaderDiscount already considered quantity.
+			currentLineHeaderDiscount = lineTotal - lineTotalAfterHeaderDiscount;
+		}
+        //End - Calculate HeaderDiscount 
+	sumOfNetPriceAndOtherPriceWithQty = sumOfNetPriceAndOtherPriceWithQty +  lineTotal  + sumOfMetalSurcharge ;  //INC000014478041
+	//Calculate Transaction Total (with surcharge, wasteDisposalFee, Freight and header discount) for Bussmann/BLine and for ESEMEA/CHEMEA this total is without VAT (Transaction Total without VAT). 
+	//Below condition added by Gunashree for #INC000013641197
+	if( ((line._parent_doc_number == "" AND NOT line.priceAtChildLine_l) OR line._parent_doc_number <> "") AND line._parent_doc_number <> parentDocNumber AND len(line.alternates_l)== 0 AND line.printOnOutput_l)
+	{
+	// CPQ-3598 - Need to ignore calculation for alternate not equal to null 
+	transactionTotal = lineTotal + sumOfMetalSurcharge + freight + wasteDisposalFee - currentLineHeaderDiscount;
+	}
+	if((line._parent_doc_number == "" AND line.priceAtChildLine_l) AND len(line.alternates_l)== 0 AND line.printOnOutput_l)
+	{
+	transactionTotal = lineTotal + line.metalSurcharges_l + freight + wasteDisposalFee - currentLineHeaderDiscount;
+	sumOfNetPriceAndOtherPriceWithQty =   lineTotal  + line.metalSurcharges_l ;  //INC000014478041
+	}
+	transactionTotalTier2  = suggestedTotal;
+	
+	//sumOfNetPriceAndOtherPriceWithQty = sumOfNetPriceAndOtherPriceWithQty +  lineTotal  + sumOfMetalSurcharge ;  //INC000014478041
+	//append(resultArray,line._document_number + "~sumOfNetPriceAndOtherPriceWithQty_l~" + string(sumOfNetPriceAndOtherPriceWithQty )); //Sharath: Add as part of 1976 on 05/07/2019
+	//Dhananjay: Fix for the incident INC000013014634
+	sbappend(resultStringBuilder,line._document_number + "~sumOfNetPriceAndOtherPriceWithQty_l~" + string(sumOfNetPriceAndOtherPriceWithQty ),pipe_delimeter); //Sharath: Add as part of 1976 on 05/07/2019
+    
+        //Calculate outputTax from transactionTotal (with Surcharge,waste disposal fee, Freight and header discount).
+	outputTax = (transactionTotal * line.outputTax_l)/100;  //Output tax is in percentage from SAP
+	outputTaxTier2 = (transactionTotalTier2 * line.outputTax_l)/100;  //Output tax is in percentage from SAP
+	
+	//Set OutputTax Percent in groupHeaderJson so it can extract in output XSL
+	if(headerOutputTaxPercent == 0 AND line.outputTax_l > 0)
+	{
+		headerOutputTaxPercent = line.outputTax_l;
+		//No need to consider outputTax at each line level as it will be same across lines.
+		//From SAP outputTax is coming at line level so it needs to extract from line level attribute.
+		//Also, output Tax doesn't depend on any group.
+		jsonput(groupHeaderJson,"outputTaxPercent",headerOutputTaxPercent);
+	}
+		
+	//Calculate Transaction Total with VAT
+	transactionTotalWithVAT = transactionTotal + outputTax;
+	transactionTotalWithVATTier2 = transactionTotalTier2 + outputTaxTier2;
+	
+	if(currentGroup == "" OR headerDiscAsAmt) //If Current Group blank then assign default value OR headerDiscount type is amount then no need to split data in group.
+	{
+		currentGroup = "0";
+	}
+	
+	
+	//Start - Add Line level Date attributes to attributeDateDict
+		//Key format attributeVarName_currentDocumentNumber
+	if(line.validFrom_l <> "")
+	{
+		put(attributeDateDict,"validFrom_l_"+line._document_number,line.validFrom_l);
+	}
+	if(line.validTo_l <> "")
+	{
+		put(attributeDateDict,"validTo_l_" + line._document_number,line.validTo_l);
+	}
+	//End - Add Line level Date attributes to attributeDateDict
+
+	if(line.validFrom_l <> "" OR line.validTo_l <> "")
+	{
+		showLineValidityDates = true;
+	}
+    if(line.externalConfiguratorAttachment_l <> "")
+	{
+		showBidManagerDrawings = true;
+		//append(resultArray,line._document_number + "~showBidManagerDrawingsForLine_l~" + string(true));
+		//Dhananjay: Fix for the incident INC000013014634
+		sbappend(resultStringBuilder,line._document_number + "~showBidManagerDrawingsForLine_l~" + string(true),pipe_delimeter);
+	}
+	//Priyanka: CPQ-3041:Blank drawing page is printing when a drawing has been removed
+	//START
+	else{
+        sbappend(resultStringBuilder,line._document_number + "~showBidManagerDrawingsForLine_l~" + string(false),pipe_delimeter);
+    }
+    //END
+	
+   if(currentGroup == "1" AND not(headerDiscAsAmt))  //For Group1 If header discount is header fixed amt then no need to show group totals
+   {
+		showGroup1 = true;
+   }
+   if(currentGroup == "2" AND not(headerDiscAsAmt))  //For Group2 If header discount is header fixed amt then no need to show group totals
+   {
+		showGroup2 = true;
+   }
+   if(currentGroup == "3" AND not(headerDiscAsAmt))  //For Group3 If header discount is header fixed amt then no need to show group totals
+   {
+		showGroup3 = true;
+   }
+   if(currentGroup == "4" AND not(headerDiscAsAmt))  //For Group4 If header discount is header fixed amt then no need to show group totals
+   {
+		showGroup4 = true;
+   }
+   if(currentGroup == "5" AND not(headerDiscAsAmt))  //For Group5 If header discount is header fixed amt then no need to show group totals
+   {
+		showGroup5 = true;
+   }
+   if(currentGroup == "6" AND not(headerDiscAsAmt))  //For Group6 If header discount is header fixed amt then no need to show group totals
+   {
+		showGroup6 = true;
+   }
+   
+   if(currentGroup == "0" OR headerDiscAsAmt)  //For unGrouped  This also needs to show if discount is headerFixedDiscount.
+   {
+		showNoGroup = true;
+   }
+   
+   //For line having scale quantity and doesn't have scaleFrom 1 means it is subsequent line for same material item with just scale quantity change.
+   //So no need to do any calculation in this scenario.
+   if((line.scaleFrom_l <> "" AND line.scaleFrom_l == "1") OR (line.scaleFrom_l == "" AND line.scaleTo_l == ""))
+   {
+  			   groupsTotalValue = groupsTotalValue + transactionTotal;       
+			//Assign group specific data in corresponding group variables.
+			jsonput(groupHeaderJson,"group" + currentGroup + "TotalMetalSurcharge",jsonget(groupHeaderJson,"group"+ currentGroup + "TotalMetalSurcharge","Float",0.0) + sumOfMetalSurcharge);
+			jsonput(groupHeaderJson,"group" + currentGroup + "TotalFreight",jsonget(groupHeaderJson,"group" + currentGroup + "TotalFreight","Float",0.0) + freight);
+			jsonput(groupHeaderJson,"group" + currentGroup + "TotalWasteDisposalFee",jsonget(groupHeaderJson,"group" + currentGroup + "TotalWasteDisposalFee","Float",0.0) + wasteDisposalFee);
+			jsonput(groupHeaderJson,"group" + currentGroup + "VAT",jsonget(groupHeaderJson,"group" + currentGroup + "VAT","Float",0.0) + outputTax); // Get Group specific VAT.
+			jsonput(groupHeaderJson,"group" + currentGroup + "SubTotal",jsonget(groupHeaderJson,"group" + currentGroup + "SubTotal","Float",0.0) + round(sublineTotal,2)); // Get Group specific subtotal price.
+			jsonput(groupHeaderJson,"group" + currentGroup + "HeaderDiscount",jsonget(groupHeaderJson,"group" + currentGroup + "HeaderDiscount","Float",0.0) + currentLineHeaderDiscount); // Get Group specific Header Discount.
+			//print groupHeaderJson;
+			//NOTE: This attribute will contain final quote total for Bussmann, BLine. And Total without VAT for ES-EMEA/CHEMEA
+			jsonput(groupHeaderJson,"group" + currentGroup + "TotalValue",jsonget(groupHeaderJson,"group" + currentGroup + "TotalValue","Float",0.0) + round(transactionTotal,2)); // Get Transaction Total		
+			//Total Price with VAT ; applicable only for ES-EMEA/CH-EMEA
+			jsonput(groupHeaderJson,"group" + currentGroup + "TotalValueWithVAT",jsonget(groupHeaderJson,"group" + currentGroup + "TotalValueWithVAT","Float",0.0) + transactionTotalWithVAT); // Get Transaction Total With VAT
+
+	                 groupsTotalValueTier2 = groupsTotalValueTier2 + transactionTotalTier2;     
+			jsonput(groupHeaderJsonTier2,"group" + currentGroup + "SubTotalTier2",jsonget(groupHeaderJsonTier2,"group" + currentGroup + "SubTotalTier2","Float",0.0) + round(sublineTotalTier2,2)); // Get Group specific subtotal price.
+
+			jsonput(groupHeaderJsonTier2,"group" + currentGroup + "TotalValueTier2",jsonget(groupHeaderJsonTier2,"group" + currentGroup + "TotalValueTier2","Float",0.0) + round(transactionTotalTier2,2)); // Get Transaction Total		
+			jsonput(groupHeaderJsonTier2,"group" + currentGroup + "TotalValueWithVATTier2",jsonget(groupHeaderJsonTier2,"group" + currentGroup + "TotalValueWithVATTier2","Float",0.0) + transactionTotalWithVATTier2); // Get Transaction Total With VAT
+			jsonput(groupHeaderJsonTier2,"group" + currentGroup + "VATTier2",jsonget(groupHeaderJsonTier2,"group" + currentGroup + "VATTier2","Float",0.0) + outputTaxTier2); // Get Group specific VAT.	   		
+	   	
+   
+   }
+   //ALM-1675 Added by Vasundhara - applicable only for CH-EMEA
+	if(line.materialLineItem_l <> "" AND qqBusinessLineForSalesOrg_t == "CH-EMEA"){
+		yapiMaterialNumber = "YAPI" + line.materialLineItem_l;
+		yapiTextquery = bmql("select YAPIText from YapiTextMessage where YAPINumber = $yapiMaterialNumber AND LANG = $outputLanguage_t");
+		yapiDescString = "";
+		yapiDescStrArr = string[];
+		for eachRow in yapiTextquery{
+			append(yapiDescStrArr,get(eachRow,"YAPIText"));
+		}
+		yapiDescString = join(yapiDescStrArr,"##");
+		if(find(yapiDescString,"|") <> -1){
+			yapiDescString = replace(yapiDescString,"|","PIPE_SPEC_CHAR");
+		}
+		if(find(yapiDescString,"~") <> -1){
+			yapiDescString = replace(yapiDescString,"~","TILDA_SPEC_CHAR");
+		}
+		//append(resultArray,line._document_number + "~yAPITextDisplayMessage_l~" + yapiDescString);
+		//Dhananjay: Fix for the incident INC000013014634
+		sbappend(resultStringBuilder,line._document_number + "~yAPITextDisplayMessage_l~" + yapiDescString,pipe_delimeter);
+	}
+	}
+
+}
+
+sbappend(resultStringBuilder,"1~hideSuggestedPricesColumns_t~" + string(hideSuggestedPrices),pipe_delimeter);	
+
+
+
+//1273 ::: If discount is applied as headerfixedamt then need to adjust total accordingly.
+
+//qqTotalValue will contain data without VAT, Surcharge , Freight etc and before header discount applied.
+//group0 is default table.
+if(headerDiscAsAmt)
+{
+	//Get Header discount and set it in corresponding attribute.
+	jsonput(groupHeaderJson,"group0HeaderDiscount",jsonget(groupHeaderJson,"group0HeaderDiscount","Float",0.0) + headerDiscountAmount_t); // Get Header Fixed Discount Amount.
+	
+	//Remove Header discount amount from transaction. As header discount type is amt so for each line level it won't applicable.
+	jsonput(groupHeaderJson,"group0TotalValue",jsonget(groupHeaderJson,"group0TotalValue","Float",0.0) - headerDiscountAmount_t); // Get Transaction Total
+	
+	//Get TotalValue with VAT without header discount fixed amount.
+	jsonput(groupHeaderJson,"group0TotalValueWithVAT",jsonget(groupHeaderJson,"group0TotalValueWithVAT","Float",0.0) - headerDiscountAmount_t); // Get Transaction Total With VAT
+	
+}
+
+//Convert groupHeaderJson Data to string format and put it into groupHeaderTotals_t attribute.
+groupHeaderTotals = replace(replace(jsontostr(groupHeaderJson),"{",""),"}","");
+groupHeaderTotalsTier2 = replace(replace(jsontostr(groupHeaderJsonTier2),"{",""),"}","");
+
+
+//Start - Format date attribute in user preferred format.
+headerDateAttributes = keys(attributeDateDict);
+
+for currentDateAttribute in headerDateAttributes
+{
+	if(containsKey(attributeDateDict,currentDateAttribute))
+	{
+		currentJavaDate = strtojavadate(get(attributeDateDict, currentDateAttribute),"yyyy-MM-dd HH:mm:ss");
+		jsonput(formattedDateJson,currentDateAttribute,datetostr(currentJavaDate,_system_user_date_pref));
+	}
+}
+//End - Format date attribute in user preferred format.
+
+//Convert formattedDateJson to string format and remove curly braces {  } so it can be easily read in output XSL.
+formattedDateJsonString = replace(replace(jsontostr(formattedDateJson),"{",""),"}","");
+
+//Gaurav: Changes for ALM# 1493 start - Moved to util "translationBasedOnSelectedLanguage" as a part of ALM-2597
+
+jsonput(inputJson,"LANGUAGE",outputLanguage_t);
+translatedTextString = util.translationBasedOnSelectedLanguage(inputJson);
+sbappend(resultStringBuilder, "1~translatedOutputText_t~" + translatedTextString,pipe_delimeter);
+sbappend(resultStringBuilder, "1~printOnOutputTotal_t~" + string(PrintOnOutPutTotal),pipe_delimeter);
+
+
+//Gaurav: Changes for ALM# 1493 end
+
+//10/05/2019 Added by vasundhara - JET UI - For Notes Table- Forming description from the selection Notes table
+//Convert jsonArray to json because jsonpathgetmultiple takes json as input
+// if(find(_system_user_groups, "jETUITest") <> -1){
+	descStringArr = string[];
+	descString = "";
+	selectedNotesRecordsJson = json();
+	jsonput(selectedNotesRecordsJson, "records", noteArraySet_t);
+	selectedNotesRecordsJsonArray = jsonpathgetmultiple(selectedNotesRecordsJson, "$.records[?(@.select_notesArraySet==true)]");
+	//Loop over selected rows and populate Selected Materials Array Set
+	numberOfSelectedRowsArray = range(jsonarraysize(selectedNotesRecordsJsonArray));
+	for eachRowNumber in numberOfSelectedRowsArray{
+		currentRow = jsonarrayget(selectedNotesRecordsJsonArray, eachRowNumber, "json");
+		notesNameStr = jsonget(currentRow, "noteName_notesArraySet", "string", "");
+		notesDescStr = jsonget(currentRow, "noteDescription_notesArraySet", "string", "");
+		notesDescStrArr = jsonarray(notesDescStr);
+		indexArr = range(jsonarraysize(notesDescStrArr));
+		for index in indexArr{
+			rowStr= jsonarrayget(notesDescStrArr,index,"string");
+			append(descStringArr,rowStr);
+		}
+	}
+	if(sizeofarray(descStringArr) > 0){
+		descString = join(descStringArr,"#@#");
+	}
+	//append(resultArray,"1~qqCustomTnCNoteDescription_t~" + descString);
+	//Dhananjay: Fix for the incident INC000013014634
+	sbappend(resultStringBuilder,"1~qqCustomTnCNoteDescription_t~" + descString,pipe_delimeter);
+// }
+
+/*bonusStr = "";
+if(jsonarraysize(bonusArraySet_t) > 0)
+{  
+      indexArr = range(jsonarraysize(bonusArraySet_t));
+      for each in indexArr{
+		bonusRowData = jsonarrayget(bonusArraySet_t, each, "json");
+		fromDate = jsonget(bonusRowData, "validFrom_bonusArraySet");
+		toDate = jsonget(bonusRowData, "validTo_bonusArraySet");
+		bonusDiscount = jsonget(bonusRowData, "bonusDiscount_bonusArraySet");
+		bonusVolume = jsonget(bonusRowData, "volume_bonusArraySet");
+		bonusStr = bonusStr+"$@$"+bonusVolume+"$;$"+bonusDiscount+"$;$"+fromDate+"$;$"+toDate; 	
+	}
+	
+}*/
+
+/*append(resultArray,"1~showLineLevelValidityDates_t~" + string(showLineValidityDates));
+append(resultArray,"1~showBidManagerDrawings_t~" + string(showBidManagerDrawings));
+append(resultArray,"1~showGroup1_t~" + string(showGroup1));
+append(resultArray,"1~showGroup2_t~" + string(showGroup2));
+append(resultArray,"1~showGroup3_t~" + string(showGroup3));
+append(resultArray,"1~showGroup4_t~" + string(showGroup4));
+append(resultArray,"1~showGroup5_t~" + string(showGroup5));
+append(resultArray,"1~showGroup6_t~" + string(showGroup6));
+append(resultArray,"1~showNoGroup_t~" + string(showNoGroup));
+append(resultArray,"1~groupHeaderTotals_t~" + groupHeaderTotals);	
+append(resultArray,"1~datesInUserProfilePreference_t~" + formattedDateJsonString);
+append(resultArray,"1~qqTotalAmountWithoutVat_t~" + string(groupsTotalValue));
+append(resultArray,"1~estimatedTotalWeight_t~" + string(estimatedTotalWeight));//Added by  Sharath on 5/22/2019 ALM: 1878
+append(resultArray,"1~bonusTableDataString_t~" + bonusStr);*/
+
+
+
+totalGroupheader = groupHeaderTotals+","+groupHeaderTotalsTier2;
+
+
+//Dhananjay: Fix for the incident INC000013014634
+sbappend(resultStringBuilder,"1~showLineLevelValidityDates_t~" + string(showLineValidityDates),pipe_delimeter);
+sbappend(resultStringBuilder,"1~showBidManagerDrawings_t~" + string(showBidManagerDrawings),pipe_delimeter);
+sbappend(resultStringBuilder,"1~showGroup1_t~" + string(showGroup1),pipe_delimeter);
+sbappend(resultStringBuilder,"1~showGroup2_t~" + string(showGroup2),pipe_delimeter);
+sbappend(resultStringBuilder,"1~showGroup3_t~" + string(showGroup3),pipe_delimeter);
+sbappend(resultStringBuilder,"1~showGroup4_t~" + string(showGroup4),pipe_delimeter);
+sbappend(resultStringBuilder,"1~showGroup5_t~" + string(showGroup5),pipe_delimeter);
+sbappend(resultStringBuilder,"1~showGroup6_t~" + string(showGroup6),pipe_delimeter);
+sbappend(resultStringBuilder,"1~showNoGroup_t~" + string(showNoGroup),pipe_delimeter);
+sbappend(resultStringBuilder,"1~groupHeaderTotals_t~" + totalGroupheader ,pipe_delimeter);	
+sbappend(resultStringBuilder,"1~datesInUserProfilePreference_t~" + formattedDateJsonString,pipe_delimeter);
+sbappend(resultStringBuilder,"1~qqTotalAmountWithoutVat_t~" + string(groupsTotalValue),pipe_delimeter);
+sbappend(resultStringBuilder,"1~estimatedTotalWeight_t~" + string(estimatedTotalWeight),pipe_delimeter);//Added by  Sharath on 5/22/2019 ALM: 1878
+//sbappend(resultStringBuilder,"1~bonusTableDataString_t~" + bonusStr,pipe_delimeter);
+selectedGroupNumbers = jsonarray();
+uniqGroups = sort(uniqGroups);
+for eachGrp in uniqGroups{
+	grp_json = json();
+	jsonput(grp_json,"groupNumber_t",eachGrp);
+	if(eachGrp == ""){
+		jsonput(grp_json,"groupNumber_t","0");
+	}
+	jsonarrayappend(selectedGroupNumbers, grp_json);
+}
+
+// CPQ - 3987 Priyanka Kumari
+groupNamesJson = json();
+jsonput(groupNamesJson,"Group1Name",customGroup1Name_t);
+jsonput(groupNamesJson,"Group2Name",customGroup2Name_t);
+jsonput(groupNamesJson,"Group3Name",customGroup3Name_t);
+jsonput(groupNamesJson,"Group4Name",customGroup4Name_t);
+jsonput(groupNamesJson,"Group5Name",customGroup5Name_t);
+jsonput(groupNamesJson,"Group6Name",customGroup6Name_t);
+
+selectedGroupNumbers = jsonarray();
+uniqGroups = sort(uniqGroups);
+for eachGrp in uniqGroups{
+    groupNameKey = "Group"+eachGrp+"Name";
+    groupName = jsonget(groupNamesJson,groupNameKey,"string","");
+    grp_json = json();
+    jsonput(grp_json,"groupNumber_t",eachGrp);
+    jsonput(grp_json,"groupName_t",groupName);
+    if(eachGrp == ""){
+        jsonput(grp_json,"groupNumber_t","0");
+    }
+    jsonarrayappend(selectedGroupNumbers, grp_json);
+ }
+    //print selectedGroupNumbers;
+    sbappend(resultStringBuilder,"1~selectedGroupArraySet_t~",jsonarrayrefid(selectedGroupNumbers),pipe_delimeter);
+//End
+
+// Project 52469 : Code added to update Signature for Quote Output Document 
+if (outputLanguage_t <> "") {
+	lang = outputLanguage_t;
+}
+
+if (salesOrg_t <> "") {
+	salesOrg = salesOrg_t;
+}
+
+language = bmql ("select Value from LanguageSpecific where Language=$lang and SalesOrg=$salesOrg AND Key='Signature'");
+
+for row in language {
+	signatureVal = get(row, "Value");
+	append(signatureArray ,signatureVal);	
+}
+signatureSize = sizeofarray(signatureArray);
+signatureRange = range(signatureSize);
+        for each in signatureRange{
+            signatureInfoStr = SignatureInfoStr  + signatureArray[each] ; 
+            if(each <> signatureSize -1) 
+            {
+            	signatureInfoStr  = signatureInfoStr + sigDelimiter;
+            }
+        } 
+
+
+sbappend(resultStringBuilder,"1~signatureDocumentTemplate_t~",signatureInfoStr ,pipe_delimeter);
+
+// Neha : 29 Jan 2021 : CPQ-4086 : The library function should be called again on Generate Output button click
+retStr = commerce.getOutputDocTableData();
+sbappend(resultStringBuilder,retStr ,pipe_delimeter);
+
+// Neha- 27th Dec : Added code to update Language Specific Value Attribute for CPQ-2228
+ret = "";
+lang = "en";
+salesOrg = "4942";
+if (outputLanguage_t <> "") {
+	lang = outputLanguage_t;
+}
+if (salesOrg_t <> "") {
+	salesOrg = salesOrg_t;
+}
+language = bmql ("select Key, Value from LanguageSpecific where Language=$lang and SalesOrg=$salesOrg");
+// map into a string consisting of key $,$ value pairs with #@# as a separator
+for row in language {
+	ret = ret + get(row, "Key") + "$,$" + get(row, "Value") + "#@#";
+}
+//remove any whitespace from ends of string and remove trailing delimiter
+ret = trim(substring(ret, 0, len(ret) - 3));
+
+sbappend(resultStringBuilder,"1~languageSpecificValues_t~",ret ,pipe_delimeter);
+
+// CPQ-4848: Neha: to store end customer address details
+//selEndCustArray = split(endCustomerDetails_t, ","); // cant use this attribute because it does not have the Zip Code of the end customer
+endCustCity = "";
+endCustRegion = "";
+endCustCountry = "";
+endCustPostalCode = "";
+endCustAddress1 = "";
+
+if(jsonarraysize(endCustomerArraySet2_t) >= 1 AND NOT(ISNULL(endCustomerArraySet2_t))){
+		selectedCustRecordsJson = json();
+		jsonput(selectedCustRecordsJson, "records", endCustomerArraySet2_t);
+		//Fetch primary selected customer record
+	    	selectedCustRecordsJsonArray = jsonpathgetmultiple(selectedCustRecordsJson, "$.records[?(@.primary_EndCus_t==true)]");
+		if(jsonarraysize(selectedCustRecordsJsonArray) > 0){
+			endCustCity = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "city_endCust2_t", "string", "");
+			endCustRegion = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "region_endCust2_t", "string", "");
+			endCustCountry = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "country_endCust2_t", "string", "");
+			endCustPostalCode = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "postalCode_EndCus2_t", "string", "");
+			endCustAddress1 = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "address1_EndCus2_t", "string", "");
+		}
+	}
+sbappend(resultStringBuilder,"1~endCustomerCity_t~",endCustCity,pipe_delimeter);
+sbappend(resultStringBuilder,"1~endCustomerRegion_t~",endCustRegion,pipe_delimeter);
+sbappend(resultStringBuilder,"1~endCustomerCountry_t~",endCustCountry,pipe_delimeter);
+sbappend(resultStringBuilder,"1~endCustomerPostalCode_t~",endCustPostalCode,pipe_delimeter);
+sbappend(resultStringBuilder,"1~endCustomerAddress1_t~",endCustAddress1,pipe_delimeter);
+
+		
+/*
+//Added by Shardul for B-LINE integration project requirement.
+type = transactionType_t;
+salesOrg = salesOrg_t;
+condition = "displayOnlyParentLine";
+
+ifBizGroup= util.checkBizGroupCondition(condition, type, salesOrg);
+
+showParentline = "false";
+if (ifBizGroup)
+{
+	showParentline = "true";
+}
+sbappend(resultStringBuilder,"1~qq_showParentLine_t~",showParentline,pipe_delimeter);*/
+//End of changes done for B-LINE integration project requirement.
+
+//result = join(resultArray, "|") + "|"; //Additional pipe separator is for last attribute value
+if(sizeofarray(jsonkeys(connectedToContractLinesInfo)) > 0)
+{
+jsonput(printOnOutputdetails,"printOnOutputdetails",join(jsonkeys(connectedToContractLinesInfo),","));
+sbappend(resultStringBuilder,"1~connectedToContractLinesInfo_t~",jsontostr(printOnOutputdetails),pipe_delimeter);
+}
+//result = sbtostring(resultStringBuilder);
+
+//This only applies to PSD and B-line and are the only ones that should see this. 
+//This only applies to Warehouse Quote, Drop-ship Quote, Blanket Agreement transaction types.
+if(selectedCustomer_OutputTab_t <> "" 
+	AND (qqBusinessLineForSalesOrg_t =="B-LINE" OR qqBusinessLineForSalesOrg_t =="PSD")
+	AND (qq_ntTransactionType_t == "WQ" OR qq_ntTransactionType_t == "DS" OR qq_ntTransactionType_t == "BA")){
+	
+	colDelimiter = "$,$";
+	rowDelimiter = "#@#";
+	selectedCustomerAry = split(selectedCustomer_OutputTab_t,"#$#");
+	selectedCustomer_OutputTab = selectedCustomerAry[0];
+	shipToCustomer = "";
+	if(sizeofarray(selectedCustomerAry)>1){
+		shipToCustomer = selectedCustomerAry[1];
+	}
+	//Street, Street2 and Customer Name2 is not populating in the selectedCustomerArraySet2_t
+	//So, calling getCUSMASDetails util to fetch the additional details
+	getCusmasDetail = json();
+	jsonput(getCusmasDetail, "CustomerNumber", selectedCustomer_OutputTab);
+	jsonput(getCusmasDetail, "VKORG", salesOrg_t);
+	jsonput(getCusmasDetail, "VTWEG", distributionChannel_t);
+	customerDetailJson = util.getCUSMASDetails(getCusmasDetail);
+	customerDetailStrBuilder = stringbuilder();
+	customerStreet = jsonget(customerDetailJson, "STRAS", "string", "");
+	customerStreet2 = jsonget(customerDetailJson, "STRAS2", "string", "");
+	customerName2 = jsonget(customerDetailJson, "NAME2", "string", "");
+	sbappend(customerDetailStrBuilder,"customerStreet",colDelimiter,customerStreet,rowDelimiter);
+	sbappend(customerDetailStrBuilder,"customerStreet2",colDelimiter,customerStreet2,rowDelimiter);
+	sbappend(customerDetailStrBuilder,"customerName2",colDelimiter,customerName2,rowDelimiter);
+	
+	//Getting the selected customer details from selectedCustomerArraySet2_t
+	selectedCustomers_json = json();
+	jsonput(selectedCustomers_json ,"SelectedCustomers",selectedCustomerArraySet2_t);
+	pathToFindCustomer = "$.SelectedCustomers[?(@.customer_selctdCust2_t=='"+selectedCustomer_OutputTab+"')]";
+	if(shipToCustomer <> ""){
+		pathToFindCustomer = "$.SelectedCustomers[?(@.customer_selctdCust2_t=='"+selectedCustomer_OutputTab+"' && @.shipToCustomer_selctdCust2_t=='"+shipToCustomer+"')]";
+	}
+	//print pathToFindCustomer ;
+	selectedCustomerObj = json();
+	if(jsonpathcheck(selectedCustomers_json, pathToFindCustomer)){
+		//selectedCustomerObj = jsonpathgetsingle(selectedCustomers_json, pathToFindCustomer,"json",json());
+		selectedCustomersAry = jsonpathgetmultiple(selectedCustomers_json, pathToFindCustomer);
+		selectedCustomerObj  = jsonarrayget(selectedCustomersAry , 0,"json");
+		//print selectedCustomerObj;
+		//print pathToFindCustomer;
+		customerName = jsonget(selectedCustomerObj,"name_selctdCust2_t","string","");
+		postalCode= jsonget(selectedCustomerObj,"postalCode_selctdCust2_t","string","");
+		city= jsonget(selectedCustomerObj,"city_selctdCust2_t","string","");
+		region = jsonget(selectedCustomerObj,"region_selctdCust2_t","string","");
+		country= jsonget(selectedCustomerObj,"country_selctdCust2_t","string","");
+		cityAndRegion = city +" "+region;
+		sbappend(customerDetailStrBuilder,"customerNumber",colDelimiter,selectedCustomer_OutputTab,rowDelimiter);
+		sbappend(customerDetailStrBuilder,"customerName",colDelimiter,customerName,rowDelimiter);
+		sbappend(customerDetailStrBuilder,"customerCity",colDelimiter,city,rowDelimiter);
+		sbappend(customerDetailStrBuilder,"customerRegion",colDelimiter,region,rowDelimiter);
+		sbappend(customerDetailStrBuilder,"customerPostalCodeZip",colDelimiter,postalCode,rowDelimiter);
+		sbappend(customerDetailStrBuilder,"cityAndRegion",colDelimiter,cityAndRegion);
+	}
+	//print sbtostring(customerDetailStrBuilder);
+	//setattributevalue(1,"selectedCustomerDetails_OutputTab_t", sbtostring(customerDetailStrBuilder));
+	sbappend(resultStringBuilder,"1~selectedCustomerDetails_OutputTab_t~",sbtostring(customerDetailStrBuilder),pipe_delimeter);
+}else{
+	//setattributevalue(1,"selectedCustomerDetails_OutputTab_t", "");
+	sbappend(resultStringBuilder,"1~selectedCustomerDetails_OutputTab_t~",pipe_delimeter);
+}
+//setattributevalue(1,"outputDocumentFileName_t", transactionNumber_t);
+sbappend(resultStringBuilder,"1~outputDocumentFileName_t~",transactionNumber_t,pipe_delimeter);
+result = sbtostring(resultStringBuilder);
+
+return result;

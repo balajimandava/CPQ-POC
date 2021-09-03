@@ -1,0 +1,46 @@
+retJson = json();
+kdmat = "";
+
+
+     
+vkorg = jsonget(partJson,"VKORG");
+vtweg = jsonget(partJson,"VTWEG");
+parts = jsonget(partJson, "materials", "jsonarray", jsonarray());//MATNR 
+print parts;
+partsStr = "('')";
+if(jsonarraysize(parts) > 0){
+	partsStr = jsonarraytostr(parts);
+	partsStr = replace(partsStr,"]",")");
+	partsStr = replace(partsStr,"[","(");
+	partsStr = replace(partsStr,"\"","'");
+}
+
+customerNum = jsonget(partJson,"customerNumber");
+originalCustomerNum = customerNum;
+if (startswith(customerNum , "00000")) {
+	customerNum =  substring(customerNum , -5);
+}
+
+if (startswith(customerNum , "0000")) {
+	customerNum =  substring(customerNum , -6);
+}
+cols = "KDMAT,MATNR";
+whereConditionValues = dict("string");
+qryLang = dict("string");
+put(whereConditionValues,"$vkorg",vkorg);
+put(whereConditionValues,"$vtweg",vtweg);
+put(whereConditionValues,"$customerNum",customerNum);
+put(whereConditionValues,"$originalCustomerNum",originalCustomerNum);
+whereClauseConditions = "VKORG=$vkorg AND VTWEG=$vtweg AND MATNR in "+ partsStr + " AND ( KUNNR=$customerNum OR KUNNR = $originalCustomerNum)";
+CMI01recordSet = bmql("select $cols from CMI01 where $whereClauseConditions",qryLang ,whereConditionValues);
+print whereClauseConditions;
+for eachRec in CMI01recordSet {
+	materialNum = get(eachRec,"MATNR");
+	//Performance_Changes-START
+	retJson1 = json();
+	jsonput(retJson1, "KDMAT", get(eachRec,"KDMAT"));
+	jsonput(retJson,materialNum,retJson1);
+	//Performance_Changes-END
+}
+
+return retJson;

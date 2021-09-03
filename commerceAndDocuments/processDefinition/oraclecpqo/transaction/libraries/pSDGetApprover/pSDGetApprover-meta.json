@@ -1,0 +1,14 @@
+{
+  "name" : "PSD Get Approver",
+  "variableName" : "pSDGetApprover",
+  "description" : "Project#49704|E9913664|22ndJuly2020|Function to get approver from transaction json based on input parameter",
+  "libraryFunctions" : [ ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "InputParamsDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionLineApprovalInformation_t" ],
+  "systemAttributes" : [ "_system_user_groups" ]
+}

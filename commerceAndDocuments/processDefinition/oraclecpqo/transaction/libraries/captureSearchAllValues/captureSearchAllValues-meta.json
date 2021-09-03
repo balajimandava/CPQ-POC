@@ -1,0 +1,11 @@
+{
+  "name" : "Capture Search All Values",
+  "variableName" : "captureSearchAllValues",
+  "description" : "Returns a string for the Search All function and avoids duplicate information",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "customerName_t", "headquarters_t", "customerSoldTo_t", "customerShipTo_t", "headquartersNumber_t", "soldToNumber_t", "shipToNumber_t", "bs_id", "status_t", "customerPostalCodeZip_t", "customerCity_t", "transactionName_t", "customerNumber_t" ],
+  "systemAttributes" : [ ]
+}

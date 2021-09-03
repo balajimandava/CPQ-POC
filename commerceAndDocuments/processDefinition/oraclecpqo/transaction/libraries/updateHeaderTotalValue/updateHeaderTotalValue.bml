@@ -1,0 +1,109 @@
+/** Calculation of Total value shifted from Formula to here - Formula was causing calculation problems in Project 52469
+/** 2108202|Project#52469|Rahul|Updated Code to make logic dependent on data table
+// 19/05/2021|Project#53390|Anita|Added conditions for new currencies
+**/
+
+totalVal = 0.00;
+parPriceArray = String[];
+newPrice1 = "0.0";
+parQty = "1";
+fpItemsPriceTotal = String[];
+parentItemNumsJson = json();
+conditionalTotalVal = 0.0; //This is total of all the lines except Cancelled and  alternates
+
+if (transactionType_t == "CSP" OR transactionType_t == "DSP") {
+    totalVal = 0.00;
+} else {
+    if (util.checkBizGroupCondition("IncludePriceAtChild_For_qqTotalValue_t", transactionType_t, salesOrg_t)){ // Project#52469|Rahul|Updated Code to make logic dependent on data table
+	
+	if (headerDiscountOrPercentOff_t == "perc" OR headerDiscountOrPercentOff_t == ""){
+            for line in transactionLine {
+                if (line._parent_doc_number <> "" AND line.priceAtChildLine_l == true
+                	AND line.lineItemStatus_l <> "cancelled" AND line.alternates_l=="") {
+                
+                    currentLineJson = json();
+                    jsonput(currentLineJson, "qqTotal_l", line.qqTotal_l);
+                    currentLineAttributeArray = jsonkeys(currentLineJson);
+                    parentItem = jsonget(parentItemNumsJson, line._parent_doc_number, "json", json());
+                    jsonput(parentItem, "_document_number", line._parent_doc_number);
+                    lineDocNum = line._parent_doc_number;
+                    bsId = line.transactionID_l;
+                    configId = "";
+
+                    xPathDictionary = dict("string");
+                    put(xPathDictionary, "item_id", "//transactionLine/_document_number");
+                    put(xPathDictionary, "config_id", "//transactionLine/externalConfigData_l"); // to be updated
+                    put(xPathDictionary, "read_only", "//transactionLine/_document_number"); // to be updated
+                    put(xPathDictionary, "catalog_number", "//transactionLine/qqCatalogNumber_l");
+                    put(xPathDictionary, "product_hierarchy", "//transactionLine/_document_number"); // to be updated
+                    put(xPathDictionary, "quantity", "//transactionLine/quantity_l");
+                    put(xPathDictionary, "design_status", "//transactionLine/engineeringDesignStatus_l"); // to be verified
+                    put(xPathDictionary, "is_placeholder", "//transactionLine/isPlaceholder_l"); //0 for normal case, 1 for prelim item
+                    lineData = util.getTransactionLineLevelData(bsId, lineDocNum, xPathDictionary, configId);
+
+                    parData = jsonarraysize(lineData);
+                    loop = range(parData);
+                    for i in loop {
+                        currentModel = jsonarrayget(lineData, i, "json");
+                        parQty = jsonget(currentModel, "quantity", "string", "");
+                    }
+                    for eachAttribute in currentLineAttributeArray {
+                        currentPrice = jsonget(currentLineJson, eachAttribute, "String", "0.00");
+                        parentPrice = jsonget(parentItem, eachAttribute, "String", "0.00");
+                        //If attribute type is text and contains numeric value then correct number format should be prepared.
+                        //i.e. for EUR currency value on UI would be like 39,12 but for calculation it should be like 39.12
+                        // 53390: Added conditions for all currencies
+                        if (currency_t=="EUR" OR currency_t=="CZK" OR currency_t=="HUF" OR currency_t=="PLN" OR currency_t=="RON" OR currency_t=="TRY") {
+                            currentPrice = replace(currentPrice, ",", ".");
+                            parentPrice = replace(parentPrice, ",", ".");
+                        }
+                        if (isNumber(currentPrice) AND isNumber(parentPrice)) {
+                            newPrice = atof(currentPrice) + atof(parentPrice);
+
+                        }
+                    }
+                    print newPrice;
+                    parPriceTotal = atoi(parQty) * newPrice;
+                    append(parPriceArray, string(parPriceTotal));
+			conditionalTotalVal = conditionalTotalVal + line.qqTotal_l;
+
+                } //parent doc number
+
+               //elif(line._parent_doc_number == "" AND line.priceAtChildLine_l == false) {
+                elif(line._parent_doc_number == "" AND line.priceAtChildLine_l == false
+                	AND line.lineItemStatus_l <> "cancelled" AND line.alternates_l=="") {
+                    append(parPriceArray, string(line.qqTotal_l));
+                    conditionalTotalVal = conditionalTotalVal + line.qqTotal_l;
+                }
+            } // for
+
+            totalVal = 0.0;
+            for each in parPriceArray {
+                totalVal = totalVal + atof(each);
+            }
+            print totalVal;
+        } else {
+            totalVal = headerPercentOff_t;
+        }
+    } else {
+        for each in transactionLine {
+           /* if ((each.materialLineItem_l <> "") AND NOT(each._parent_doc_number == "" AND each.priceAtChildLine_l == true)) {
+                           
+                totalVal = each.qqTotal_l + totalVal;
+            }*/
+            if((each.materialLineItem_l <> "") 
+            	AND NOT(each._parent_doc_number == "" AND each.priceAtChildLine_l == true) 
+            	AND each.lineItemStatus_l <> "cancelled" AND each.alternates_l==""){
+            	conditionalTotalVal = conditionalTotalVal + each.qqTotal_l;
+            	totalVal = each.qqTotal_l + totalVal;
+            }
+        }
+    }
+}
+
+
+//setattributevalue(1,"qqTotalValue_t", totalVal);
+retString = "1~subtotalValue_t~" +  string(conditionalTotalVal) + "|";
+retString = retString + "1~qqTotalValue_t~" +  string(totalVal) + "|";
+//return totalVal;
+return retString;

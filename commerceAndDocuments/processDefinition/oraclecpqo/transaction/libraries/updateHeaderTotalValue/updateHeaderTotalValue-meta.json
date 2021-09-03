@@ -1,0 +1,11 @@
+{
+  "name" : "Update Header Total Value",
+  "variableName" : "updateHeaderTotalValue",
+  "description" : "Updates Header Total Value.",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.getTransactionLineLevelData" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "_parent_doc_number", "transactionID_l", "materialLineItem_l", "quantity_l", "qqTotal_l", "priceAtChildLine_l", "lineItemStatus_l", "alternates_l" ],
+  "mainDocAttributes" : [ "currency_t", "transactionType_t", "qqBusinessLineForSalesOrg_t", "headerPercentOff_t", "headerDiscountOrPercentOff_t", "salesOrg_t" ],
+  "systemAttributes" : [ ]
+}

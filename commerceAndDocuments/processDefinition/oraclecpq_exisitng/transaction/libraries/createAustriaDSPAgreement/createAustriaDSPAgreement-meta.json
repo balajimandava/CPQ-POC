@@ -1,0 +1,11 @@
+{
+  "name" : "Create DSP Agreement",
+  "variableName" : "createAustriaDSPAgreement",
+  "description" : "BML Function to create Austria DSP agreements",
+  "libraryFunctions" : [ "util.transactionUploadStatusLog" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionName_t", "tableName_t" ],
+  "systemAttributes" : [ "_system_company_name" ]
+}

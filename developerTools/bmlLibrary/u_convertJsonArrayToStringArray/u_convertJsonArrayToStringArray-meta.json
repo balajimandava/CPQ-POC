@@ -1,0 +1,12 @@
+{
+  "name" : "Convert JSON Array To String Array",
+  "variableName" : "u_convertJsonArrayToStringArray",
+  "description" : "Convert a JSON array to a string array.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String[]",
+  "parameters" : [ {
+    "name" : "jsonArr",
+    "type" : "JsonArray"
+  } ],
+  "attributes" : [ ]
+}

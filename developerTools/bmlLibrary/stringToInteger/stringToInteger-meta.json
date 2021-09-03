@@ -1,0 +1,12 @@
+{
+  "name" : "stringToInteger",
+  "variableName" : "stringToInteger",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Integer",
+  "parameters" : [ {
+    "name" : "input",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

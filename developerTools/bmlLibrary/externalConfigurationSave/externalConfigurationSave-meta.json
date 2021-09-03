@@ -1,0 +1,15 @@
+{
+  "name" : "External Configuration Save",
+  "variableName" : "externalConfigurationSave",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "requestBodyPayload",
+    "type" : "Json"
+  }, {
+    "name" : "endpointParameter",
+    "type" : "Anytype Dictionary"
+  } ],
+  "attributes" : [ ]
+}

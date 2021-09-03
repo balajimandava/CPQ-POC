@@ -1,0 +1,7 @@
+ret = default;
+
+if(NOT isnull(inputDict) AND containskey(inputDict,key)){
+	ret = get(inputDict,key);
+}
+
+return ret;

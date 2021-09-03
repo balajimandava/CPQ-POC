@@ -1,0 +1,17 @@
+/**
+@name Convert JSON to String Dictionary
+@api u_convertJSONToStringDictionary
+@summary Convert a Json object into string dictionary.
+@param data Json
+@return String Dictionary
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-18|Tat.Leung            |Initial version
+*/
+keys = jsonkeys(data);
+result = dict("string");
+for key in keys {
+    put(result, key, jsonget(data, key, "string", ""));
+}
+return result;

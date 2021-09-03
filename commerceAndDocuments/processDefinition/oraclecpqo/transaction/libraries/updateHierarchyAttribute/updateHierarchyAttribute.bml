@@ -1,0 +1,256 @@
+retString = "";
+
+/*company = util.getSupplierCompanyName();
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+headers = dict("string");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");*/
+
+customerNumber = customerNumber_t;
+if (customerNumber == "") {
+    customerNumber = customerRecordKey_t;
+}
+VKORG = salesOrg_t;
+if (VKORG == "") {
+    VKORG = preparedBySalesOrg_t;
+}
+
+VTWEG = ntDistributionChannel_t;
+
+bmVariables = dict("string"); //  This dictionary contains all values to be set for Commerce
+
+cmrcSep = "|";
+hdqtrs = "";
+soldTo = "";
+shipTo = "";
+
+agreementLevel = 0;
+agreementTypes = string[] {
+    "",
+    "Z012",
+    "Z001",
+    "Z002"
+};
+agreementNames = string[] {
+    "",
+    "Headquarters",
+    "Sold To",
+    "Ship To"
+};
+agreementHier = "";
+agreementName = "";
+
+getCusmasDetail = json();
+jsonput(getCusmasDetail, "VKORG", VKORG);
+jsonput(getCusmasDetail, "VTWEG", VTWEG);
+// first check if the json is empty. this is to account for old transactions where the field might not be present
+
+if (agreementHierarchy_t <> "") {
+    // using the hierarchy json to find the HQ, sold to and ship to information and setting it
+    agreementHierarchy = json(agreementHierarchy_t);
+    hdqtrs = jsonget(agreementHierarchy, "aLevel1");
+    soldTo = jsonget(agreementHierarchy, "aLevel2");
+    shipTo = jsonget(agreementHierarchy, "aLevel3");
+
+    if (shipTo <> "") {
+        agreementLevel = 3;
+    } elif (soldTo <> "") {
+        agreementLevel = 2;
+    } elif (hdqtrs <> "") {
+        agreementLevel = 1;
+    }
+    agreementName = agreementNames[agreementLevel];
+    agreementHier = agreementTypes[agreementLevel];
+}
+
+//Get Data from Dummy Customers table
+/*dummyCustomerName = "";
+qqSelectedSalesOrg = ntSelectedSalesOrg_t;
+dummyCustomerTableRecSet = BMQL("SELECT KUNNR from DummyCustomers where VKORG = $qqSelectedSalesOrg");
+for dummyRec in dummyCustomerTableRecSet {
+    dummyCustomerName = get(dummyRec,"KUNNR");
+}*/
+
+headQuartersName = "";
+hdqtrsJSON = JSON();
+print hdqtrs;
+if (hdqtrs <> "") {
+print "in this";
+	jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+	jsonput(getCusmasDetail, "KTOKD", "Z012");
+	jsonput(getCusmasDetail, "PARVW", "");
+	hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);
+    customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+    if (customerCount == 0) {
+	jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+	jsonput(getCusmasDetail, "KTOKD", "Z001");
+	jsonput(getCusmasDetail, "PARVW", "AG");
+	hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);
+     
+        customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+        if (customerCount == 0) {	// 2018/09/06 QQ-834 Need to check for RE (bill to as well)
+			jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+			jsonput(getCusmasDetail, "KTOKD", "Z001");
+			jsonput(getCusmasDetail, "PARVW", "RE");
+			hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);
+            customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+        }
+        if (customerCount == 0) {
+			jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+			jsonput(getCusmasDetail, "KTOKD", "Z002");
+			jsonput(getCusmasDetail, "PARVW", "WE");
+			hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);   
+            customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+        }
+		
+		//Chandan - 49704 - Eagle Development - Added the below condition to fetch the data for One Time Customer - START
+		if (customerCount == 0) {
+			jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+			jsonput(getCusmasDetail, "KTOKD", "ZCPD");
+			jsonput(getCusmasDetail, "PARVW", "WE");
+			hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);   
+            customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+        }
+		//Chandan - 49704 - Eagle Development - Added the above condition to fetch the data for One Time Customer - END
+    }
+    if (customerCount > 0) {
+        headQuartersName = jsonget(hdqtrsJSON, "NAME1", "string", "");
+    }
+    
+    //Inserting dummyCustomerName and qqSelectedSalesOrg in hdqtrsJSON when hdqtrs = dummy customer
+    /*if(hdqtrs == dummyCustomerName) {
+        jsonput(hdqtrsJSON,"NAME1",dummyCustomerName);
+        jsonput(hdqtrsJSON,"VKORG",qqSelectedSalesOrg);
+    }*/
+}
+
+soldToName = "";
+soldToJSON = json();
+if ((soldTo == hdqtrs) AND(soldTo <> "")) {
+    soldToJSON = hdqtrsJSON;
+    soldToName = jsonget(soldToJSON, "NAME1", "string", "");
+} elif (agreementlevel >= 2) {
+	jsonput(getCusmasDetail, "CustomerNumber", soldTo);
+	jsonput(getCusmasDetail, "KTOKD", "Z001");
+	jsonput(getCusmasDetail, "PARVW", "AG");
+	soldToJSON= util.getCUSMASDetails(getCusmasDetail); 
+ 
+    customerCount = jsonget(soldToJSON, "customercount", "integer");
+    if (customerCount == 0) {
+		jsonput(getCusmasDetail, "CustomerNumber", soldTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z001");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		soldToJSON= util.getCUSMASDetails(getCusmasDetail); 
+        //Commented below line of code as part of CPQ-1069 fix. Customer Count for the soldTo has to be taken from soldToJSON not from hdqtrsJSON
+		//customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+        customerCount = jsonget(soldToJSON, "customercount", "integer");
+    }
+    if (customerCount == 0) {
+		jsonput(getCusmasDetail, "CustomerNumber", soldTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z002");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		soldToJSON= util.getCUSMASDetails(getCusmasDetail);
+		//Commented below line of code as part of CPQ-1069 fix. Customer Count for the soldTo has to be taken from soldToJSON not from hdqtrsJSON		
+        //customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+		customerCount = jsonget(soldToJSON, "customercount", "integer");
+    }
+	
+	//Chandan - 49704 - Eagle Development - Added the below condition to fetch the data for One Time Customer - START
+	 if (customerCount == 0) {
+		jsonput(getCusmasDetail, "CustomerNumber", soldTo);
+		jsonput(getCusmasDetail, "KTOKD", "ZCPD");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		soldToJSON= util.getCUSMASDetails(getCusmasDetail);
+		//Commented below line of code as part of CPQ-1069 fix. Customer Count for the soldTo has to be taken from soldToJSON not from hdqtrsJSON
+        //customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+		customerCount = jsonget(soldToJSON, "customercount", "integer");
+    }
+	//Chandan - 49704 - Eagle Development - Added the above condition to fetch the data for One Time Customer - END
+	
+    if (customerCount > 0) {
+        soldToName = jsonget(soldToJSON, "NAME1", "string", "");
+    }
+    /*if(soldToName == dummyCustomerName) {
+        jsonput(soldToJSON,"NAME1",dummyCustomerName);
+        jsonput(soldToJSON,"VKORG",qqSelectedSalesOrg);
+    }*/
+}
+
+shipToName = "";
+shipToJSON = json();
+if ((shipTo == soldTo) AND(shipTo <> "")) {
+    shipToJSON = soldToJSON;
+    shipToName = jsonget(shipToJSON, "NAME1", "string", "");
+    soldToName = "";
+	//headQuartersName = "";
+} elif (agreementLevel == 3) {
+	jsonput(getCusmasDetail, "CustomerNumber", shipTo);
+	jsonput(getCusmasDetail, "KTOKD", "Z002");
+	jsonput(getCusmasDetail, "PARVW", "WE");
+	shipToJSON= util.getCUSMASDetails(getCusmasDetail); 
+   
+    customerCount = jsonget(shipToJSON, "customercount", "integer");
+    if ((customerCount == 0) AND(shipTo <> "")) {
+		jsonput(getCusmasDetail, "CustomerNumber", shipTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z001");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		shipToJSON= util.getCUSMASDetails(getCusmasDetail); 
+        
+        customerCount = jsonget(shipToJSON, "customercount", "integer");
+    }
+	
+	//Chandan - 49704 - Eagle Development - Added the below condition to fetch the data for One Time Customer - START
+	if ((customerCount == 0) AND(shipTo <> "")) {
+		jsonput(getCusmasDetail, "CustomerNumber", shipTo);
+		jsonput(getCusmasDetail, "KTOKD", "ZCPD");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		shipToJSON= util.getCUSMASDetails(getCusmasDetail);         
+        customerCount = jsonget(shipToJSON, "customercount", "integer");
+    }
+	//Chandan - 49704 - Eagle Development - Added the above condition to fetch the data for One Time Customer - END
+	
+    if (customerCount > 0) {
+        shipToName = jsonget(shipToJSON, "NAME1", "string", "");
+    }
+    /*if(shipToName == dummyCustomerName) {
+        jsonput(shipToJSON,"NAME1",dummyCustomerName);
+        jsonput(shipToJSON,"VKORG",qqSelectedSalesOrg);
+    }*/
+}
+
+//only set if it exists
+//only the lowest level will be set if they're all equal 
+if (headQuartersName <> "") {
+print "226";
+    put(bmVariables, "1~headquartersNumber_t~", hdqtrs);
+    put(bmVariables, "1~headquarters_t~", headQuartersName);
+    print bmVariables;
+}else{
+    put(bmVariables, "1~headquartersNumber_t~", "");
+    put(bmVariables, "1~headquarters_t~", "");
+}
+if (soldToName <> "") {
+    put(bmVariables, "1~soldToNumber_t~", soldTo);
+    put(bmVariables, "1~customerSoldTo_t~", soldToName);
+}else{
+    put(bmVariables, "1~soldToNumber_t~", "");
+    put(bmVariables, "1~customerSoldTo_t~", "");
+}
+if (shipToName <> "") {
+    put(bmVariables, "1~shipToNumber_t~", shipTo);
+    put(bmVariables, "1~customerShipTo_t~", shipToName);
+}else{
+    put(bmVariables, "1~shipToNumber_t~", "");
+    put(bmVariables, "1~customerShipTo_t~", "");
+}
+
+allKeys = keys(bmVariables);
+for eachKey in allKeys {
+    retString = retString + eachKey + get(bmVariables, eachKey) + cmrcSep;
+}
+//dummy = util.u_logString("COM_CUSTOMER", 4, retString, "setCustomerDetails retString");
+print "customer retstring is";
+print retString;
+return retString;

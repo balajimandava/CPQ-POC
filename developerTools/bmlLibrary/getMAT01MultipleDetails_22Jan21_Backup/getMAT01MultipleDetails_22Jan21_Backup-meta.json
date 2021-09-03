@@ -1,0 +1,12 @@
+{
+  "name" : "GetMAT01MultipleDetails_22Jan21_Backup",
+  "variableName" : "getMAT01MultipleDetails_22Jan21_Backup",
+  "description" : "Function created to verify obsolete items",
+  "libraryFunctions" : [ "util.getRemark" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

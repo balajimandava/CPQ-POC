@@ -1,0 +1,12 @@
+{
+  "name" : "Advanced Forwarding Rule",
+  "variableName" : "advancedForwardingRule",
+  "description" : "Consolidated Advanced Forwarding Rule for step transition.",
+  "libraryFunctions" : [ "util.getBLineGroups", "util.getBussmannGroups", "util.getBussmannSiemensUsers", "util.getCHEMEAGroups", "util.getESEMEAGroups", "util.getTransactionData", "util.isPerformerExist", "util.u_convertJsonArrayToStringArray" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

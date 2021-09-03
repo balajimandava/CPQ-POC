@@ -1,0 +1,99 @@
+/**
+@name Get WD Groups
+@api getWDGroups
+@summary Return the WD groups that should have access to the quote
+@param data Json
+@function Boolean u_logStringArray(String category, Integer level, String[] strArr, String label)
+@function Json getTransactionData(String bsId, String[] xpaths)
+@function Json u_setLogLevel(String[][] categoryLevel)
+@return String[]
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2020-09-09|Shardul S            |Initial Version
+2021-06-25|Praveen Sahu         |Changed Sales org value to 3208 
+
+*/
+
+retJson = json();
+print "In getWDGroups";
+bsId = jsonget(data, "id", "string", "");
+// import data needed for forwarding rules, add more xpath expression here if additional fields are needed
+xpaths = string[] {
+    "//transaction/customerNumber_t",
+    "//transaction/qq_customerReferenceShipTo",
+    "//transaction/salesOrg_t",
+    "//transaction/distributionChannel_t",
+	"//transaction/salesOffice_t",
+	"//transaction/salesGroup_t"
+};
+headerData = util.getTransactionData(bsId, xpaths);
+
+salesOrg = jsonget(headerData, "salesOrg_t", "string", "");
+distributionChannel = jsonget(headerData, "distributionChannel_t", "string", "");
+salesOffice = jsonget(headerData, "salesOffice_t","string","");
+salesGroup = jsonget(headerData, "salesGroup_t","string","");
+groups = jsonarray();
+	
+if(salesOrg == "1216" OR salesOrg == "2500")
+{
+	print "If salesOrg 1216 or 2500";
+	rs = bmql("select UserId from UserCustomerLookup where VKORG = $salesOrg and VTWEG = $distributionChannel and lookupType = 'DOG' and VKBUR = $salesOffice and VKGRP = $salesGroup");
+
+	for r in rs {
+		cpqGroup = get(r, "UserId");    
+		jsonarrayappend(groups, cpqGroup);
+	}
+	approverset = bmql("SELECT Level2,Level3,Level4 FROM WD_Approver WHERE SalesOrg = $salesOrg");
+
+	level2Approver = "";
+	level3Approver = "";
+	level4Approver = "";
+	
+		for record in approverset 
+		{
+		  jsonarrayappend(groups, get(record, "Level2")); 
+		  jsonarrayappend(groups, get(record, "Level3")); 
+		  if(get(record, "Level4") <> "NA")
+		  {
+		  jsonarrayappend(groups, get(record, "Level4")); 
+		  }
+		}
+		
+}
+//Changed Sales org value to 3208
+elif(salesOrg == "3208")
+{
+
+	customerNumber = jsonget(headerData, "qq_customerReferenceShipTo", "string", "");
+	if(customerNumber == "" OR isnull(customerNumber)){// if shipto is blank fetch sold to
+		customerNumber = jsonget(headerData, "customerNumber_t", "string", "");
+	}
+	
+	groupFunctions = string[] {
+		"ZW"
+	};
+
+	// retrieve the Area users for the transaction
+	rs = bmql("select distinct KUNN2, PARVW from CUSMAS where VKORG = $salesOrg and KUNNR = $customerNumber and PARVW in $groupFunctions");
+	vpUsers = string[]; // ZW
+	for r in rs {
+		parvw = get(r, "PARVW");
+		kunn2 = get(r, "KUNN2");
+		append(vpUsers, kunn2);
+	}
+
+	logStatus = util.u_logStringArray("SECURITY", 4, vpUsers, "vpUsers");
+
+	// retrieve groups from the UserCustomerLookup data table
+	//Look for Zw marked as partners in usercustomerlookup
+	rs = bmql("select UserId from UserCustomerLookup where VKORG = $salesOrg and VTWEG = $distributionChannel and lookupType = 'Partner' and KUNNR in $vpUsers");
+
+	for r in rs {
+		cpqGroup = get(r, "UserId");    
+		jsonarrayappend(groups, cpqGroup);
+		}
+
+}
+jsonput(retJson, "Sales User", groups);
+return retJson;

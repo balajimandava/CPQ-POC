@@ -1,0 +1,12 @@
+{
+  "name" : "Get Regions for Sales Org",
+  "variableName" : "getRegionsForSalesOrg",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "salesOrgs",
+    "type" : "String[]"
+  } ],
+  "attributes" : [ ]
+}

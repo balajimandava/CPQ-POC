@@ -1,0 +1,15 @@
+{
+  "name" : "Get JSON Data From Cache",
+  "variableName" : "u_getJsonDataFromCache",
+  "description" : "Get the data from the user session cache for a given cache key.  The data will be refreshed\nif the query parameter is provided.",
+  "libraryFunctions" : [ "util.u_getJsonDataForQuery" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "cacheKey",
+    "type" : "String"
+  }, {
+    "name" : "query",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

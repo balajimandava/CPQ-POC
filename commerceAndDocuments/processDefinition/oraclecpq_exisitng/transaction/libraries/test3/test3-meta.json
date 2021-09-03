@@ -1,0 +1,11 @@
+{
+  "name" : "Test 3",
+  "variableName" : "test3",
+  "description" : "",
+  "libraryFunctions" : [ "util.addMPG", "util.customerHierarchyLookup" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionName_t" ],
+  "systemAttributes" : [ "_system_user_session_id", "_system_company_name" ]
+}

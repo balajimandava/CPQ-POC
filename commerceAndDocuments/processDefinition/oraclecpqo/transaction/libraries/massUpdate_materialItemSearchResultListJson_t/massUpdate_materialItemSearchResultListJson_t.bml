@@ -1,0 +1,5 @@
+retString = "";
+if(len(materialItemSearchResultListJson_t) > 0){
+	retString=retString+ "1~materialItemSearchResultListJson_t~" + "[]" + "|";
+}
+return retString;

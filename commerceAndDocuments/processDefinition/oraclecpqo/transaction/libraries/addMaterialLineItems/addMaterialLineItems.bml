@@ -1,0 +1,367 @@
+/**
+@name Add Material Line Items
+@api addMaterialLineItems
+@summary Logic to Add/Delete items
+@param paramsDict StringDictionary
+@attribute _document_number
+@attribute _parent_doc_number
+@attribute _system_supplier_company_name
+@attribute _system_user_session_id
+@attribute bonusGroupDiscount_t
+@attribute bonusGroup_l
+@attribute bs_id
+@attribute currentSelectedMaterialItems_t
+@attribute customDiscountType_l
+@attribute customerNumber_t
+@attribute discountString_l
+@attribute discount_l
+@attribute expandedLineIds_t
+@attribute materialLineItem_l
+@attribute materialPricingGroupShortDescription_l
+@attribute materialPricingGroup_l
+@attribute oldDiscountString_l
+@attribute qq_NewItem_NetPrice_t
+@attribute qq_NewItem_Notes_t
+@attribute qq_NewItem_PricingGroup_t
+@attribute qq_NewItem_ProductLine_t
+@attribute qq_NewItem_ProposedMaterialNum_t
+@attribute qq_ntTransactionType_t
+@attribute quantity_l
+@attribute quickItem_t
+@attribute sAPDeletionFlag_l
+@attribute salesOrg_t
+@attribute salesRepLanguage_t
+@attribute scaleFrom_l
+@attribute scaleTo_l
+@attribute scale_l
+@attribute uOM_l
+@function Json getBonus(Json customerInput)
+@function Json getCustomerPartNumber(String customerNumber)
+@function Json getMAT01Details(Json inputJson)
+@function String addMPG(String Dictionary inputDict)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@function String updateExpandedLines(String Dictionary inputDict)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017.04.07|vhingorani           |Initial version
+2017.04.07|dBo Haizlip          |Quick Add 	
+2017.10.18|vhingorani           |ALM-220: Add new dictionary to store groups for items to be deleted
+2018.01.03|shibaji              |Added New Item related fields to lineDetails variable
+2018-01-04|Tat.Leung            |_system_supplier_company_name
+2018-01-18|Tat.Leung            |
+2018-01-21|Michael.Yeung        |Update handling for add new item. Associate new item content to the line being added, and existing new item should use existing line's content.
+*/
+logStatus = util.u_logString("COM_ADD_MAT_LINE_ITEM", 4, "********* Inside Add Material Line Items Commerce Util ***********", ">");
+logStatus = util.u_logString("COM_ADD_MAT_LINE_ITEM", 4, qq_NewItem_PricingGroup_t, "qq_NewItem_PricingGroup_t");
+logStatus = util.u_logString("COM_ADD_MAT_LINE_ITEM", 4, qq_NewItem_ProductLine_t, "qq_NewItem_ProductLine_t");
+logStatus = util.u_logString("COM_ADD_MAT_LINE_ITEM", 4, string(qq_NewItem_NetPrice_t), "qq_NewItem_NetPrice_t");
+logStatus = util.u_logString("COM_ADD_MAT_LINE_ITEM", 4, qq_NewItem_ProposedMaterialNum_t, "qq_NewItem_ProposedMaterialNum_t");
+logStatus = util.u_logString("COM_ADD_MAT_LINE_ITEM", 4, qq_NewItem_Notes_t, "qq_NewItem_Notes_t");
+// 12563182
+
+// FALSE disables the Web Services call...SET TO TRUE AFTER ALL TESTING IS DONE!!!!!
+action = util.getStringDict(paramsDict, "action", "add");
+
+webServices = TRUE;
+materialGroupMPGBoolean = false;
+materialGroupMG5Boolean = false;
+materialGroupPH5Boolean = false;
+
+
+rowSep = "#@#";
+colSep = "$,$";
+currentSMI = "";
+
+allMPGs = dict("string");
+allAddedMPGs = dict("string");
+allToAddMPGs = dict("string");
+allMLIs = dict("dict<anytype>");
+allMPGDocNums = dict("string");
+allDeletedMPGs = dict("string");
+allToAddMPGTexts = dict("string");
+allMPGDocNumsTexts = dict("string");
+allDeletedMPGsTexts = dict("string");
+
+//Store user entries
+mpgLineDetails = dict("string"); // stores mpg line details
+discountDict = dict("string");
+
+salesOrg = salesOrg_t;
+transactionType = qq_ntTransactionType_t;
+materialGroup = "";
+materialGroupText = "";
+
+expandedLineIds = split(expandedLineIds_t, ",");
+newExpandedLineIds = expandedLineIds_t;
+xmlPlanLineItems = string[] {
+    "/soapenv:Envelope/soapenv:Body/bm:configureResponse/bmt:transaction/bmt:data_xml/bmt:transaction/bmt:sub_documents/bmt:transactionLine"
+};
+
+xPathList = string[] {
+    "/bmt:transactionLine/@bm:data_type",
+    "/bmt:transactionLine/bm:_document_number",
+    "/bmt:transactionLine/bm:materialPricingGroup_l",
+    "/bmt:transactionLine/bm:materialPricingGroupShortDescription_l"
+};
+
+// get customer part numbers of all parts
+customerNumbers =json();
+//Checking BusinessGroup for given current SalesOrg
+bizGroupFlag = util.checkBizGroupCondition("truncateMPG", transactionType , salesOrg);
+
+for line in transactionLine {
+    part = line.materialLineItem_l;
+    partData = jsonget(customerNumbers, part, "string", "");
+
+    // UOM
+    itemJson = json();
+    jsonput(itemJson, "MATNR", part);
+    jsonput(itemJson, "lang", salesRepLanguage_t);
+    records = util.getMAT01Details(itemJson);
+
+    if (line._parent_doc_number == "") {
+        put(allAddedMPGs, line.materialPricingGroup_l, line._document_number);
+        put(allMPGDocNums, line._document_number, line.materialPricingGroup_l);
+        if(bizGroupFlag){
+            put(allMPGDocNumsTexts, line._document_number, line.materialPricingGroupFullText_l);
+        }
+        //Store MPG Details
+        lineDetails = json();
+
+        //  We can't tell the discount was a blank because float attributes won't return 0.0 when set to blank
+        //  so let's use the customDiscountType field to see if we should be setting it to a blank?
+        //  Otherwise, everything that was blanks will now come back set to zero and be sent to SAP as 0% discount.
+       
+		jsonput(lineDetails, "discountString", line.discountString_l); // New discount(string) attribute to hold blank
+        jsonput(lineDetails, "discountType", line.customDiscountType_l);
+        // //put the bonus group information on the MPG line as well
+        put(mpgLineDetails, line.materialPricingGroup_l, jsontostr(lineDetails));
+    } else {
+
+        if ((NOT line.sAPDeletionFlag_l AND action == "delete") OR action == "add" OR action == "addNewItem") { // Not include deleted items
+            //Store part details in json format
+            lineDetails = json();
+            jsonput(lineDetails, "discountString", line.discountString_l); // New discount(string) attribute to hold blank
+            jsonput(lineDetails, "discountType", line.customDiscountType_l);
+            jsonput(lineDetails, "qty", line.quantity_l);
+            jsonput(lineDetails, "scaleFrom", line.scaleFrom_l);
+            jsonput(lineDetails, "scaleTo", line.scaleTo_l);
+            jsonput(lineDetails, "scale", line.scale_l);
+			// BONUS GROUP
+            // CUSTOMER NUMBER
+            jsonput(lineDetails, "customerNumber", partData);
+            // UOM
+            jsonput(lineDetails, "UOM", jsonget(records, "MEINS", "string", ""));
+            // Current List Price
+            jsonput(lineDetails, "oldDiscount", line.oldDiscountString_l);
+
+            // // NEWITEM Related Fields
+			// 01/22/2018 use existing value in the current line not the value from the header
+			// TODO: should add a line type for (new item, eto, normal, configuration). Only copy this if line type is new item
+            jsonput(lineDetails, "newItemPricingGroup", line.qq_NewItem_PricingGroup_l);
+            jsonput(lineDetails, "newItemProductLine", line.qqProductLine_l);	// TODO: Shibaji, is this correct or there is a different line attribute
+            jsonput(lineDetails, "newItemNetPrice", string(line.oldListPrice_l));  // Shibaji, please confirm if this is the right value
+            jsonput(lineDetails, "newItemProposedMaterialNum", line.qqProposedMaterialNumber_l);
+            jsonput(lineDetails, "newItemNotes", line.qqNotes_l);
+            parentDocNum = line._parent_doc_number;
+            MPG = get(allMPGDocNums, parentDocNum);
+            allAddedMLIs = dict("anytype");
+            if (containskey(allMLIs, MPG)) {
+                allAddedMLIs = get(allMLIs, MPG);
+            }
+            addCount = 0;
+            if (containskey(allAddedMLIs, line.materialLineItem_l)) {
+                addCount = get(allAddedMLIs, line.materialLineItem_l, "integer");
+            }
+            addCount = addCount + 1;
+            put(allAddedMLIs, line.materialLineItem_l, addCount);
+            put(discountDict, line.materialLineItem_l + ":" + string(addCount), jsontostr(lineDetails)); // send details of each line with key of (Part:Count)
+            put(allMLIs, MPG, allAddedMLIs);
+        } else { //deleted items 
+            parentDocNum = line._parent_doc_number;
+            MPG = get(allMPGDocNums, parentDocNum); //store deleted MPG's
+            put(allDeletedMPGs, MPG, MPG);
+            if(bizGroupFlag){
+                if(containskey(allMPGDocNumsTexts,parentDocNum)){
+                    MPGtext = get(allMPGDocNumsTexts, parentDocNum);
+                    put(allDeletedMPGsTexts,MPG,MPGtext);
+                }                
+            }            
+        }
+    }
+}
+
+
+if (action == "add" OR action == "addNewItem") {
+    currentSMI = currentSelectedMaterialItems_t;
+    quickItems = quickItem_t;
+    mliCount = dict("integer");
+    if (quickItems <> "") {
+        allQuickItems = string[];
+        splitQuick = split(quickItems, ",");
+        for eachQuick in splitQuick {
+            if (NOT startswith(eachQuick, "(ERROR) - ")) {
+                count = 0;
+                if (containskey(mliCount, eachQuick)) {
+                    count = get(mliCount, eachQuick);
+                }
+                count = count + 1;
+                put(mliCount, eachQuick, count);
+                append(allQuickItems, eachQuick);
+            }
+        }
+
+        materialGroupMPGBoolean = util.checkBizGroupCondition("materialGroupMPG", transactionType, salesOrg);
+        materialGroupMG5Boolean = util.checkBizGroupCondition("materialGroupMG5", transactionType, salesOrg);
+        materialGroupPH5Boolean = util.checkBizGroupCondition("materialGroupPH5", transactionType, salesOrg);
+
+        bmqlItems = BMQL("SELECT DISTINCT MATNR,MVGR5,MPG,PH5,LVORM FROM MAT01 WHERE ( MATNR IN $AllQuickItems AND VKORG = $salesOrg )");
+        for eachMLI in bmqlItems {
+            matnr = get(eachMLI, "MATNR");
+           
+		   //Checking which material group to consider, based on Business Group conditions :util.checkBizGroupCondition
+           if(materialGroupMPGBoolean){
+            materialGroup = get(eachMLI,"MPG");
+           }
+           if(materialGroupMG5Boolean){
+            materialGroup = substring(get(eachMLI, "MVGR5"), 1);
+           }
+           if(materialGroupPH5Boolean){
+            materialGroup = get(eachMLI,"PH5");
+            if(bizGroupFlag){
+                materialGroupText = get(eachMLI,"PH5");
+                materialGroup = substring(materialGroupText,9,12);
+            }
+           }
+            //Y8-1314337$,$S13#@#Y8-1314372$,$S13
+            count = 1;
+            if (containskey(mliCount, matnr)) {
+                count = get(mliCount, matnr);
+            }
+            loopCNT = range(count);
+            for eachCNT in loopCNT {
+                if (currentSMI <> "") {
+                    currentSMI = currentSMI + "#@#";
+                }
+               currentSMI = currentSMI + matnr + "$,$" + materialGroup + "$,$" + materialGroupText;
+            }
+        }
+    }
+
+    splitRows = split(currentSMI, rowSep);
+    for eachRow in splitRows {
+        splitSMI = split(eachRow, colSep);
+        materialLineItem = splitSMI[0];
+        materialPricingGroup = splitSMI[1];
+        materialPricingGroupFullString = splitSMI[2];
+
+        if (NOT containskey(allToAddMPGs, materialPricingGroup)) {
+            put(allToAddMPGs, materialPricingGroup, materialPricingGroup);
+            put(allToAddMPGTexts, materialPricingGroup, materialPricingGroupFullString);
+        }
+        allToAddMLIs = dict("anytype");
+        if (containskey(allMLIs, materialPricingGroup)) {
+            allToAddMLIs = get(allMLIs, materialPricingGroup);
+        }
+        addCount = 0;
+        if (containskey(allToAddMLIs, materialLineItem)) {
+            addCount = get(allToAddMLIs, materialLineItem, "integer");
+        }
+        addCount = addCount + 1;
+        put(allToAddMLIs, materialLineItem, addCount);
+        put(allMLIs, materialPricingGroup, allToAddMLIs);
+
+
+		    // // NEWITEM Related Fields
+			// 01/22/2018 newly added NEW ITEM's data should be added to the adding lines,  there should only be one row in currentSMI for create new line item 
+        if( action == "addNewItem") {
+            lineDetails = json();
+            // // NEWITEM Related Fields
+            jsonput(lineDetails, "newItemPricingGroup", qq_NewItem_PricingGroup_t);
+            jsonput(lineDetails, "newItemProductLine", qq_NewItem_ProductLine_t);
+            jsonput(lineDetails, "newItemNetPrice", string(qq_NewItem_NetPrice_t));
+            jsonput(lineDetails, "newItemProposedMaterialNum", qq_NewItem_ProposedMaterialNum_t);
+            jsonput(lineDetails, "newItemNotes", qq_NewItem_Notes_t);
+            put(discountDict, materialLineItem + ":" + string(addCount), jsontostr(lineDetails)); // send details of each 
+		}
+
+	}
+}
+inputDict = dict("string");
+
+//  Reset the flags so things don't try to run over and over again...
+put(inputDict, "sessionID", _system_user_session_id);
+put(inputDict, "bsID", bs_id);
+put(inputDict, "siteID", _system_supplier_company_name);
+
+toAddGroups = keys(allToAddMPGs);
+toAddGroupsTexts = keys(allToAddMPGTexts);
+//check for deletion when no new groups added
+if (trim(currentSMI) == ""
+    OR trim(currentSMI) == "null") {
+    toAddGroups = keys(allDeletedMPGs); //keys(allAddedMPGs);
+    toAddGroupsTexts = keys(allDeletedMPGsTexts);
+}
+sortedGroups = sort(toAddGroups, "asc", "text");
+sortedGroupsTexts = sort(toAddGroupsTexts, "asc", "text");
+
+for mpgID in sortedGroups {
+    put(inputDict, "mpgID", mpgID);
+    if(containskey(allToAddMPGTexts,mpgID)){
+        put(inputDict, "mpgIDFullText", get(allToAddMPGTexts,mpgID)); 
+    }  
+
+    toAddItems = dict("anytype");
+    if (containskey(allMLIs, mpgID)) {
+        toAddItems = get(allMLIs, mpgID);
+    }
+
+    //get Material Group data
+    mpgData = util.getStringDict(mpgLineDetails, mpgID, "{}");
+    packedItems = "";
+    addItems = keys(toAddItems);
+    sortedItems = sort(addItems, "asc", "text");
+    //Not sorting items
+    for eachSortedItem in sortedItems {
+        addCount = get(toAddItems, eachSortedItem, "integer");
+        loopCNT = range(addCount);
+        for eachAdd in loopCNT {
+            if (packedItems <> "") {
+                packedItems = packedItems + "$,$";
+            }
+            //get discount  
+            discount = util.getStringDict(discountDict, eachSortedItem + ":" + string(eachAdd + 1), "{}");
+            packedItems = packedItems + eachSortedItem + "^&^" + discount; 
+        }
+    }
+    put(inputDict, "materialItemsList", packedItems);
+    put(inputDict, "mpgLineDetails", mpgData);
+    inputDocNumber = "";
+    if (containskey(allAddedMPGs, mpgID)) {
+        inputDocNumber = get(allAddedMPGs, mpgID);
+    }
+    put(inputDict, "documentNumber", inputDocNumber);
+
+logStatus = util.u_logStringDict("COM_ADD_MAT_LINE_ITEM", 4, inputDict, "###383");
+
+    mpgADDResponse = "";
+    if (webServices) {
+        mpgADDResponse = util.addMPG(inputDict); 
+    }
+
+    if (findinarray(expandedLineIds, inputDocNumber) == -1) {
+        newExpandedLineIds = newExpandedLineIds + inputDocNumber + ",";
+    }
+
+}
+
+put(inputDict, "expandedLineIds", newExpandedLineIds);
+updateIdsResponse = "";
+if (webServices) {
+    updateIdsResponse = util.updateExpandedLines(inputDict);
+}
+logStatus = util.u_logString("COM_ADD_MAT_LINE_ITEM", 4, "********* Exiting Add Material Line Items Commerce Util ***********", "<");
+
+return "";

@@ -1,0 +1,14 @@
+{
+  "name" : "Process Create Quote Response",
+  "variableName" : "processCreateQuoteResponse",
+  "description" : "",
+  "libraryFunctions" : [ "util.getStringDict", "util.stringToFloat" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "lineNumber_l", "coperSurcharge_l", "silverSurcharge_l", "aluminumSurcharge_l", "taxAmount1_l", "taxAmount2_l", "taxAmount3_l", "taxAmount4_l", "taxAmount5_l" ],
+  "mainDocAttributes" : [ "qqSAPCreateQuoteStatus_t", "qqSAPCreateQuoteStatusMessage_t", "qqSAPQuoteNumber_t", "transactionNumber_t", "qqSAPResult_t", "currency_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ "_system_user_time_zone" ]
+}

@@ -1,0 +1,12 @@
+{
+  "name" : "Get Regions for Countries",
+  "variableName" : "getRegionsForCountries",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "countries",
+    "type" : "String[]"
+  } ],
+  "attributes" : [ ]
+}

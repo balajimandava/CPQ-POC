@@ -1,0 +1,14 @@
+{
+  "name" : "Get Net Price",
+  "variableName" : "getNetPrice",
+  "description" : "Sends CPQ data to an external destination (SOA) for net prices",
+  "libraryFunctions" : [ "commerce.buildCreateQuoteXML", "util.getEnvironmentVariable" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

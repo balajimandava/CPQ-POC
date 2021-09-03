@@ -1,0 +1,38 @@
+/**
+@name Get Environment Variable
+@api getEnvironmentVariable
+@summary Retrieves an environment variable value, based on the '_site_url' of the CPQ environment, and the variable key supplied. 
+
+If no environment-specific variable is defined, will attempt to use a global variable. 
+
+If no global variable is defined, will use the default value provided as a parameter.
+@param key String
+@param defaultValue String
+@function String getSupplierCompanyName()
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+12/07/2017|apatterson           |Initial version
+2018-01-03|Tat.Leung            |Updated logic to use company name from _site_url to support disti users.
+2018-01-05|Tat.Leung            |
+*/
+// Set up return string 
+returnValue = "";
+companyName = util.getSupplierCompanyName();
+
+// Attempt to retrieve value from data table
+rows = bmql("SELECT Value FROM EnvironmentVariables WHERE Key = $key AND (Environment = $companyName OR Environment IS NULL) ORDER BY Environment DESC");
+for row in rows {
+    returnValue = get(row, "Value");
+    break; // Only use the first value returned
+}
+
+// Display warning if lookup fails
+if (returnValue == "") {
+    print "WARNING: Unable to find environment variable '" + key + "'";
+    returnValue = defaultValue;
+}
+
+// Return value
+return returnValue;

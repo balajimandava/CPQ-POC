@@ -1,0 +1,12 @@
+{
+  "name" : "Get Bonus Groups",
+  "variableName" : "getBonusGroups",
+  "description" : "Returns the bonus groups for each specific customer",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "customerInfo",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

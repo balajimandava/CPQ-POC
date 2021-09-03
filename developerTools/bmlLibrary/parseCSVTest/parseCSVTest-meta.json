@@ -1,0 +1,21 @@
+{
+  "name" : "Parse CSV Test",
+  "variableName" : "parseCSVTest",
+  "description" : "This util is added for CSV upload performance testing. This will be removed after testing.",
+  "libraryFunctions" : [ "util.countOccurrences" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "quoteCurrencyDecimalSeparator",
+    "type" : "String"
+  }, {
+    "name" : "fileContentDict",
+    "type" : "Anytype Dictionary"
+  }, {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  }, {
+    "name" : "testDict",
+    "type" : "String[] Dictionary"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,12 @@
+{
+  "name" : "Get Default Valid To Date - PSD",
+  "variableName" : "getDefaultValidToDate_psd",
+  "description" : "",
+  "libraryFunctions" : [ "util.u_addToDate" ],
+  "returnType" : "Date",
+  "parameters" : [ {
+    "name" : "inputParamDict",
+    "type" : "Anytype Dictionary"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,202 @@
+/***********************************************
+
+@Revision
+(YYYY/MM/DD)	
+Date			Name				Comments
+2018/08/02		Harshit Mehta		Defect# 1187 : Use salesOrg_t attribute instead of preparedBySalesOrg_t.	
+2018/08/31		Harshit Mehta		Defect# 1273 : Set net pricing attribute.
+2018/09/19		Harshit Mehta		Defect# 1427 : Cleanup for header and footer address information.
+2018/10/10              Sharath A               Defect# 1470 : Bank Details each details in new line  
+2018/10/29              Sharath A               Defect# 1187 : Account Details each details in new line  
+2020/10/13              Gautam                  CPQ-3004 : Changes in header of output doc//https://eaton123.atlassian.net/browse/CPQ-3004
+2021/01/29              Neha                    CPQ-4086 : New datatable column for FooterOutput for Sales Org 4942.
+************************************************/
+
+retStr = "";
+salesOrg = salesOrg_t;
+header = true;
+footer = true;
+addressDelimiter = "\n";
+bankDelimiter = "\n";
+headerAddressAttr = "";
+headerTelephone = "";
+footerBusinessInfoArr = string[]; 
+footerRegistrationInfoArr = string[];
+footerBankCodesArr = string[];
+footerLegalArr = string[];
+businessInfoStr = "";
+registrationInfoStr = "";
+bankCodesStr = "";
+legalStr = "";
+cityDelimiter = ",";
+
+
+if(header){
+    headerRecordSet = BMQL("SELECT Name,Name2,Street,Street2,City,State,Country,PostalCode,Telephone,Fax FROM HeaderOutput WHERE SalesOrg = $salesOrg");
+		
+	//Declare local variable
+	headerName = "";
+	headerName2 = "";
+	headerStreet = "";
+	headerStreet2 = "";
+	headerCity = "";
+	headerState = "";
+	headerCountry = "";
+	headerPostalCode = "";
+	headerTelephone = "";
+	headerFax = "";
+	for each in headerRecordSet {
+		headerName = get(each,"Name");
+		headerName2 = get(each,"Name2");
+		headerStreet = get(each,"Street");
+		headerStreet2 = get(each,"Street2");
+		headerCity = get(each,"City");
+		headerState = get(each,"State");
+		headerCountry = get(each,"Country");
+		headerPostalCode = get(each,"PostalCode");
+		headerTelephone = get(each,"Telephone");
+		headerFax = get(each,"Fax");   
+		break;
+	}
+	headerAddressAttr  = headerName;
+	
+	if(headerName2 <> "")
+	{
+		headerAddressAttr = headerAddressAttr + addressDelimiter + headerName2;
+	}
+	if(headerStreet <> "")
+	{
+		headerAddressAttr = headerAddressAttr + addressDelimiter + headerStreet ;
+	}
+	if(headerStreet2 <> "")
+	{
+	        
+		headerAddressAttr = headerAddressAttr + addressDelimiter + headerStreet2 ;
+	}
+	
+	//CPQ-3004
+	headerAddressAttr = headerAddressAttr + addressDelimiter ;
+	if(headerCity <> "")
+	{
+		headerAddressAttr = headerAddressAttr + headerCity + cityDelimiter;
+	}
+	if(headerState <> "")
+	{
+		headerAddressAttr = headerAddressAttr + headerState + " ";
+	}
+	if(headerPostalCode <> "")
+	{
+		headerAddressAttr = headerAddressAttr + headerPostalCode + " ";
+	}
+	if(headerCountry <> "")
+	{
+		headerAddressAttr = headerAddressAttr + headerCountry;
+	}
+	
+	
+	
+	
+	
+	/*
+	if(headerCity <> "")
+	{
+		headerAddressAttr = headerAddressAttr + addressDelimiter + headerCity;
+	}
+	if(headerState <> "")
+	{
+		headerAddressAttr = headerAddressAttr + addressDelimiter + headerState;
+	}
+	if(headerCountry <> "")
+	{
+		headerAddressAttr = headerAddressAttr + addressDelimiter + headerCountry;
+	}
+	if(headerPostalCode <> "")
+	{
+		headerAddressAttr = headerAddressAttr + addressDelimiter + headerPostalCode;
+	}*/
+	
+}    
+
+if(footer){
+
+    footerRecordSet = BMQL("SELECT BusinessInfo,RegistrationInfo,BankCodes,Legal FROM FooterOutput WHERE SalesOrg = $salesOrg AND (Language IS NULL OR Language = $outputLanguage_t)");
+
+       for each in footerRecordSet {
+            footerBusinessInfo = get(each,"BusinessInfo");
+			if(footerBusinessInfo <> "")
+			{
+				append(footerBusinessInfoArr,footerBusinessInfo);
+			}
+            footerRegistrationInfo = get(each,"RegistrationInfo");
+			if(footerRegistrationInfo <> "")
+			{
+				append(footerRegistrationInfoArr,footerRegistrationInfo);
+			}
+            footerBankCodes = get(each,"BankCodes");
+			if(footerBankCodes <> "")
+			{
+				append(footerBankCodesArr,footerBankCodes);
+			}
+             footerLegal = get(each,"Legal");
+			if(footerLegal <> "")
+			{
+				append(footerLegalArr,footerLegal);
+			}
+        }
+        
+         
+        businessInfoSize = sizeofarray(footerBusinessInfoArr);
+        businessInfoRange = range(businessInfoSize);
+        registrationInfoSize = sizeofarray(footerRegistrationInfoArr);
+        registrationInfoRange = range(registrationInfoSize);
+        bankCodesInfoSize = sizeofarray(footerBankCodesArr);
+        bankCodesInfoRange = range(bankCodesInfoSize); 
+        legalInfoSize = sizeofarray(footerLegalArr);
+        legalInfoRange = range(legalInfoSize ); 
+        
+        for each in businessInfoRange {
+            businessInfoStr = businessInfoStr + footerBusinessInfoArr[each] ; 
+            if(each <> businessInfoSize-1) // For last position in array no need to add delimiter.
+            {
+            	businessInfoStr = businessInfoStr + addressDelimiter;
+            }
+        }  
+
+        for each in registrationInfoRange {
+            registrationInfoStr = registrationInfoStr + footerRegistrationInfoArr[each];
+			if(each <> registrationInfoSize-1) // For last position in array no need to add delimiter.
+			{
+				registrationInfoStr = registrationInfoStr + addressDelimiter;
+			}
+        }       
+
+        for each in bankCodesInfoRange {
+            bankCodesStr = bankCodesStr + footerBankCodesArr[each] ;
+			if(each <> bankCodesInfoSize-1) // For last position in array no need to add delimiter.
+			{
+			      //Sharath: Added this condition to fix the Def # 1470. Added on 10/10/2018	    
+		              bankCodesStr = bankCodesStr + bankDelimiter;	            	 
+			}
+        }
+        // Neha: 29 Jan 2021: CPQ-4086 : new datatable column
+        for each in legalInfoRange {
+            legalStr = legalStr + footerLegalArr[each] ;
+			if(each <> legalInfoSize -1) // For last position in array no need to add delimiter.
+			{
+			      //Sharath: Added this condition to fix the Def # 1470. Added on 10/10/2018	    
+		              legalStr = legalStr  + bankDelimiter;	            	 
+			}
+        }        
+    
+}
+
+//Commenting this as it would be added as part of Defect# 1202 implementation. Which is related to set default value of different attributes.    
+retStr = "1~outputHeaderAddress_t~" + headerAddressAttr + "|";
+retstr = retStr + "1~outputHeaderPhone_t~" + headerTelephone + "|";
+retStr = retStr + "1~outputFooterBusinessLocation_t~" + businessInfoStr + "|";
+retStr = retStr + "1~outputFooterRegistrationInfo_t~" + registrationInfoStr + "|";
+retStr = retStr + "1~outputFooterBankDetails_t~" + bankCodesStr + "|";
+retStr = retStr + "1~outputFooterLegalDetails_t~" + legalStr + "|";
+
+
+return retStr;

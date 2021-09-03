@@ -1,0 +1,88 @@
+/**
+@name       Get Default Valid To Date - PSD
+@api        getDefaultValidToDate_psd
+@summary    Anytype Dictonary will read the key from inputParamDict and adds the provided dateRange in validFromDate to return defaultValidToDate.
+@param      Anytype Dictionary
+@return     Date
+@revision
+Rev. Date | Developer         | Notes / Comments
+----------|-------------------|-------------------------------------------------------------------------
+03/02/2020| Vijetha Narendra  | Initial version
+18/02/2020| Priyanka Kumari   | Optimized existing logic to use <Anytype Dictonary>
+
+*/
+
+
+salesDist = "";
+if(containskey(inputParamDict,"salesDistrict")){ //Read salesDistrict from inputParamDict dictionary
+	if(get(inputParamDict,"salesDistrict","string")<>""){
+		salesDist = get(inputParamDict,"salesDistrict","string");
+	}
+	else{
+		salesDist = "NA";
+	}
+}
+
+transactionType = "";
+if(containskey(inputParamDict,"TransactionType")){ //Read TransactionType from inputParamDict dictionary
+	if(get(inputParamDict,"TransactionType","string")<>""){
+		transactionType = get(inputParamDict,"TransactionType","string");
+		
+	}
+}
+
+salesOrg = "";
+if(containskey(inputParamDict,"SalesOrg")){ //Read SalesOrg from inputParamDict dictionary
+	if(get(inputParamDict,"SalesOrg","string")<>""){
+		salesOrg = get(inputParamDict,"SalesOrg","string");
+	}
+}
+type = "";
+if(containskey(inputParamDict,"type")){ //Read salesDistrict from inputParamDict dictionary
+	if(get(inputParamDict,"type","string")<>""){
+		type = get(inputParamDict,"type","string");
+	}
+	else{
+		type = "NA";
+	}
+}
+validFromDate = getdate(); // Get current date
+if(containskey(inputParamDict,"validFrom")){ //Read validFrom from inputParamDict dictionary. It returns date type value
+	if(NOT isnull(get(inputParamDict,"validFrom","date"))){
+		validFromDate = get(inputParamDict,"validFrom","date");
+	}
+}
+
+
+dateRange = 60;
+dateType = "DAYS";
+validRangeRS = recordset();
+if(transactionType == "BA")
+{
+validRangeRS = bmql("select ValidDateRange, Type from ValidDateRange where TransactionType = $transactionType and SalesOrg = $salesOrg AND SalesDistrictCode = $salesDist AND Type = $type");
+print validRangeRS;
+}
+else
+{
+validRangeRS = bmql("select ValidDateRange, Type from ValidDateRange where TransactionType = $transactionType and SalesOrg = $salesOrg AND SalesDistrictCode = $salesDist");
+}
+for row in validRangeRS {
+	if( isnumber( get(row, "ValidDateRange") ) ) {
+		dateRange = atoi(get(row, "ValidDateRange"));
+		type = get(row, "Type");
+		if(type == "Y") {
+			dateType = "YEARS";
+		} elif (type == "M") {
+			dateType = "MONTHS";
+		} elif (type == "D") {
+			dateType = "DAYS";
+		}
+		break;
+	}
+}
+print validFromDate;
+print dateType;
+print dateRange;
+defaultValidToDate = util.u_addToDate(validFromDate, dateType, dateRange); //Add to date util adds the provided dateRange using dateType
+print defaultValidToDate;
+return defaultValidToDate;

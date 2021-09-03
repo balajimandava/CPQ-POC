@@ -1,0 +1,100 @@
+//************************************************************************************************************
+//** Function:    Common function to build constraints for Distribution Channel attribute
+//**
+//** Description: Project#49074|Eagle Development
+//**
+//** Return type: Dictionary of String Dictionaries
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              20-Feb-2020   Rahul Uttarwar  Initial version, created based on the code review comments.
+//**              18-Mar-2020   Rahul Uttarwar  For ALM#2766
+//**              21-Jul-2020   Neha Singh	  	Update for Project 51951
+//**              15-Oct-2020   Vasundhara Pentakota  	Update for Project 50986
+//************************************************************************************************************
+
+sSalesOrg = get(inParams, "sSalesOrg");
+sDistributonChannel = get(inParams, "sDistributonChannel");
+sDistributonChannelVal = get(inParams, "sDistributonChannelVal");
+
+// create the outer dictionary
+attributeDict = dict("dict<string>");
+
+// ************ message/operator/value format ************
+
+// inner dictionary for attr1
+attr1ActionDict = dict("string");
+
+// assembling the constraint action
+put(attr1ActionDict, BM_CM_RULES_OPERATOR, "allow");
+
+print "_system_user_groups";
+print _system_user_groups;
+eNumber = owner_t;
+
+salesUserBMQL = recordset();
+
+/*Neha: 21 July 2020 : Bussmann Project 51951 - CPQ 575,576* - Added AND condition*/
+currUserArray = split(_system_user_groups, "+");
+if(findinarray(currUserArray,"distributor") > -1 OR findinarray(currUserArray,"nonPricingCustomer") > -1 OR
+   findinarray(currUserArray,"siemens") > -1 OR  findinarray(currUserArray,"legacyEaton") > -1 OR  findinarray(currUserArray,"legacyEatonPSD") > -1)
+{
+	salesUserBMQL = bmql("SELECT DISTINCT VTWEG FROM UserCustomerLookup WHERE UserId = $_system_user_login");
+} //End of changes for 51951
+elif (isDistiQuote_t) {
+    salesUserBMQL = bmql("SELECT DISTINCT VTWEG FROM CUSMAS WHERE KUNNR = $_system_company_name and VKORG = $sSalesOrg");
+} elif (isVendorQuote_t) {
+	kunnr = substring (_system_company_name, 1 );
+    salesUserBMQL = bmql("SELECT DISTINCT VTWEG FROM CUSMAS WHERE KUNN2 = $kunnr and VKORG = $sSalesOrg");
+}
+else {
+    salesUserBMQL = bmql("SELECT DISTINCT VTWEG FROM UserCustomerLookup WHERE UserId = $eNumber and VKORG = $sSalesOrg");
+}
+print "salesUserBMQL  is " ;
+print salesUserBMQL ;
+
+distiChannelArr = string[];
+
+//Vasundhara 15 Oct 2020 : Set flag and distribution channel for Promotional Pricing Transaction type
+promotionalPricingDistChannel = "";
+setPromotionalFlag = false;
+if(qq_ntTransactionType_t == "PP"){
+	promotionalPricingDistChannel = "20";
+	setPromotionalFlag = true;
+}
+
+for eachUser in salesUserBMQL {
+    distiChannel = get(eachUser, "VTWEG");
+    if (findinarray(distiChannelArr, distiChannel) == -1) {
+		if(setPromotionalFlag){ //Vasundhara 15 Oct 2020 : Added if condition for Promotional Pricing, it should allow only 20 Distribution channel
+			if(promotionalPricingDistChannel == distiChannel){
+				append(distiChannelArr, distiChannel);
+			}
+		}else{
+			append(distiChannelArr, distiChannel);
+		}
+    }
+}
+
+if(sDistributonChannelVal <> "" AND not isnull(sDistributonChannelVal)){ //for ALM#2766 -Rahul
+	if(setPromotionalFlag){ //Vasundhara 15 Oct 2020 : Added if condition for Promotional Pricing, it should allow only 20 Distribution channel
+		if(promotionalPricingDistChannel == sDistributonChannelVal){
+			append(distiChannelArr, sDistributonChannelVal);
+		}
+	}else{
+		append(distiChannelArr, sDistributonChannelVal);
+	}
+}
+
+distiChannelStr = join(distiChannelArr, "~");
+put(attr1ActionDict, BM_CM_RULES_VALUES, distiChannelStr);
+put(attr1ActionDict, BM_CM_RULES_MESSAGE, "Select a Distribution Channel...");
+
+// adding the optional message location key
+put(attr1ActionDict, BM_CM_RULES_LOCATION, "Attribute");
+
+// put the inner dictionary into the outer dictionary
+put(attributeDict, sDistributonChannel , attr1ActionDict);
+print attributeDict;
+// return the outer dictionary
+return attributeDict;

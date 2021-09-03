@@ -1,0 +1,149 @@
+/**
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2019-01-30|Pooja Gupta          |ALM 1648 -Code to update child transaction value on Exipire and Renew for ESEMEA
+2019-08-09|Pooja Gupta 		|ALM 1648- Added code to set expireandrenew_t for reporting
+2020-09-14|Pooja Gupta		|Zilliant - Added logic to upate list price on ER
+2020-09-14|Pooja Gupta		|Zilliant - Added logic to populate book price date on ER
+2021-04-09|Anita Thakur		|INC000014272715 - Added code to populate Created by details on ER
+*/
+
+siteID = _system_supplier_company_name;
+user = util.getSiteSpecificData(siteID);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+newTransactionId=jsonget(jsonChild,"newTransactionId");
+newValidFromDateString="";
+//Defaulting logic for ESEMEA in case of expire and renew
+retDt =agreementValidFrom_t;
+currentMonth=substring(datetostr(strtojavadate(_system_date, "yyyy-MM-dd"),"yyyy-MM-dd"),5,7);
+validToMonth=substring(datetostr(strtojavadate(agreementValidTo_t, "yyyy-MM-dd"),"yyyy-MM-dd"),5,7);
+validYear=substring(datetostr(strtojavadate(agreementValidTo_t, "yyyy-MM-dd"),"yyyy-MM-dd"),0,4);
+currentYear=substring(datetostr(strtojavadate(_system_date, "yyyy-MM-dd"),"yyyy-MM-dd"),0,4);
+print currentYear;
+if(validToMonth==currentMonth AND validYear==currentYear)
+{
+	retDt= substring(agreementValidTo_t,0,8) +"01 00:00:00";
+	print retDt;
+}
+else
+{
+if(comparedates(strtojavadate(agreementValidFrom_t, "yyyy-MM-dd"),strtojavadate(_system_date, "yyyy-MM-dd"))==1)
+{
+retDt =agreementValidFrom_t;
+}
+else
+{
+validFromDate= strtojavadate(_system_date, "yyyy-MM-dd");
+newValidFromDateESEMEA = util.u_addToDate(validFromDate,"MONTHS",1);
+newValidFromDateString= datetostr(newValidFromDateESEMEA,"yyyy-MM-dd");
+//retDt = substring(newValidFromDateString,0,3) +"01"+ substring(newValidFromDateString,5,10)+" 00:00:00";
+retDt = substring(newValidFromDateString,0,8) +"01 00:00:00";
+print retDt;
+}
+}
+//Price Call
+priceDict = dict("string");
+salesOrg = salesOrg_t;
+distributionChannel = distributionChannel_t;
+currency = currency_t ;
+transactionType = transactionType_t;
+newValidFrom= substring(retDt,0,10);
+currentDateNew = datetostr(strtojavadate(newValidFrom,"yyyy-MM-dd",_system_user_time_zone),"yyyy-MM-dd",_system_user_time_zone);
+print "***********";
+print currentDateNew;
+
+if(bookPriceDate_t<>"")
+{
+	bookPriceDate= substring(bookPriceDate_t,0,10);
+	currentBD = datetostr(strtojavadate(bookPriceDate,"yyyy-MM-dd",_system_user_time_zone),"yyyy-MM-dd",_system_user_time_zone);
+	put(priceDict,"currentDate",currentBD);	
+}
+else
+{
+put(priceDict,"currentDate",currentDateNew );		
+}
+put(priceDict,"salesOrg",salesOrg);
+put(priceDict,"distributionChannel",distributionChannel);
+put(priceDict,"currency",currency);
+put(priceDict,"business",qqBusinessLineForSalesOrg_t);// Added to query as per business
+lineitemXML="";
+
+	
+siteID = _system_supplier_company_name;
+
+document = json();
+items = jsonarray();
+
+
+
+
+
+jsonput(document,"agreementValidFrom_t",retDt);
+jsonput(document,"agreementValidTo_t",agreementValidTo_t);
+if(bookPriceDate_t<>"")
+{
+	jsonput(document,"bookPriceDate_t",bookPriceDate_t);
+}
+jsonput(document,"expireAndRenewFlag_t","true");
+jsonput(document,"previousUser_t",previousUser_t);
+jsonput(document,"expireandrenew_t","true");
+jsonput(document,"agreementWarningMessages_t","");
+// ----- INC000014272715  Changes Start ----- //
+jsonput(document,"owner_t",_system_user_login);
+jsonput(document,"preparedByName_t",_system_user_name);
+jsonput(document,"createdBy_t",_system_user_name);
+title="";
+salesUserRS=bmql("Select Title from SalesTeams where eNumber=$_system_user_login");
+for salesUser in salesUserRS{
+	title=get(salesUser, "Title");
+}
+jsonput(document,"preparedByTitle_t",title);
+jsonput(document,"preparedByPhone_t",_system_user_phone);
+jsonput(document,"preparedByEmail_t",_system_user_email);
+
+// ----- INC000014272715  Changes End ----- //
+for line in transactionLine {
+	newJson = json();    
+	put(priceDict,"materialNo",line.materialLineItem_l);
+	put(priceDict, "UOM", line.uOM_l);
+	priceJson = util.getListPrice(priceDict);
+	listPrice = jsonget(priceJson, "CurrentPrice","float", 0.00);
+	print "prices";
+	print listPrice ;
+	newListPrice = jsonget(priceJson, "FuturePrice","float", 0.00);
+	print newListPrice ;
+	jsonput(newJson, "_document_number", line._document_number);
+	//jsonput(newJson, "_sequence_number", line._sequence_number);
+	jsonput(newJson,"oldListPrice_l",string(listPrice));
+	jsonput(newJson,"newListPrice_l",string(newListPrice));
+	jsonarrayappend(items, newJson);
+}
+oldDateJson= json();
+agreementValidFrom= substring(agreementValidFrom_t,0,10);
+jsonput(oldDateJson,"Valid From",currentDateNew);
+currentoldPriceListDate="";
+/*
+if(oldPriceListDate_t<>""){
+currentoldPriceListDate = datetostr(strtodate(oldPriceListDate_t, "MM/dd/yyyy",_system_user_time_zone),"yyyy-MM-dd",_system_user_time_zone);
+}*/
+jsonput(oldDateJson,"Old Price Date",currentoldPriceListDate);
+jsonput(document,"oldDatesJson_t",jsontostr(oldDateJson));
+
+if(jsonarraysize(items) > 0) {
+	newJson = json();
+	jsonput(newJson, "items", items);
+	jsonput(document, "transactionLine", newJson); 
+	print "document JSON: "; print document;	
+}
+
+// Save transaction.
+actionJson = json();
+jsonput(actionJson,"siteID",siteID);
+jsonput(actionJson,"id",newTransactionId);
+jsonput(actionJson,"document", document);
+jsonput(actionJson,"actionName","apiSave_t");
+saveResponse = util.clickAnAction(actionJson);
+print "ER Call**";
+print saveResponse ;
+return "";

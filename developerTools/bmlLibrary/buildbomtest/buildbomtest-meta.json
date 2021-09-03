@@ -1,0 +1,21 @@
+{
+  "name" : "build bom test",
+  "variableName" : "buildbomtest",
+  "description" : "",
+  "libraryFunctions" : [ "util.enableDebugLog", "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.parseBidManBOM", "util.parseTestBOM", "util.u_logJson", "util.u_logString" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "selectedDocNumber",
+    "type" : "String"
+  }, {
+    "name" : "configExtraInfo",
+    "type" : "String"
+  }, {
+    "name" : "modelPath",
+    "type" : "String"
+  }, {
+    "name" : "bsId",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

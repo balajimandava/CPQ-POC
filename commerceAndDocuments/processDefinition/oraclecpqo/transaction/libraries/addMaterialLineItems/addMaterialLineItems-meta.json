@@ -1,0 +1,14 @@
+{
+  "name" : "Add Material Line Items",
+  "variableName" : "addMaterialLineItems",
+  "description" : "Logic to Add/Delete items\n2018-07-02 NOT USED",
+  "libraryFunctions" : [ "util.addMPG", "util.checkBizGroupCondition", "util.getBonus", "util.getMAT01Details", "util.getStringDict", "util.u_logJson", "util.u_logString", "util.u_logStringDict", "util.updateExpandedLines" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "paramsDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ "_parent_doc_number", "_document_number", "materialPricingGroup_l", "materialLineItem_l", "materialPricingGroupShortDescription_l", "discount_l", "customDiscountType_l", "quantity_l", "scale_l", "scaleFrom_l", "scaleTo_l", "sAPDeletionFlag_l", "discountString_l", "bonusGroup_l", "bonusGroupDiscount_t", "uOM_l", "oldDiscountString_l", "qq_NewItem_PricingGroup_l", "qqProductLine_l", "oldListPrice_l", "qqProposedMaterialNumber_l", "qqNotes_l", "materialPricingGroupFullText_l" ],
+  "mainDocAttributes" : [ "currentSelectedMaterialItems_t", "bs_id", "expandedLineIds_t", "quickItem_t", "salesOrg_t", "customerNumber_t", "salesRepLanguage_t", "qq_NewItem_PricingGroup_t", "qq_NewItem_ProductLine_t", "qq_NewItem_NetPrice_t", "qq_NewItem_ProposedMaterialNum_t", "qq_NewItem_Notes_t", "qq_ntTransactionType_t", "qq_NewItem_Cost_t" ],
+  "systemAttributes" : [ "_system_user_session_id", "_system_supplier_company_name" ]
+}

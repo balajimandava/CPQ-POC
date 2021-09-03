@@ -1,0 +1,14 @@
+{
+  "name" : "Build VC Data Items XML",
+  "variableName" : "buildVCDataItemsXML",
+  "description" : "Update POSEX value.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "quoteLine",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "externalConfigVCData_l", "lineNumber_l", "_sequence_number", "materialLineItem_l" ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

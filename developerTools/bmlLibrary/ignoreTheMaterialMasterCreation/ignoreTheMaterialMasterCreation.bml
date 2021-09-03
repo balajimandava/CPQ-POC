@@ -1,0 +1,8 @@
+//LIPE Brands To Ignore the Material Master Creation
+brands = string[]{"P44","P05","P68","P63","P54","P02","P60","P46","P47","P51","P22","P13","P14","P21","P49"};
+
+if(findinarray(brands, inputBrand) <> -1){
+	return true;
+}
+
+return false;

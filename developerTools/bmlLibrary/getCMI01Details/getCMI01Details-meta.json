@@ -1,0 +1,12 @@
+{
+  "name" : "Get CMI01 Details",
+  "variableName" : "getCMI01Details",
+  "description" : "This UTIL for now, queries for KDMAT value from CMI01 table.",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "partJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

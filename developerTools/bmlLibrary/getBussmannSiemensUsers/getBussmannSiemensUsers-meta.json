@@ -1,0 +1,9 @@
+{
+  "name" : "Get Bussmann Siemens Users",
+  "variableName" : "getBussmannSiemensUsers",
+  "description" : "This gets the list of users who belong to both Siemens SuperUser Group and Bussman Admin",
+  "libraryFunctions" : [ ],
+  "returnType" : "String[]",
+  "parameters" : [ ],
+  "attributes" : [ "_supplier_company_name" ]
+}

@@ -1,0 +1,68 @@
+/**
+@name Build Commerce Return Str From Json
+@api u_buildCommerceReturnStrFromJson
+@summary Build a commerce return string based on the attributes in a quote JSON object.  The structure 
+of the JSON is as follows.  It is the same JSON from the CPQ REST API.
+
+    { 
+        "quoteNumber_t": 123,
+        "quoteLevelAttribute_t": "value",
+        ...
+     	"items": [
+             {
+                 "_document_number": 2,
+                 "aQuoteLineAttr_l": "value",
+                 ...
+             },
+             {
+                 "_document_number": 3,
+                 "aQuoteLineAttr_l": "value1",
+                 ...
+             }
+             ...
+        ]
+    }
+
+If your function only accepts a JSON structure as input, there are some cases where you may need to pass
+in some additional parameters that should not be included in the Commerce return string.  For these parameters,
+you should use the "fp_" for the variables.  This function will ignore any attributes that start with "fp_".
+@param data Json the JSON object containing the Commerce data
+@return String a Commerce return string in the format: ```1~quoteNumber_t~123|2~aQuoteLineAttr_l~value|3~aQuoteLineAttr_l~value1```.
+@package utils/Commerce
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-17|tleung               |Initial version
+*/
+C_DOC_NUM_KEY = "_document_number";
+C_ITEMS = "items";
+C_PREFIX_FOR_IGNORE_ATTRIBUTES = "fp_";
+
+//result = string[];
+result = stringbuilder();
+
+keys = jsonKeys(data);
+for key in keys {
+    if (key == C_ITEMS) {
+        items = jsonPathGetMultiple(data, "$.items[*]");
+        loopCtrl = range(jsonArraySize(items));
+        for idx in loopCtrl {
+            item = jsonArrayGet(items, idx, "json");
+            docNum = jsonGet(item, C_DOC_NUM_KEY);
+            attrKeys = jsonKeys(item);
+            for attrKey in attrKeys {
+                if (attrKey == C_DOC_NUM_KEY or startsWith(attrKey, C_PREFIX_FOR_IGNORE_ATTRIBUTES)) {
+                    continue;
+                }
+                //append(result, docNum + "~" + attrKey + "~" + jsonGet(item, attrKey, "string"));
+                sbappend(result, docNum + "~" + attrKey + "~" + jsonGet(item, attrKey, "string") + "|");
+            }
+        }
+    } elif (not startsWith(key, C_PREFIX_FOR_IGNORE_ATTRIBUTES)) {
+        //append(result, "1~" + key + "~" + jsonGet(data, key, "string"));
+        sbappend(result, "1~" + key + "~" + jsonGet(data, key, "string") + "|");
+    }
+}
+
+//return join(result, "|") + "|";
+return sbtostring(result);

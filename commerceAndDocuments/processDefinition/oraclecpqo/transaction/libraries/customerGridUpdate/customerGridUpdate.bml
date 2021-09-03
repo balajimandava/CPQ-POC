@@ -1,0 +1,124 @@
+/**
+@name 		customerGridUpdate
+@api 		customerGridUpdate
+@summary 	Mass update "Associated" Column in Selected Customer Arrayset.
+@param  	
+@return 	String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+03/03/2020|Gautam T             |49501 - Mass update script to update Selected Customer Grid in Draft page/step*/
+customerShipToDict = dict("string");
+rowSep = "#@#";
+colSep = "$,$";
+retStr = "";
+shipTo = "Ship to";
+soldTo = "Sold to";
+retJArr = jsonarray();
+
+
+if(NOT(ISNULL(selectedCustomerArraySet2_t))){//selectedCustomerArraySet2_t -- Arrayset in Draft step. As this array holds final values, no need to disturb the arrayset. So, read values from the same arrayset and set them back accept "Associated". As this column is new and will not have values on legacy quotes. For Associated,compare SelectedCustomer Type Text value  and associatedCustomer value and set the Associated value accordingly Refer #01 below for more details
+	indexArr = range(jsonarraysize(selectedCustomerArraySet2_t));
+	for index in indexArr{
+		custJ = jsonarrayget(selectedCustomerArraySet2_t, index, "json");
+		selectedCustJ = json();
+		
+		
+		//Read values from selectedCustomerArraySet2_t from Draft step/page 
+		selectedCustomerType  = trim(lower(jsonget(custJ, "type_selctdCust2_t","string","")));
+		associatedCustomer    = jsonget(custJ, "shipToCustomer_selctdCust2_t","string","");
+		jsonput(selectedCustJ, "type_selctdCust2_t", jsonget(custJ, "type_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "customer_selctdCust2_t", jsonget(custJ, "customer_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "name_selctdCust2_t", jsonget(custJ, "name_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "postalCode_selctdCust2_t", jsonget(custJ, "postalCode_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "city_selctdCust2_t", jsonget(custJ, "city_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "region_selctdCust2_t", jsonget(custJ, "region_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "country_selctdCust2_t", jsonget(custJ, "country_selctdCust2_t","string",""));
+		
+		
+		//#01
+		//set associateSelected customer based on the condition i.e  selectedCustomerType == "Ship To" and associatedCustomer value is not empty then set the associateSelected customer  as "Sold To"; 
+		if(selectedCustomerType == trim(lower(shipTo)) AND associatedCustomer <> "")
+		{
+			
+			jsonput(selectedCustJ, "associated_selctdCust2_t",soldTo);
+			
+			
+		}
+		//set associateSelected customer based on the condition i.e  selectedCustomerType == "Sold To" and associatedCustomer value is not empty then set the associateSelected customer  as "Sold To"; 
+		elif(selectedCustomerType == trim(lower(soldTo)) AND associatedCustomer <> "")
+		{
+			
+			
+			jsonput(selectedCustJ, "associated_selctdCust2_t",shipTo);
+			
+		}
+	    //set associateSelected customer based on the condition i.e  associatedCustomer value is  empty then set the associateSelected customer  as "";
+		elif(associatedCustomer == "")
+		{
+			
+			jsonput(selectedCustJ, "associated_selctdCust2_t","");
+			
+		}
+		
+		jsonput(selectedCustJ, "shipToCustomer_selctdCust2_t", jsonget(custJ, "shipToCustomer_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "primary_selctdCust2_t", jsonget(custJ, "primary_selctdCust2_t","boolean",false));
+		jsonarrayappend(retJArr, selectedCustJ);
+	}
+}
+
+
+retStr = retStr + "1~selectedCustomerArraySet2_t~" + jsonarrayrefid(retJArr) + "|";
+
+//reinitialize the return array
+retJArr = jsonarray();
+
+if(NOT(ISNULL(selectedCustomerArraySet_t))){//selectedCustomerArraySet_t -- Arrayset in Transaction step. Read values from the same arrayset and set them back accept "Associated". As this column is new and will not have values on legacy quotes. For Associated,compare SelectedCustomer Type Text value  and associatedCustomer value and set the Associated value accordingly Refer #02 below for more details
+	indexArr = range(jsonarraysize(selectedCustomerArraySet_t));
+	for index in indexArr{
+		custJ = jsonarrayget(selectedCustomerArraySet_t,index, "json");
+		selectedCustJ = json();
+		
+
+		//Read values from selectedCustomerArraySet_t from Draft step/page 
+		selectedCustomerType  = trim(lower(jsonget(custJ, "type_selctdCust_t","string","")));
+		associatedCustomer    = jsonget(custJ, "shipToCustomer_selctdCust_t","string","");
+		jsonput(selectedCustJ, "type_selctdCust_t", jsonget(custJ, "type_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "customer_selctdCust_t", jsonget(custJ, "customer_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "name_selctdCust_t", jsonget(custJ, "name_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "postalCode_selctdCust_t", jsonget(custJ, "postalCode_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "city_selctdCust_t", jsonget(custJ, "city_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "region_selctdCust_t", jsonget(custJ, "region_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "country_selctdCust_t", jsonget(custJ, "country_selctdCust_t","string",""));
+		
+		//#02
+		//set associateSelected customer based on the condition i.e  selectedCustomerType == "Ship To" and associatedCustomer value is not empty then set the associateSelected customer  as "Sold To"; 
+		if(selectedCustomerType == trim(lower(shipTo)) AND associatedCustomer <> "")
+		{
+			jsonput(selectedCustJ, "associated_selctdCust_t",soldTo);	
+		}
+		//set associateSelected customer based on the condition i.e  selectedCustomerType == "Sold To" and associatedCustomer value is not empty then set the associateSelected customer  as "Sold To"; 
+		elif(selectedCustomerType == trim(lower(soldTo)) AND associatedCustomer <> "")
+		{
+			jsonput(selectedCustJ, "associated_selctdCust_t",shipTo);
+		}
+		//set associateSelected customer based on the condition i.e  associatedCustomer value is  empty then set the associateSelected customer  as "";
+		elif(associatedCustomer == "")
+		{
+			jsonput(selectedCustJ, "associated_selctdCust_t","");
+		}
+		
+		jsonput(selectedCustJ, "shipToCustomer_selctdCust_t", jsonget(custJ, "shipToCustomer_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "primary_selctdCust_t", jsonget(custJ, "primary_selctdCust_t","boolean",false));
+		jsonarrayappend(retJArr, selectedCustJ);
+	}
+}
+	
+retStr = retStr + "1~selectedCustomerArraySet_t~" + jsonarrayrefid(retJArr) + "|";
+//}
+if(status_t == "rejected"){
+	for line in transactionLine {
+		retStr = retStr + line._document_number+"~lineItemStatus_l~rejected|";
+	}
+}
+return retStr;

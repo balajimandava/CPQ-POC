@@ -1,0 +1,12 @@
+{
+  "name" : "REST :: Return Array set JSON",
+  "variableName" : "restReturnArraySetJSON",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "Anytype Dictionary"
+  } ],
+  "attributes" : [ "_company_name" ]
+}

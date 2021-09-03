@@ -1,0 +1,11 @@
+{
+  "name" : "PSD Next Level Approval Details",
+  "variableName" : "nextLevelApprovalDetails",
+  "description" : "Eagle Development | 23rdJuly2020 | Nithing | To set next level approver for PSD excalation functionality",
+  "libraryFunctions" : [ "util.getRemark" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "productLineName_l", "brand_l" ],
+  "mainDocAttributes" : [ "approvalLevel_t", "pSDCurrentApprovalLevel_t", "salesDistrict_t", "qq_ntTransactionType_t", "salesOffice_t", "nextLevelApprovalArraySet_t" ],
+  "systemAttributes" : [ "_system_current_user_language" ]
+}

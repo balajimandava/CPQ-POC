@@ -1,0 +1,138 @@
+/**
+@name Move to a Step
+@api moveToAStep
+@attribute _current_date
+@function String getSupplierCompanyName()
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-04|Tat.Leung            |supplier company name
+2018-07-18|Harshit Mehta	|added authorization header
+2020-03-18|Atul Jain		|Removed commented code, and added debug mode to print statements.
+
+*/
+failedTransactions = dict("string");
+successfullTransactions = dict("string");
+dataIncorrectTransaction = dict("string");
+debugMode = false;
+// Active Parameters
+
+// Expire Params 
+
+companyName = util.getSupplierCompanyName();
+tranIDSPacked = "47636221:-:47857030:-:47864854"; // Split by :-:
+siteID = "eatontest3";
+actionName = "moveToExpireStep";
+status = "sapComplete"; //active
+step = "sapComplete"; //active
+
+
+//Get API Username and Password.
+user = util.getSiteSpecificData(siteID);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+
+//Check to make sure code fires in right environment
+if (siteID <> companyName) {
+	if (debugMode) {
+    print "SITE NAMES DON'T MATCH";
+	}
+    return "";
+}
+
+triggerList = split(tranIDSPacked, ":-:");
+
+for eachTranID in triggerList {
+
+    // ** Get Transition details to check
+
+    getUrl = "https://" + siteID + ".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/" + eachTranID;
+	if (debugMode) {
+    print getUrl;
+	}
+    // Rest parameters
+    jsonParams = json();
+    params = jsontostr(jsonParams);
+
+    // Rest Header  
+    headers = dict("string");
+    put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+	
+
+    results = urldata(getUrl, "GET", headers, params);
+    resultJson = get(results, "Message-Body");
+    statusCode = get(results, "Status-Code");
+	
+	if (debugMode) {
+    print statusCode;
+	}
+
+    if (statusCode <> "200") {
+        put(failedTransactions, eachTranID, eachTranID);
+        continue;
+    }
+
+    transactionStatus = jsonget(json(resultJson), "status_t");
+    transactionStep = jsonget(json(resultJson), "cPQStep_t");
+    transactionValidTo = jsonget(json(resultJson), "agreementValidTo_t");
+    validToDate = strtojavadate(transactionValidTo, "YYYY-MM-dd");
+    todaysDate = _current_date; 
+    isExpired = comparedates(todaysDate, validToDate);
+
+    //to confirm the transaction is in that step and status before we transition
+    // ** Run the Action to Transition to a new step
+
+    if (isExpired == 1 AND transactionStep == step AND transactionStatus == status) { //Expire 
+        actionUrl = "https://" + siteID + ".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/" + eachTranID + "/actions/" + actionName;
+		if (debugMode) {
+        print actionUrl;
+		}
+
+        // Rest parameters
+        jsonParams = json();
+        params = jsontostr(jsonParams);
+
+        // Rest Header  
+        headers = dict("string");
+        put(headers, "Content-Type", "application/json");
+		put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+
+        results1 = urldatabypost(actionUrl, params, "ERROR", headers, true);
+
+        //Store results 
+        if (find(results1, "ERROR") <> -1) {
+            put(failedTransactions, eachTranID, eachTranID);
+        } else {
+            put(successfullTransactions, eachTranID, eachTranID);
+        }
+    } else {
+        put(dataIncorrectTransaction, eachTranID, eachTranID); // If Status or Step dont match
+        print "Wrong status == " + eachTranID;
+    }
+
+}
+
+failedTransactionsList = keys(failedTransactions);
+if (debugMode) {
+print "#######FAILED######";
+print "Fail Count == " + string(sizeofarray(failedTransactionsList));
+print failedTransactionsList;
+}
+
+successfullTransactionsList = keys(successfullTransactions);
+if (debugMode) {
+print "#######SUCESS######";
+print "Success Count == " + string(sizeofarray(successfullTransactionsList));
+print successfullTransactionsList;
+}
+
+dataIncorrectTransactionsList = keys(dataIncorrectTransaction);
+if (debugMode) {
+print "#######WRONG DATA######";
+print "Success Count == " + string(sizeofarray(dataIncorrectTransactionsList));
+print dataIncorrectTransactionsList;
+}
+
+return "";

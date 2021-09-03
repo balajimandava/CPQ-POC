@@ -1,0 +1,56 @@
+/**
+@name Scan Transactions
+@api scanTransactions
+@summary Scans transactions that contain various values and return the transaction details
+
+Query Example  Note:  The debugger doesn't like this as the full string so I had to break it up or the Apply just spins
+ampersand= "&";
+q1= "{'customerNumber_t':{$eq: '0000794050'}}" + ampersand;
+q1= q1 + "{'salesOrg_t':{$eq:'4942'}}" + ampersand;
+q1= q1 + "{'distributionChannel_t':{$eq:'30'}}" + ampersand;
+q1= q1 + "{'transactionType_t':{$eq:'DSP'}}" + ampersand
+q1= q1 + "{ $or: [ {'status_t':{$eq:'approved'}},{'status_t':{$eq:'sapComplete'}},{'status_t':{$eq:'active'}} ] }";
+
+q1= replace(q1,"'","\"");
+
+Options Example
+&limit=1000&totalresults=true
+
+return 
+
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018.08.20|dBo Haizlip		|Initial 
+*/
+retJson= json();
+
+// Get the parms needed from the incomingJSON 
+
+//Query Parameters
+queryParms= jsonget(incomingJSON,"queryParms","string","");
+if (queryParms == "") {  // If no query sent then we exit
+  return retJson;
+}
+
+optionParms= jsonget(incomingJSON,"optionParms","string","");
+cpqSiteName= util.getSupplierCompanyName();
+restURL= "https://" + cpqSiteName + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction/";
+restURLFull= restURL + "?q=" + queryParms + optionParms;
+restURLencoded= restURL + "?q=" + util.u_EncodeURIComponent(queryParms) + optionParms;
+
+// get system user
+user= util.getSiteSpecificData(cpqSiteName);
+login= jsonget(user, "FieldName", "string", "");
+password= jsonget(user, "Value1", "string", "");
+
+headers = dict("string");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+
+//  This is not used for the GET call
+payLoad= "";
+
+
+// save line link
+
+return retJson;

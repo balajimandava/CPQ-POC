@@ -1,0 +1,86 @@
+//***************************************************************************************
+//** Description: Function to get approver from transaction json based on input parameter
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	15-July-2020 	Rahul Uttarwar 	Initial version
+//****************************************************************************************
+
+OutputParamsDict = dict("string");
+approvalRequired = "false";
+approver = "";
+
+ProductLine = get(InputParamsDict, "ProductLine");
+Level = get(InputParamsDict, "Level");
+condition = get(InputParamsDict, "Condition");
+jsonObj=json();
+if(transactionLineApprovalInformation_t<> "" AND NOT ISNULL(transactionLineApprovalInformation_t)){
+	jsonObj = json(transactionLineApprovalInformation_t);
+}
+jsonObjFilteredLines = json();
+jsonObjConditions = json();
+//print "jsonObj ";
+//print jsonObj ;
+//filter by input product line
+jSONArr_Object = jsonpathgetmultiple(jsonObj, "$.LinesObjet[?(@.LineName=='" + ProductLine + "')]");
+jsonput(jsonObjFilteredLines, "LinesObjet", jSONArr_Object);
+//print "jSONArr_Object ";
+//print jSONArr_Object ;
+foundFlag = false;
+
+if (containskey(InputParamsDict, "Brands")){
+	brands = get(InputParamsDict, "Brands");
+	//print "brands ";
+	//print brands ;
+	//filter by input brands
+	jSONArr_Object = jsonpathgetmultiple(jsonObjFilteredLines, "$.LinesObjet[?(@.Brand in [" + brands + "])]");
+	
+	//print "jSONArr_Object";
+	//print jSONArr_Object;
+	
+	if(jsonarraysize(jSONArr_Object) > 0){
+		jsonput(jsonObjFilteredLines, "LinesObjet", jSONArr_Object);
+		foundFlag = true;
+	}
+	
+	if(NOT foundFlag){
+
+		put(OutputParamsDict, "approver",approver);
+		put(OutputParamsDict, "approvalRequired",approvalRequired);
+		//print "OutputParamsDict";
+		//print OutputParamsDict;
+		return OutputParamsDict;
+	}
+}
+
+//filter by input approval condition
+jSONArr_Object = jsonpathgetmultiple(jsonObjFilteredLines, "$..['" + condition + "']");
+jsonput(jsonObjConditions, "ConditionApprovers", jSONArr_Object);
+
+//finally get approvers
+approverJsonArr = jsonpathgetmultiple(jsonObjConditions, "$..level" + Level + "Approver");
+//print "approverJsonArr ";
+//print approverJsonArr ;
+approvalstatusJsonArr = jsonpathgetmultiple(jsonObjConditions, "$..level" + Level + "ApprovalStatus");
+approverCount = jsonarraysize(approverJsonArr);
+rangeval = range(approverCount);
+
+for eachApprover in rangeval {
+	approver = jsonarrayget(approverJsonArr, eachApprover);
+	approvalStatus = jsonarrayget(approvalstatusJsonArr, eachApprover);
+	//print "approver : " + approver + "\napprovalStatus :" + approvalStatus;
+	
+	if(NOT ISNULL(approver) AND approver <> "" AND approvalStatus == "Pending"){
+		approvalRequired = "true";
+		//print "approvalRequired : " + approvalRequired ;
+		
+		break;
+	}	
+}
+
+
+put(OutputParamsDict, "approver",approver);
+put(OutputParamsDict, "approvalRequired",approvalRequired);
+
+return OutputParamsDict;

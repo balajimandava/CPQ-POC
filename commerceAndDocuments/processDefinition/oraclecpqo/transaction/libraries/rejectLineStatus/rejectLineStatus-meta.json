@@ -1,0 +1,11 @@
+{
+  "name" : "Reject Line status",
+  "variableName" : "rejectLineStatus",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "approver_l", "lineItemStatus_l", "_document_number", "approverForBlineBussman_l" ],
+  "mainDocAttributes" : [ "qqBusinessLineForSalesOrg_t", "currentApprovalLevel_t" ],
+  "systemAttributes" : [ "_system_user_groups" ]
+}

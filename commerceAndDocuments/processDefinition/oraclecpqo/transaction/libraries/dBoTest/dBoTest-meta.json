@@ -1,0 +1,11 @@
+{
+  "name" : "dBo Test",
+  "variableName" : "dBoTest",
+  "description" : "Haizlip Test Util",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

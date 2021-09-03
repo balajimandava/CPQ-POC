@@ -1,0 +1,59 @@
+//2020-03-24|Atul Jain			|Removed commented code, and added debug mode to print statements.
+debugMode = false;
+returnValue = "";
+result = "";
+transId = jsonget(inputJson, "transId");
+transIdNum = atoi(transId);
+externalConfigData = jsonget(inputJson, "externalConfigData");
+endPointURL = "https://eatontest2.bigmachines.com/rest/v8/config/actions/_bulkAddToTxn";
+headerDict = dict("string");
+put(headerDict, "Content-Type", "application/json");
+requestParameters = json();
+jsonput(requestParameters, "bsId", transIdNum);
+jsonput(requestParameters, "documentId", 36244074);
+child = JSON();
+childrenLines = JSONArray();
+jsonput(child,"productFamily", "bidManager");
+jsonput(child,"productLine", "bidManager");
+jsonput(child,"model", "takeOff");
+firstModelConfigData = json();
+jsonput(firstModelConfigData ,"parentCatalogNumber","");
+jsonput(firstModelConfigData ,"parentProductID","Residential Configuration");
+jsonput(firstModelConfigData ,"parentProductCode","ATDERESI");
+jsonput(firstModelConfigData ,"SAPConfigurationID","2006145038BD8010");
+jsonput(firstModelConfigData ,"configVCXML","");
+jsonput(firstModelConfigData ,"configBOMXML","<ExternalSystem SubmittedBy=\"Anonymous LE1 User\" SaveDateUTC=\"6/15/2020 3:18:08 AM\">  <TakeoffCode>ATDERESI</TakeoffCode>  <ProductLine>AT/GE Residential Configurator - BETA</ProductLine>  <ProductID>AT/GE Residential Configurator - BETA</ProductID>  <CatalogNumber>178802</CatalogNumber>  <MaterialNumber>Y7-178802</MaterialNumber>  <ConfigurationID>2006145038BD8010</ConfigurationID>  <Description>Compact distribution board-flush mounting; 3-rows; flush sheet steel door</Description>  <Quantity>1</Quantity>  <Price>0.00</Price>  <Cost>0</Cost></ExternalSystem>");
+
+jsonput(child,"configData",firstModelConfigData );
+
+childJson = Json();
+jsonput(childJson ,"productFamily", "bidManager");
+jsonput(childJson ,"productLine", "bidManager");
+jsonput(childJson ,"model", "takeOff");
+
+//Config Data
+configData = json();
+jsonput(configData,"parentCatalogNumber","");
+jsonput(configData,"parentProductID","Residential Configuration");
+jsonput(configData,"parentProductCode","ATDERESI");
+jsonput(configData,"SAPConfigurationID","2006145038BD8010");
+jsonput(configData,"configVCXML","");
+jsonput(configData,"configBOMXML","<ExternalSystem SubmittedBy=\"Anonymous LE1 User\" SaveDateUTC=\"6/15/2020 3:18:08 AM\">  <TakeoffCode>ATDERESI</TakeoffCode>  <ProductLine>AT/GE Residential Configurator - BETA</ProductLine>  <ProductID>AT/GE Residential Configurator - BETA</ProductID>  <CatalogNumber>178975</CatalogNumber>  <MaterialNumber>Y7-178975</MaterialNumber>  <ConfigurationID>2006145038BD8010</ConfigurationID>  <Description>Blanking strip, white, fi ne-ribbed, 12 MU</Description>  <Quantity>2</Quantity>  <Price>0.00</Price>  <Cost>0</Cost></ExternalSystem>");
+jsonput(childJson,"configData",configData);
+
+
+jsonarrayappend(childrenLines, child);
+jsonarrayappend(childrenLines, childJson);
+jsonput(requestParameters, "items", childrenLines);
+inputParams = jsontostr(requestParameters);
+
+ print "Request for Bulk Config Add:";
+ print inputParams;
+result = urldatabypost(endPointURL, inputParams, "Bulk Config Add Failed", headerDict, true);
+print " Printing BUlk add Result === ";
+print result;
+if(debugMode)
+{
+print result;
+}
+return returnValue;

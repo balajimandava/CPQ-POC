@@ -1,0 +1,44 @@
+/***************************************************************************************************
+//** Description: Function to get active material statuses for a sales org.
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	21-Jan-2021	Rahul		Initial draft - get active material statuses
+//***************************************************************************************************/
+str = "";
+nullFlag = false;
+
+function = jsonget(inputParams, "Function");
+condition = jsonget(inputParams, "Condition");
+salesOrg = jsonget(inputParams, "SalesOrg");
+
+//query for Functiona and condition for a sales org
+materialStatusRecordSet = bmql("select Value from GenericConditions where Function = $function AND Condition = $condition AND SalesOrg = $salesOrg");
+
+for eachStatus in materialStatusRecordSet{
+	val = get(eachStatus, "Value");
+	if(val == "NULL"){
+		nullFlag = true;
+		continue;
+	}
+	if (str == "")
+	{
+		str = "('" + val + "'" ;
+	}else{
+		str = str + ", '" + val + "'";
+	}
+}
+
+if (str <> ""){
+	str = str + ")" ;
+}
+
+if(nullFlag){
+	str = "("  + Condition + " IS NULL OR " + Condition + " IN " + str + ")";
+}
+else{
+	str = "(" + Condition + " IN " + str + ")";
+}
+
+return str;

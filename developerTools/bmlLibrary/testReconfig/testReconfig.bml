@@ -1,0 +1,59 @@
+jsonArrayobj = jsonarray();
+arrObj 	= string[];
+
+xmlData = gettransaction(atoi(bsId)); // get transaction XML
+lineAttrKeys 	= keys(xPathDictionary);
+lineAttrNames 	= values(xPathDictionary);
+lineAttrValueDict = readxmlmultiple(xmlData, lineAttrNames); // get values for all the attributes
+print lineAttrValueDict ;
+lineAttrArray = get(lineAttrValueDict, lineAttrNames[0]);  // get the first array object from result dictionary 
+
+numOfLines = range(sizeofarray(lineAttrArray));
+numOfAttrs = range(sizeofarray(lineAttrNames));
+firstdocNumber  = "";
+
+  for eachLine in numOfLines { // loop through all the lines
+    jsonObj = json();
+      for eachAttr in numOfAttrs{ // loop through all attributes of current line
+        arrObj = get(lineAttrValueDict,lineAttrNames[eachAttr]);
+        //print arrObj ;
+        eachKey = lineAttrKeys[eachAttr];
+        //print eachKey;
+        if (eachKey == "docNumber" )
+        {
+        	firstdocNumber = arrObj[eachLine]; 
+        	print firstdocNumber ;
+        	break; // break after fetching the first document number in the array
+        }
+        break;// break after fetching the first document number in the array
+       }
+       break;// break after fetching the first document number in the array
+    }
+    print firstdocNumber ;
+
+
+sessionID = _user_session_id;
+siteID = _company_name;
+
+// Get service endpoint from environment variables
+serviceEndpoint = "https://eatontest2.bigmachines.com/v1_0/receiver";
+
+debugMode = false;
+
+// Set headers for request message
+requestHeaders = dict("string");
+put(requestHeaders, "Content-Type", "text/xml");
+put(requestHeaders, "Referer", serviceEndpoint);
+
+requestParameters = dict("string");
+put(requestParameters, "SESSION_ID", sessionID);
+put(requestParameters, "BSID", bsId);
+put(requestParameters, "DOC_NUM", firstdocNumber);
+put(requestParameters, "VAR_NAME", "externalConfiguratorAttachment_l");
+put(requestParameters, "FILENAME", "Sample_File.docx");
+
+requestBody = applytemplate("$BASE_PATH$/WebServices/ImportFileAttachments.xml", requestParameters);
+//print requestBody;
+response = urldatabypost(serviceEndpoint, requestBody,"error",requestHeaders, true);
+print response;
+return "";

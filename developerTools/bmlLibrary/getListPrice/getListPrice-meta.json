@@ -1,0 +1,12 @@
+{
+  "name" : "Get List Price",
+  "variableName" : "getListPrice",
+  "description" : "Retrieve list price(current and future) for a material item",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ "_current_date" ]
+}

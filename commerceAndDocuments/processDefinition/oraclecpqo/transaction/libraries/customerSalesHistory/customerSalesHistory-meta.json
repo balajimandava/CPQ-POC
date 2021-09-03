@@ -1,0 +1,14 @@
+{
+  "name" : "Customer Sales History",
+  "variableName" : "customerSalesHistory",
+  "description" : "Makes a call to retrieve the previous year and year-to-date history.  Returns the data in a JSON formatted response.",
+  "libraryFunctions" : [ "util.getEnvironmentVariable", "util.getStringDict", "util.stringToFloat", "util.stringToInteger" ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "parmsDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ "customDiscountType_l", "_document_number", "materialLineItem_l", "qqProductType_l" ],
+  "mainDocAttributes" : [ "customerNumber_t", "salesOrg_t", "distributionChannel_t", "currency_t", "qqBusinessLineForSalesOrg_t", "currencySymbol_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_user_time_zone", "_system_user_login" ]
+}

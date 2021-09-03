@@ -1,0 +1,86 @@
+/**
+@name Get BLine Groups
+@api getBLineGroups
+@summary Return the B-Line groups that should have access to the quote
+@param data Json
+@function Boolean u_logStringArray(String category, Integer level, String[] strArr, String label)
+@function Json getTransactionData(String bsId, String[] xpaths)
+@function Json u_setLogLevel(String[][] categoryLevel)
+@return String[]
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-14|Tat.Leung            |QQ-575 Initial Version
+2018-07-25|Vivek.Hingorani      |Changed return to be Json
+2019-05-29|Ankit		        |Fetching ship to reference if populated to provide access to Reps accordingly
+2020-03-19|Atul Jain			|Deleted commented code
+*/
+
+retJson = json();
+
+bsId = jsonget(data, "id", "string", "");
+// import data needed for forwarding rules, add more xpath expression here if additional fields are needed
+/*xpaths = string[] {
+    "//transaction/customerNumber_t",
+    "//transaction/qq_customerReferenceShipTo",
+    "//transaction/salesOrg_t",
+    "//transaction/distributionChannel_t"
+};
+headerData = util.getTransactionData(bsId, xpaths);
+customerNumber = jsonget(headerData, "qq_customerReferenceShipTo", "string", "");
+if(customerNumber == "" OR isnull(customerNumber)){// if shipto is blank fetch sold to
+	customerNumber = jsonget(headerData, "customerNumber_t", "string", "");
+}
+
+salesOrg = jsonget(headerData, "salesOrg_t", "string", "");
+distributionChannel = jsonget(headerData, "distributionChannel_t", "string", "");
+*/
+
+customerNumber = jsonget(data, "qq_customerReferenceShipTo", "string", "");
+if(customerNumber == "" OR isnull(customerNumber)){// if shipto is blank fetch sold to
+	customerNumber = jsonget(data, "customerNumber_t", "string", "");
+}
+
+salesOrg = jsonget(data, "salesOrg_t", "string", "");
+distributionChannel = jsonget(data, "distributionChannel_t", "string", "");
+
+groups = jsonarray();
+groupFunctions = string[] {
+    "Z5",
+    "ZW",
+    "ZQ"
+};
+
+// retrieve the Area VP, CSM, Quote Rep, and Quote Manager for the transaction
+rs = bmql("select distinct KUNN2, PARVW from CUSMAS where VKORG = $salesOrg and KUNNR = $customerNumber and PARVW in $groupFunctions");
+vpUsers = string[]; // Z5
+rsmUsers = string[]; // ZW
+quoteReps = string[]; // ZQ
+quoteMgrs = string[]; // TODO: TBD
+allManagers = string[];
+for r in rs {
+    parvw = get(r, "PARVW");
+    kunn2 = get(r, "KUNN2");
+	if (parvw == "Z5" OR parvw == "ZW") {
+        append(vpUsers, kunn2);
+    }
+    append(allManagers, kunn2);
+}
+
+logStatus = util.u_logStringArray("SECURITY", 4, vpUsers, "vpUsers");
+logStatus = util.u_logStringArray("SECURITY", 4, rsmUsers, "rsmUsers");
+logStatus = util.u_logStringArray("SECURITY", 4, quoteReps, "quoteReps");
+logStatus = util.u_logStringArray("SECURITY", 4, quoteMgrs, "quoteMgrs");
+logStatus = util.u_logStringArray("SECURITY", 4, quoteMgrs, "quoteMgrs");
+logStatus = util.u_logStringArray("SECURITY", 4, allManagers, "allManagers");
+
+// retrieve groups from the UserCustomerLookup data table
+//Look for Zw and Z5 marked as partners in usercustomerlookup
+rs = bmql("select UserId from UserCustomerLookup where VTWEG = $distributionChannel and lookupType = 'Partner' and KUNNR in $vpUsers");
+
+for r in rs {
+    cpqGroup = get(r, "UserId");    
+    jsonarrayappend(groups, cpqGroup);
+    }
+jsonput(retJson, "Sales User", groups);
+return retJson;

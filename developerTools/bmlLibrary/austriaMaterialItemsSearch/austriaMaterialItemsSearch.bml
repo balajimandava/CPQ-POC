@@ -1,0 +1,193 @@
+/***************************************************************************************************
+//** Description: Function to search material items in transnational data load
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	4-Nov-2020 	Rahul Uttarwar 	Initial version
+//**        	23-11-2020  	Malli 		CPQ-2225: Modified the logic to fetch the material description for 
+//**						languages other than english i.e, MAKTXDE
+//**		14-Jun-2020 	Rahul Uttarwar 	Changes for CPQ-5545, Removed prefix - to handle multiple price group types(all ES-EMEA countries)
+//****************************************************************************************************/
+
+result = jsonarray();
+
+materialItemGroupsDict 		= dict("string");
+materialItemGroupsDictMPG	= dict("string");
+materialItemGroupsDictMAT	= dict("string");
+
+materialItemGroupsTextDictMPG 	= dict("string");
+materialItemGroupsTextDictMAT 	= dict("string");
+
+materialItemCatalogNumDictMPG 	= dict("string");
+materialItemCatalogNumDictMAT 	= dict("string");
+
+materialItemTypeDictMPG		= dict("string");
+materialItemTypeDictMAT		= dict("string");
+
+materialItemCrossRefDict 	= dict("string");
+
+whereClauseConditions 	= stringbuilder();
+whereConditionValues 	= dict("string");
+lang  			= dict("string");
+searchResultSet 	= recordset();
+
+// Get parameters from the input dictionary
+searchMode 		= util.getStringDict(searchParams, "searchMode", "SEARCH_GLOBAL");
+salesOrg 		= util.getStringDict(searchParams, "salesOrg", "");
+distributionChannel 	= util.getStringDict(searchParams, "distributionChannel", "");
+transactionType 	= util.getStringDict(searchParams, "transactionType", "");
+//salesOrgPrefix 		= "";
+language 		= upper(util.getStringDict(searchParams, "language", "EN"));
+
+if(language <> "EN"){ 
+	language = "DE"; // for language oter than english, Description to be fetched from column MAKTXDE
+}
+
+// Determine the sales org prefix to use
+/*rows = bmql("SELECT Prefix FROM MPG_Prefix WHERE VKORG = $salesOrg");
+for row in rows {
+	salesOrgPrefix = get(row, "Prefix");
+}*/
+
+// Dynamic BMQL elements
+materialTableName 	= "MAT01";
+selectColumns 		= string[]{"MATNR, MVGR5", "MPG", "PH5", "LVORM", "MTART", "ZZCATNO", "MATGRP5_TEXTDE", "MATGRP5_TEXTEN"};
+
+put(whereConditionValues,"$salesOrg",salesOrg);
+put(whereConditionValues,"$distributionChannel",distributionChannel);
+
+mandatoryColumn = "MVGR5";
+inputParams = json();
+
+jsonput(inputParams, "Function", "ActiveMaterial");
+jsonput(inputParams, "SalesOrg", salesOrg);
+jsonput(inputParams, "Condition", "VMSTA");
+
+VMSTA_str = util.getActiveMaterialStatuses(inputParams);
+jsonput(inputParams, "Condition", "MSTAV");
+MSTAV_str = util.getActiveMaterialStatuses(inputParams);
+
+material_search = util.getStringDict(searchParams, "materialNumbers", "");
+
+sbappend(whereClauseConditions,"VKORG = $salesOrg AND VTWEG = $distributionChannel ");
+
+if(material_search <> "" AND NOT ISNULL(material_search)){
+	if (language == "DE") {
+		append(selectColumns,"MATGRP5_TEXTDE");
+	}
+	sbappend(whereClauseConditions," AND ",mandatoryColumn,"  IS NOT NULL ");
+	sbappend(whereClauseConditions," AND ",VMSTA_str);
+	if(MSTAV_str <> "" AND MSTAV_str <> "(MSTAV IN )"){//MSTAV_str will be "(MSTAV IN )" when no MSTAV entries are maintained in GenericCondition data
+		sbappend(whereClauseConditions," AND "+MSTAV_str);
+	}
+	sbappend(whereClauseConditions," AND MATNR in ", material_search);
+	sbappend(whereClauseConditions," ORDER BY MATNR");
+
+	selectColumns_str = join(selectColumns,",");
+	whereClauseConditions_str = sbtostring(whereClauseConditions);
+
+	searchResultSet = bmql("SELECT $selectColumns_str FROM $materialTableName WHERE $whereClauseConditions_str",lang,whereConditionValues);
+
+	if(haserror(searchResultSet)){
+		errorMsg = searchMode+" "+getmessage(searchResultSet);
+		throwerror(errorMsg);
+	}		
+}
+
+for row in searchResultSet {
+	materialGroupIdtext = "";
+	crossReference = "";
+	lvorm = trim(get(row, "LVORM"));
+	materialItemId 	= get(row, "MATNR");
+	catalogNumber 	= get(row, "ZZCATNO");
+	mtart = get(row, "MTART");
+	
+	//To get the pricing group description
+	txtDE = get(row, "MATGRP5_TEXTDE");
+	txtEN = get(row, "MATGRP5_TEXTEN");
+	
+	if (language == "DE" AND NOT(isnull(txtDE))) {
+		materialGroupIdtext = txtDE;
+	}elif(NOT(isnull(txtEN))) {
+		materialGroupIdtext = txtEN;
+	}
+	
+	materialGroupId = get(row, "MVGR5");
+	put(materialItemGroupsDict, materialItemId, materialGroupId);
+	put(materialItemCrossRefDict, materialItemId, crossReference);
+	
+	if ((lvorm == "" OR ISNULL(lvorm)) AND mtart == "DIEN"){
+		put(materialItemTypeDictMPG, materialItemId, "group");
+		put(materialItemGroupsDictMPG, materialItemId, materialGroupId); 
+		put(materialItemGroupsTextDictMPG, materialItemId, materialGroupIdtext);
+		put(materialItemCatalogNumDictMPG, materialItemId, catalogNumber);
+	}
+	elif ((lvorm == "" OR ISNULL(lvorm)) AND mtart <> "DIEN"){
+		put(materialItemTypeDictMAT, materialItemId, "normal");
+		put(materialItemGroupsDictMAT, materialItemId, materialGroupId);
+		put(materialItemGroupsTextDictMAT, materialItemId, materialGroupIdtext);
+		put(materialItemCatalogNumDictMAT, materialItemId, catalogNumber);		
+	}
+}
+// Get material item descriptions
+
+materialItemIds = keys(materialItemGroupsDict);
+materialDescriptionDict = dict("string");	
+descLanguage 	= "MAKTX"+ language; //the column for the language that the description should be in
+
+// Query MAT01 for both German and English Descriptions
+descriptionResultSet 	= bmql("select MATNR, MAKTXEN, MAKTXDE from MAT01 where MATNR in $materialItemIds");
+
+for description in descriptionResultSet {
+	materialItemId = get(description, "MATNR");
+	materialItemDescription = "";
+
+	if (get(description, desclanguage) == "") {
+		materialItemDescription = get(description, "MAKTXEN");
+	}
+	else {
+		materialItemDescription = get(description, descLanguage);
+	}
+	put(materialDescriptionDict, materialItemId, materialItemDescription);
+}
+
+materialItemIdsMPGArr	= keys(materialItemGroupsDictMPG);
+materialItemIdsMPGArr	= sort(materialItemIdsMPGArr, "asc", "text");
+for materialItemId in materialItemIdsMPGArr {
+	// Store item details
+	itemDetails = jsonarray();
+	jsonarrayappend(itemDetails, "True");
+	jsonarrayappend(itemDetails, get(materialItemTypeDictMPG, materialItemId)); // type of line whether group or normal
+	jsonarrayappend(itemDetails, "1");  // Qty
+	jsonarrayappend(itemDetails, get(materialItemGroupsDictMPG, materialItemId));  // Material group
+	jsonarrayappend(itemDetails, get(materialItemGroupsTextDictMPG, materialItemId)); //truncated value of GroupID for B-LINE
+	jsonarrayappend(itemDetails, get(materialItemCatalogNumDictMPG, materialItemId)); //catalog Number
+	jsonarrayappend(itemDetails, materialItemId);                               // Material item ID
+	descrptn = get(materialDescriptionDict, materialItemId);
+
+	jsonarrayappend(itemDetails, descrptn); // Material item description
+	jsonarrayappend(itemDetails, get(materialItemCrossRefDict, materialItemId)); // Cross Reference Number
+	jsonarrayappend(result, itemDetails);
+}
+
+materialItemIdsMATArr = keys(materialItemGroupsDictMAT);
+materialItemIdsMATArr = sort(materialItemIdsMATArr, "asc", "text");
+for materialItemId in materialItemIdsMATArr {
+	// Store item details
+	itemDetails = jsonarray();
+	jsonarrayappend(itemDetails, "True");
+	jsonarrayappend(itemDetails, get(materialItemTypeDictMAT, materialItemId)); // type of line whether group or normal
+	jsonarrayappend(itemDetails, "1");  // Qty
+	jsonarrayappend(itemDetails, get(materialItemGroupsDictMAT, materialItemId));  // Material group
+	jsonarrayappend(itemDetails, get(materialItemGroupsTextDictMAT, materialItemId)); //truncated value of GroupID for B-LINE
+	jsonarrayappend(itemDetails, get(materialItemCatalogNumDictMAT, materialItemId)); //catalog Number
+	jsonarrayappend(itemDetails, materialItemId);                               // Material item ID
+	descrptn = get(materialDescriptionDict, materialItemId);
+
+	jsonarrayappend(itemDetails, descrptn); // Material item description
+	jsonarrayappend(itemDetails, get(materialItemCrossRefDict, materialItemId)); // Cross Reference Number
+	jsonarrayappend(result, itemDetails);
+}
+
+return result;

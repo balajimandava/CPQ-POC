@@ -1,0 +1,66 @@
+// Get parameters from the input dictionary
+customerNo = util.getStringDict(searchParams, "Customer", "");
+name = util.getStringDict(searchParams, "Name", "");
+country = util.getStringDict(searchParams, "Country", "");
+region = util.getStringDict(searchParams, "Region", "");
+region = substring(region, find(region,"_")+1);
+city = util.getStringDict(searchParams, "City", "");
+endCustomerType = util.getStringDict(searchParams, "EndCustomerType", "");
+KTO = "Z340";
+fields = dict("string");
+put(fields, "$KTO ", KTO );
+put(fields, "$Customer", "%"+customerNo+"%");
+put(fields,"$Name","%"+name+"%");
+put(fields,"$lower","%"+lower(name)+"%");
+put(fields,"$upper","%"+upper(name)+"%");
+put(fields,"$Country",country);
+put(fields,"$Region",region);
+put(fields,"$City","%"+city+"%");
+put(fields,"$UCity","%"+upper(city)+"%");
+put(fields,"$LCity","%"+lower(city)+"%");
+
+where = " KTOKD =' "+endCustomerType+"' ";
+conjunction = " AND ";
+
+if(len(customerNo) > 0){
+	where = where + conjunction + " KUNNR like $Customer";
+}
+if(len(name) > 0){
+	where = where + conjunction + " (NAME1 like $Name OR NAME1 like $lower OR NAME1 like $upper)";
+}
+if(len(country) > 0){
+	where = where + conjunction + " LAND1 = $Country";
+} 
+if(len(region) > 0){
+	where = where + conjunction + " REGIO = $Region";
+}
+if(len(city) > 0){
+	where = where + conjunction + " (ORT01 like $City OR ORT01 like $UCity OR ORT01 like $LCity)";
+}
+
+// Format response as a JSON array
+result = jsonarray();
+lang = dict("string");
+searchResultSet = bmql("SELECT NAME1, STRAS, KUNNR,ORT01, REGIO, LAND1,PSTLZ,KTOKD,LOEVM FROM ENDCUSMAS WHERE $where",lang,fields );
+print "searchResultSet";
+print searchResultSet;
+   //Process result set
+   for row in searchResultSet {
+      endCustomerDetails = jsonarray();
+      if(get(row, "LOEVM") <> "X"){
+      jsonarrayappend(endCustomerDetails , "");  // Empty value for checkbox in data table
+      jsonarrayappend(endCustomerDetails , get(row, "KUNNR")); // Customer Number
+      jsonarrayappend(endCustomerDetails , upper(get(row, "NAME1"))); // Partner Name
+      jsonarrayappend(endCustomerDetails , get(row, "STRAS"));
+      jsonarrayappend(endCustomerDetails , get(row, "PSTLZ"));
+      jsonarrayappend(endCustomerDetails , get(row, "LAND1"));
+      jsonarrayappend(endCustomerDetails , get(row, "REGIO"));
+      jsonarrayappend(endCustomerDetails , get(row, "ORT01"));  
+      jsonarrayappend(endCustomerDetails , get(row, "KTOKD"));    
+      jsonarrayappend(result, endCustomerDetails);
+	      if(jsonarraysize(result) > 499){
+	         break;
+	      }
+      }
+   }
+return result;

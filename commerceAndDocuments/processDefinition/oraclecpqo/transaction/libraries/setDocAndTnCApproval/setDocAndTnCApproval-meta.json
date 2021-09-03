@@ -1,0 +1,11 @@
+{
+  "name" : "SetDocAndTnCApproval",
+  "variableName" : "setDocAndTnCApproval",
+  "description" : "",
+  "libraryFunctions" : [ "util.getRemark", "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qqTnC_t", "qqCustomTermsAndConditionsNote2_t", "qqMaterialIndexEscalation_t", "qqNonStandardTnCAttachment_t", "bs_id", "qqCustomDocument1_t", "qqCustomDocumentNotes_t", "qqCustomDocument2_t", "qqCustomDocumentNotes2_t", "qqCustomDocument3_t", "qqCustomDocumentNotes3_t", "qqCustomDocument4_t", "qqCustomDocumentNotes4_t", "qqCustomDocument5_t", "qqCustomDocumentNotes5_t" ],
+  "systemAttributes" : [ "_system_current_user_language", "_system_supplier_company_name" ]
+}

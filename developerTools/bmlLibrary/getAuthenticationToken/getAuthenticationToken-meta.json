@@ -1,0 +1,9 @@
+{
+  "name" : "Get Authentication Token",
+  "variableName" : "getAuthenticationToken",
+  "description" : "Utill to establish connection with Zilliant and get authentication token.",
+  "libraryFunctions" : [ "util.getZilliantInfo" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "attributes" : [ "_supplier_company_name" ]
+}

@@ -1,0 +1,12 @@
+{
+  "name" : "Add Notes Or Comments",
+  "variableName" : "addNotesOrComments",
+  "description" : "49704 - Eagle Development | Returns the Notes Or comments as below formatted string: <date> <firstName lastName>: <Comment>.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "addNotesInputDict",
+    "type" : "Anytype Dictionary"
+  } ],
+  "attributes" : [ "_user_first_name", "_user_last_name" ]
+}

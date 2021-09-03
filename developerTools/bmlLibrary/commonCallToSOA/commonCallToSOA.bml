@@ -1,0 +1,161 @@
+//************************************************************************************************************
+//** Function: To connect CPQ with BidMan via SOA.
+//**
+//** Description: Project#49074|Eagle Development
+//**
+//** History:	Date          	Author		Comment 
+//**          	------------- 	---------------	--------------------------------------------------------------
+//**            03rdDec2019	Chandan A J	Created initial version
+//**		20thDec2019	Rahul Uttarwar	Updated to implement the message as required by SOA.
+//**		20thFeb2020	Rahul Uttarwar	Implementd the code review comments.
+//			2020-03-24|Atul Jain			|Removed commented code, and added debug mode to print statements.
+//************************************************************************************************************/
+
+createQuoteXml 	= "";
+inputJson 	= json();
+inputJsonwrapper = json();
+isReadonly 	= false;
+siteID 		= "eatonCPQBidman";
+soaUserID 	= "";
+soaPassID 	= "";
+headers 	= dict("string");
+itemId 		= "";
+takeOffCode 	= "";
+item_ids = jsonarray();
+debugMode = true;
+
+company = util.getSupplierCompanyName();
+envData = util.getSiteSpecificData(siteID);
+soaUserID = jsonget(envData, "FieldName");
+soaPassID = jsonget(envData, "Value1");
+bidManagerUrlPrefix = jsonget(envData, "Value2");
+
+//END POINT URL START - Below used Util library will fetch the End Point OAG URL for the web service call
+envVariable = util.getEnvironmentVariable("SOA_OAG_BIDMAN_URL", "");
+//END POINT URL END
+
+// HEADERS START - Set headers for request message
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", "Basic " + encodebase64(soaUserID + ":" + soaPassID));
+//HEADERS END
+
+xpaths = string[] {
+	"//transaction/step_var_name",
+	"//transaction/qqBusinessLineForSalesOrg_t",
+	"//transaction/salesOrg_t",
+	"//transaction/distributionChannel_t",
+	"//transaction/qqCustomerGroup_t",
+	"//transaction/priceGroup_t",
+	"//transaction/customerNumber_t",
+	"//transaction/endCustomerNo_t",
+	"//transaction/transactionType_t",
+	"//transaction/salesDistrict_t",
+	"//transaction/salesGroup_t",
+	"//transaction/qqApplication_t",
+	"//transaction/qqSubApplication_t"
+	//"//transaction/<job_location>",
+	//"//transaction/<end_user_country>",  --> Ankit to sahre attribute name
+	//"//transaction/<one_shot_pricing>"
+};
+
+headerData = util.getTransactionData(bsId, xpaths); // BML Util call
+currentStep 	= jsonget(headerData, "step_var_name", "string", "");
+businessGroup 	= jsonget(headerData, "qqBusinessLineForSalesOrg_t", "string", "");
+sales_org	= jsonget(headerData, "salesOrg_t", "string", "");
+dist_channel  	= jsonget(headerData, "distributionChannel_t", "string", "");
+customer_group  = jsonget(headerData, "qqCustomerGroup_t", "string", "");
+price_group 	= jsonget(headerData, "priceGroup_t", "string", "");
+soldto_customer = jsonget(headerData, "customerNumber_t", "string", "");
+end_user	= jsonget(headerData, "endCustomerNo_t", "string", "");
+quote_type 	= jsonget(headerData, "transactionType_t", "string", "");
+sales_district	= jsonget(headerData, "salesDistrict_t", "string", "");
+sales_group	= jsonget(headerData, "salesGroup_t", "string", "");
+application	= jsonget(headerData, "qqApplication_t", "string", "");
+sub_appln	= jsonget(headerData, "qqSubApplication_t", "string", "");
+
+xpaths_l = string[] {
+	"//transactionLine/_document_number"
+	//"//transactionLine/_config_extra_info"
+};
+
+
+if(currentStep <> "draft"){
+    isReadonly = true;
+}
+
+if (not isnull(selectedDocNumber)) {
+    itemId = trim(selectedDocNumber);
+    if (itemId == "-1") {
+        takeOffCode="";
+        if (searchResult <> "" ) {
+            cfgExtraInfo = split(searchResult, "@");
+            takeOffCode = cfgExtraInfo[1];
+        }
+    }else{
+        takeOffCode="";
+        jsonput(inputJson, "itemid", itemId);
+        jsonput(inputJson, "items", itemId);//03/03/
+        jsonarrayappend(item_ids, itemId);
+        if (configExtraInfo <> "" ) {
+            cfgExtraInfo = json(configExtraInfo);
+            takeOffCode = jsonget(cfgExtraInfo, "configHeaderId");
+        }
+    }   
+}
+
+isloginemail = (upper(company) <> upper(_company_name));
+jsonput(inputJson, "quote_id", bsId);
+jsonput(inputJson, "model", modelPath);
+jsonput(inputJson, "siteUrl", _site_url);
+if(isReadonly){
+	jsonput(inputJson, "ReadOnly", "true");
+}
+jsonput(inputJson, "tocode", takeOffCode);
+if(businessGroup == "BUSSMANN"){
+	jsonput(inputJson, "role", "CBM");
+}elif(businessGroup == "PSD"){
+	jsonput(inputJson, "role", "PSD");
+}
+else{
+	jsonput(inputJson, "role", "CPQ");
+}
+jsonput(inputJson, "sales_org", sales_org);
+jsonput(inputJson, "dist_channel", dist_channel);
+jsonput(inputJson, "customer_group", customer_group);
+jsonput(inputJson, "price_group", price_group);
+jsonput(inputJson, "soldto_customer", soldto_customer);
+jsonput(inputJson, "end_user", end_user);
+jsonput(inputJson, "quote_type", quote_type);
+jsonput(inputJson, "sales_district", sales_district);
+jsonput(inputJson, "sales_group", sales_group);
+jsonput(inputJson, "item_ids", item_ids);
+jsonput(inputJson, "appln", application);
+jsonput(inputJson, "sub_appln", sub_appln);
+jsonput(inputJsonwrapper, "process", "CPQ.OpenView");
+jsonput(inputJsonwrapper, "payload", inputJson);
+
+inputJsonString = jsontostr(inputJsonwrapper);
+//Forming a JSON to pass a parameter to SOA - END
+
+//SOAP WEB SERVICE CALL START
+responseD = urldata(envVariable, "POST", headers, inputJsonString);
+//SOAP WEB SERVICE CALL END
+
+
+extIdjsonContenor = json(get(responseD, "Message-Body"));
+extId = jsonpathgetsingle(extIdjsonContenor, "$..['extid']", "string");
+
+url = _site_url + "/bmfsweb/" + company + "/image/ext_cfg/bid_mgr_new.html" + "?isloginemail=" + string(isloginemail) + "&source=cpq" + "&extid=" + extId + "&cpqid=" + bsId;
+url = url + "&bidManagerUrlPrefix=" + bidManagerUrlPrefix;
+
+if(debugMode)
+{
+	print "************ BM request payload ***********";
+	print inputJsonString;
+	print "************ BM response payload ***********";
+	print responseD;
+	print "************ NEW URL ****************";
+	print url;
+}
+
+return url;

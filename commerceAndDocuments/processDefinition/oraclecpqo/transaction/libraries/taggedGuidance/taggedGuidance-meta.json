@@ -1,0 +1,11 @@
+{
+  "name" : "Tagged Guidance",
+  "variableName" : "taggedGuidance",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.taggedGuidanceRequestPayload", "util.connectToZilliant", "util.getAuthenticationToken" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number" ],
+  "mainDocAttributes" : [ "salesOrg_t", "contractAPIstatus_t", "transactionNumber_t" ],
+  "systemAttributes" : [ ]
+}

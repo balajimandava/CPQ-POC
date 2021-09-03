@@ -1,0 +1,123 @@
+//***************************************************************************************
+//** Description: Function to get approver string from transaction json based on input parameter
+//**		  
+//**History:
+//*		Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	05-Aug-2021	Dhananjay 	Initial version
+//****************************************************************************************
+
+/*Expected format of return value: type~approver~company[|type~approver~company]* 
+Use Company variable names; 
+if Approver is an individual User Login, type should be 1; 
+if Approver is the variable name of a Group, type should be 2. */
+
+//Variable name of the Reason -- This will pass from the reason node
+approvalReasonVarName = jsonget(inputData,"approvalReasonVarName","string","");
+//Possition of the approver in the approvers list -- This will pass from the reason node
+//This is useful when we have multiple approvers and required approval for each approver
+approverPosition = jsonget(inputData,"approverPosition","integer",0);
+multipleReasonApprovers = jsonget(inputData,"multipleReasonApprovers","boolean",false);
+includeSuperUserApprover = false;
+approverString = stringbuilder();
+companyName = _system_supplier_company_name;
+if(transactionLineApprovalInformation_t <> "" AND startswith(transactionLineApprovalInformation_t, "{")
+	AND endswith(transactionLineApprovalInformation_t, "}")){
+	if(multipleReasonApprovers){
+		reasonNamesList = jsonget(inputData,"reasonNamesList","jsonarray",jsonarray());
+		reasonNamesLoop = range(jsonarraysize(reasonNamesList));
+		for reasonIndex in reasonNamesLoop{
+			eachReason = jsonarrayget(reasonNamesList, reasonIndex, "string");
+			approvalsInfo = json(transactionLineApprovalInformation_t);
+			approvalNodeInfo = jsonget(approvalsInfo,eachReason,"json",json());
+			approvelLevel = jsonget(approvalNodeInfo ,"approvalLevel","string","");
+			approversKey = "level"+approvelLevel+"Approver";
+			approvers = jsonget(approvalNodeInfo,approversKey,"jsonarray",jsonarray());
+			totalApprovers = jsonarraysize(approvers);
+			if(totalApprovers > 0){
+				includeSuperUserApprover = true;
+				//This if block will be executed when we try to get the approver from a specific approver/location of approvers list
+				if(approverPosition > 0 AND totalApprovers >= approverPosition){
+					eachAprrover = jsonarrayget(approvers, (approverPosition-1), "string");
+					if(len(eachAprrover)== 8 AND startswith(eachAprrover, "E")){
+						sbappend(approverString,"1~",eachAprrover,"~",companyName,"|");
+					}else{
+						sbappend(approverString,"2~",eachAprrover,"~",companyName,"|");
+					}
+				}else{
+					approversLoop = range(totalApprovers);
+					for aprroverIndx in approversLoop{
+						eachAprrover = jsonarrayget(approvers, aprroverIndx, "string");
+						if(len(eachAprrover)== 8 AND startswith(eachAprrover, "E")){
+							sbappend(approverString,"1~",eachAprrover,"~",companyName,"|");
+						}else{
+							sbappend(approverString,"2~",eachAprrover,"~",companyName,"|");
+						}
+					}
+				}
+			}
+		}
+	}else{
+		approvalsInfo = json(transactionLineApprovalInformation_t);
+		approvalNodeInfo = jsonget(approvalsInfo,approvalReasonVarName,"json",json());
+		approvelLevel = jsonget(approvalNodeInfo ,"approvalLevel","string","");
+		approversKey = "level"+approvelLevel+"Approver";
+		approvers = jsonget(approvalNodeInfo,approversKey,"jsonarray",jsonarray());
+		totalApprovers = jsonarraysize(approvers);
+		if(totalApprovers > 0 ){
+			includeSuperUserApprover = true;
+			//This if block will be executed when we try to get the approver from a specific approver/location of approvers list
+			if(approverPosition > 0 AND totalApprovers >= approverPosition){
+				eachAprrover = jsonarrayget(approvers, (approverPosition-1), "string");
+				if(len(eachAprrover)== 8 AND startswith(eachAprrover, "E")){
+					sbappend(approverString,"1~",eachAprrover,"~",companyName,"|");
+				}else{
+					sbappend(approverString,"2~",eachAprrover,"~",companyName,"|");
+				}
+			}else{
+				approversLoop = range(totalApprovers);
+				for aprroverIndx in approversLoop{
+					eachAprrover = jsonarrayget(approvers, aprroverIndx, "string");
+					if(len(eachAprrover)== 8 AND startswith(eachAprrover, "E")){
+						sbappend(approverString,"1~",eachAprrover,"~",companyName,"|");
+					}else{
+						sbappend(approverString,"2~",eachAprrover,"~",companyName,"|");
+					}
+				}
+			}
+			/*//Super user approver
+			superUser=split(superUserEmail_t,"#@#");
+			if(sizeofarray(superUser) >0){
+				for superUserVal in superUser{	
+					if(len(superUserVal)== 8 AND startswith(superUserVal, "E")){
+						sbappend(approverString,"1~",superUserVal,"~",companyName,"|");
+					}else{
+						sbappend(approverString,"2~",superUserVal,"~",companyName,"|");
+					}
+				}
+			}	*/
+			
+		}
+	}
+	
+	if(includeSuperUserApprover){
+		//Super user approver
+		superUser=split(superUserEmail_t,"#@#");
+		if(sizeofarray(superUser) >0){
+			for superUserVal in superUser{	
+				if(len(superUserVal)== 8 AND startswith(superUserVal, "E")){
+					sbappend(approverString,"1~",superUserVal,"~",companyName,"|");
+				}else{
+					sbappend(approverString,"2~",superUserVal,"~",companyName,"|");
+				}
+			}
+		}	
+	}
+}
+
+retStr = sbtostring(approverString);
+if(endswith(retStr, "|")){
+	retStr = substring(retStr, 0,len(retStr)-1);
+}
+
+return retStr;

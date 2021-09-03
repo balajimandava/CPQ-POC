@@ -1,0 +1,49 @@
+/**
+@name Get Available Take Off Models 2
+@api getAvailableTakeOffModels2
+@param params Json a JSON structure that contains the 'SALES_ORG' that maps to the sales org that we need
+the take off models.
+@function JsonArray u_getJsonDataForQuery(String query)
+@function String[] u_convertJsonArrayToStringArray(JsonArray jsonArr)
+@return JsonArray
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-12-23|Tat.Leung            |initial version
+2018-02-06|Tat.Leung            |
+2020-03-19|Atul Jain		|Removed commented code
+2020-07-24|Shardul S		|Changes for Project 51951
+*/
+salesOrg = jsonget(params, "SALES_ORG", "string", "");
+userGrp =  jsonget(params, "USER_GROUP","string", ""); //Get login user group
+
+records = util.u_getJsonDataForQuery("select TakeOffModel, Label,Placeholder, UserGroup, Brand from SalesOrgToTakeOff where SalesOrg = '" + salesOrg + "'");
+result  = jsonarray();
+//Shardul:Updates for project 51951 - Start
+userGrpValues = split(userGrp,"~");
+numOfLines = jsonarraysize(records);
+loop = range(numOfLines);
+counter = -1;
+for rec in loop {
+	usergroup = jsonget(jsonarrayget(records, rec, "json"), "UserGroup", "string", "");
+	for userGrpVal in userGrpValues
+	{
+		if(find(usergroup,userGrpVal) > -1)
+		{
+			counter = -1;
+        		break; // exit the for loop.
+		}
+		else
+		{
+			counter = counter + 1;
+		}
+	}	
+	if(counter >= 0)
+	{
+		jsonarrayappend(result,jsonarrayget(records, rec));
+	}
+	counter = -1;
+} // loop to get index of record in which system user group is present.
+//Shardul:Updates for project 51951 - End
+
+return result;

@@ -1,0 +1,11 @@
+{
+  "name" : "Read CSP Data From Table",
+  "variableName" : "readCSPDataFromTable",
+  "description" : "Rahul - In Progress",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ "_system_company_name" ]
+}

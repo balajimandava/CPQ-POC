@@ -1,0 +1,60 @@
+/**
+
+07-06-2021  | Gautam | Report Link URL
+
+**/
+
+response = json();
+ApiUrl = "";
+if(NOT isnull(jsonget(inputParamJson,"Url")))
+{
+	ApiUrl  = jsonget(inputParamJson,"Url","string");
+}else
+{
+   return response;
+}
+
+oauthToken = globaldictget("Zilliant_Oath_Token");
+timeUpdated = atoi(globaldictget("Time_Of_Creation"));
+//print timeUpdated;
+currentTime = getcurrenttimeinmillis();
+//print currentTime;
+//print currentTime - timeUpdated;
+timeDifference = currentTime - timeUpdated;
+//Compare the timeUpdated against the system time. if the difference is more that 1hr 30 mins and less than 2 hrs call getAuthenticationToken again.
+if(timeDifference > 7200000){
+
+	oauthToken = util.getAuthenticationToken();//util to establish connection and return oauth token.//print oauthToken;
+}
+
+        url = ApiUrl;
+	
+	//create Headers
+        headerDict = dict("string");
+        put(headerDict, "Authorization", oauthToken);
+	put(headerDict, "x-forwarded-host","api-eatoneleurpiq-dev.zilliant.com");
+	put(headerDict, "Content-Type", "application/json");
+	//res= urldata(url,"POST",headerDict,payload);
+	res = urldatabyget(url,"","ERROR",5000,headerDict);
+	
+	if(res <> "")
+	{
+		if(startswith(res, "ERROR"))
+		{
+			jsonput(response,"interfaceError",res);
+		}
+		elif(len(res) > 500)
+		{
+		        jsonput(response,"InvalidUrlError",true);
+		        InvalidUrlError  = jsonget(response,"InvalidUrlError","boolean");
+		        
+		}
+		else
+		{
+			jsonput(response,"interfaceResponse",json(res));
+			jsonput(response,"interfaceError","");
+			
+		}
+	}
+
+return response;

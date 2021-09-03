@@ -1,0 +1,14 @@
+{
+  "name" : "Update Newly Created Attributes",
+  "variableName" : "updateNewlyCreatedAttributes",
+  "description" : "This is to update the default/specific value for the newly created attributes",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputData",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "_parent_doc_number", "printOnOutput_l", "materialLineItem_l" ],
+  "mainDocAttributes" : [ "bs_id", "qqBusinessLineForSalesOrg_t", "salesOrg_t", "distributionChannel_t", "updateNewAttributes_t", "createdDate_t" ],
+  "systemAttributes" : [ "_system_user_time_zone" ]
+}

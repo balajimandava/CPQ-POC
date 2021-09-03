@@ -1,0 +1,77 @@
+/*****************************************
+
+Admin Update Logs :
+Date		Name			Comments
+4-Jan-2019	Harshit Mehta		Initial Version
+******************************************/
+
+materialNumberArray = string[];
+materialDetailJson = json();
+errorCode = "";
+resultArray = string[];
+result = "";
+jsonparam = json();
+STATUS = "SUCCESS";
+if(isNumber(bs_Id))
+{
+	transactionXML = gettransaction(atoi(bs_Id));
+	xpaths = string[];
+	xpaths[0] = "//sub_documents/transactionLine/materialLineItem_l";
+	output = readxmlmultiple(transactionXML , xpaths);
+	if(containsKey(output,xpaths[0]))
+	{
+		materialNumberArray = get(output,xpaths[0]);
+	}
+	else  //No material item available on transaction.
+	{
+		STATUS = "FAIL";
+		errorCode = errorCode + "NO Line Item";
+	}
+
+	recordSet = BMQL("SELECT MATNR,MAKTXDE,MATGRP5_TEXTDE from MAT01 where MATNR IN $materialNumberArray AND VKORG = $salesOrg_t AND VTWEG = $distributionChannel_t");
+
+	for record in recordSet
+	{
+		materialDescription = get(record,"MAKTXDE");
+		pricingGroupDescription = get(record,"MATGRP5_TEXTDE");
+		materialNumber = get(record,"MATNR");
+		descriptionJson = json();
+		jsonput(descriptionJson,"materialDescription",materialDescription);
+		jsonput(descriptionJson,"pricingGroupDescription",pricingGroupDescription);
+		jsonput(materialDetailJson ,materialNumber,descriptionJson);
+		
+	}
+	
+	for line in transactionLine
+	{
+		materialNumber = line.materialLineItem_l;
+		materialDesc = jsonpathgetsingle(materialDetailJson ,"$.." + materialNumber + ".materialDescription","String","");
+		pricingGroupDesc = jsonpathgetsingle(materialDetailJson ,"$.." + materialNumber + ".pricingGroupDescription","String","");
+		
+		if(sizeofarray(resultArray) < 4900)
+		{
+			append(resultArray,line._document_number + "~materialLineItemShortDescription_l~" + materialDesc );
+			append(resultArray,line._document_number + "~materialPricingGroupShortDescription_l~" + pricingGroupDesc );
+		}
+		else
+		{
+			result = result + join(resultArray,"|");
+			resultArray = string[];
+		}
+	}
+}
+else
+{
+	errorCode = errorCode + "Invalid bs_Id";
+	STATUS = "FAIL";
+}
+jsonput(jsonparam ,"STATUS",STATUS);
+jsonput(jsonparam,"ERROR_MESSAGE",errorCode);
+
+//Update current transaction details in updateDescription data table.
+tempResult = commerce.updateUpdateDescription(jsonParam);
+
+
+
+result = result + join(resultArray,"|");
+return result;

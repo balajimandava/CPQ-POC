@@ -1,0 +1,103 @@
+/************************************************************************************************************************************/
+//Created By: Smriti Chaturvedi
+//Created On: 17-Jan-2019
+//Purpose: To handle all the material query on MAT01
+// 2020-03-24   |Atul Jain  |Removed commented code, and added debug mode to print statements.
+// 2020-04-13   |Nithin     |Added Invalid Material Status code for PSD Business
+// 2020-10-22   |Neha       |Removed multiple BMQL for ES-EMEA and optimized the code as part of Project 52469																				
+// 2020-10-27   |Malli      |Added 4302,4303, 4308 sales org specific code for Material Status	
+// 2021-01-18	|Shardul S  |Performance imp fixes
+// 2020-01-21	|Rahul	    |Changes for CPQ-3209, Setup for checking Material Status;dynanically fetch material statuses
+// 2021-04-21	|Shardul S  |Added ES-EMEA for DIEN materials
+/************************************************************************************************************************************/
+
+retJson = json();//Return JSON holds the values to be returned
+message = "";
+msg = "";
+
+materialItemArr = jsonget(inputJson, "materialitem","jsonarray");
+materialItemStr = jsonarraytostr(materialItemArr);
+materialItemStr = replace(materialItemStr,"\"","");
+materialItemStr = substring(materialItemStr, 1, len(materialItemStr)-1);
+materialItemArrStr=split(materialItemStr,",");
+
+distributionChannel = jsonget(inputJson, "distributionChannel");
+language = jsonget(inputJson, "language");
+salesOrg = jsonget(inputJson, "salesOrg");
+businessGrp = jsonget(inputJson, "businessgroup");
+searchResultSet = recordset();
+materialLineItemMapping=jsonget(inputJson,"materialLineItemMapping","json");
+
+// ---------- 2021-22-01|Rahul|Changes for CPQ-3209 -------- Start
+inputParams = json();
+whereClauseConditions = stringbuilder();
+
+jsonput(inputParams, "Function", "ActiveMaterial");
+jsonput(inputParams, "SalesOrg", salesOrg);
+jsonput(inputParams, "Condition", "VMSTA");
+VMSTA_str = util.getActiveMaterialStatuses(inputParams);
+jsonput(inputParams, "Condition", "MSTAV");
+MSTAV_str = util.getActiveMaterialStatuses(inputParams);
+
+fields = dict("string");
+lang = dict("string");
+put(fields,"$salesOrg",salesOrg);
+put(fields,"$distributionChannel",distributionChannel);
+
+sbappend(whereClauseConditions,"VKORG = $salesOrg AND VTWEG = $distributionChannel");
+
+prefixedMaterialGroupIds_str ="('"+join(materialItemArrStr,"','")+"')";	
+sbappend(whereClauseConditions," AND MATNR IN ",prefixedMaterialGroupIds_str );
+
+if(VMSTA_str <> "" AND VMSTA_str <> "(VMSTA IN )"){ // VMSTA_str will be "(VMSTA IN )" when no VMSTA entries are maintained in GenericCondition data table
+	sbappend(whereClauseConditions," AND "+VMSTA_str);
+}
+if(MSTAV_str <> "" AND MSTAV_str <> "(MSTAV IN )"){ // MSTAV_str will be "(MSTAV IN )" when no VMSTA entries are maintained in GenericCondition data table
+	sbappend(whereClauseConditions," AND "+MSTAV_str);
+}
+if(businessGrp <> "PSD" AND businessGrp <> "ES-EMEA") // for all BusinessGroups except PSD // Added ES-EMEA by Shardul
+{
+	sbappend(whereClauseConditions," AND MTART<>'DIEN'");
+}
+whereClauseConditions_str = sbtostring(whereClauseConditions);
+
+searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, VMSTA FROM MAT01 WHERE $whereClauseConditions_str",lang,fields);
+
+// ---------- 2021-22-01|Rahul|Changes for CPQ-3209 -------- End
+
+msg= "";
+//Updated inline for loop by Shardul for performance improvement
+for result in searchResultSet
+{
+	materialItemId = get(result , "MATNR");	
+	if(findinarray(jsonkeys(materialLineItemMapping), materialItemId) > -1)
+	{
+		jsonremove(materialLineItemMapping,materialItemId);
+	}
+}
+
+
+msg= " "+util.getRemark("MATERIAL_STATUS", language) +" "+"-"+util.getRemark("LINE", language);
+
+jsonmaterialLineItemMappingstr =jsontostr(materialLineItemMapping);
+
+jsonmaterialLineItemMappingstr= replace(jsonmaterialLineItemMappingstr,"\"","");
+jsonmaterialLineItemMappingstr= replace(jsonmaterialLineItemMappingstr,":",msg);
+jsonmaterialLineItemMappingstr= substring(jsonmaterialLineItemMappingstr, 1, len(jsonmaterialLineItemMappingstr)-1);
+jsonmaterialLineItemMappingArr=split(jsonmaterialLineItemMappingstr,",");
+
+if(sizeofarray(jsonmaterialLineItemMappingArr) >0)
+{	
+	if(len(message) > 0)
+	{			
+		message= message + ","+ jsonmaterialLineItemMappingstr+"";    
+	}
+	else
+	{
+		message= jsonmaterialLineItemMappingstr; 
+	}
+}
+	
+jsonput(retJson, "message", message);
+
+return retJson;

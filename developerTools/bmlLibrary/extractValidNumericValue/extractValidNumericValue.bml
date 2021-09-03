@@ -1,0 +1,59 @@
+/**
+@name Extract Valid Numeric Value
+@api extractValidNumericValue
+@summary Converter $123,123.00 or €123.456.00 to 123456.00.
+@param numberAsString String
+@param thousandSeparator String
+@param currencySymbol String
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-05|Tat.Leung            |
+*/
+
+numStr = numberAsString;
+debugMode = false;
+if (isnumber(numStr)) {
+	return numStr;
+}
+
+if (type == "amt") {
+    if (thousandSeparator == ",") {
+        numStr = replace(replace(numberAsString, ",", ""), currencySymbol, "");
+        if (debugMode) {
+        print "numStr = " + numStr;
+        }
+        if (not isnumber(numStr)) {
+            numStr = "0.00";
+        }
+    } else {
+        numStr = replace(replace(replace(numberAsString, ".", ""), currencySymbol, ""), ",", ".");
+        if (debugMode) {
+        print "numStr = " + numStr;
+        }
+        if (not isnumber(numStr)) {
+            numStr = "0.00";
+        }    
+    }
+} else {
+    if (thousandSeparator == ",") {
+        numStr = replace(numberAsString, ",", "");
+        if (debugMode) {
+        print "numStr = " + numStr;
+        }
+        if (not isnumber(numStr)) {
+            numStr = "0.00";
+        }
+    } else {
+        numStr = replace(replace(numberAsString, ".", ""), ",", ".");
+        if (debugMode) {
+        print "numStr = " + numStr;
+        }
+        if (not isnumber(numStr)) {
+            numStr = "0.00";
+        }    
+    }
+}
+
+return numStr;

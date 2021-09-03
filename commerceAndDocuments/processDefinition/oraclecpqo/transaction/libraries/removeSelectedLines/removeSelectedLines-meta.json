@@ -1,0 +1,17 @@
+{
+  "name" : "Remove Selected Lines",
+  "variableName" : "removeSelectedLines",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "bsId",
+    "type" : "String"
+  }, {
+    "name" : "ConfigurationId",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ "externalConfigData_l", "_document_number" ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

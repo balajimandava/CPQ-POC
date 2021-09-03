@@ -1,0 +1,28 @@
+returnValue = "";
+
+	
+for line in transactionLine{
+	if(line._parent_doc_number <> ""){
+		if(line._line_item_comment <> ""){
+			lineCommentArray = split(line._line_item_comment, "**");
+			materialNo = lineCommentArray[0];
+			SAPLineNo = lineCommentArray[1];
+			listPrice = lineCommentArray[2];
+			productID = lineCommentArray[4];
+			returnValue = returnValue + line._document_number + "~materialLineItem_l~" + materialNo + "|";
+			//returnValue = returnValue + line._document_number + "~SAPLineNumber_l~" + SAPLineNo + "|";
+			returnValue = returnValue + line._document_number + "~oldListPrice_l~" + listPrice + "|";
+			returnValue = returnValue + line._document_number + "~materialLineItemShortDescription_l~" + productID + "|";
+		}
+	} 	
+}
+
+
+
+
+for line in transactionLine{
+if(line.lineItemStatus_l<>"cancelled"){
+returnValue = returnValue + line._document_number + "~lineItemStatus_l~expired|";
+}
+}
+return returnValue;

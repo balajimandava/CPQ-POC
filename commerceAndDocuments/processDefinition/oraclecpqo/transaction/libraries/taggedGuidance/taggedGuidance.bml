@@ -1,0 +1,163 @@
+/**
+@Tagged Guidance
+@taggedGuidance
+This library does authentication and then connects to Zilliant to insert data in Zilliant Tables
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2021-01-18|Pooja Gupta	        |CPQ-3754 Fetches guidance from Zilliant
+2021-03-01|Gautam               |CPQ-68
+*/
+//Default Values
+
+result="";
+inputParamJson = json();
+//Check if this sales org is enabled for guidance
+ZilliantGuidanceEnable= "No";
+//Validate if Zilliant API is enabled for this particular sales org
+approvalTriggers = bmql("select key, value from ApprovalTriggers where salesOrg=$salesOrg_t AND key='ZilliantGuidanceEnable'");
+for row in approvalTriggers{
+	ZilliantGuidanceEnable= get(row, "value");
+}
+if(ZilliantGuidanceEnable== "No" OR ZilliantGuidanceEnable=="")
+{
+	return "";
+}
+
+//print "Tagged";
+//print contractAPIstatus_t;
+
+
+//Prepare Payload
+inputJson=json();
+response = json();
+requestPayloadArr = jsonarray();
+requestLinePayloadArr = jsonarray();
+
+requestPayload = commerce.taggedGuidanceRequestPayload(inputJson);
+
+//get the count of line items
+count= jsonget(requestPayload,"lineItemCount","string","0");
+
+if(contractAPIstatus_t <> "")
+{
+     
+	deletePayload = json();
+	deleteLinePayload= json();
+	deleteArr=jsonarray();
+	
+	inputParamJson = json();
+	jsonput(deletePayload,"ContractId",transactionNumber_t);
+	jsonarrayappend(deleteArr,deletePayload);
+	jsonput(inputParamJson,"APICall","Delete Tagged Guidance");
+	jsonput(inputParamJson,"Req_Payload",deleteArr);
+	jsonput(inputParamJson,"IsTaggedGuidance",true);
+	response = util.connectToZilliant(inputParamJson);
+	//print "Step 2";
+	//print response;
+	//print "Step 2";
+	if(jsonget(response,"errorMessage","String") <> "" AND NOT(isnull(jsonget(response,"errorMessage","String"))))
+	{		
+		jsonError=json();
+		result = result + "1~taggedGuidanceErrorMessage_t~"+jsonput(jsonError,"ZilliantError",jsonget(response,"errorMessage","String"))+"|";
+		result = result + "1~taggedGuidanceErrorMessage_t~"+jsonput(jsonError,"UIError","");
+	}else
+	{
+	      result = result + "1~contractAPIstatus_t~|";
+	}
+	
+	/*for line in transactionLine{
+	      deleteLinePayload= json();
+	      doc_number= line._document_number;
+	      itemId = transactionNumber_t + "-" + doc_number;
+	      jsonput(deleteLinePayload,"ContractLineItemId",itemId);
+	      jsonarrayappend(deleteLineArr,deleteLinePayload);
+	      lineCount = lineCount  + 1;
+	}*/
+	
+	if(atoi(count) > 0){
+	   
+	        inputParamJson = json();
+		//jsonarrayappend(deleteLineArr,deleteLinePayload);
+		deleteLineArr = jsonget(requestPayload,"contactLineItems","jsonarray");
+		jsonput(inputParamJson,"APICall","Delete Tagged Line Items");
+		jsonput(inputParamJson,"Req_Payload",deleteLineArr);
+		jsonput(inputParamJson,"IsTaggedGuidance",true);
+		response = util.connectToZilliant(inputParamJson);
+		//print "Step 3";
+	//print response;
+	//print "Step 3";
+		
+		if(jsonget(response,"errorMessage","String") <> "" AND NOT(isnull(jsonget(response,"errorMessage","String"))))
+		{		
+			jsonError=json();
+			result = result + "1~taggedGuidanceErrorMessage_t~"+jsonput(jsonError,"ZilliantError",jsonget(response,"errorMessage","String"))+"|";
+			result = result + "1~taggedGuidanceErrorMessage_t~"+jsonput(jsonError,"UIError","");
+		}
+	}
+	
+}
+
+
+
+
+//json Type
+ContactPaylod = jsonget(requestPayload,"ContactPayload");
+jsonarrayappend(requestPayloadArr,json(ContactPaylod));
+
+jsonput(inputParamJson,"APICall","Tagged Guidance");
+jsonput(inputParamJson,"Req_Payload",requestPayloadArr);
+jsonput(inputParamJson,"IsTaggedGuidance",true);
+
+//call zilliant 
+response = util.connectToZilliant(inputParamJson);
+
+//print "Step 1";
+
+//print response;
+
+//print "Step 1";
+//result = result + "1~contractAPIstatus_t~"+ "Success" + "|";
+//Check the response for ERR (use jsonPath).
+if(jsonget(response,"errorMessage","String") <> "" AND NOT(isnull(jsonget(response,"errorMessage","String")))){
+		jsonError=json();
+		//print response;
+		result = result + "1~taggedGuidanceErrorMessage_t~"+jsonput(jsonError,"ZilliantError",jsonget(response,"errorMessage","String"))+"|";
+		result = result + "1~taggedGuidanceErrorMessage_t~"+jsonput(jsonError,"UIError","");
+}else{
+		//result = result + "1~errorMessage_t~"+ "Success Transaction" + "|";
+		result = result + "1~contractAPIstatus_t~"+ "Success" + "|";
+		print contractAPIstatus_t;
+		inputParamJson = json();
+		
+		
+		if(atoi(count) == 0){
+		    //print "no lines";
+		    return result ;
+		}
+		contactLinePaylod = jsonget(requestPayload,"contactLinePayload","jsonarray");
+		
+		/*print "print for multiple lines";
+		print contactLinePaylod;
+		print "print for multiple lines";*/
+		
+		//jsonarrayappend(requestLinePayloadArr,contactLinePaylod);
+		jsonput(inputParamJson,"APICall","Tagged Guidance Line Items");
+		jsonput(inputParamJson,"Req_Payload",contactLinePaylod);
+		jsonput(inputParamJson,"IsTaggedGuidance",true);
+		responseLine = util.connectToZilliant(inputParamJson);
+		
+		//print "Transaction Line Response";
+
+                //print responseLine;
+
+                //print "Transaction Line Response";
+		if(jsonget(responseLine,"taggedGuidanceErrorMessage_t","String") <> "" AND NOT(isnull(jsonget(responseLine,"errorMessage","String")))){
+			jsonError=json();
+			result = result + "1~taggedGuidanceErrorMessage_t~"+jsonput(jsonError,"ZilliantError",jsonget(responseLine,"errorMessage","String"))+"|";
+			result = result + "1~taggedGuidanceErrorMessage_t~"+jsonput(jsonError,"UIError","");
+        }
+		
+		
+}
+
+return result ;

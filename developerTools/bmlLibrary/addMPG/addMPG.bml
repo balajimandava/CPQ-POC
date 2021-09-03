@@ -1,0 +1,59 @@
+// Initialise return string for setting attribute values
+returnString = "";
+mpgfull = "";
+sessionID= get(inputDict,"sessionID"); 
+mpgID= get(inputDict,"mpgID");
+materialItemsList= get(inputDict,"materialItemsList");
+mpgData = util.getStringDict(inputDict,"mpgLineDetails","{}");
+if(containskey(inputDict,"mpgIDFullText")){
+    mpgfull = get(inputDict,"mpgIDFullText");
+}else {
+    mpgfull = "";
+}
+
+
+bsID= get(inputDict,"bsID");
+siteID= get(inputDict,"siteID");
+documentNumber= get(inputDict,"documentNumber");
+
+// Get service endpoint from environment variables
+serviceEndpoint = "https://"+ siteID + ".bigmachines.com/v1_0/receiver";
+
+debugMode = TRUE;
+
+// Set headers for request message
+requestHeaders = dict("string");
+put(requestHeaders, "Content-Type", "text/xml");
+put(requestHeaders, "Referer", serviceEndpoint);
+
+// Generate body of request message
+requestParameters = dict("string");
+put(requestParameters, "SESSION_ID",sessionID );
+put(requestParameters, "TRANSACTION_ID", bsID);
+put(requestParameters, "MPG_ID", mpgID);
+put(requestParameters, "MATERIAL_ITEMS_LIST", materialItemsList);
+put(requestParameters, "DOCNUMBER", documentNumber);
+put(requestParameters, "MPG_DATA", mpgData);
+put(requestParameters, "MPG_ID_FULL", mpgfull);
+
+requestBody = applytemplate("$BASE_PATH$/WebServices/addMPG_and_Items.xml", requestParameters); print "requestBody for addMPG_and_Items.xml"; print requestBody;
+//if (debugMode) {
+//print requestBody;
+//}
+
+// Send request message to service endpoint
+if (debugMode) {
+    print "***  REQUEST HEADERS  ***";
+    print requestHeaders;
+    print "";
+    print "***  REQUEST BODY  ***";
+    print requestBody;
+    print "";
+}
+
+
+response = urldatabypost(serviceEndpoint, requestBody, "ERROR occurred durring service call (AddMPG)", requestHeaders, true);
+//if (debugMode) {
+//print response;
+//}
+return response;

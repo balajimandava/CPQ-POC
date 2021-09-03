@@ -1,0 +1,60 @@
+//************************************************************************************************************
+//** Function: xmlToJSONConverter
+//**
+//** Description: This function is, to convert the XML to JSON Object.
+//** Params:
+//**	 inputXML : this attribute holds the input XML 
+//**     keyValDelimitator : this is column delimeter
+//**	 rowDelimitator: Row delimete
+//** Return Value: returns the json object
+//**		
+//** History:	Date          	Author		Comment 
+//**          	------------- 	---------------	--------------------------------------------------------------
+//**            10/08/2020	Dhananjay	Created initial version
+//************************************************************************************************************/
+//xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"+inputXML;
+
+//These nodes data we will use in the o/p document
+//Delimite string based on the give column & row delimiters
+//Example Str: kVA$,$3000kVA 3 Phase Substation Transformer@#@Frequency$,$60 Hz
+outputNodes = "ProductSpecific,SpecRFQ_Info,ItemDetail,Notes,PerformanceData";
+keyValDelimitator = "$,$";
+rowDelimitator = "@#@";
+inputXML = "";
+templetName = "";
+if(containskey(inputValues,"templetName")){
+	templetName= get(inputValues,"templetName","string");
+}
+if(containskey(inputValues,"inputXML")){
+	inputXML = get(inputValues,"inputXML","string");
+}
+if(containskey(inputValues,"keyValDelimitator")){
+	keyValDelimitator = get(inputValues,"keyValDelimitator","string");
+}
+if(containskey(inputValues,"rowDelimitator")){
+	rowDelimitator = get(inputValues,"rowDelimitator","string");
+}
+retJson = json();
+if(inputXML <> ""){
+	//inputXML = replace(inputXML,"\"","\\\"");
+	xslFileLocation="$BASE_PATH$/XSLT/xmlToJson_Global.xsl";
+	xml = inputXML;
+	if(templetName == ""){
+		xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ROOT>";
+		xml = xml + "<OutputNodes>"+outputNodes+"</OutputNodes>";
+		xml = xml + "<RowDelimiter>"+rowDelimitator+"</RowDelimiter>";
+		xml = xml + "<ColumnDelimiter>"+keyValDelimitator+"</ColumnDelimiter>";
+		xml = xml + inputXML;
+		xml = xml + "</ROOT>";
+		//print xml;
+		xslFileLocation="$BASE_PATH$/XSLT/xmlToJson.xsl";
+	}
+	
+	output=transformxml(xml , xslFileLocation, "error");
+	//PRINT output;
+	if(output <> "error"){
+		retJson = json(output);
+	}
+}
+//print jsonget(retJson,"ExternalSytem","string","sdfgsdfg");
+return retJson;

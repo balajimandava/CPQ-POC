@@ -1,0 +1,12 @@
+{
+  "name" : "parseBidManBOM Backup on 11082020",
+  "variableName" : "parseBidManBOM_BackupOn11082020",
+  "description" : "parse Bid manager BOM into parent line and array of child line items.",
+  "libraryFunctions" : [ "util.getStringDict", "util.parseXMLToDelimiterStr", "util.setEmpyForNullString" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "bom",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

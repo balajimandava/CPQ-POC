@@ -1,0 +1,135 @@
+/**
+@name Get Lead Time
+@api getLeadTime
+@summary Get the Lead Time for standard and configured items.
+@param inputData anytype dictionary
+@function String getLeadTime(String AnyTypeDictionary inputDict)
+@AnyTypeDictionary entries: 
+	Key :"brands" Value:string[] 
+		-> read from BOM xml for new configure items
+		-> brand_l OR MVGR1 column data from Mat01, for standard items
+	Key :"higherLevelProducts" Value:string[] 
+		->Product Line From BidMan for config items 
+		->Product Hierarchy from MAT01 for standard items
+	Key :"leadTimeIndicators" Value:string[]->from BidMan
+	Key :"keysToSetValues" Value:String Dictionary 
+			     -> key: catalogNumber for new configure items
+			     	     document number for standard items or old items
+			     -->value:productLine+brand+leadTimeIndicator for newold configure items
+			     	      productHierarchy+brand for standard items
+	Key :"standardItems" Value:boolean -> true value for standard items
+@return String Dictionary
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|--------------------------------------------------------------------------------------------
+2020-04-02|Dhananjay	        |
+*/
+startTime = getcurrenttimeinmillis();
+brands_array = string[];
+productHierarchy_array = string[];
+leadTimeIndicators_array = string[];
+materialNumbers_array = string[];
+doneDesign_array = string[];
+standardItems = false;
+keysToSetValues= dict("string");
+retValues = dict("string");
+//print "LeadTime Util Logs";
+//print inputData;
+if(containskey(inputData,"brands")){
+	brands_array = get(inputData,"brands","string[]");
+}
+if(containskey(inputData,"productHierarchy")){
+	productHierarchy_array = get(inputData,"productHierarchy","string[]");
+}
+
+if(containskey(inputData,"leadTimeIndicators")){
+	leadTimeIndicators_array = get(inputData,"leadTimeIndicators","string[]");
+}
+if(containskey(inputData,"standardItems")){
+	standardItems = get(inputData,"standardItems","boolean");
+}
+
+if(containskey(inputData,"keysToSetValues")){
+	keysToSetValues = get(inputData,"keysToSetValues","dict<string>");
+}
+if(containskey(inputData,"materialNumbers")){
+	materialNumbers_array = get(inputData,"materialNumbers","string[]");
+}
+
+/*Checking whether the material numbers are existing in MAT01 or not 
+	if the item is Done Design or New Design will be determined if it is in Material Master table from SAP
+	If the Material Master has been created in SAP, then Done Design = Yes.
+*/
+mat01_qry = bmql("SELECT MATNR FROM MAT01 WHERE MATNR IN $materialNumbers_array");
+existingMaterialsDict = dict("string");
+for eachRec in mat01_qry{
+	mat_num = get(eachRec,"MATNR");
+	put(existingMaterialsDict,mat_num,mat_num);
+}
+
+//Setting the DoneDesign array 
+for eachMat in materialNumbers_array{
+	if(containskey(existingMaterialsDict,eachMat)){
+		append(doneDesign_array,"Yes");
+	}else{
+		append(doneDesign_array,"No");
+	}
+}
+
+brand_str = "('"+join(brands_array,"','")+"')";
+productHierarchy_str = "('"+join(productHierarchy_array,"','")+"')";
+leadTimeIndicators_str = "('"+join(leadTimeIndicators_array,"','")+"')";
+doneDesign_str = "('"+join(doneDesign_array,"','")+"')";
+
+whereClauseConditions = stringbuilder();
+whereConditionValues = dict("string");
+lang = dict("string");
+selectColumns = string[]{"Brand, HigherLevelProduct", "LeadTimeIndicator", "DaysOrWeeks","ProductHierarchy"};
+
+sbappend(whereClauseConditions," Brand IN ",brand_str);
+//sbappend(whereClauseConditions," AND (HigherLevelProduct IN ",higherLevelProducts_str," OR ProductHierarchy IN ",higherLevelProducts_str+" )");
+//sbappend(whereClauseConditions," AND (ProductHierarchy IS NULL OR ProductHierarchy IN ",productHierarchy_str+" )");
+sbappend(whereClauseConditions," AND (LeadTimeIndicator IN ",leadTimeIndicators_str," OR LeadTimeIndicator IS NULL )");
+sbappend(whereClauseConditions," AND (DoneDesign IN ",doneDesign_str," )");
+print whereClauseConditions;
+
+selectColumns_str = join(selectColumns,",");
+whereClauseConditions_str = sbtostring(whereClauseConditions);
+//print whereClauseConditions_str;
+leadTime_qry = bmql("SELECT $selectColumns_str FROM LeadTime WHERE $whereClauseConditions_str");//,lang,whereConditionValues);
+if(haserror(leadTime_qry)){
+	errorMsg = "LeadTime Data Table Query::"+getmessage(leadTime_qry);
+	throwerror(errorMsg);
+}
+//print leadTime_qry;
+leadTimeDict = dict("string");
+for eachRec in leadTime_qry{
+	brand = get(eachRec,"Brand");
+	//higherLevelProduct = get(eachRec,"HigherLevelProduct");
+	productHierarchy = get(eachRec,"ProductHierarchy");
+	leadTimeIndicator = get(eachRec,"LeadTimeIndicator");
+	leadTime = get(eachRec,"DaysOrWeeks");
+	//config_items_uniqKey = higherLevelProduct+brand+leadTimeIndicator;
+	config_items_uniqKey = brand+leadTimeIndicator;
+	standard_items_uniqKey = productHierarchy+brand;
+	put(leadTimeDict,config_items_uniqKey,leadTime);
+	//If more than one row are returned for Product Hierarchy Level # and Brand – do not display any lead time.
+	if(containskey(leadTimeDict,standard_items_uniqKey)){
+		put(leadTimeDict,standard_items_uniqKey,"");
+	}else{
+		put(leadTimeDict,standard_items_uniqKey,leadTime);
+	}
+}
+keys = keys(keysToSetValues);
+//PRINT keys;
+for eachKey in keys{
+	uniqVal = get(keysToSetValues,eachKey);
+	if(containskey(leadTimeDict,uniqVal)){
+		leadTime = get(leadTimeDict,uniqVal);
+		put(retValues,eachKey,leadTime);
+	
+	}
+}
+endTime= getcurrenttimeinmillis();
+print endTime-startTime;
+return retValues;

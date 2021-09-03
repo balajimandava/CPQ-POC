@@ -1,0 +1,12 @@
+{
+  "name" : "Send Email",
+  "variableName" : "sendEmail",
+  "description" : "Send email using Web-Service",
+  "libraryFunctions" : [ "util.getSiteSpecificData" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,12 @@
+{
+  "name" : "Get Site Specific Data",
+  "variableName" : "getSiteSpecificData",
+  "description" : "Get site specific data for a given site",
+  "libraryFunctions" : [ "util.u_getJsonDataFromTable" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "siteID",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

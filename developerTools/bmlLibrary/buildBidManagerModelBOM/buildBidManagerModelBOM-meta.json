@@ -1,0 +1,21 @@
+{
+  "name" : "Build Bid Manager Model BOM",
+  "variableName" : "buildBidManagerModelBOM",
+  "description" : "",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.enableDebugLog", "util.getExchangeRate", "util.getLeadTime", "util.getMAT01DetailsForMultipleItems", "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.parseBidManBOM", "util.u_logJson", "util.u_logString", "util.xmlToJSONConverter" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "selectedDocNumber",
+    "type" : "String"
+  }, {
+    "name" : "configExtraInfo",
+    "type" : "String"
+  }, {
+    "name" : "modelPath",
+    "type" : "String"
+  }, {
+    "name" : "bsId",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

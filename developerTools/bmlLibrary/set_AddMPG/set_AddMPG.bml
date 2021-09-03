@@ -1,0 +1,64 @@
+/**
+@name Set_AddMPG
+@api set_AddMPG
+@param inputDict StringDictionary
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-18|Tat.Leung            |Added logging
+2020-03-16|Atul Jain		|Added debug mode to print statements
+*/
+// Initialise return string for setting attribute values
+returnString = "";
+
+sessionID = get(inputDict, "sessionID");
+bsID = get(inputDict, "bsID");
+siteID = get(inputDict, "siteID");
+
+// Get service endpoint from environment variables
+serviceEndpoint = "https://" + siteID + ".bigmachines.com/v1_0/receiver";
+
+// debugMode = false;
+
+// Set headers for request message
+requestHeaders = dict("string");
+put(requestHeaders, "Content-Type", "text/xml");
+put(requestHeaders, "Referer", serviceEndpoint);
+
+// Generate body of request message
+requestParameters = dict("string");
+put(requestParameters, "HOSTNAME", siteID);
+put(requestParameters, "SESSION_ID", sessionID);
+put(requestParameters, "TRANSACTION_ID", bsID);
+put(requestParameters, "ADD_MPG_FLAG", "false");
+put(requestParameters, "ADD_MATERIAL_ITEMS_FLAG", "false");
+put(requestParameters, "ADD_ITEMS_FLAG", "false");
+put(requestParameters, "SELECTEDMATERIALGROUPS", "null");
+put(requestParameters, "ACTIONVARNAME", "no_Op");
+
+requestBody = applytemplate("$BASE_PATH$/WebServices/updateTransaction.xml", requestParameters);
+// if (debugMode) {
+//print requestBody;
+// }
+logStatus = util.u_logString("UTIL_ADD_MPG", 4, requestBody, "requestBody");
+
+// Send request message to service endpoint
+// if (debugMode) {
+//     print "***  REQUEST HEADERS  ***";
+//     print requestHeaders;
+//     print "";
+//     print "***  REQUEST BODY  ***";
+//     print requestBody;
+//     print "";
+// }
+
+
+response = urldatabypost(serviceEndpoint, requestBody, "ERROR occurred durring service call (Eaton_Set_AddMPG)", requestHeaders, true);
+// if (debugMode) {
+//print response;
+// }
+logStatus = util.u_logString("UTIL_ADD_MPG", 4, response, "response");
+
+return "";

@@ -1,0 +1,349 @@
+/**
+@name 		Zilliant Request Payload
+@api 		zilliantRequestPayload
+@summary 	Prepares Zilliant Request Payload
+@param  	action
+@return 	String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+01/03/2021|Gautam				CPQ-68 -
+07/21/2021|Ankush		|INC000014516795 - Added code to fetch transaction owner id based on transaction menu value
+*/
+selectedCustArrJson = json();
+
+APITrigger= jsonget(inputJson,"API Trigger");
+//jsonput(selectedCustArrJson,"selectedCustArr",selectedCustomerArraySet_t);//print selectedCustArrJson;
+sold_To_Country = customerCountry_t;
+primary_Customer_No = customerNumber_t;
+primary_Customer_Type = "";
+associated_Customer_No="";
+associated_Customer_Type="";
+if(NOT(ISNULL(selectedCustomerArraySet2_t))){
+jsonput(selectedCustArrJson,"selectedCustArr",selectedCustomerArraySet2_t);//print selectedCustArrJson;
+sold_To_Country = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust2_t==true)].country_selctdCust2_t");
+primary_Customer_No = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust2_t==true)].customer_selctdCust2_t");
+primary_Customer_Type = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust2_t==true)].type_selctdCust2_t");
+associated_Customer_No = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust2_t==true)].shipToCustomer_selctdCust2_t");
+associated_Customer_Type = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust2_t==true)].associated_selctdCust2_t");
+}
+elif(NOT(ISNULL(selectedCustomerArraySet_t))){
+jsonput(selectedCustArrJson,"selectedCustArr",selectedCustomerArraySet_t);//print selectedCustArrJson;
+sold_To_Country = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust_t==true)].country_selctdCust_t");
+primary_Customer_No = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust_t==true)].customer_selctdCust_t");
+primary_Customer_Type = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust_t==true)].type_selctdCust_t");
+associated_Customer_No = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust_t==true)].shipToCustomer_selctdCust_t");
+associated_Customer_Type = jsonpathgetsingle(selectedCustArrJson, "$.selectedCustArr[?(@.primary_selctdCust_t==true)].associated_selctdCust_t");
+}
+else{
+	sold_To_Country = customerCountry_t;
+	primary_Customer_No = customerNumber_t;
+}
+//added by gautam on 20-07-2021
+
+if(primary_Customer_Type == "SoldTo")
+{
+
+   primary_Customer_Type  = "Sold to";
+
+}
+
+//added by gautam on 20-07-2021
+If(accountTypeKTOKD_t == "Z002" AND primary_Customer_Type == "Sold to")
+{
+	primary_Customer_No = ShipToNumber_t;
+	primary_Customer_Type = "Ship to";
+	associated_Customer_No = SoldToNumber_t;
+	associated_Customer_Type = "Sold to";
+
+}
+currencySymbol = currencySymbol_t;
+currencyDecimalSeparator = currencyDecimalSeparator_t;
+primary_End_Customer = endCustomerNo_t;
+account_Type = qqAccountType_t;
+sub_Account_Type = qqSubAccountType_t;
+transaction_Type = transactionType_t;
+currency = currency_t;
+customerGroup = qqCustomerGroup_t;
+requestJson = json();
+quoteLineDetailsJsonArr = jsonarray();
+deleteLineArr = jsonarray();
+formulasJsonArr = jsonarray();
+responseDetailsArr = jsonarray();
+jsonarrayappend(responseDetailsArr,"none");
+linesArr = jsonarray();
+zilliantGuidanceEnable = "No";
+payloadJson=json();
+editType = "New";
+transactionOwner = transactionOwner_t;
+transactionOwnerId = salesContactNumber_t;
+//thresholdData = util.getApprovalThresholds(json("{\"salesOrg\": \"" + salesOrg_t + "\", \"customerGroup\": \"" + customerGroup + "\"}"));
+//mpgsInThresholdsJSON = jsonkeys(thresholdData);
+
+//check transaction type
+isRevise = false;
+if(revisionNumber_t>1 AND approvalDate_t <> "")
+{
+	editType = "Revise";
+	isRevise = true;
+}
+if(parent_transaction_id_createRenewal<>""AND expireandrenew_t=="true" AND NOT(isRevise))
+{
+	editType = "Renewal";
+}
+if(parent_transaction_id_createRenewal<>""AND expireandrenew_t<>"true" AND NOT(isRevise))
+{
+	editType = "ExpireAndRenewal";
+}
+if(parent_transaction_id_qqCreateNewVersion_t <> "" AND NOT(isRevise))
+{
+	editType = "Version";
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////
+quoteHeaderJson = json();
+
+//Header Preparation	
+
+	jsonput(quoteHeaderJson, "ContractId", transactionNumber_t);
+	jsonput(quoteHeaderJson, "Name", transactionName_t);
+	jsonput(quoteHeaderJson, "CustomerId", primary_Customer_No);
+	jsonput(quoteHeaderJson, "StartDate", agreementValidFrom_t);
+	jsonput(quoteHeaderJson, "EndDate", agreementValidTo_t);
+	jsonput(quoteHeaderJson, "SalesOrg", salesOrg_t);
+	jsonput(quoteHeaderJson, "Channel", distributionChannel_t);
+	jsonput(quoteHeaderJson, "Division", division_t);
+	if(isQuote_t)
+	{
+		jsonput(quoteHeaderJson, "OrderValueCommitment", qqTotalValue_t);
+	}
+	else
+	{
+		jsonput(quoteHeaderJson, "OrderValueCommitment", expectedVolume_t);
+	}
+	//Start - Ankush - INC000014516795: Added to fetch transaction owner id
+	if (transactionOwner == "salesContact")
+	{
+	transactionOwnerId = salesContactNumber_t;
+	}
+	elif (transactionOwner == "customerSupport")
+	{
+	transactionOwnerId = customerSupportNumber_t;
+	}
+	elif (transactionOwner == "createdBy")
+	{
+	transactionOwnerId = creatorQuote_t;
+	}
+	//End - Ankush - INC000014516795: Added to fetch transaction owner id
+	//jsonput(quoteHeaderJson, "EditType", transactionNumber_t);
+	jsonput(quoteHeaderJson, "TransactionOwnerID", transactionOwnerId);
+	jsonput(quoteHeaderJson, "CreatedByID", eRecordID_t);
+	jsonput(quoteHeaderJson, "CreatedByName", createdBy_t);
+	jsonput(quoteHeaderJson, "HierarchyCustomerNum",headquartersNumber_t);
+	jsonput(quoteHeaderJson, "CreateDate", createdDate_t);
+	jsonput(quoteHeaderJson, "SubmitForApprovalDate", submittedDate_t);
+	jsonput(quoteHeaderJson, "AgreementStatus", status_t);
+	jsonput(quoteHeaderJson, "PriceList", priceListHPL_t);
+	jsonput(quoteHeaderJson, "PriceListValidFrom", priceListFrom_t);
+	jsonput(quoteHeaderJson, "PriceListValidTo", priceListTo_t);
+	jsonput(quoteHeaderJson, "LastUpdated", lastUpdatedDate_t);
+	jsonput(quoteHeaderJson, "SendtoSAPDate", qqSAPCompleteDate_t);
+	jsonput(quoteHeaderJson, "ApprovalsCompleteDate", approvalDate_t);
+	jsonput(quoteHeaderJson, "FeedbackProvidedDate", feedbackProvidedDate_t);
+	jsonput(quoteHeaderJson, "SAPQuoteNum", qqSAPQuoteNumber_t);
+	jsonput(quoteHeaderJson, "VistexNum", vistexAgreement_t);
+	jsonput(quoteHeaderJson, "HeaderDiscountAmt", headerDiscountAmount_t);
+	//jsonput(quoteHeaderJson, "RevisionNum", revisionNumber_t);
+	jsonput(quoteHeaderJson, "ApprovalComments", approvalCommentsText_t);
+	jsonput(quoteHeaderJson, "TransactionOwnerName", transactionOwnerName_t);
+	
+	//print "Vistex";
+	//print vistexAgreement_t;
+	//print qqSAPQuoteNumber_t;
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////
+    //Fields to be added -
+	/*ContractId (Transaction Number),ContractLineItemId (Document Number),ProductId (Matnr),ContractPrice (Requested Discount %),DiscountType (expected value based on user entered value. If net fixed amount is entered, then Net; if discount % is entered, then %, if quote and no value is entered, then Net),RequestedNetPrice,RequestedDiscountPct,OldNetPct,ListPrice,NetPriceFromDSP,StartPct,TargetPct,FloorPCt,DivisionMinimumPct,ScaleFrom,ScaleTo,SegmentID,SalesOrg,Channel,Division,ProductGroupType,Cost,UOM,MetalSurchargeAmt,BPGDiscountPct,BonusPriceGroup,Quantity,DiscountOffListPct,FinalPriceApproved,FinalDiscountApproved*/
+		
+	
+              count=0;
+		      for line in transactionLine{
+				docNum = line._document_number;
+				materialNum = line.materialLineItem_l;
+				listPrice = line.oldListPrice_l;
+				netPrice = line.currentNetPricePerUOM_l;
+				mpg = line.materialPricingGroup_l;
+				//print mpgsInThresholdsJSON;
+				//print mpg;
+				productType = line.qqProductType_l;
+
+						lineJson = json();
+						deleteLinePayload= json();
+						jsonput(lineJson, "ContractId",transactionNumber_t);
+						itemId = transactionNumber_t + "-" + docNum;
+						jsonput(lineJson, "ContractLineItemId",itemId);
+						
+						//this Json to be used while calling delete Line API in tagged Guidance so that we done have to loop in Tagged guidance for Performance
+						jsonput(deleteLinePayload,"ContractLineItemId",itemId);
+						
+						
+					    jsonput(lineJson, "ProductId",materialNum);
+						jsonput(lineJson,"ContractPrice",line.discountOffList_l);
+						
+						jsonput(lineJson,"RequestedDiscountPct",line.discountOffList_l);
+						jsonput(lineJson,"RequestedNetPrice",line.newNetPrice_l);
+						jsonput(lineJson,"Cost",line.cost_l);
+						
+						//all fields default sent as 0 if no values exists since API throws conversion error if value sent as ""
+						discountType = "";
+						if(line.netFixedAmountString_l <> "")
+						{
+						    //discountType  = line.netFixedAmountString_l;
+						    discountType   = "Net";
+						}
+						
+						if(line.discountPercentString_l <> "")
+						{
+						   //discountType  = line.discountPercentString_l ;
+						   discountType   = "%";
+						}
+						
+						if(isQuote_t AND (line.discountPercentString_l == ""))
+						{
+						
+						    //discountType  = line.netFixedAmountString_l;
+						    discountType   = "Net";
+						}
+						
+						jsonput(lineJson,"DiscountType",discountType);
+						
+						oldNetPrice = line.oldDiscountString_l;
+						if(oldNetPrice  == "" OR isnull(oldNetPrice))
+						{
+						    oldNetPrice = "0";
+						}else
+						{
+						
+						   currentNetPrice = util.stringToFloat(replace(replace(replace(replace(line.oldDiscountString_l,currencySymbol, ""), "%", ""), currencyDecimalSeparator, "."),"'",""));
+						   oldNetPrice     = string(currentNetPrice );
+						}
+						jsonput(lineJson,"OldNetPct",oldNetPrice );
+						jsonput(lineJson, "ListPrice", listPrice);
+						jsonput(lineJson, "NetPriceFromDSP",netPrice);
+						jsonput(lineJson, "ProductGroupType",productType);
+						
+						
+						ScaleFrom = line.scaleFrom_l;
+						if(ScaleFrom == "" OR isnull(ScaleFrom))
+						{
+						    ScaleFrom = "0";
+						}
+						jsonput(lineJson, "ScaleFrom", ScaleFrom);
+						
+						ScaleTo = line.scaleTo_l;
+						if(ScaleTo == "" OR isnull(ScaleTo))
+						{
+						    ScaleTo = "0";
+						}
+						
+						jsonput(lineJson, "ScaleTo", ScaleTo );
+						jsonput(lineJson, "StartPct",line.guidance_start_l);
+						jsonput(lineJson, "TargetPct", line.guidance_target_l);
+						jsonput(lineJson, "FloorPCt", line.guidance_salesfloor_l);
+						jsonput(lineJson, "DivisionMinimumPct", line.guidance_div_min_l);
+						jsonput(lineJson, "SalesOrg",salesOrg_t);
+						jsonput(lineJson, "Channel", distributionChannel_t);
+						jsonput(lineJson, "Division", division_t);
+						jsonput(lineJson, "RevisionNum", revisionNumber_t);
+						jsonput(lineJson, "UOM", line.uOM_l);
+						jsonput(lineJson, "MetalSurchargeAmt", line.metalSurcharges_l);
+						
+						BonusPriceGroup = line.bonusGroup_l;
+						if(BonusPriceGroup == "" OR isnull(BonusPriceGroup))
+						{
+						    BonusPriceGroup = "0";
+						}
+						jsonput(lineJson, "BonusPriceGroup", BonusPriceGroup );
+						jsonput(lineJson, "Quantity", line.roundingQuantity_l);
+						jsonput(lineJson, "DiscountOffListPct", line.listPriceDifference_l);
+					    jsonput(lineJson, "FinalPriceApproved", line.agreementNetPrice_l);
+						jsonput(lineJson, "FinalDiscountApproved", line.agreementNetDiscount_l);
+						jsonput(lineJson, "BPGDiscountPct", line.bonusGroupDiscount_t);
+						
+						
+						
+						jsonput(lineJson, "SegmentID", line.segmentId_t);
+						jsonput(lineJson, "ProductGroupType", line.qqGroup_l);
+						
+						//get the ID of all the line Items to be used for Deleting LIne Items
+						jsonarrayappend(deleteLineArr,deleteLinePayload);
+					    jsonarrayappend(quoteLineDetailsJsonArr,lineJson);
+						count= count+1;
+				
+			 }
+			
+		
+
+
+     
+	formulasRS = bmql("SELECT Formulas FROM Zilliant_Formulas");
+	for eachRec in formulasRS{
+		formula = get(eachRec, "Formulas");
+		jsonarrayappend(formulasJsonArr,formula);
+	}
+	
+	
+	//jsonput(quoteHeaderJson, "Sales_Org", salesOrg_t);
+	jsonput(quoteHeaderJson, "Channel", distributionChannel_t);
+	jsonput(quoteHeaderJson, "Division", division_t);
+	jsonput(quoteHeaderJson, "SoldToCountry", sold_To_Country);
+	jsonput(quoteHeaderJson, "PrimaryCustomerNum", primary_Customer_No);
+	jsonput(quoteHeaderJson, "PrimaryCustomerType", primary_Customer_Type);
+	jsonput(quoteHeaderJson, "AssociatedCustomerNum", associated_Customer_No);
+	jsonput(quoteHeaderJson, "AssociatedCustomerType", associated_Customer_Type);
+	jsonput(quoteHeaderJson, "PrimaryEndCustomer", primary_End_Customer);
+	jsonput(quoteHeaderJson, "AccountType", account_Type);
+	jsonput(quoteHeaderJson, "SubAccountType", sub_Account_Type);
+	
+	
+	
+	if(transactionType_t == "CSP")
+	{
+		jsonput(quoteHeaderJson, "TransactionType", "CSP Rebate");
+	}
+	if(transactionType_t == "DSP")
+	{
+		jsonput(quoteHeaderJson, "TransactionType", "DSP");
+	}
+	if(transactionType_t == "RQ")
+	{
+		jsonput(quoteHeaderJson, "TransactionType", "TSP Rebate");
+	}
+	if(transactionType_t == "BA")
+	{
+		jsonput(quoteHeaderJson, "TransactionType", "Blanket");
+	}
+	jsonput(quoteHeaderJson, "Currency", currency);
+	if(transactionType_t == "WQ" OR transactionType_t == "DS")
+	{
+		jsonput(quoteHeaderJson, "OrderValueCommitment", qqTotalValue_t);
+		jsonput(quoteHeaderJson, "TransactionType", "TSP Invoice");
+	}
+	else
+	{
+		jsonput(quoteHeaderJson, "OrderValueCommitment", expectedVolume_t);
+	}
+	jsonput(quoteHeaderJson,"EditType",editType);
+	linesJson = json();
+	
+	    jsonput(payloadJson,"ContactPayload",quoteHeaderJson);
+		jsonput(payloadJson,"contactLinePayload",quoteLineDetailsJsonArr);
+		//get the List of all the Line Items ID to be used in Delete Line Items
+		jsonput(payloadJson,"contactLineItems",deleteLineArr);
+	    jsonput(payloadJson,"lineItemCount",count);
+	
+
+return payloadJson;

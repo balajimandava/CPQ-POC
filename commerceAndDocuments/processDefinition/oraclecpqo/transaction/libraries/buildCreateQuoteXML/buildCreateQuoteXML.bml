@@ -1,0 +1,401 @@
+/**
+@name Build Create Quote XML
+@api buildCreateQuoteXML
+@summary Build the create quote SOAP xml for calling SOA.
+@param data Json
+@attribute accountTypeKTOKD_t
+@attribute agreementDeliveryTerms_t
+@attribute agreementPaymentTerms_t
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute aluminiumValue_t
+@attribute aluminium_t
+@attribute bs_id
+@attribute copperValue_t
+@attribute copper_t
+@attribute currency_t
+@attribute customerCurrency_t
+@attribute customerNumber_t
+@attribute distributionChannel_t
+@attribute division_t
+@attribute headerDiscountAmount_t
+@attribute headerDiscountOrPercentOff_t
+@attribute headerDiscount_t
+@attribute incoterm2_t
+@attribute minimumOrderVolume_t
+@attribute nscaleRequestID_t
+@attribute opportunityAccountID_t
+@attribute opportunityName_t
+@attribute opportunityNumber_t
+@attribute owner_t
+@attribute preparedByENumber_t
+@attribute pricingDate_t
+@attribute qqAccountType_t
+@attribute qqApplication_t
+@attribute qqBusinessLineForSalesOrg_t
+@attribute qqCity_t
+@attribute qqCountry_t
+@attribute qqExpectedDecisionDate_t
+@attribute qqProjectName_t
+@attribute qqRegion_t
+@attribute qqSegment_t
+@attribute qqSubAccountType_t
+@attribute qqSubApplication_t
+@attribute qqSubSegment_t
+@attribute qqTotalValue_t
+@attribute qq_MnlShpTo_Address1_t
+@attribute qq_MnlShpTo_Address2_t
+@attribute qq_MnlShpTo_City_t
+@attribute qq_MnlShpTo_Country_t
+@attribute qq_MnlShpTo_Language_t
+@attribute qq_MnlShpTo_Name1_t
+@attribute qq_MnlShpTo_Name2_t
+@attribute qq_MnlShpTo_Region_t
+@attribute qq_MnlShpTo_Zip_t
+@attribute salesOrg_t
+@attribute shipToNumber_t
+@attribute silverValue_t
+@attribute silver_t
+@attribute soldToNumber_t
+@attribute submittedDate_t
+@attribute surchargeExemption_t
+@attribute transactionName_t
+@attribute transactionNumber_t
+@attribute transactionType_t
+@function String buildCreateQuoteLineXML(Json data)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-26|Tat.Leung            |Initial Version
+2018-02-28|Tat.Leung            |Mapped manually entered ship-to address to address fields 
+2018-04-05|michael.yeung        |
+2018.05.23|dBo Haizlip		|Added headerDiscount_t and headerDiscountOrPercentOff_t
+2018.05.31|dBo Haizlip          |Added support for address
+2018.07.02|vhingorani		|Added conditional for incoterm2 QQ:674
+2018-08-30|shibaji		|QQ-817 related changes
+2018-09-19|E9813316             |
+2019-03-04|Smriti Chaturvedi 	|AlM- 978. Commented the header discount logic for negative value
+2019-04-05|Smriti Chaturvedi	|ALM- 1954- Commented the below code of ship to against defect 1954
+2019-05-16|Smriti Chaturvedi	|ALM- 1954- Modified  the below code of ship to against defect 1954
+2019-05-28|Pooja Gupta          |ALM- 730 - Added code for book price date 
+2019-21-11|Ali					|INC000013027995 - Replace &#x27;&#x27 with "
+2020-04-27|Dhananjay			|PSD#49704:US:CPQ-520: included the usage indicator in the payload.
+2020-05-05|Dhananjay			|PSD#49704:US:CPQ-520: included logic to prepare the clarificationsAndExceptions
+2020-05-13|Dhananjay			|PSD#49704:US:CPQ-520: included Order Reason, Order Notes, customerSupportNumber_t,salesAgencyNumber_t and salesContactNumber_t
+2020-05-27|Dhananjay			|PSD#49704:US:CPQ-520: included  INTERNAL ORDER NOTES
+2020-08-03|Dhananjay			|included primaryEndCustomerFlag_t in the payload
+2020-09-09|Pooja				|Added code to send Valid From and Book Price Date for ESEMEA
+2020-04-11|Gunashree			|Added logic for lotpricing
+2021-04-29|Praveen				|Added logic to send Incoterm Description from table for certain Delivery terms
+*/
+template = "$BASE_PATH$/WebServices/create_quote_template.xml";
+hasShipToAddress= "";
+soldToNumber= jsonget(data, "soldToNumber_t", "string", soldToNumber_t);
+shipToNumber= jsonget(data, "shipToNumber_t", "string", shipToNumber_t);
+customerNumberToSAP = customerNumber_t;
+vistexOwner = "";
+customernumber ="";
+partnerFunction="";
+vistexOwnerVal="";
+payload = dict("string");
+//The below line is added for CPQ-4338. This is hardcoded for now, later all the Delivery terms are planned to get the desc from the table then this hardcoding can be removed.
+validDeliveryTermForDesc=string[]{"CO","CO2","PP2","PP3","PP1"};
+
+selectedCustRecordsJson = json();
+jsonput(selectedCustRecordsJson, "records", selectedCustomerArraySet2_t);
+//Fetch SAP_SoldTo selected customer 
+//selectedCustRecordsJsonArray = jsonpathgetmultiple(selectedCustRecordsJson, "$.records[?(@.sAPSoldTo_T==true)].customer_selctdCust2_t");
+//selectedCustIndexArr = range(jsonarraysize(selectedCustRecordsJsonArray));
+SAPSoldToRecord = jsonpathgetsingle(selectedCustRecordsJson, "$.records[?(@.sAPSoldTo_T==true)]","json",json());
+soldToNumber = jsonget(SAPSoldToRecord,"customer_selctdCust2_t","string",soldToNumber);
+shipToNumber = jsonget(SAPSoldToRecord,"shipToCustomer_selctdCust2_t","string",shipToNumber);
+customerNumberToSAP = jsonget(SAPSoldToRecord,"customer_selctdCust2_t","string",customerNumberToSAP);
+
+put(payload, "CPQSOASAP", jsonget(data, "CPQSOASAP", "string", ""));
+put(payload, "CPQSOASAPPW", jsonget(data, "CPQSOASAPPW", "string", ""));
+put(payload, "bs_id", jsonget(data, "bs_id", "string", bs_id));
+put(payload, "opportunityAccountID_t", jsonget(data, "opportunityAccountID_t", "string", opportunityAccountID_t));
+// Smriti - ALM- 1954- modified the the below code and removed the condition of Z001 as For Quotes its always Z001.
+if (shipToNumber == "") {
+	//shipToNumber= customerNumber_t;
+	shipToNumber = customerNumberToSAP;
+}
+
+if (soldToNumber == "") {
+	//soldToNumber= customerNumber_t;
+	soldToNumber = customerNumberToSAP;
+}
+////////Owner for Bline //////////////////////////////////////////////
+// ALM - 2061- Modified the below condition to send correct Vistex Owner
+if( util.checkBizGroupCondition("sendZ5OwnerForNationalAgreement", transactionType_t, salesOrg_t)) {	
+	vistexRoleOwner = "Z5";
+	partnerFunction ="Z5";
+	if(nationalAccount_t)
+	{			
+		if(shipToNumber_t <> "")
+		{
+			customernumber = shipToNumber_t;								
+		}
+		else
+		{
+			if( soldToNumber_t<> "")
+			{								
+				customernumber = soldToNumber_t;
+			}
+			else
+			{
+				customernumber = customerNumber_t;
+			}
+		}											
+	}
+	
+	else
+	{
+		partnerFunction ="Z1";			
+		if(shipToNumber_t <> "")
+		{			
+			customernumber = shipToNumber_t;
+			
+		}
+		else
+		{	
+			if( soldToNumber_t<> "")
+			{		
+				customernumber = soldToNumber_t;				
+			}
+			else
+			{				
+				customernumber = customerNumber_t;
+			}				
+		}
+	}
+}
+
+	vistexOwnerRecords = bmql("SELECT KUNNR, KUNN2, KTOKD FROM CUSMAS WHERE VKORG = $salesOrg_t AND VTWEG=$distributionChannel_t AND KUNNR=$customernumber AND (PARVW =$partnerFunction)");
+	for eachCustomer in vistexOwnerRecords 
+	{     
+		vistexOwnerVal = get(eachCustomer, "KUNN2");       
+	}
+	vistexOwner = vistexOwnerVal;
+////////////////////End of Bline owner///////////////////////////////////////////////////////////////////////////////
+
+
+if ( (qq_MnlShpTo_Address1_t <> "") OR
+     (qq_MnlShpTo_Address2_t<> "") OR
+     (qq_MnlShpTo_City_t<> "") OR
+     (qq_MnlShpTo_Country_t<> "") OR
+     (qq_MnlShpTo_Zip_t<> "") OR
+     (qq_MnlShpTo_Region_t<> "") ) {
+  
+  hasShipAddress= "Yes";
+
+  put(payload, "customerStreet_t", jsonget(data, "qq_MnlShpTo_Address1_t", "string", qq_MnlShpTo_Address1_t));
+  put(payload, "customerStreet2_t", jsonget(data, "qq_MnlShpTo_Address2_t", "string", qq_MnlShpTo_Address2_t));
+  put(payload, "customerCity_t", jsonget(data, "qq_MnlShpTo_City_t", "string", qq_MnlShpTo_City_t));
+  put(payload, "customerPostalCodeZip_t", jsonget(data, "qq_MnlShpTo_Zip_t", "string", qq_MnlShpTo_Zip_t));
+  put(payload, "customerCountry_t", jsonget(data, "qq_MnlShpTo_Country_t", "string", qq_MnlShpTo_Country_t));
+  put(payload, "customerState_t", jsonget(data, "qq_MnlShpTo_Region_t", "string", qq_MnlShpTo_Region_t));
+  put(payload, "qq_MnlShpTo_Language_t", jsonget(data, "qq_MnlShpTo_Language_t", "string", qq_MnlShpTo_Language_t)); // Added for QQ-817
+  put(payload, "customerName_t", jsonget(data, "qq_MnlShpTo_Name1_t", "string", qq_MnlShpTo_Name1_t)); // Added for QQ-817
+  put(payload, "customerName2_t", jsonget(data, "qq_MnlShpTo_Name2_t", "string", qq_MnlShpTo_Name2_t)); // Added for QQ-817
+}
+//Below if block added by Gaurav Singh because Language should not be sent to SAP when Manual details are not entered (QQ-1582)
+//Currently Language is getting defaulted and hence a value is sent every time
+else{
+	put(payload, "qq_MnlShpTo_Language_t", "");
+}
+
+//CPQ-520:: For PSD quotes, sending usage indicator based on the distribution Channel.
+//usageIndicator_t = "001";
+usageIndicator_t = "";
+usageIndicatorDict = dict("string");
+put(usageIndicatorDict,"WQ_10","001");
+put(usageIndicatorDict,"WQ_30","002");
+put(usageIndicatorDict,"WQ","001");
+put(usageIndicatorDict,"DS","002");
+
+keyVal = transactionType_t;
+if(qqBusinessLineForSalesOrg_t == "PSD"){
+	keyVal = transactionType_t+"_"+distributionChannel_t;
+}
+
+if(containskey(usageIndicatorDict,keyVal)){
+	usageIndicator_t = get(usageIndicatorDict,keyVal);
+}
+put(payload, "usageIndicator_t", usageIndicator_t);
+
+if(accountTypeKTOKD_t=="ZCPD"){
+	put(payload, "salesGroup_t", salesGroup_Menu_t);
+	put(payload, "priceGroup_t", psd_priceGroup_t);
+	put(payload, "customerGroup_t", psd_customerGroup_t);
+}
+orderReason = "";
+internalOrderNotes = "";
+if(psd_liquidatedDamages_t){
+	orderReason = "Z34";
+	internalOrderNotes = liquidatedDamagesSpecifications_t;
+}
+//internalOrderNotes = replace(internalOrderNotes ,"\n","#@#");
+orderNotes = "";
+if(psd_warranty_t <> "Standard"){
+	orderNotes = psd_warranty_t;
+}
+put(payload, "orderReason", orderReason);
+put(payload, "orderNotes", orderNotes);
+put(payload, "internalOrderNotes", internalOrderNotes);
+
+//Combining the  Standard Output Notes, Custom Output Notes
+//Replacing the | (pipe symbol) with space in the content
+//| (pipe symbol) is line delimitator
+tncNotesDesc = replace(qqCustomTnCNoteDescription_t,"|"," ");
+qqCustomTnCNoteDescription = tncNotesDesc;//replace(tncNotesDesc,"#@#","LINE_BREAK");
+customNotesText = replace(customNotesText_t,"|"," ");
+customNotesText = replace(customNotesText ,"\n","#@#");
+clarificationsAndExceptions = "";
+if(qqCustomTnCNoteDescription <> "" AND customNotesText <> ""){
+	clarificationsAndExceptions = qqCustomTnCNoteDescription +"#@#"+customNotesText;
+}else{
+	clarificationsAndExceptions = qqCustomTnCNoteDescription+customNotesText;
+}
+
+put(payload, "clarificationsandExceptions_t", clarificationsAndExceptions);
+
+
+
+put(payload, "salesOrg_t", jsonget(data, "salesOrg_t", "string", salesOrg_t));
+put(payload, "division_t", jsonget(data, "division_t", "string", division_t));
+put(payload, "distributionChannel_t", jsonget(data, "distributionChannel_t", "string", distributionChannel_t));
+put(payload, "customerNumber_t", customerNumberToSAP);
+/*if(jsonarraysize(jsonpathgetmultiple(selectedCustRecordsJson, "$.records[*].customer_selctdCust2_t")) > 1)
+{
+for eachSelectedCustomerIndex in selectedCustIndexArr
+    {
+	put(payload, "customerNumber_t", jsonarrayget(selectedCustRecordsJsonArray,eachSelectedCustomerIndex));
+	break;
+	}
+}
+else{
+put(payload, "customerNumber_t", jsonget(data, "customerNumber_t", "string", customerNumber_t));
+}*/
+put(payload, "endCustomerNo_t", jsonget(data, "endCustomerNo_t", "string", endCustomerNo_t));
+put(payload, "primaryEndCustomerFlag_t", jsonget(data, "primaryEndCustomerFlag_t", "string", string(primaryEndCustomerFlag_t)));
+
+put(payload, "agreementDeliveryTerms_t", jsonget(data, "agreementDeliveryTerms_t", "string", agreementDeliveryTerms_t));
+put(payload, "agreementPaymentTerms_t", jsonget(data, "agreementPaymentTerms_t", "string", agreementPaymentTerms_t));
+
+if(qqBusinessLineForSalesOrg_t=="PSD"){
+	incoTermsRecordSet= bmql("SELECT Name FROM SalesOrgIncoTerms WHERE VKORG=$salesOrg_t AND INCO1=$agreementDeliveryTerms_t");
+	for eachRec in incoTermsRecordSet{
+		put(payload, "incoterm2_t", get(eachRec ,"Name"));
+		break;
+	}
+}else{	
+	if(findinarray(validDeliveryTermForDesc, agreementDeliveryTerms_t) > -1){	
+		incoTermsRecordSet= bmql("SELECT Name FROM SalesOrgIncoTerms WHERE VKORG=$salesOrg_t AND INCO1=$agreementDeliveryTerms_t");
+		for eachRec in incoTermsRecordSet{
+			put(payload, "incoterm2_t", get(eachRec ,"Name"));
+		}	
+	}else{
+		incoterm2 = "XXXXX"; //default
+		if(incoterm2_t <>"" AND qqBusinessLineForSalesOrg_t=="B-LINE"){
+			incoterm2 = incoterm2_t;
+		}		
+		put(payload, "incoterm2_t", jsonget(data, "incoterm2_t", "string", incoterm2));
+	}	
+}
+put(payload, "minimumOrderVolume_t", jsonget(data, "minimumOrderVolume_t", "string", minimumOrderVolume_t));
+put(payload, "surchargeExemption_t", jsonget(data, "surchargeExemption_t", "string", string(surchargeExemption_t)));
+put(payload, "silver_t", jsonget(data, "silver_t", "string", silver_t));
+put(payload, "silverValue_t", jsonget(data, "silverValue_t", "string", string(silverValue_t)));
+put(payload, "copper_t", jsonget(data, "copper_t", "string", copper_t));
+put(payload, "copperValue_t", jsonget(data, "copperValue_t", "string", string(copperValue_t)));
+put(payload, "aluminium_t", jsonget(data, "aluminium_t", "string", aluminium_t));
+put(payload, "aluminiumValue_t", jsonget(data, "aluminiumValue_t", "string", string(aluminiumValue_t)));
+put(payload, "qqApplication_t", jsonget(data, "qqApplication_t", "string", qqApplication_t));
+put(payload, "qqSubApplication_t", jsonget(data, "qqSubApplication_t", "string", qqSubApplication_t));
+put(payload, "currency_t", jsonget(data, "currency_t", "string", currency_t));
+put(payload, "owner_t", jsonget(data, "owner_t", "string", owner_t));
+if(qqBusinessLineForSalesOrg_t == "B-LINE" AND transactionType_t== "RQ")
+{
+	put(payload, "owner_t", vistexOwner);
+}	
+put(payload, "opportunityNumber_t", jsonget(data, "opportunityNumber_t", "string", opportunityNumber_t));
+put(payload, "opportunityName_t", jsonget(data, "opportunityName_t", "string", opportunityName_t));
+//Smriti - ALM- 978- Commented the below code as if header discount is -ve it should be passed to SAP
+  if (headerDiscountOrPercentOff_t == "perc") {
+    put(payload, "HEADERDISCOUNT", jsonget(data, "headerDiscount_t", "string", string(headerDiscount_t)));
+  } else {
+    put(payload, "HEADERDISCOUNT", jsonget(data, "qqTotalValue_t", "string", string(qqTotalValue_t)));
+  }
+  // Added below condition for #997 - Gunashree - 11/4/2020
+	if(lotPrice_t){
+		put(payload, "HEADERDISCOUNTORPERCENTOFF", jsonget(data, "headerDiscountOrPercentOff_t", "string", "LOTP"));
+	}else{
+	put(payload, "HEADERDISCOUNTORPERCENTOFF", jsonget(data, "headerDiscountOrPercentOff_t", "string", headerDiscountOrPercentOff_t));}
+	
+	put(payload, "nscaleRequestID_t", jsonget(data, "nscaleRequestID_t", "string", nscaleRequestID_t));
+
+validFromDateString = jsonget(data, "agreementValidFrom_t", "string", agreementValidFrom_t);
+validFromDateString = replace(substring(validFromDateString, 0, 10), "-", "");
+validToDateString = jsonget(data, "agreementValidTo_t", "string", agreementValidTo_t);
+validToDateString = replace(substring(validToDateString, 0, 10), "-", "");
+submittedDateString = jsonget(data, "submittedDate_t", "string", submittedDate_t);
+submittedDateString = replace(substring(submittedDateString, 0, 10), "-", "");
+pricingDateString = jsonget(data, "pricingDate_t", "string", pricingDate_t);
+pricingDateString = replace(substring(pricingDateString, 0, 10), "-", "");
+
+//Pooja- Added below code for ALM 730
+bookPriceDateString = jsonget(data, "bookPriceDate_t", "string", bookPriceDate_t);
+bookPriceDateString = replace(substring(bookPriceDateString, 0, 10), "-", "");
+
+
+put(payload, "validFrom_t", validFromDateString);
+put(payload, "validTo_t", validToDateString);
+put(payload, "submittedDate_t", submittedDateString);
+//Pooja- Added below code for ALM 730
+//Pooja - Made dynamic condition and addded logic to send Valid From for ESEMEA
+if(util.checkBizGroupCondition("BookPriceDateCreateQuote", transactionType_t, salesOrg_t) AND bookPriceDate_t<>"")
+{
+	put(payload, "pricingDate_t", bookPriceDateString);
+}
+else
+{
+	if(util.checkBizGroupCondition("ValidFromInCreateQuote", transactionType_t, salesOrg_t))
+	{
+		put(payload, "pricingDate_t", validFromDateString);
+	}
+	else
+	{
+		put(payload, "pricingDate_t", pricingDateString);
+	}
+}
+put(payload, "qqExpectedDecisionDate_t", validFromDateString);
+put(payload, "soldToNumber_t", soldToNumber);
+put(payload, "shipToNumber_t", shipToNumber);
+put(payload, "preparedByENumber_t", jsonget(data, "preparedByENumber_t", "string", preparedByENumber_t));
+put(payload, "transactionType_t", jsonget(data, "transactionType_t", "string", transactionType_t));
+put(payload, "poNumber_t", jsonget(data, "transactionNumber_t", "string", transactionNumber_t));
+put(payload, "qqProjectName_t", transactionName_t);
+put(payload, "qqCity_t", jsonget(data, "qqCity_t", "string", qqCity_t));
+put(payload, "qqRegion_t", jsonget(data, "qqRegion_t", "string", qqRegion_t));
+put(payload, "qqCountry_t", jsonget(data, "qqCountry_t", "string", qqCountry_t));
+put(payload, "qqAccountType_t", jsonget(data, "qqAccountType_t", "string", qqAccountType_t));
+put(payload, "qqSubAccountType_t", jsonget(data, "qqSubAccountType_t", "string", qqSubAccountType_t));
+put(payload, "customerCurrency_t", jsonget(data, "customerCurrency_t", "string", customerCurrency_t));
+put(payload, "qqTotalValue_t", jsonget(data, "qqTotalValue_t", "string", string(qqTotalValue_t)));
+put(payload, "qqSegment_t", jsonget(data, "qqSegment_t", "string", qqSegment_t));
+put(payload, "qqSubSegment_t", jsonget(data, "qqSubSegment_t", "string", qqSubSegment_t));
+put(payload, "qqSubSegment_t", replace(replace(jsonget(data, "qqSubSegment_t", "string", qqSubSegment_t),"<","<#@#"),">",">#@#"));
+
+quoteLineXml = commerce.buildCreateQuoteLineXML(data);
+put(payload, "QUOTE_LINES", quoteLineXml);
+quoteXml = applytemplate(template, payload, "");
+
+ //Ali |Ticket# INC000013027995 - Replace &#x27;&#x27 with "
+quoteXml = replace(quoteXml, "&#x27;&#x27;", "\"");
+quoteXml = replace(quoteXml, "&lt;", "<");
+quoteXml = replace(quoteXml, "&gt;", ">");
+quoteXml=replace(replace(quoteXml,"<#@#","&lt;"),">#@#","&gt;");
+
+return quoteXml;

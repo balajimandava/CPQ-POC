@@ -1,0 +1,12 @@
+{
+  "name" : "Invoke BM",
+  "variableName" : "invokeBM",
+  "description" : "Created this library to make call to SOA to connect with BidMan for multiconfig",
+  "libraryFunctions" : [ "util.getEnvironmentVariable", "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.getTransactionData", "util.getTransactionLineLevelData" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inParams",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ "_company_name", "_site_url" ]
+}

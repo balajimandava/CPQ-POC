@@ -1,0 +1,77 @@
+/**
+@name Add To Date
+@api u_addToDate
+@summary Add a number of days, months, or years to a date.
+@param start Date the date to increment
+@param type String indicate num is DAYS, MONTHS, or YEARS
+@param num Integer the number of days, months, or years to increment
+@return Date
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-31|tleung               |Initial version
+2018-08-30|michael.yeung        |QQ-818 Fix Feb 30 issue
+2018-10-05|michael.yeung        |Fix issue with add month = 12
+2020-03-19|Atul Jain		|Added debugMode to print statements
+*/
+debugMode = false;
+addType = upper(type);
+numDays = integer[] {
+    31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+};
+
+end = start;
+if (addType == "DAYS") {
+    end = adddays(start, num);
+} else {
+    DATE_FORMAT = "yyyy-MM-dd H:m:s";
+    theDate = datetostr(start, DATE_FORMAT);
+    usersessionset("theDate", theDate);
+    dateTime = split(theDate, " ");
+    ymd = split(dateTime[0], "-");
+    y = atoi(ymd[0]);
+    m = atoi(ymd[1]);
+    d = atoi(ymd[2]);
+
+    numDaysInMonth = numDays[m-1];
+    isLastDayOfMonth = numDaysInMonth == d;
+
+    if (addType == "MONTHS") {
+
+        m = m + num;
+       
+        if (m > 12) {
+            if( integer(fmod(m, 12)) == 0 ) {
+                y = integer(y + ((m / 12)-1));
+                m = 12;
+            } else {
+                y = integer(y + (m / 12));
+                m = integer(fmod(m, 12));
+            }
+        }
+
+        ymd[0] = string(y);
+        ymd[1] = string(m);
+        ymd[2] = string(d);
+    } elif (addType == "YEARS") {
+        y = y + num;
+        ymd[0] = string(y);
+    }
+
+    // Feb has 29 days for leap years
+    if (isleap(y)) {
+        numDays[1] = 29;
+    }
+
+    if (isLastDayOfMonth OR numDays[m-1]<= d ) {	// add numDays[m-1]<= d condition to handle adding month to month with 31days on the 30th that can result in Feb 30.
+        ymd[2] = string(numDays[m-1]);
+    }
+
+    theDate = join(ymd, "-") + " " + dateTime[1];
+    if(debugMode){
+    		print theDate;
+    }
+    end = strtojavadate(theDate, DATE_FORMAT);
+}
+
+return end;

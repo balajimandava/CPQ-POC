@@ -1,0 +1,126 @@
+multipleItemsJson = jsonget(inputData, "multipleItemsJson", "json",json());
+digits5to6 = string[];
+digits7to9 = string[];
+digits10to12 = string[];
+takeOffCodes = string[];
+materials = jsonkeys(multipleItemsJson);
+configProdHMapDict = dict("anytype");
+configurableItemsDict = dict("anytype");
+salesOrg  = salesOrg_t;
+materialsToCheckStartDigits = string[];
+//Looping through the material to get the Product hierachy 
+//To Prepare the level3, level4 and level5 keys
+for eachMaterial in materials{
+	//print eachMaterial;
+	//eachProdH = jsonarrayget(PRODHValues, indx, "string");
+	matJson = jsonget(multipleItemsJson ,eachMaterial,"json",json());
+	eachProdH = jsonget(matJson,"PRODH","string","");
+	if(qqBusinessLineForSalesOrg_t == "PSD"){
+		eachProdH = jsonget(matJson,"PH5","string","");
+	}
+	matnr = jsonget(matJson,"MATNR","string","");
+	level3 = substring(eachProdH , 4,6);
+	level4 = substring(eachProdH , 6,9);
+	level5 = substring(eachProdH , 9,12);
+	append(materialsToCheckStartDigits,matnr);
+	/*print level3;
+	print level4;
+	print level5;*/
+	append(digits5to6,level3);
+	append(digits7to9 ,level4);
+	append(digits10to12 ,level5);
+	key1 = level3+level4+level5;
+	key2 = level3+level4;
+	key3 = level3;
+	//put(configProdHMapDict,key1 ,matnr);
+	if(containskey(configProdHMapDict, key1)){
+		materialsArray = get(configProdHMapDict, key1 ,"string[]");
+		append(materialsArray,matnr);
+		put(configProdHMapDict,key1 ,materialsArray);
+	}elif(key1 <> ""){
+		materialsArray = string[];
+		append(materialsArray,matnr);
+		put(configProdHMapDict,key1 ,materialsArray);
+		
+	}
+	if(containskey(configProdHMapDict, key2 )){
+		materialsArray = get(configProdHMapDict, key2 ,"string[]");
+		append(materialsArray,matnr);
+		put(configProdHMapDict,key2 ,materialsArray);
+	}elif(key2 <> ""){
+		materialsArray = string[];
+		append(materialsArray,matnr);
+		put(configProdHMapDict,key2 ,materialsArray);
+		
+	}
+	if(containskey(configProdHMapDict, key3)){
+		materialsArray = get(configProdHMapDict, key3,"string[]");
+		append(materialsArray,matnr);
+		put(configProdHMapDict,key3,materialsArray);
+	}elif(key3<> ""){
+		materialsArray = string[];
+		append(materialsArray,matnr);
+		put(configProdHMapDict,key3,materialsArray);
+		
+	}
+	//put(configProdHMapDict,key2 ,matnr);
+	//put(configProdHMapDict,key3,matnr);
+}
+//print digits5to6;
+//print digits7to9;
+//print digits10to12;
+//print configProdHMapDict;
+//Querying ConfigProdHierarchy data table to detemine the selected items are configurable or not
+configProdH_qry = bmql("SELECT * FROM ConfigProdHierarchy WHERE (PRODHDigits5to6 IN $digits5to6 AND (PRODHDigits7to9 IN $digits7to9 OR PRODHDigits7to9 IS NULL) AND (PRODHDigits10to12 IN $digits10to12  OR PRODHDigits10to12 IS NULL)) OR (PRODHDigits5to6 IS NULL AND PRODHDigits7to9 IS NULL AND  PRODHDigits10to12 IS NULL AND StartingDigits IS NOT NULL)");
+//print configProdH_qry;
+//print configProdHMapDict;
+if(haserror(configProdH_qry)){
+	print "Query Error";
+}
+//print configProdH_qry;
+//Looping through the query result and identigying the configurable items.
+takeOffCodesWithMatStartingDigits = dict("string");
+for eachRec in configProdH_qry{
+	prodhDigits5to6 = get(eachRec ,"PRODHDigits5to6");
+	prodhDigits7to9 = get(eachRec ,"PRODHDigits7to9");
+	prodhDigits10to12 = get(eachRec ,"PRODHDigits10to12");
+	startingDigits = get(eachRec ,"StartingDigits");
+	takeoffCode = get(eachRec ,"TakeoffCode");
+	if(startingDigits <> ""){
+		put(takeOffCodesWithMatStartingDigits,startingDigits,takeoffCode);
+	}
+	keyVal = prodhDigits5to6+prodhDigits7to9+prodhDigits10to12;
+	if(containskey(configProdHMapDict, keyVal)){
+		//matNum = get(configProdHMapDict, keyVal);
+		matNums = get(configProdHMapDict, keyVal,"string[]");
+		for matNum in matNums{
+			put(configurableItemsDict,matNum ,takeoffCode);
+			matPostion = findinarray(materialsToCheckStartDigits, matNum);
+			if(matPostion > -1){
+				remove(materialsToCheckStartDigits,matPostion);
+			}
+		}
+		append(takeOffCodes,takeoffCode);
+	}
+}
+
+materialStartDigits = keys(takeOffCodesWithMatStartingDigits);
+for eachMaterial in materialsToCheckStartDigits{
+	for startDigits in materialStartDigits{
+		if(startswith(eachMaterial, startDigits) AND containskey(takeOffCodesWithMatStartingDigits,startDigits)){
+			matTakeoffCode = get(takeOffCodesWithMatStartingDigits,startDigits);
+			append(takeOffCodes,matTakeoffCode);
+			put(configurableItemsDict,eachMaterial,matTakeoffCode);
+		}
+	}
+}
+//print takeOffCodes;
+takeOffCodesStr = join(takeOffCodes,"','");
+//print takeOffCodesStr;
+//print salesOrg;
+takeOffCodeDetails = util.u_getJsonDataForQuery("select TakeOffModel, Label,Placeholder, UserGroup from SalesOrgToTakeOff" 
+		+" where SalesOrg = '" + salesOrg + "' AND TakeOffModel IN('" + takeOffCodesStr+ "')");
+//print takeOffCodeDetails;
+put(configurableItemsDict,"takeOffCodeDetails" ,takeOffCodeDetails);
+
+return configurableItemsDict;

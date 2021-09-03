@@ -1,0 +1,39 @@
+/**
+@name Assign Line Number
+@api assignLineNumber
+@summary Assign lineNumber_l and parentLineNumber_l for each line.  These fields are needed in output document and SAP integration.
+
+TODO: Temporary logic.  Will need to be updated after line item grid changes are complete.
+@param data Json
+@attribute _document_number
+@attribute _parent_doc_number
+@attribute _sequence_number
+@function Json u_getLineFromJson(Json data, String docNum)
+@function Json u_setCommerceAttribute(Json data, String docNum, String attribute, String value)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-22|Tat.Leung            |Initial version
+*/
+result = data;
+
+parentLineNumberList = json();
+for line in transactionLine {
+
+    currentLine = util.u_getLineFromJson(result, line._document_number);
+    lineNumber = string(line._sequence_number * 10);
+    lineNumber = substring("000000", 0, 6 - len(lineNumber)) + lineNumber;
+    parentLineNumber = "";
+
+    if (isnull(line._parent_doc_number) or line._parent_doc_number == "") {
+        jsonput(parentLineNumberList, line._document_number, lineNumber);
+    } else {
+        parentLineNumber = jsonget(parentLineNumberList, line._parent_doc_number, "string");
+    }
+
+    result = util.u_setCommerceAttribute(result, line._document_number, "lineNumber_l", lineNumber);
+    result = util.u_setCommerceAttribute(result, line._document_number, "parentLineNumber_l", parentLineNumber);
+}
+
+return result;

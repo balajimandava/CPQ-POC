@@ -1,0 +1,11 @@
+{
+  "name" : "Get Output Doc Table Data",
+  "variableName" : "getOutputDocTableData",
+  "description" : "This commerce function is used to get data from table related to output doc template",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "outputHeaderPhone_t", "salesOrg_t", "outputHeaderAddress_t", "outputFooterBusinessLocation_t", "outputFooterRegistrationInfo_t", "outputFooterBankDetails_t", "outputLanguage_t" ],
+  "systemAttributes" : [ ]
+}

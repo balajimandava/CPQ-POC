@@ -1,0 +1,11 @@
+{
+  "name" : "Austria Read Data From Table",
+  "variableName" : "austriaReadDataFromTable",
+  "description" : "Rahul - In Progress",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ "_system_company_name" ]
+}

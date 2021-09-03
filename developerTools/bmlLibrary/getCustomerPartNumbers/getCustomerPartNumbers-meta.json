@@ -1,0 +1,9 @@
+{
+  "name" : "Get Customer Part Numbers",
+  "variableName" : "getCustomerPartNumbers",
+  "description" : "Return all data from the CMI01 data table. Return is of the format {part: {cust: cust part}}",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "attributes" : [ ]
+}

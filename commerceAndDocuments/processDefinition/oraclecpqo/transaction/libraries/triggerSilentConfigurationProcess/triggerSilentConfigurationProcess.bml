@@ -1,0 +1,46 @@
+//Constants declaration
+bidman_process = "CPQ.SilentConfig";
+bidman_role = "PSD";
+model_path = "bidManager:bidManager:takeOff";
+siteID 		= "SOABidmanUser";
+
+headers 	= dict("string");
+retStr = "";
+company = util.getSupplierCompanyName();
+siteID = company + siteID;
+envData = util.getSiteSpecificData(siteID);
+soaUserID = jsonget(envData, "FieldName","string","");
+soaPassID = jsonget(envData, "Value1","string","");
+envVariable = util.getEnvironmentVariable("SOA_OAG_BIDMAN_URL", "");
+
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", "Basic " + encodebase64(soaUserID + ":" + soaPassID));
+
+payload= dict("string");
+put(payload,"PROCESS_NAME",bidman_process);
+put(payload,"ROLE",bidman_role);
+put(payload,"MODEL_PATH",model_path);
+put(payload,"QUOTE_ID",bs_id);
+
+items = jsonget(inputData,"items","jsonarray",jsonarray());
+//print items;
+//print "************";
+json_payload= json();
+jsonput(json_payload,"ITEMS",items);
+//print json_payload;
+silentConfigPayload = applytemplate("$BASE_PATH$/ext_cfg/BidMan_Payload.txt",payload,"Failed to Load the Template",json_payload);
+silentConfigPayload = replace(silentConfigPayload, "&quot;", "\"");
+print "************silentConfigPayload*********";
+print silentConfigPayload;
+responseData = urldata(envVariable, "POST", headers, silentConfigPayload);
+//errorMessage = get(responseD, "Error-Message");
+print "************responseData*********";
+print responseData;
+statusCode = get(responseData,"Status-Code");
+if(statusCode == "200"){
+	//setattributevalue(1, "silentConfigResponse_t", "SilentConfigTriggered");
+	//setattributevalue(1, "silentConfigRequestTime_t", string(getcurrenttimeinmillis()));
+	retStr = "1~silentConfigResponse_t~SilentConfigTriggered|";
+	retStr = retStr + "1~silentConfigRequestTime_t~"+string(getcurrenttimeinmillis())+"|";
+}
+return retStr;

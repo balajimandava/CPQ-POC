@@ -1,0 +1,644 @@
+/**
+@name Customer Hierarchy Lookup
+@api customerHierarchyLookup
+@summary Looks up the Customers Hierarchy in the CUSMAS data table and returns the all hierarchy levels (i.e. Hierarchy.SoldTo.ShipTo)
+@param customerNumber String
+@param customerSalesOrg String
+@function JsonArray getCUSMAS(String Dictionary parmsDict)
+@return JsonArray JSON Array containing the results.  Note: Multiple if customer number is a Hierarchy
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017.06.28|dBoHaizlip(PW)       |Initial
+2018-01-02|Tat.Leung            |Reformatted code and comment
+2018-06-05|michael.yeung        |
+2018-09-30|michael.yeung        |
+2018-10-16|michael.yeung        |
+2019-05-30|Harshit Mehta	|ALM : 1448 Created new copy function "customerHierarchyLookupNew" from customerHierarchyLookup to pass inputParameter in JSON format.
+2019-05-30|Harshit Mehta	|ALM : 1448 Added Code for sold to customer to return association ship to customer only if soldTo & shipTo owner is same.		
+2020-02-14|Nithin				|49704 - Eagle Development - Added the Business Line for Sales Orgs in parameter to include it in conditions in this library
+2020-03-24|Atul Jain            |Removed commented code, and added debug mode to print statements.
+2020-12-03|Dhananjay		|CPQ-3368: Search Sold To customers for Z300 Account Type
+
+TO DO ::: Decommission customer Hierarchy Lookup library and call this new library from every place.
+*/
+
+retJSONarr = jsonarray();
+debugMode = false;
+
+//ALM: 1448 Get Input Parameter
+customerNumber = jsonget(inputParam, "customerNumber" ,"String","");
+customerSalesOrg = jsonget(inputParam,"customerSalesOrg","String","");
+customerOwner = jsonget(inputParam,"customerOwner","String","");
+partnerFunction = jsonget(inputParam,"partnerFunction","String","");
+BusinessLineForSalesOrg = jsonget(inputParam,"BusinessLineForSalesOrg","String","");
+
+if ((customerNumber == "") OR(customerSalesOrg == "")) {
+    return retJSONarr;
+}
+
+//  All samples are customer numbers for the SAP R31 QA system (i.e. NOT production)
+//  0000796917(Hierarchy example SalesOrg=4942)
+//  0000793727(Sold To example SalesOrg=4942)
+//  0000757660(Ship To example SalesOrg=4942)
+
+topLevel = "";
+cNumber = customerNumber;
+cSalesOrg = customerSalesOrg;
+cMASRecordType = "";
+cKUNN2Type = "";
+z012List = string[];
+KUNNR = "";
+KTOKD = "";
+PARVW = "";
+KUNN2 = "";
+HKUNR = "";
+NAME1 = "";
+//Project#49704-selected customers Start
+displayZ300SoldTos = false;
+if(BusinessLineForSalesOrg == "PSD" OR cSalesOrg=="1231"){
+	displayZ300SoldTos = true;
+}
+if (BusinessLineForSalesOrg == "PSD"){
+	parmsDict = dict("string");
+	put(parmsDict, "KUNNR", cNumber);
+	put(parmsDict, "VKORG", cSalesOrg);
+	put(parmsDict, "KTOKD", "ZCPD");
+	put(parmsDict, "PARVW", "WE");
+	customerDetails = util.getCUSMAS(parmsDict);
+	loopCNT = range(jsonarraysize(customerDetails));
+	for eachCust in loopCNT{
+		custJSON = jsonarrayget(customerDetails, eachCust, "json");
+		if (jsonpathcheck(custJSON, "$..totalcustomers")){
+			customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+		} 
+		else{
+			KUNNR = jsonget(custJSON, "KUNNR");
+			KTOKD = jsonget(custJSON, "KTOKD");
+			PARVW = jsonget(custJSON, "PARVW");
+			KUNN2 = jsonget(custJSON, "KUNN2");
+			HKUNR = jsonget(custJSON, "HKUNNR");
+			NAME1 = jsonget(custJSON, "NAME1");
+			customerJSON = json();
+			//Chandan - 40974 - Eagle Developement - Added the below condition to return Customer number if HKUNR id blank - START
+			if(HKUNR == ""){
+				jsonput(customerJSON, "SoldTo", KUNNR + "." + KUNNR);
+			}
+			//Chandan - 40974 - Eagle Developement - Added the above condition to return Customer number if HKUNR id blank - END
+			else{
+				jsonput(customerJSON, "SoldTo", HKUNR + "." + KUNNR);
+			}
+			jsonarrayappend(retJSONarr, customerJSON);
+		}
+	}
+}
+ //Project#49704-selected customers end
+
+//  1st let's see if this customer number is a hierarchy?
+parmsDict = dict("string");
+put(parmsDict, "KUNNR", cNumber);
+put(parmsDict, "VKORG", cSalesOrg);
+put(parmsDict, "KTOKD", "Z012");
+
+customerDetails = util.getCUSMAS(parmsDict);
+isaHierarchy = FALSE;
+loopCNT = range(jsonarraysize(customerDetails));
+
+for eachCust in loopCNT {
+    custJSON = jsonarrayget(customerDetails, eachCust, "json");
+    if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+        customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+    } 
+	else {
+        KUNNR = jsonget(custJSON, "KUNNR");
+        KTOKD = jsonget(custJSON, "KTOKD");
+        PARVW = jsonget(custJSON, "PARVW");
+        KUNN2 = jsonget(custJSON, "KUNN2");
+        HKUNR = jsonget(custJSON, "HKUNNR");
+        NAME1 = jsonget(custJSON, "NAME1");
+
+        isaHierarchy = TRUE;
+        //  If this is a Hierarchy Customer Number then this is the highest level
+        if (HKUNR == "") {
+            topLevel = KUNNR;
+        } else {
+            dummy = 1 + 1;
+        }
+
+    }
+}
+
+isaSoldTo = FALSE;
+if (NOT isaHierarchy) {
+
+    //  1st let's see if this customer number is a Sold To?
+	parmsDict = dict("string");
+	put(parmsDict, "KUNNR", cNumber);
+	put(parmsDict, "VKORG", cSalesOrg);
+	put(parmsDict, "KTOKD", "Z001");
+	put(parmsDict, "PARVW", "AG");
+
+	customerDetails = util.getCUSMAS(parmsDict);
+	
+	//Looking for Sold to customers for Z300 Account Type
+	customerDetailsJSON = json();
+	jsonput(customerDetailsJSON,"customerDetails",customerDetails);
+	if(jsonpathcheck(customerDetailsJSON, "$..totalcustomers")){
+		customerTotal = jsonpathgetsingle(customerDetailsJSON, "$..totalcustomers","integer", 0);
+		if(customerTotal == 0 AND displayZ300SoldTos){
+			parmsDict = dict("string");
+			put(parmsDict, "KUNNR", cNumber);
+			put(parmsDict, "VKORG", cSalesOrg);
+			put(parmsDict, "KTOKD", "Z300");
+			put(parmsDict, "PARVW", "AG");
+			customerDetails = util.getCUSMAS(parmsDict);
+		}
+	}
+
+    loopCNT = range(jsonarraysize(customerDetails));
+    for eachCust in loopCNT {
+        custJSON = jsonarrayget(customerDetails, eachCust, "json");
+        if(debugMode)
+        {
+            print custJSON;
+        }
+        if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+            customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+            if(debugMode)
+            {
+            print "Sold To (Z001) Customer Records: " + string(customerTotal);
+            }
+			
+        } else {
+            KUNNR = jsonget(custJSON, "KUNNR");
+            KTOKD = jsonget(custJSON, "KTOKD");
+            PARVW = jsonget(custJSON, "PARVW");
+            KUNN2 = jsonget(custJSON, "KUNN2");
+            HKUNR = jsonget(custJSON, "HKUNNR");
+            NAME1 = jsonget(custJSON, "NAME1");
+
+            isaSoldTo = TRUE;
+        }
+    }
+
+    // add check from "RE" (Billto) as well.  Some salesorg's customer don't seems to have AG soldTo
+    if( NOT isaSoldTo) {
+        parmsDict = dict("string");
+        put(parmsDict, "KUNNR", cNumber);
+        put(parmsDict, "VKORG", cSalesOrg);
+        put(parmsDict, "KTOKD", "Z001");
+	put(parmsDict, "PARVW", "RE");
+
+        customerDetails = util.getCUSMAS(parmsDict);
+        
+        //Looking for Sold to customers for Z300 Account Type
+	customerDetailsJSON = json();
+	jsonput(customerDetailsJSON,"customerDetails",customerDetails);
+	if(jsonpathcheck(customerDetailsJSON, "$..totalcustomers")){
+		customerTotal = jsonpathgetsingle(customerDetailsJSON, "$..totalcustomers","integer", 0);
+		if(customerTotal == 0 AND displayZ300SoldTos){
+			parmsDict = dict("string");
+			put(parmsDict, "KUNNR", cNumber);
+			put(parmsDict, "VKORG", cSalesOrg);
+			put(parmsDict, "KTOKD", "Z300");
+			put(parmsDict, "PARVW", "RE");
+			customerDetails = util.getCUSMAS(parmsDict);
+		}
+	}
+	
+        loopCNT = range(jsonarraysize(customerDetails));
+        for eachCust in loopCNT {
+            custJSON = jsonarrayget(customerDetails, eachCust, "json");
+            if(debugMode)
+            {
+            print custJSON;
+            }
+            if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+                customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+                if(debugMode)
+                {
+                print "Sold To (Z001) Customer Records: " + string(customerTotal);
+                }
+            } else {
+                KUNNR = jsonget(custJSON, "KUNNR");
+                KTOKD = jsonget(custJSON, "KTOKD");
+                PARVW = jsonget(custJSON, "PARVW");
+                KUNN2 = jsonget(custJSON, "KUNN2");
+                HKUNR = jsonget(custJSON, "HKUNNR");
+                NAME1 = jsonget(custJSON, "NAME1");
+
+                isaSoldTo = TRUE;
+            }
+        }
+    }
+
+}
+
+isaShipTo = FALSE;
+if ((NOT isaHierarchy) AND(NOT isaSoldTo)) {
+
+    //  1st let's see if this customer number is a Sold To?
+    parmsDict = dict("string");
+    put(parmsDict, "KUNNR", cNumber);
+    put(parmsDict, "VKORG", cSalesOrg);
+    put(parmsDict, "KTOKD", "Z002");
+	put(parmsDict, "PARVW", "WE");
+
+    customerDetails = util.getCUSMAS(parmsDict);
+    if(debugMode)
+    {
+        print customerDetails;
+    }
+
+    loopCNT = range(jsonarraysize(customerDetails));
+    for eachCust in loopCNT {
+        custJSON = jsonarrayget(customerDetails, eachCust, "json");
+        if(debugMode)
+        {
+        print custJSON;
+        }
+        if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+            customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+            if(debugMode)
+            {
+                print "Ship To (Z002) Customer Records: " + string(customerTotal);
+            }
+        } else {
+            KUNNR = jsonget(custJSON, "KUNNR");
+            KTOKD = jsonget(custJSON, "KTOKD");
+            PARVW = jsonget(custJSON, "PARVW");
+            KUNN2 = jsonget(custJSON, "KUNN2");
+            HKUNR = jsonget(custJSON, "HKUNNR");
+            NAME1 = jsonget(custJSON, "NAME1");
+
+            isaShipTo = TRUE;
+
+            cDetails = KUNNR + " / " + KTOKD + " / " + PARVW + " / " + KUNN2 + " / " + HKUNR + " / " + NAME1;
+            if(debugMode)
+            {
+                print cDetails;
+            }
+        }
+    }
+
+}
+if ((NOT isaHierarchy) AND(NOT isaSoldTo) AND(NOT isaShipTo)) {
+    return retJSONarr;
+	
+    } elif (isaShipTo) {
+
+    //  If this is a Ship To customer get the Sold To record by searching for Z001/WE where KUNN2 = Customer Number
+    parmsDict = dict("string");
+    put(parmsDict, "KUNN2", cNumber);
+    put(parmsDict, "VKORG", cSalesOrg);
+    put(parmsDict, "KTOKD", "Z001");
+	put(parmsDict, "PARVW", "WE");
+
+    customerDetails = util.getCUSMAS(parmsDict);
+    
+    //Looking for Sold to customers for Z300 Account Type
+	customerDetailsJSON = json();
+	jsonput(customerDetailsJSON,"customerDetails",customerDetails);
+	if(jsonpathcheck(customerDetailsJSON, "$..totalcustomers")){
+		customerTotal = jsonpathgetsingle(customerDetailsJSON, "$..totalcustomers","integer", 0);
+		if(customerTotal == 0 AND displayZ300SoldTos){
+			parmsDict = dict("string");
+			put(parmsDict, "KUNNR", cNumber);
+			put(parmsDict, "VKORG", cSalesOrg);
+			put(parmsDict, "KTOKD", "Z300");
+			put(parmsDict, "PARVW", "WE");
+			customerDetails = util.getCUSMAS(parmsDict);
+		}
+	}
+	
+    if(debugMode)
+    {
+    print customerDetails;
+    }
+
+    loopCNT = range(jsonarraysize(customerDetails));
+    for eachCust in loopCNT {
+        custJSON = jsonarrayget(customerDetails, eachCust, "json");
+        if(debugMode)
+        {
+            print custJSON;
+        }
+        if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+            customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+            if(debugMode)
+            {
+                print "Sold To (Z001) Customer Records: " + string(customerTotal);
+            }
+        } else {
+            KUNNR = jsonget(custJSON, "KUNNR");
+            KTOKD = jsonget(custJSON, "KTOKD");
+            PARVW = jsonget(custJSON, "PARVW");
+            KUNN2 = jsonget(custJSON, "KUNN2");
+            HKUNR = jsonget(custJSON, "HKUNNR");
+            NAME1 = jsonget(custJSON, "NAME1");
+
+            isaShipTo = TRUE;
+        }
+    }
+
+}
+
+if (isaSoldTo) {
+    customerJSON = json();
+    parmsDict = dict("string");
+    put(parmsDict, "KUNNR", cNumber);
+    put(parmsDict, "VKORG", cSalesOrg);
+    put(parmsDict, "KTOKD", "Z001");
+	put(parmsDict, "PARVW", "WE");
+    customerDetails = util.getCUSMAS(parmsDict);
+
+	//Looking for Sold to customers for Z300 Account Type
+	customerDetailsJSON = json();
+	jsonput(customerDetailsJSON,"customerDetails",customerDetails);
+	if(jsonpathcheck(customerDetailsJSON, "$..totalcustomers")){
+		customerTotal = jsonpathgetsingle(customerDetailsJSON, "$..totalcustomers","integer", 0);
+		if(customerTotal == 0 AND displayZ300SoldTos){
+			parmsDict = dict("string");
+			put(parmsDict, "KUNNR", cNumber);
+			put(parmsDict, "VKORG", cSalesOrg);
+			put(parmsDict, "KTOKD", "Z300");
+			put(parmsDict, "PARVW", "WE");
+			customerDetails = util.getCUSMAS(parmsDict);
+		}
+	}
+	
+    if(debugMode)
+    {
+        print customerDetails;
+    }
+
+    loopCNT = range(jsonarraysize(customerDetails));
+    for eachCust in loopCNT {
+        custJSON = jsonarrayget(customerDetails, eachCust, "json");
+        if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+            // sold to is not a ship to for itself
+            customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+        } else {
+            KUNNR = jsonget(custJSON, "KUNNR");
+            KTOKD = jsonget(custJSON, "KTOKD");
+            PARVW = jsonget(custJSON, "PARVW");
+            KUNN2 = jsonget(custJSON, "KUNN2");
+            HKUNR = jsonget(custJSON, "HKUNNR");
+            NAME1 = jsonget(custJSON, "NAME1");  
+
+		//Harshit Mehta START : ALM # 1448 : Check if KUNN2 i.e. ship to owner and sold to owner is same.
+		//For Now CustomerOwner is passed only for BLINE but it can extend to otherbusiness as needed.
+		if(customerOwner <> "")
+		{
+			partnerFunctionArray = split(partnerFunction,",");
+			shipToOwnerSameAsSoldTo = false;
+			customerOwnerArray = split(customerOwner,",");
+			associatedShipToRecord = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW FROM CUSMAS WHERE KUNNR = $KUNN2 AND VKORG = $cSalesOrg AND KTOKD = 'Z002' AND KUNN2 IN $customerOwnerArray AND PARVW IN $partnerFunctionArray");
+            if(debugMode)
+            {
+                print KUNNR;
+                print cSalesOrg;
+                print customerOwner;
+                print associatedShipToRecord;
+            }
+			for associatedShipTo in associatedShipToRecord 
+			{
+				shipToOwnerSameAsSoldTo = true;
+				break; //Only one record is expected.
+			}
+			if(NOT shipToOwnerSameAsSoldTo)
+			{
+				//If Owner is not same then put KUNN2 value same as KUNNR.
+				KUNN2 = KUNNR;
+			}
+		}
+		//Harshit Mehta END : ALM # 1448 : Check if KUNN2 i.e. ship to owner and sold to owner is same.
+			
+            if (HKUNR <> "") {
+                if(KUNN2 <> "" ) {
+                    jsonput(customerJSON, "SoldTo", HKUNR + "." + KUNNR  + "." + KUNN2);
+                } else {
+                    jsonput(customerJSON, "SoldTo", HKUNR + "." + KUNNR );
+                }
+            } else {
+                if(KUNN2 <> "" ) {
+                    jsonput(customerJSON, "SoldTo", KUNNR + "." + KUNNR  + "." + KUNN2);
+                } else {
+                    jsonput(customerJSON, "SoldTo", KUNNR + "." + KUNNR );
+                }
+            }
+            //if(KUNNR == KUNN2){break;} // Rahul Testing - 28thAug
+
+        }
+    }
+    jsonarrayappend(retJSONarr, customerJSON);
+} elif (isaShipTo) 
+{
+    customerJSON = json();
+    if (HKUNR <> "") {
+        jsonput(customerJSON, "ShipTo", HKUNR + "." + KUNNR + "." + KUNN2);
+    } else {
+        jsonput(customerJSON, "ShipTo", KUNNR + "." + KUNNR + "." + KUNN2);
+    }
+    jsonarrayappend(retJSONarr, customerJSON);	
+} else {
+
+    z012List = string[];
+    nextZ012 = "";
+    allZ012s = string[] {
+        cNumber
+    };
+    maxLevels = range(4);
+    for eachLevel in maxLevels {
+
+        if (eachLevel == 0) {
+            z012List = string[] {
+                cNumber
+            };
+            if(debugMode)
+            {
+                print z012List;
+            }
+        } elif (nextZ012 == "") { //  There are no more so exit now
+            break;
+        } else {
+            z012List = split(nextZ012, ":-:");
+            if(debugMode)
+            {
+                print z012List;
+            }
+            nextZ012 = "";
+        }
+
+        for eachZ012 in z012List {
+
+            //  1st let's see if there are any sub-hierarcies?
+            parmsDict = dict("string");
+            put(parmsDict, "HKUNNR", eachZ012);
+            put(parmsDict, "VKORG", cSalesOrg);
+            put(parmsDict, "KTOKD", "Z012");
+
+            customerDetails = util.getCUSMAS(parmsDict);
+            if(debugMode)
+            {
+              print customerDetails;
+            }
+
+            loopCNT = range(jsonarraysize(customerDetails));
+            for eachCust in loopCNT {
+                custJSON = jsonarrayget(customerDetails, eachCust, "json");
+                if(debugMode)
+                {
+                  print custJSON;
+                }
+                if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+                    customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+                    if(debugMode)
+                    {
+                      print "Sub-Hiearchies [" + eachZ012 + "] (Z012) Customer Records: " + string(customerTotal);
+                    }
+
+                    // break the loop if there are none
+                    if (customerTotal == 0) {
+                        break;
+                    }
+                } else {
+                    KUNNR = jsonget(custJSON, "KUNNR");
+                    KTOKD = jsonget(custJSON, "KTOKD");
+                    PARVW = jsonget(custJSON, "PARVW");
+                    KUNN2 = jsonget(custJSON, "KUNN2");
+                    HKUNR = jsonget(custJSON, "HKUNNR");
+                    NAME1 = jsonget(custJSON, "NAME1");
+
+                    if (nextZ012 <> "") {
+                        nextZ012 = nextZ012 + ":-:";
+                    }
+                    nextZ012 = nextZ012 + KUNNR;
+
+                    append(allZ012s, KUNNR);
+
+                    cDetails= KUNNR + " / " + KTOKD + " / " + PARVW + " / " + KUNN2 + " / " + HKUNR + " / " + NAME1; 
+                    if(debugMode)
+                    {
+                    print "** Sub-Hierarchy Level: " + string(eachLevel+1) + " **";
+                    print cDetails;
+                    }
+                }
+            }
+
+        }
+
+    }
+
+    if(debugMode)
+    {
+        print allZ012s;
+    }
+    for eachZ012 in allZ012s {
+
+        customerJSON = json();
+        jsonput(customerJSON, "Hierarchy", eachZ012);
+        jsonarrayappend(retJSONarr, customerJSON);
+        //  Get all the Sold To(s)?
+        parmsDict = dict("string");
+        put(parmsDict, "HKUNNR", eachZ012);
+        put(parmsDict, "VKORG", cSalesOrg);
+        put(parmsDict, "KTOKD", "Z001");
+		put(parmsDict, "PARVW", "AG");
+
+        customerDetails = util.getCUSMAS(parmsDict);
+        //print customerDetails;
+
+	//Looking for Sold to customers for Z300 Account Type
+	customerDetailsJSON = json();
+	jsonput(customerDetailsJSON,"customerDetails",customerDetails);
+	if(jsonpathcheck(customerDetailsJSON, "$..totalcustomers")){
+		customerTotal = jsonpathgetsingle(customerDetailsJSON, "$..totalcustomers","integer", 0);
+		if(customerTotal == 0 AND displayZ300SoldTos){
+			parmsDict = dict("string");
+			put(parmsDict, "KUNNR", cNumber);
+			put(parmsDict, "VKORG", cSalesOrg);
+			put(parmsDict, "KTOKD", "Z300");
+			put(parmsDict, "PARVW", "AG");
+			customerDetails = util.getCUSMAS(parmsDict);
+		}
+	}
+	
+        loopCNT = range(jsonarraysize(customerDetails));
+        for eachCust in loopCNT {
+            custJSON = jsonarrayget(customerDetails, eachCust, "json");
+            //print custJSON;
+            if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+                customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+                //print "Sold To (Z001) Customer Records: " + string(customerTotal);
+                //print "";
+            } else {
+                KUNNR = jsonget(custJSON, "KUNNR");
+                KTOKD = jsonget(custJSON, "KTOKD");
+                PARVW = jsonget(custJSON, "PARVW");
+                KUNN2 = jsonget(custJSON, "KUNN2");
+                HKUNR = jsonget(custJSON, "HKUNNR");
+                NAME1 = jsonget(custJSON, "NAME1");
+
+                customerJSON = json();
+                jsonput(customerJSON, "SoldTo", HKUNR + "." + KUNNR);
+                jsonarrayappend(retJSONarr, customerJSON);
+                cDetails = KUNNR + " / " + KTOKD + " / " + PARVW + " / " + KUNN2 + " / " + HKUNR + " / " + NAME1;
+                //print cDetails;
+            }
+        }
+
+        //  Get all the Ship To(s)?
+        parmsDict = dict("string");
+        put(parmsDict, "HKUNNR", eachZ012);
+        put(parmsDict, "VKORG", cSalesOrg);
+        put(parmsDict, "KTOKD", "Z001");
+		put(parmsDict, "PARVW", "WE");
+		
+        customerDetails = util.getCUSMAS(parmsDict);
+        //print customerDetails;
+
+	//Looking for Sold to customers for Z300 Account Type
+	customerDetailsJSON = json();
+	jsonput(customerDetailsJSON,"customerDetails",customerDetails);
+	if(jsonpathcheck(customerDetailsJSON, "$..totalcustomers")){
+		customerTotal = jsonpathgetsingle(customerDetailsJSON, "$..totalcustomers","integer", 0);
+		if(customerTotal == 0 AND displayZ300SoldTos){
+			parmsDict = dict("string");
+			put(parmsDict, "KUNNR", cNumber);
+			put(parmsDict, "VKORG", cSalesOrg);
+			put(parmsDict, "KTOKD", "Z300");
+			put(parmsDict, "PARVW", "WE");
+			customerDetails = util.getCUSMAS(parmsDict);
+		}
+	}
+        loopCNT = range(jsonarraysize(customerDetails));
+        for eachCust in loopCNT {
+            custJSON = jsonarrayget(customerDetails, eachCust, "json");
+            //print custJSON;
+            if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+                customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+                //print "Sold To (Z001) Customer Records: " + string(customerTotal);
+                //print "";
+            } else {
+                KUNNR = jsonget(custJSON, "KUNNR");
+                KTOKD = jsonget(custJSON, "KTOKD");
+                PARVW = jsonget(custJSON, "PARVW");
+                KUNN2 = jsonget(custJSON, "KUNN2");
+                HKUNR = jsonget(custJSON, "HKUNNR");
+                NAME1 = jsonget(custJSON, "NAME1");
+
+                //  These Z001 records are created by SAP and are the same as Z001 AG records which we already have so we skip these
+                if (KUNN2 == KUNNR) {
+                    continue;
+                }
+
+                customerJSON = json();
+                jsonput(customerJSON, "ShipTo", HKUNR + "." + KUNNR + "." + KUNN2);
+                jsonarrayappend(retJSONarr, customerJSON);
+            }
+        }
+    }
+}
+
+return retJSONarr;

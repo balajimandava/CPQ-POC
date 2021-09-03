@@ -1,0 +1,14 @@
+{
+  "name" : "Populate Net Price",
+  "variableName" : "populateNetPrice",
+  "description" : "Call SAP to retrieve the net price for the lines in the quote.  If \"_refresh\" is set to \"true\", the net price for all lines will be updated.  Otherwise, only lines without net price will be updated.",
+  "libraryFunctions" : [ "commerce.buildNetPriceXML", "commerce.sapConditions", "util.getEnvironmentVariable", "util.getStringDict", "util.stringToFloat", "util.u_buildCommerceReturnStrFromJson", "util.u_getLineFromJson", "util.u_setCommerceAttribute" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "materialPricingGroup_l", "materialLineItem_l", "needNetPrice_l", "plant_l", "qqProductType_l", "_parent_doc_number", "takeOffModel_l", "oldListPrice_l", "costSource_l" ],
+  "mainDocAttributes" : [ "transactionNumber_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

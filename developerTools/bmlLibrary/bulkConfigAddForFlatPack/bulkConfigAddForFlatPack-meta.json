@@ -1,0 +1,12 @@
+{
+  "name" : "Bulk Config Add for FlatPack",
+  "variableName" : "bulkConfigAddForFlatPack",
+  "description" : "47438 - Residential Configurator - POC to add multiple configurators at a time",
+  "libraryFunctions" : [ "util.bulkConfigAdd" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

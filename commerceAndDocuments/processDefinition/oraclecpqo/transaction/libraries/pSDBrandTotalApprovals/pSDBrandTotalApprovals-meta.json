@@ -1,0 +1,29 @@
+{
+  "name" : "PSD Brand Total Approvals",
+  "variableName" : "pSDBrandTotalApprovals",
+  "description" : "Project#49704|E9913664|22ndJuly2020|Function to get the approval for Brand Total",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "brandTotalThresholdsDict",
+    "type" : "Dictionary of String Dictionaries"
+  }, {
+    "name" : "approversDict",
+    "type" : "Dictionary of String Dictionaries"
+  }, {
+    "name" : "lIPELevel3ApproversDict",
+    "type" : "Dictionary of String Dictionaries"
+  }, {
+    "name" : "brandTotJSONObj",
+    "type" : "Json"
+  }, {
+    "name" : "oldBrandTotJSONObj",
+    "type" : "Json"
+  }, {
+    "name" : "otherParamStringDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "pSDTransactionApprovalHistoryInfo_t", "transactionType_t", "salesOffice_t", "newExchangeRate_t" ],
+  "systemAttributes" : [ ]
+}

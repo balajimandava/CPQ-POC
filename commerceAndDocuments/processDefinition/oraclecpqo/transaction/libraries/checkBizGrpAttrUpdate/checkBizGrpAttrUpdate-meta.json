@@ -1,0 +1,14 @@
+{
+  "name" : "Check Biz Group Attr Update",
+  "variableName" : "checkBizGrpAttrUpdate",
+  "description" : "This is function will be used to update checkBizGrpConditions_t from Open transaction and Save action for new transaction screen.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

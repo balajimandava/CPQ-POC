@@ -1,0 +1,12 @@
+{
+  "name" : "stringToFloat",
+  "variableName" : "stringToFloat",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Float",
+  "parameters" : [ {
+    "name" : "input",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

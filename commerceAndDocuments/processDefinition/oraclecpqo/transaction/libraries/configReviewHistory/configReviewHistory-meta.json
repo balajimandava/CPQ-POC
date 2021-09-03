@@ -1,0 +1,11 @@
+{
+  "name" : "Config Review History",
+  "variableName" : "configReviewHistory",
+  "description" : "Project#49704|C9940678|14Sep2020|Function to track the config review activities history",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "lineOwner_l" ],
+  "mainDocAttributes" : [ "requestConfigReviewFlag_t", "createdBy_t", "revisionNumber_t", "userNames_t", "assigntoGroupflag_t", "assigntoMeflag_t", "completeConfigReviewflag_t" ],
+  "systemAttributes" : [ "_system_selected_document_number", "_system_user_name" ]
+}

@@ -1,0 +1,15 @@
+{
+  "name" : "Test UTIL dBO",
+  "variableName" : "testUTILDBO",
+  "description" : "Haizlip Test UTIL",
+  "libraryFunctions" : [ "util.getCUSMAS" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "customerNumber",
+    "type" : "String"
+  }, {
+    "name" : "customerSalesOrg",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,11 @@
+{
+  "name" : "Generate Bid Group No",
+  "variableName" : "generateBidGroupNo",
+  "description" : "Generates a Bid Group Number for a transaction",
+  "libraryFunctions" : [ "util.getCUSMASDetails" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "customerNumber_t", "ntSelectedSalesOrg_t", "ntDistributionChannel_t" ],
+  "systemAttributes" : [ "_system_date", "_system_transaction_counter_value" ]
+}

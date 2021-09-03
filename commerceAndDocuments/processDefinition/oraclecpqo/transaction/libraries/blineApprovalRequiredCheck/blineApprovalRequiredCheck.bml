@@ -1,0 +1,36 @@
+//********************************************************************************************
+//** Description: Function to check whether approval for a specific approval reason
+//**		  
+//**History:
+//**		Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	05-Aug-2021 	Dhananjay 	Initial version
+//********************************************************************************************
+
+//Variable name of the Reason -- This will pass from the reason node
+approvalReasonVarName = jsonget(inputData,"approvalReasonVarName","string","");
+//Possition of the approver in the approvers list -- This will pass from the reason node
+//This is useful when we have multiple approvers and required approval for each approver
+approverPosition = jsonget(inputData,"approverPosition","integer",0);
+
+if(approverPosition > 0){
+	approverPosition = approverPosition-1;
+}
+if(transactionLineApprovalInformation_t <> "" AND startswith(transactionLineApprovalInformation_t, "{")
+	AND endswith(transactionLineApprovalInformation_t, "}")){
+	approvalsInfo = json(transactionLineApprovalInformation_t);
+	approvalNodeInfo = jsonget(approvalsInfo,approvalReasonVarName,"json",json());
+	approvelLevel = jsonget(approvalNodeInfo ,"approvalLevel","string","");
+	approversKey = "level"+approvelLevel+"Approver";
+	approvalStatusKey = "level"+approvelLevel+"ApprovalStatus";
+	approvers = jsonget(approvalNodeInfo ,approversKey,"jsonarray",jsonarray());
+	approvalStatus = jsonget(approvalNodeInfo ,approvalStatusKey,"string","");
+	//If the number of approvers are greater than zero or greater than the given approver position 
+	//And the approval Status of that node is not approved then returns true
+	if(jsonarraysize(approvers) > approverPosition AND lower(approvalStatus) <> "approved"){
+		return true;
+	}
+}
+
+
+return false;

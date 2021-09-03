@@ -1,0 +1,12 @@
+{
+  "name" : "Customer Master Info",
+  "variableName" : "customerMasterInfo",
+  "description" : "Returns all Customer Master Information from the CUSMAS data table.  hierarchyDict contains all the IDs from HQ.SoldTo.ShipTo.",
+  "libraryFunctions" : [ "util.customerHierarchyLookup" ],
+  "returnType" : "Dictionary of String Dictionaries",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ "_user_group" ]
+}

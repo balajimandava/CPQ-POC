@@ -1,0 +1,672 @@
+/*******************************************************************************************************
+//** Description: Approval process for PSD business group
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	15-July-2020 	Rahul Uttarwar 	Initial version
+//**		13-April-2020 	Nithin        	(Copied code from setApprovalRequired_PSD)Added Invalid Material Status code for PSD Business
+//**				Subha		Updated the code for removal of Line Item Quantity Approval WF and included in Brand Total Approval WF
+//**		03-August-2020	Subha		Added the condition for sales floor price to be greater than the requested price for discout approvals
+//**		13-August-2020	Subha		Added the below condition for non-negative value for the range for discount approval for the defect CPQ-2343
+//**		21-August-2020 	Subha           Added condition to skip the Level2 Approver is the user login is of the same group for the defect CPQ-2326
+//**		25-August-2020 	Subha		Added the condition for populating the approver name for L3 approval in case of skipping the L2 approval and also updated condition for populating L2 CPQ-2357 
+//**		11-Nov-2020	Anita		Added condition  and updated code to check for empty L3 dict, maxlinelevel approval check and set approval required CPQ-3299
+//**		20-Jan-2021	Anita		Added line item status check condition as part of defect CPQ-4006
+//**		05-Feb-2021	Johnny Lin	INC000014213423, A delivery term of FCA should NOT trigger an approval workflow for PSD
+//**            15-Feb-2021     Nithin          CPQ-3669 - materials should be exempt from the Zero List Price approval workflow triggering if price included flag True.
+//**		19-Apr-2021	Rahul		INC000014417365 - Rounded fload values of Sales Floor and Requested Price.
+//**		23-Apr-2021	Rahul		Fix for INC000014436464
+//              03-Apr-2021     Nithin          Fix for INC000014433246
+//**		06-Apr-2021	Anita		CPQ-4511: Modification in "Blanket shouldn't change Awarded to Approved"
+//		04-May-2021	Ankit		CPQ-5097 Added conditon to check if datarange is year to convert into days as PSD has two entries in ValidDateRange table for Bid date/Expiration date and Valid from/to 
+//		20-May-2021	Ankit		CPQ-5481 Handle float error on revise
+//		29-July-2021	Mahesh		Fix for INC000014686697 
+//********************************************************************************************************/
+
+response = "";
+finalJSONObj = json();
+linesJsonArr = jsonarray();
+finalApproalList = String[];
+
+brandArray = String[];
+productLineArray = String[];
+lIPEBrandArray = String[];
+
+
+brandTotJSONObj = json();
+oldBrandTotJSONObj = json();
+jsonput(brandTotJSONObj, "Transaction_type", transactionType_t);
+jsonput(oldBrandTotJSONObj, "Transaction_type", transactionType_t);
+
+message="";
+inputJson=json();
+materialItemArr = jsonarray();
+materialLineItemMapping=json();
+distributionChannel=jsonput(inputJson, "distributionChannel", distributionChannel_t);
+salesOrg=jsonput(inputJson, "salesOrg", salesOrg_t);
+language=jsonput(inputJson, "language", _system_current_user_language);
+businessgroup=jsonput(inputJson, "businessgroup", qqBusinessLineForSalesOrg_t);
+
+distinctBrands_Arr = string[];
+distinctOldBrands_Arr = string[];
+
+approvalWorkflows = String[];
+
+approversDict = dict("dict<string>");
+lIPELevel3ApproversDict = dict("dict<string>");
+
+approvalConditionsDict = dict("dict<string>");
+discountThresholdsDict = dict("dict<string>");
+brandTotalThresholdsDict = dict("dict<string>");
+
+defaultDays = 0;
+updatedDays = 0;
+brandQuantity = 0;
+maxLevelOfApproval = 0;
+
+approvalHistoryJSONObj = json();
+if(pSDTransactionApprovalHistoryInfo_t <> "" AND NOT ISNULL(pSDTransactionApprovalHistoryInfo_t)){
+	approvalHistoryJSONObj = json(pSDTransactionApprovalHistoryInfo_t);
+}
+
+for eachline in transactionLine{
+	if(eachline.lineItemStatus_l == "cancelled"){
+	continue;
+	}	
+	jSONLineObj = json();
+	productLineName = eachline.productLineName_l;
+	brand = eachline.brand_l;
+
+	/* Added this piece of code to sum quanity for P13 */
+	if(brand == "P13"){
+		brandQuantity = brandQuantity + eachline.quantity_l;
+	}
+	/* -----END-------*/
+	if(productLineName == "LIPE"){
+		append(lIPEBrandArray, brand);
+	}
+	append(brandArray, brand);
+	if(brand == "P13" OR brand == "P14" OR brand == "P18" OR brand == "P19" OR brand == "P21"){
+		append(brandArray, transactionType_t+"_"+eachline.brand_l);
+	}
+	append(productLineArray, productLineName);
+	
+	if(findinarray(distinctBrands_Arr, brand) == -1)
+	{
+		append(distinctBrands_Arr, brand);
+		existingJSON = jsonget(brandTotJSONObj,productLineName, "json"); // get json object of productline
+		if(ISNULL(existingJSON)){ // create new json object per productline if not found
+			jsonput(jSONLineObj, brand, eachLine.brandTotal_l);
+			jsonput(brandTotJSONObj, productLineName, jSONLineObj); // add productline json object
+		}else{
+			jsonput(existingJSON, brand, eachLine.brandTotal_l); // add to existing productline json object
+		}
+	}
+	
+	if(findinarray(distinctOldBrands_Arr, brand) == -1)
+	{
+		append(distinctOldBrands_Arr, brand);
+		existingJSON2 = jsonget(oldBrandTotJSONObj,productLineName, "json"); // get json object of productline
+		if(ISNULL(existingJSON2)){ // create new json object per productline if not found
+			jsonput(jSONLineObj, brand, eachLine.pSDOldBrandTotal_l); // INC000014433246 changed from brandtotal PSDBrantTotal_l
+			jsonput(oldBrandTotJSONObj, productLineName, jSONLineObj); // add productline json object
+		}else{
+			jsonput(existingJSON2, brand, eachLine.pSDOldBrandTotal_l); // add to existing productline json object and INC000014433246 changed from brandtotal PSDBrantTotal_l
+		}
+	}
+}
+
+approvalType 	= "Discount";
+approversRecordSet = bmql("select BRAND, LVL2_APPROVER, LVL3_APPROVER, LVL4_APPROVER, LVL5_APPROVER, LVL6_APPROVER, Key from PSD_Dscnt_Approvers where BRAND in $brandArray");
+lIPEL3Approvers  = bmql("select BRAND, SALES_OFFIC, LVL3_APPROVER from PSD_Dscnt_Approvers where SALES_OFFIC = $salesOffice_t");
+approvalsRecordSet = bmql("select ProductLine, ConditionIdentifier, ConditionName, Level2, Level3, Level4, Level5, Level6 from PSDApprovalBreakdown where ProductLine in $productLineArray");
+discountThresholdsRecordSet = bmql("select Brand, Level2_Threshold, Level3_Threshold, Level4_Threshold, Level5_Threshold, Level6_Threshold from PSD_Thresholds where Brand in $brandArray AND ApprovalType = $approvalType");
+approvalType  = "BrandTotal";
+brandTotalThresholdsRecordSet = bmql("select Brand, Level1_Threshold, Level2_Threshold, Level3_Threshold, Level4_Threshold, Level5_Threshold, Level6_Threshold from PSD_Thresholds where Brand in $brandArray AND ApprovalType = $approvalType");
+
+defaultDaysRecordSet = bmql("select ValidDateRange,Type from ValidDateRange where SalesOrg = $salesOrg_t AND TransactionType = $transactionType_t AND SalesDistrictCode = $salesDistrict_t");
+
+for eachApprover in approversRecordSet{
+	approverDict = dict("string");
+	//Added a condition to skip Level2 approval if user belongs to approver group for the defect-CPQ-2326//
+	if(find(_system_user_groups,get(eachApprover, "LVL2_APPROVER")) == -1){
+
+		put(approverDict,"Level2Approver", get(eachApprover, "LVL2_APPROVER"));
+	}
+	put(approverDict,"Level3Approver", get(eachApprover, "LVL3_APPROVER"));
+	put(approverDict,"Level4Approver", get(eachApprover, "LVL4_APPROVER"));
+	put(approverDict,"Level5Approver", get(eachApprover, "LVL5_APPROVER"));
+	put(approverDict,"Level6Approver", get(eachApprover, "LVL6_APPROVER"));
+	
+	put(approversDict, get(eachApprover, "Key"), approverDict);	
+}
+
+for eachApprover in lIPEL3Approvers{
+	approverDict = dict("string");
+	put(approverDict,"Level3Approver", get(eachApprover, "LVL3_APPROVER"));
+
+	put(lIPELevel3ApproversDict, get(eachApprover, "SALES_OFFIC"), approverDict);
+}
+
+for eachApproval in approvalsRecordSet{
+	approvalConditionDict = dict("string");
+	put(approvalConditionDict,"Level2", get(eachApproval, "Level2"));
+	put(approvalConditionDict,"Level3", get(eachApproval, "Level3"));
+	put(approvalConditionDict,"Level4", get(eachApproval, "Level4"));
+	put(approvalConditionDict,"Level5", get(eachApproval, "Level5"));
+	put(approvalConditionDict,"Level6", get(eachApproval, "Level6"));
+	put(approvalConditionDict,"ConditionName", get(eachApproval, "ConditionName"));
+	
+	put(approvalConditionsDict, get(eachApproval, "ProductLine")+get(eachApproval, "ConditionIdentifier"), approvalConditionDict);
+}
+
+for eachThresholdRec in discountThresholdsRecordSet{
+	thresholdRecDict = dict("string");
+	put(thresholdRecDict,"level2Threshold", get(eachThresholdRec, "Level2_Threshold"));
+	put(thresholdRecDict,"level3Threshold", get(eachThresholdRec, "Level3_Threshold"));
+	put(thresholdRecDict,"level4Threshold", get(eachThresholdRec, "Level4_Threshold"));
+	put(thresholdRecDict,"level5Threshold", get(eachThresholdRec, "Level5_Threshold"));
+	put(thresholdRecDict,"level6Threshold", get(eachThresholdRec, "Level6_Threshold"));
+	
+	put(discountThresholdsDict, get(eachThresholdRec, "Brand"), thresholdRecDict);
+}
+
+for eachThresholdRec in brandTotalThresholdsRecordSet{
+	thresholdRecDict = dict("string");
+
+	put(thresholdRecDict,"level1Threshold", get(eachThresholdRec, "Level1_Threshold"));
+	put(thresholdRecDict,"level2Threshold", get(eachThresholdRec, "Level2_Threshold"));
+	put(thresholdRecDict,"level3Threshold", get(eachThresholdRec, "Level3_Threshold"));
+	put(thresholdRecDict,"level4Threshold", get(eachThresholdRec, "Level4_Threshold"));
+	put(thresholdRecDict,"level5Threshold", get(eachThresholdRec, "Level5_Threshold"));
+	put(thresholdRecDict,"level6Threshold", get(eachThresholdRec, "Level6_Threshold"));
+	
+	put(brandTotalThresholdsDict, get(eachThresholdRec, "Brand"), thresholdRecDict);	
+}
+
+for eachRecord in defaultDaysRecordSet{
+//CPQ-5097 Added conditon to check if datarange is year to convert into days as PSD has two entries in ValidDateRange table for Bid date/Expiration date and Valid from/to 
+	type = get(eachRecord, "Type");
+	if(type == "Y"){
+		defaultDays = atoi(get(eachRecord, "ValidDateRange")) * 365;	
+	}
+	elif(type == "M"){
+		defaultDays = atoi(get(eachRecord, "ValidDateRange")) * 30;
+	}
+	else{
+		defaultDays = atoi(get(eachRecord, "ValidDateRange"));
+	}
+	   
+																				 
+  
+   
+	   
+  
+}
+
+
+if(transactionType_t == "WQ" AND agreementValidTo_t <> "" AND agreementValidFrom_t <> ""){
+	updatedDays = getdiffindays(strtodate(agreementValidTo_t,"yyyy-MM-dd"), strtodate(agreementValidFrom_t,"yyyy-MM-dd"));
+}elif(transactionType_t == "BA" AND bidDate_t <> "" AND bidExpirationDate_t <> ""){
+	updatedDays = getdiffindays(strtodate(bidExpirationDate_t,"yyyy-MM-dd"), strtodate(bidDate_t,"yyyy-MM-dd"));
+}
+
+//Start - Setting approval reason driving attributes in final JSON object
+if(psd_liquidatedDamages_t){
+	append(approvalWorkflows, "LiquidatedDamage");
+	jsonput(finalJSONObj, "LiquidatedDamage", "TRUE");
+}
+// INC000014213423 Change Started
+//if(agreementDeliveryTerms_t <> "CO" AND agreementDeliveryTerms_t <> "CO2" AND agreementDeliveryTerms_t <> "PP2" AND agreementDeliveryTerms_t <> "PP3")
+if(agreementDeliveryTerms_t <> "CO" AND agreementDeliveryTerms_t <> "CO2" AND agreementDeliveryTerms_t <> "PP2" AND agreementDeliveryTerms_t <> "PP3" AND agreementDeliveryTerms_t <> "FCA")  //INC000014213423 change ended
+{
+	append(approvalWorkflows, "NonStandardDeliveryTermsAW");
+	jsonput(finalJSONObj, "NonStandardDeliveryTermsAW", agreementDeliveryTerms_t);
+}
+if(customerDefaultPaymentTerms_t <> agreementPaymentTerms_t)
+{
+	append(approvalWorkflows, "NonStandardPaymentTermsAW");
+	jsonput(finalJSONObj, "NonStandardPaymentTermsAW", agreementPaymentTerms_t);	
+}
+if(qqTnC_t == "nonStandard")
+{
+	append(approvalWorkflows, "NonStandardTermsNConditionsAW");
+	jsonput(finalJSONObj, "NonStandardTermsNConditionsAW", qqTnC_t);
+}
+if(updatedDays > defaultDays)
+{
+	append(approvalWorkflows, "ValidityPeriodAW");
+	jsonput(finalJSONObj, "ValidityPeriodAW", string(updatedDays));
+}
+if(psd_warranty_t <> "Standard")
+{
+	append(approvalWorkflows, "WarrantyApproval_"+psd_warranty_t);
+	jsonput(finalJSONObj, "WarrantyApproval", psd_warranty_t);
+}
+//End - Setting approval reason driving attributes in final JSON object
+
+for eachline in transactionLine{
+	lineObj = json();
+	maxLineLevelApproval = 0;
+	docNumber = eachline._document_number;
+	productLineName = eachline.productLineName_l;
+	lineBrand = eachline.brand_l;
+	linenumber = eachline._sequence_number;
+	salesFloorPrice = eachline.salesFloor_l;
+	requestedPrice = eachline.newNetPrice_l;
+	print "Testing status";
+	print eachline.lineItemStatus_l;
+	if(eachline.lineItemStatus_l <> "cancelled"){
+			jsonput(lineObj, "LineNumber", eachline._document_number);
+			jsonput(lineObj, "LineName", productLineName);
+			jsonput(lineObj, "Brand", lineBrand);
+			
+			//Added Invalid Material Status code for PSD Business - Start
+			part = eachline.materialLineItem_l;
+			if(qqBusinessLineForSalesOrg_t == "PSD" AND eachline.qqProductType_l <> "configuration" AND eachline.lineItemStatus_l <> "cancelled")
+			{	
+				jsonarrayappend(materialItemArr, part);
+				jsonput(materialLineItemMapping,part,lineNumber);
+				if(jsonarraysize(materialItemArr) >0)
+				{
+					jsonput(inputJson, "materialitem", materialItemArr);
+					jsonput(inputJson,"materialLineItemMapping",materialLineItemMapping);
+					retJson = util.getMAT01MultipleDetails(inputJson);
+					message =jsonget(retJson, "message");	
+				}
+				response = response + _transaction_document_number  + "~obsoleteMaterialMessage_t~" + message + "|";
+			}
+			//Added Invalid Material Status code for PSD Business - End
+			
+			approverKey = lineBrand;
+			if(productLineName == "Capacitors"){
+				if(salesDistrict_t == "PS200" OR salesDistrict_t == "PS300" OR salesDistrict_t == "PS400" OR salesDistrict_t == "PS1000"){
+					approverKey = lineBrand + "_" + salesDistrict_t;
+					
+				}else{
+					approverKey = lineBrand + "_Other";
+				}
+			}elif(productLineName == "Transformers"){
+				approverKey = lineBrand + "_" + salesDistrict_t + "_" + transactionType_t;
+			}
+			
+			marginApprovalJSONObj = json();
+			brandTotalApprovalJSONObj = json();
+			lineQuantityApprovalJSONObj = json();
+			zeroListApprovalJSONObj = json();
+			margin = split(eachline.qqMarginString, "%");
+			if(isnumber(margin[0]))
+			{											  
+			lineMargin = atof(replace(margin[0], ",", "."));
+			}
+			else
+			{
+			lineMargin =  0.0;
+			}
+			oldMargin = split(eachline.pSDOldRequestedMargin_l, "%");
+			if(isnumber(oldMargin[0]))
+				{//INC000014433246 corrected mapping for oldmargin from lineMargin to oldMargin
+		  
+			oldLineMargin = atof(replace(oldMargin[0], ",", "."));
+			}
+				else
+			{
+			oldLineMargin = 0.0;
+			}
+		 
+			approvalHistoryLineJSONObj = json();
+			previousApprovedCheckRequired = false;
+			approvalHistoryLineJSONObj = jsonpathgetsingle(approvalHistoryJSONObj, "$.LinesObjet[?(@.LineNumber == '" + docNumber + "')]", "json", json());
+			
+			for eachWFCondition in approvalWorkflows{
+				conditionObj = json();
+				condition = eachWFCondition;
+				
+				//Added the below condition in order to check and get the old status when a new product line added which already existed//
+				//Checking if any new line is added in the transaction then getting into it//
+				if(jsonget(approvalHistoryLineJSONObj, "LineName", "string","")==""){
+					//Fetching the multiple json from the revised value//
+					reviseJSONArr = jsonpathgetmultiple(approvalHistoryJSONObj, "$.LinesObjet[?(@.LineName == '" + productLineName + "')]");
+					rangeJson = range(jsonarraysize(reviseJSONArr));
+					
+					for revLine in rangeJson{
+						revLineJSONObj=json(jsonarrayget(reviseJSONArr,revLine));
+						revlineName=jsonget(revLineJSONObj, "LineName", "string","");
+
+						//When the current product lineName is equals the previous product line name then setting the previous line header approval to the current one//
+						if(productLineName==revlineName){
+							approvalHistoryLineJSONObj=revLineJSONObj;
+							break;
+						}
+					}			
+				}
+				
+				if((jsonget(approvalHistoryLineJSONObj, "LineName", "string",""))<>""){			
+					oldVal = "";
+					newVal = "";
+					
+					if(substring(eachWFCondition, 0, 16) == "WarrantyApproval"){
+						oldVal = jsonget(approvalHistoryJSONObj, "WarrantyApproval", "string","");
+						newVal = jsonget(finalJSONObj, "WarrantyApproval", "string","");
+					
+					}else{
+						oldVal = jsonget(approvalHistoryJSONObj, condition, "string","");
+						newVal = jsonget(finalJSONObj, condition, "string","");
+					}
+
+					if(oldVal == newVal){
+						previousApprovedCheckRequired = true;
+					}
+				}
+				
+				if(containskey(approvalConditionsDict, productLineName+condition) AND containskey(approversDict, approverKey)){
+					approverDictObj = get(approversDict, approverKey);
+					lIPEApproverDictObj = get(lIPELevel3ApproversDict, salesOffice_t);
+					approvalsPerCondition = get(approvalConditionsDict, productLineName+condition);
+					conditionName = get(approvalsPerCondition, "ConditionName");
+
+					approvalHistoryConditionJSONObj = json();
+					if(previousApprovedCheckRequired){
+						approvalHistoryConditionJSONObj = jsonget(approvalHistoryLineJSONObj, conditionName, "json", json());
+					}
+					level2Approver = get(approverDictObj, "Level2Approver");
+					level3Approver = get(approverDictObj, "Level3Approver");
+					level4Approver = get(approverDictObj, "Level4Approver");
+					level5Approver = get(approverDictObj, "Level5Approver");
+					level6Approver = get(approverDictObj, "Level6Approver");
+					
+					if(productLineName == "LIPE"){
+						level3Approver = get(lIPEApproverDictObj, "Level3Approver");
+					}
+					//Adding the flag for approved status in the header level and also adding the else condition for approved status//			
+					approvalHeaderFlag=false;
+					if(get(approvalsPerCondition, "Level2") == "Yes" AND (NOT ISNULL(level2Approver) AND level2Approver <> "")){									
+						if(jsonget(approvalHistoryConditionJSONObj, "level2ApprovalStatus") <> "Approved"){
+							jsonput(conditionObj, "level2Approver", level2Approver);
+							jsonput(conditionObj, "level2ApprovalStatus", "Pending");
+							if(2 > maxLevelOfApproval){
+								maxLevelOfApproval = 2;
+							}
+						}else{
+							approvalHeaderFlag=true;
+							jsonput(conditionObj, "level2Approver", level2Approver);
+							jsonput(conditionObj, "level2ApprovalStatus", "Approved");
+						}
+					}
+					if(get(approvalsPerCondition, "Level3") == "Yes" AND (NOT ISNULL(level3Approver) AND level3Approver <> "")){
+						if(jsonget(approvalHistoryConditionJSONObj, "level3ApprovalStatus") <> "Approved"){
+							jsonput(conditionObj, "level3Approver", level3Approver);
+							jsonput(conditionObj, "level3ApprovalStatus", "Pending");
+							if(3 > maxLevelOfApproval){
+								maxLevelOfApproval = 3;
+							}
+						}else{
+							approvalHeaderFlag=true;
+							jsonput(conditionObj, "level3Approver", level2Approver);
+							jsonput(conditionObj, "level3ApprovalStatus", "Approved");
+						}
+					}
+					if(get(approvalsPerCondition, "Level4") == "Yes" AND (NOT ISNULL(level4Approver) AND level4Approver <> "")){
+						if(jsonget(approvalHistoryConditionJSONObj, "level4ApprovalStatus") <> "Approved"){
+							jsonput(conditionObj, "level4Approver", level4Approver);
+							jsonput(conditionObj, "level4ApprovalStatus", "Pending");
+							if(4 > maxLevelOfApproval){
+								maxLevelOfApproval = 4;
+							}
+						}
+						else{
+							approvalHeaderFlag=true;
+							jsonput(conditionObj, "level4Approver", level2Approver);
+							jsonput(conditionObj, "level4ApprovalStatus", "Approved");
+						}
+					}
+					if(get(approvalsPerCondition, "Level5") == "Yes" AND (NOT ISNULL(level5Approver) AND level5Approver <> "")){
+						if(jsonget(approvalHistoryConditionJSONObj, "level5ApprovalStatus") <> "Approved"){
+							jsonput(conditionObj, "level5Approver", level5Approver);
+							jsonput(conditionObj, "level5ApprovalStatus", "Pending");
+							if(5 > maxLevelOfApproval){
+								maxLevelOfApproval = 5;
+							}
+						}else{
+							approvalHeaderFlag=true;
+							jsonput(conditionObj, "level5Approver", level2Approver);
+							jsonput(conditionObj, "level5ApprovalStatus", "Approved");
+						}
+					}
+					if(get(approvalsPerCondition, "Level6") == "Yes" AND (NOT ISNULL(level6Approver) AND level6Approver <> "")){
+						if(jsonget(approvalHistoryConditionJSONObj, "level6ApprovalStatus") <> "Approved"){
+							jsonput(conditionObj, "level6Approver", level6Approver);
+							jsonput(conditionObj, "level6ApprovalStatus", "Pending");
+							if(6 > maxLevelOfApproval){
+								maxLevelOfApproval = 6;
+							}
+						}else{
+							approvalHeaderFlag=true;
+							jsonput(conditionObj, "level6Approver", level2Approver);
+							jsonput(conditionObj, "level6ApprovalStatus", "Approved");
+						}
+					}
+					
+					
+					if(findinarray(finalApproalList, conditionName) == -1){
+						append(finalApproalList, conditionName);
+					}
+					if(maxLevelOfApproval >= 2 OR approvalHeaderFlag){
+						if (sizeofarray(jsonkeys(conditionObj)) <> 0){
+							jsonput(lineObj, conditionName, conditionObj);
+						}
+					}
+				}
+			}
+			//Added the condition for sales floor price to be greater than the requested price for discout approvals-03/08/2020 //
+			if(containskey(discountThresholdsDict, lineBrand) AND containskey(approversDict, approverKey) AND (round(salesFloorPrice,2) > round(requestedPrice,2))AND eachLine.lineItemStatus_l <> "cancelled"){ // Update for INC000014417365
+				thresoldPerLine = get(discountThresholdsDict, lineBrand);
+				level2Threshold = atof(get(thresoldPerLine, "level2Threshold"));
+				level3Threshold = atof(get(thresoldPerLine, "level3Threshold"));
+				level4Threshold = atof(get(thresoldPerLine, "level4Threshold"));
+				level5Threshold = atof(get(thresoldPerLine, "level5Threshold"));
+				level6Threshold = atof(get(thresoldPerLine, "level6Threshold"));
+
+				if(productLineName == "LIPE" AND containskey(lIPELevel3ApproversDict, salesOffice_t)){
+					lIPEApproverDictObj = get(lIPELevel3ApproversDict, salesOffice_t);
+					level3Approver = get(lIPEApproverDictObj, "Level3Approver");
+				}
+				
+				if(level2Threshold <> -1 AND lineMargin >= level2Threshold){
+					maxLineLevelApproval = 2;
+				}elif((level2Threshold <> -1 AND level3Threshold <> -1) AND (lineMargin < level2Threshold AND lineMargin >= level3Threshold)){
+					maxLineLevelApproval = 3;
+				}elif((level3Threshold <> -1 AND level4Threshold <> -1) AND (lineMargin < level3Threshold AND lineMargin >= level4Threshold)){
+					maxLineLevelApproval = 4;
+				}elif((level4Threshold <> -1 AND level5Threshold <> -1) AND (lineMargin < level4Threshold AND lineMargin >= level5Threshold)){
+					maxLineLevelApproval = 5;
+				}elif((level5Threshold <> -1 AND level6Threshold <> -1) AND (lineMargin < level5Threshold AND lineMargin >= level6Threshold)){
+					maxLineLevelApproval = 6;
+				}
+				
+				approverDictObj = get(approversDict, approverKey);
+				level = 0;
+				
+				approvalHistoryConditionJSONObj = json();
+							  
+						   
+				//Added for revised transaction as only if the new margin is less than the old it should trigger//
+				if(oldLineMargin <= lineMargin) //INC000014433246 changed logic from lineMargin grater to equal
+				{
+		   
+					approvalHistoryConditionJSONObj = jsonget(approvalHistoryLineJSONObj, "Discount", "json", json());
+				}
+				//Added the below condition for non-negative value for the range-CPQ-2343//
+				if(maxLineLevelApproval>0){
+					inputJsonF = json();	
+					jsonput(inputJsonF,"transactionCurrency",currency_t);
+					rangeOfApprovers = range(maxLineLevelApproval-1);
+				
+					for eachApprover in rangeOfApprovers{
+						level = eachApprover+2;
+						approverStr = "Level" + string(level) +"Approver";
+						approverVal = get(approverDictObj, approverStr);
+						
+						oldApprovalStatus = jsonget(approvalHistoryConditionJSONObj, "level"+string(level)+"ApprovalStatus");
+						/*------ CPQ-4511 START ------ */
+						if(isCopyOrVersion_t AND eachline.oldDiscountString_l <> ""){
+							oldStringVal = replace(eachline.oldDiscountString_l, "%", "");
+							oldStringVal = replace(oldStringVal , "$", "");
+							//oldStringVal = ;
+								
+							jsonput(inputJsonF,"actualValue",oldStringVal);
+							oldStringVal = util.formatNumber(inputJsonF);
+							jsonput(inputJsonF,"actualValue",eachline.discountPercentNetApprovedString_l);
+							
+							discPNetApproved = util.formatNumber(inputJsonF);
+							if(discPNetApproved ==""){
+									discPNetApproved ="0.00";
+							}
+							
+							if((eachline.customDiscountType_l == "percent" AND (atof(oldStringVal) < atof(discPNetApproved))) OR ((eachline.customDiscountType_l == "amt" OR eachline.customDiscountType_l == "premium") AND (atof(oldStringVal) > eachline.newNetPrice_l)) ){
+								jsonput(marginApprovalJSONObj, "level"+string(level)+"Approver", approverVal);
+								jsonput(marginApprovalJSONObj, "level"+string(level)+"ApprovalStatus", "Pending");
+							}else{
+								jsonput(marginApprovalJSONObj, "level"+string(level)+"Approver", approverVal);
+								jsonput(marginApprovalJSONObj, "level"+string(level)+"ApprovalStatus", "Approved");
+								level = 0;
+							}
+						}			/*------ CPQ-4511 END --------*/
+						else{
+							if((NOT ISNULL(approverVal) AND approverVal <> "") AND (oldApprovalStatus <> "Approved")){
+								jsonput(marginApprovalJSONObj, "level"+string(level)+"Approver", approverVal);
+								jsonput(marginApprovalJSONObj, "level"+string(level)+"ApprovalStatus", "Pending");
+							}else{
+								jsonput(marginApprovalJSONObj, "level"+string(level)+"Approver", approverVal);
+								jsonput(marginApprovalJSONObj, "level"+string(level)+"ApprovalStatus", "Approved");
+							}
+						}
+					}
+				}
+				maxLineLevelApproval = level;
+				
+				if(findinarray(finalApproalList, "Discount") == -1){
+					append(finalApproalList, "Discount");
+				}
+				if(maxLineLevelApproval >= 2){
+					if (sizeofarray(jsonkeys(marginApprovalJSONObj)) <> 0){
+						jsonput(lineObj, "Discount", marginApprovalJSONObj);
+					}
+				}
+			}
+
+			if((containskey(brandTotalThresholdsDict, lineBrand) OR containskey(brandTotalThresholdsDict, transactionType_t+"_"+lineBrand))AND containskey(approversDict, approverKey) AND eachLine.lineItemStatus_l <> "cancelled"){
+				otherParamStringDict = dict("string");
+				put(otherParamStringDict, "productLineName", productLineName);
+				put(otherParamStringDict, "lineBrand", lineBrand);
+				put(otherParamStringDict, "approverKey", approverKey);
+				put(otherParamStringDict, "docNumber", docNumber);
+				// Added to pass total quantity for P13 and to remove the line Item quantity Approval-Subha//
+				put(otherParamStringDict, "quantity", string(brandQuantity));  
+				
+				retJson = commerce.pSDBrandTotalApprovals(brandTotalThresholdsDict, approversDict, lIPELevel3ApproversDict, brandTotJSONObj, oldBrandTotJSONObj, otherParamStringDict);
+				maxLevel = jsonget(retJson, "maxApprovalLevel", "integer");		
+
+				if(maxLevel >= 2){
+					brandTotalApprovalJSONObj = jsonget(retJson, "brandTotalApprovalJSONObj", "json");
+					if(maxLevel > maxLineLevelApproval){
+						maxLineLevelApproval = maxLevel;
+					}
+					jsonput(lineObj, "Brand Total", brandTotalApprovalJSONObj);
+					
+					if(findinarray(finalApproalList, "Brand Total") == -1){
+						append(finalApproalList, "Brand Total");
+					}
+				}
+			}
+			//Added lineitem status check for approvaldict as part of CPQ-4006
+			if(containskey(approversDict, approverKey) AND eachline.oldListPrice_l == 0 AND productLineName <> "Network Protectors" AND eachLine.lineItemStatus_l <> "cancelled" AND NOT(eachLine.priceIncluded_l) ){
+				approverDictObj = get(approversDict, approverKey);
+				level2Approver = get(approverDictObj, "Level2Approver");
+				
+				approvalHistoryConditionJSONObj = jsonget(approvalHistoryLineJSONObj, "Zero List Price", "json", json());
+				oldApprovalStatus = jsonget(approvalHistoryConditionJSONObj, "level2ApprovalStatus");
+
+				if((NOT ISNULL(level2Approver) AND level2Approver <> "") AND (oldApprovalStatus <> "Approved")){//Fix for INC000014436464
+					jsonput(zeroListApprovalJSONObj, "level2Approver", level2Approver);
+					jsonput(zeroListApprovalJSONObj, "level2ApprovalStatus", "Pending");
+					jsonput(lineObj, "Zero List Price", zeroListApprovalJSONObj);
+					
+					if(findinarray(finalApproalList, "Zero List Price") == -1){
+						append(finalApproalList, "Zero List Price");
+					}
+					if(maxLineLevelApproval < 2){
+						maxLineLevelApproval = 2;
+					}
+				}else{
+					jsonput(zeroListApprovalJSONObj, "level2Approver", level2Approver);
+					jsonput(zeroListApprovalJSONObj, "level2ApprovalStatus", "Approved");
+					jsonput(lineObj, "Zero List Price", zeroListApprovalJSONObj);
+				}
+			}
+			jsonarrayappend(linesJsonArr, lineObj);
+			approvalRequired = false;
+			approveName = "";
+			print "maxLineLevelApproval ";
+			print maxLineLevelApproval ;
+			if(maxLineLevelApproval > 0 AND containskey(approversDict, approverKey)){
+				approverDictObj = get(approversDict, approverKey);
+				//print approverDictObj;
+				//response = response + docNumber + "~approver_l~" + string(maxLineLevelApproval) + "|";
+				//response = response + docNumber + "~approvalRequired_l~true|";
+				level2approverFlag=false;
+				if( NOT ISNULL((get(approverDictObj, "Level2Approver")))){
+				print "Code 1";
+				   level2approverFlag=true;
+				   approvalRequired = true;
+				   approveName = get(commerce.pSDGetApproverDetails(get(approverDictObj, "Level2Approver")),"approverCaption");
+				   //response = response + docNumber + "~approverName_l~" + get(commerce.pSDGetApproverDetails(get(approverDictObj, "Level2Approver")),"approverCaption") + "|";
+				}
+				//Added the below condition in case of L2 approval is skipped and to populate the approver name when it is for L3 approvalWF-CPQ-2357//
+				//Added empty check for approvaldict as part of CPQ-3299
+				if((NOT ISNULL((get(approverDictObj, "Level3Approver") ))) AND (get(approverDictObj, "Level3Approver") <> "") AND level2approverFlag==false AND maxLineLevelApproval > 2){
+				  approvalRequired = true;
+				  approveName = get(commerce.pSDGetApproverDetails(get(approverDictObj, "Level3Approver")),"approverCaption");
+				  
+				  // response = response + docNumber + "~approverName_l~" + get(commerce.pSDGetApproverDetails(get(approverDictObj, "Level3Approver")),"approverCaption") + "|";
+				}		
+			}
+			//Added below code as part of CPQ-3299
+			if(approvalRequired){
+				response = response + docNumber + "~approver_l~" + string(maxLineLevelApproval) + "|";
+				response = response + docNumber + "~approvalRequired_l~true|";
+				response = response + docNumber + "~approverName_l~" + approveName + "|";
+			 }else{
+				response = response + docNumber + "~approver_l~|";
+				response = response + docNumber + "~approvalRequired_l~false|";
+				response = response + docNumber + "~approverName_l~|";
+			}
+			
+			if(maxLineLevelApproval > maxLevelOfApproval){
+				maxLevelOfApproval = maxLineLevelApproval;
+			}
+	}
+}
+print "-------linesJsonArr-----";
+if(jsonarraysize(linesJsonArr) >0){
+	jsonput(finalJSONObj, "TransactionType", transactionType_t);
+	jsonput(finalJSONObj, "SalesOffice", salesOffice_t);
+	jsonput(finalJSONObj, "ApproalsList", join(finalApproalList, "$$"));
+	jsonput(finalJSONObj, "MaxLevelOfApproval", maxLevelOfApproval);
+	jsonput(finalJSONObj, "LinesObjet", linesJsonArr);
+}else{
+	finalJSONObj = json();
+}
+//print finalJSONObj;
+
+response = response + "1~approvalLevel_t~" + string(maxLevelOfApproval) + "|";
+print "===Testing==";
+print finalJSONObj;
+if(jsontostr(finalJSONObj) <> "{}"){
+	response = response + commerce.pSDGetBannerTextAndCurrentApprovalLevel(finalJSONObj);
+	response = response + "1~transactionLineApprovalInformation_t~" + jsontostr(finalJSONObj) + "|";
+}else{
+	response = response + "1~messageDisplay_t~|";
+}
+return response;

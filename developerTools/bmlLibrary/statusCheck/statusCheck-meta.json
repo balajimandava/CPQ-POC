@@ -1,0 +1,9 @@
+{
+  "name" : "Status Check",
+  "variableName" : "statusCheck",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "attributes" : [ ]
+}

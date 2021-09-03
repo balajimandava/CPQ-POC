@@ -1,0 +1,30 @@
+//************************************************************************************************************
+//** Function: ParseXMLToDelimiterStr
+//**
+//** Description: This function will parse the given xml data into delimiter string.
+//** Params:
+//**	 inputXML : this attribute holds the input XML 
+//**     keyValDelimitator : this is column delimeter
+//**	 rowDelimitator: Row delimete
+//** Return Value: delimite string based on the give column & row delimiters
+//**		Example Str: kVA$,$3000kVA 3 Phase Substation Transformer@#@Frequency$,$60 Hz
+//** History:	Date          	Author		Comment 
+//**          	------------- 	---------------	--------------------------------------------------------------
+//**            06/05/2020	Nithin David L	Created initial version
+//************************************************************************************************************/
+xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"+inputXML;
+   
+output = "";
+if(inputXML <> ""){
+	defaultKeyValDelimitator = "$,$";
+	defaultRowDelimitator = "@#@";
+	xslFileLocation="$BASE_PATH$/XSLT/TransXML2DelimiterString.xsl";
+	output=transformxml(xml , xslFileLocation, "error");
+	if(keyValDelimitator <> ""){
+		output = replace(output,defaultKeyValDelimitator,keyValDelimitator);
+	}
+	if(keyValDelimitator <> ""){
+		output = replace(output,defaultRowDelimitator ,rowDelimitator);
+	}
+}
+return output;

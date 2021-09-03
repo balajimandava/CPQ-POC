@@ -1,0 +1,12 @@
+{
+  "name" : "Notes with delimiter",
+  "variableName" : "notesWithDelimiter",
+  "description" : "Standard Notes need to be send with \"/\" as a delimiter for each notes to SAP.\n@Vijetha",
+  "libraryFunctions" : [ "util.restReturnArraySetJSON" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "paramDict",
+    "type" : "Anytype Dictionary"
+  } ],
+  "attributes" : [ ]
+}

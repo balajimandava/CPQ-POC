@@ -1,0 +1,64 @@
+ProductineArray = string[];
+retArray = jsonarray();
+result = string[];
+BrandArray = string[];
+salesDistrict = salesDistrict_t; 
+TransactionType = qq_ntTransactionType_t;
+SalesOffice = salesOffice_t;
+if((trim(approvalLevel_t)<>"" AND trim(approvalLevel_t)<>"null") AND (trim(pSDCurrentApprovalLevel_t)<>"" AND trim(pSDCurrentApprovalLevel_t)<>"null"))
+{
+	if(atoi(approvalLevel_t) < 6 AND atoi(approvalLevel_t) == atoi(pSDCurrentApprovalLevel_t))
+	{
+		for eachLine in transactionLine
+		{
+			if(findinarray(ProductineArray , eachLine.productLineName_l) == -1)
+			{
+			append(ProductineArray , eachLine.productLineName_l);
+			}
+			if(findinarray(BrandArray , eachLine.brand_l) == -1)
+			{
+			append(BrandArray , eachLine.brand_l);
+			}
+		}
+		print ProductineArray;
+		if (sizeofarray(ProductineArray) == 1)
+		{
+		
+		        selectColumns = "LVL"+ string(atoi(approvalLevel_t) + 1) + "_APPROVER";
+			//NextLevelApprovalRecords = bmql("SELECT $selectColumns FROM PSD_Dscnt_Approvers where BRAND in $BrandArray AND SALES_DISTRICT = $salesDistrict AND TRNSCTN_TYP = $TransactionType");
+		   	NextLevelApprovalRecords = bmql("SELECT $selectColumns FROM PSD_Dscnt_Approvers where BRAND in $BrandArray AND (SALES_DISTRICT = $salesDistrict OR SALES_DISTRICT is null) AND (TRNSCTN_TYP = $TransactionType OR TRNSCTN_TYP is null) AND (SALES_OFFIC = $SalesOffice OR SALES_OFFIC is null)");
+		   	for eachRec in NextLevelApprovalRecords
+			{
+			selectedContactJ = json();
+			selectedContact = "";
+			//Variable for storing the approver variable name//
+			selectContactVarName="";
+			if((util.getRemark(get(eachRec, selectColumns), _system_current_user_language)) <> "" or (util.getRemark(get(eachRec, selectColumns), _system_current_user_language)) <>"null")
+			{
+			selectedContact = util.getRemark(get(eachRec, selectColumns), _system_current_user_language);
+			//Added the below for storing the approver variable name to add in the approvals//
+			selectContactVarName= get(eachRec, selectColumns);
+			}
+			else
+			{
+			selectedContact = get(eachRec, selectColumns);
+			}
+
+		//jsonput(selectedContactJ, "selectNxt_t", selectNxt_t);
+		jsonput(selectedContactJ, "approverName_t", selectedContact );
+		jsonput(selectedContactJ, "nxtapproverVariableName_t", selectContactVarName);
+		jsonarrayappend(retArray, selectedContactJ);
+		if(jsonarraysize(retArray) == 500)
+		{
+		break;
+		}
+		}
+		
+		}
+		append(result, "1~nextLevelApprovalArraySet_t~" + jsonarraytostr(retArray) );
+		
+		
+	}
+}
+newValues = join(result, "|");
+return newValues;

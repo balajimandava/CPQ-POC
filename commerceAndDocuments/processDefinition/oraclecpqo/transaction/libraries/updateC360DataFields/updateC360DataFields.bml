@@ -1,0 +1,46 @@
+/**
+@name Update C360 Data Fields
+@api updateC360DataFields
+@summary reset related C360 transaction to non-primary.
+@attribute bs_id
+@attribute opportunityAccountID_t
+@attribute opportunityNumber_t
+@attribute qqRootTransactionNumber_t
+@function JsonArray getListOfTransactionsForQuery(Json params)
+@function String updateTransactionSOAP(String template, String Dictionary payload)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-04-09|michael.yeung        |
+*/
+// get a list related quotes
+fields = "bs_id";
+
+query = json();
+jsonput(query, "opportunityNumber_t", opportunityNumber_t);
+
+
+params = json();
+jsonput(params, "fields", fields);
+jsonput(params, "query", query);
+quotes = util.getListOfTransactionsForQuery(params);
+// prepare the payload to update the related transactions
+payload = dict("string");
+put(payload, "IS_PRIMARY", "false");
+put(payload, "OPPORTUNITY_NUMBER", opportunityNumber_t);
+oppAcctId = opportunityAccountID_t;
+put(payload, "OPPORTUNITY_ACCOUNT_ID", oppAcctId);
+template = "$BASE_PATH$/WebServices/updateTransactionC360.xml";
+
+loopCtrl = range(jsonarraysize(quotes));
+for i in loopCtrl {
+    quote = jsonarrayget(quotes, i, "json");
+    quoteBsID = jsonget(quote, "bs_id", "string", "");
+    if (quoteBsID <> bs_id) {
+        put(payload, "BS_ID", quoteBsID);
+        response = util.updateTransactionSOAP(template, payload);   
+    }
+}
+
+return "";

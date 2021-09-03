@@ -1,0 +1,703 @@
+/**********************************************************************************************************
+
+Date		Name		Comments
+27-Nov-2020	Rahul		Refer transactionName_t attribute from existingCommerce process
+04-Feb-2021	Rahul 		Updated to keep code in-sync with CSP upload script
+2021-17-06              |Gautam               |Changes for CPQ-4228, Display MPG 3 digits(all ES-EMEA countries)
+************************************************************************************************************/
+startDate = getdate();
+siteID = _system_company_name;  //Expected value is eatontest2, eatontest4 etc.
+id = "";
+
+//API Acess
+apiUserID= "";
+apiPassID= "";
+
+salesENum="";
+name1= "";
+telf1= "";
+email1="";
+eRecID="";
+eNumber = "";
+validFrom = "";
+validTo = "";
+title = "";
+tableName = tableName_t;
+mpg_Prefix = "";
+
+transactionsJsonObj = json();
+
+// Rest Header  
+headers = dict("string"); 
+transOwnersDict = dict("dict<string>");
+whereClause = "";
+salesTmWhereClause = "";
+
+// API Username and password
+apiUserID = "transaction_upload_user";
+apiPassID = "Eaton@123";
+
+//Basic authentication required in WebService API call.
+auth_val = "Basic " + encodebase64(apiUserID + ":" + apiPassID);
+
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", auth_val);
+
+empIds = BMQL("SELECT DISTINCT ENUMBER FROM $tableName");
+for eachEmpId in empIds{
+	if (whereClause == ""){
+		whereClause = "('" + get(eachEmpId, "ENUMBER") + "'";
+	}elif(whereClause <> ""){
+		whereClause = whereClause + ", '" + get(eachEmpId, "ENUMBER") + "'";
+	}
+}
+if(whereClause <> ""){
+	salesTmWhereClause = "eNumber IN " + whereClause + ")";
+	whereClause = "SORT2 IN " + whereClause + ")";
+}
+
+//Get sales data from CUSMAS table and set it into different attribute for further use.
+salesRS=BMQL("SELECT SORT2, VKORG, SMTP_ADDR, NAME1, TELF1, KUNNR FROM CUSMAS WHERE $whereClause");
+for eachUser in salesRS{
+	empDict = dict("string");
+	put(empDict, "salesENum", get(eachUser, "SORT2"));
+	put(empDict, "Name", get(eachUser, "NAME1"));
+	put(empDict, "Telf", get(eachUser, "TELF1"));
+	put(empDict, "Email", get(eachUser, "SMTP_ADDR"));
+	put(empDict, "eRecID", get(eachUser, "KUNNR"));
+	
+	put(transOwnersDict, get(eachUser, "SORT2"), empDict);	
+}
+
+salesUserRS = bmql("Select eNumber, Title from SalesTeams WHERE $salesTmWhereClause");
+for salesUser in salesUserRS{
+	title = get(salesUser, "Title");
+	emp = get(salesUser, "eNumber");
+	
+	if(containskey(transOwnersDict, emp)){
+		internalEmpDict = get(transOwnersDict, emp);
+		put(internalEmpDict, "Title", title);
+	}
+}
+
+resultSet = bmql ("SELECT TRANS_NAME,KUNNR,KTOKD,VKORG,VTWEG,SPART,DATAB,DATBI,TRANS_TYPE,KSCHL,MVGR5,KBETR,KONWA,MATNR,ENUMBER,CURRENCY,SCALE_FRM,SCALE_TO FROM $tableName_t");
+for row in resultSet {
+	materialScale = 0;
+	rowJsonObj = json();
+	materialScaleJSON = json();
+	materialScaleAdNFAJson = json();
+	priceGrpAndDisc = json();
+	materialsJsonArr = jsonarray();
+	materialsPriceJsonArr = jsonarray();
+	PriceGroupsJsonArr = jsonarray();
+	PriceGroupsDscntJsonArr = jsonarray();
+	
+	eNumber = get(row, "ENUMBER");
+	vOrg = get(row, "VKORG");
+	
+	if(containskey(transOwnersDict, eNumber)){
+		internalEmpDict = get(transOwnersDict, eNumber);
+		
+		name1 = get(internalEmpDict, "Name");
+		telf1 = get(internalEmpDict, "Telf");
+		email1 = get(internalEmpDict, "Email");
+		eRecID = get(internalEmpDict, "eRecID");
+		title = get(internalEmpDict, "Title");
+	}
+	
+	//code commented for CPQ - 4228
+	//get MPG prefix
+	/*
+	if(mpg_Prefix == ""){
+		mpg_Prefix_RS = BMQL("SELECT Prefix FROM MPG_Prefix WHERE VKORG=$vOrg");
+		for eachPrefix in mpg_Prefix_RS {
+			mpg_Prefix = get(eachPrefix, "Prefix");
+			break;
+		}
+	}*/
+	
+	transName = get(row, "TRANS_NAME");
+	customerNum = get(row, "KUNNR");
+	validFromDate = get(row, "DATAB");
+	validToDate = get(row, "DATBI");
+	
+	scaleFromArr = split(get(row, "SCALE_FRM"),".");
+	scaleToArr = split(get(row, "SCALE_TO"), ".");
+	
+	scaleFrom = scaleFromArr[0];
+	scaleTo = scaleToArr[0];
+	
+	jsonKey = customerNum + "|" + validFromDate + "|" + validToDate;
+	
+	if (NOT isnull(jsonget(transactionsJsonObj, jsonKey, "json"))){
+		rowJsonObj = jsonget(transactionsJsonObj, jsonKey, "json");
+		
+		if(jsonarraysize(jsonget(rowJsonObj, "MaterialNumbers", "jsonarray")) > 0){
+			materialsJsonArr 	= jsonget(rowJsonObj, "MaterialNumbers", "jsonarray");
+		}
+		
+		if(jsonarraysize(jsonget(rowJsonObj, "PriceGroup", "jsonarray")) > 0){
+			PriceGroupsJsonArr 	= jsonget(rowJsonObj, "PriceGroup", "jsonarray");
+		}
+		
+		if(NOT isjsonnull(rowJsonObj, "MaterialScaleAndNFA")){
+			materialScaleAdNFAJson = jsonget(rowJsonObj, "MaterialScaleAndNFA", "json");
+		}
+		
+		if(NOT isjsonnull(rowJsonObj, "PriceGrpAndDiscount")){
+			priceGrpAndDisc = jsonget(rowJsonObj, "PriceGrpAndDiscount", "json");
+		}
+	}
+	
+	jsonput(rowJsonObj, "TableName", tableName_t);
+	jsonput(rowJsonObj, "TransactionName", transName);
+	jsonput(rowJsonObj, "CustomerNumber", customerNum);
+	jsonput(rowJsonObj, "CUST_TYPE", get(row, "KTOKD"));
+	jsonput(rowJsonObj, "SalesOrg", vOrg);
+	jsonput(rowJsonObj, "DistributionChannel", get(row, "VTWEG"));
+	jsonput(rowJsonObj, "Division", get(row, "SPART"));
+	jsonput(rowJsonObj, "FromDate", validFromDate);
+	jsonput(rowJsonObj, "ToDate", validToDate);
+	jsonput(rowJsonObj, "CURRENCY", get(row, "CURRENCY"));
+	jsonput(rowJsonObj, "TRANS_TYPE", get(row, "TRANS_TYPE"));
+	jsonput(rowJsonObj, "MPG_PREFIX", mpg_Prefix);
+	
+	jsonput(rowJsonObj, "eNumber", eNumber);	
+	jsonput(rowJsonObj, "Name", name1);
+	jsonput(rowJsonObj, "Telf", telf1);
+	jsonput(rowJsonObj, "Email", email1);
+	jsonput(rowJsonObj, "eRecID", eRecID);
+	jsonput(rowJsonObj, "Title", title);
+	
+	lineType = get(row, "KSCHL");
+	if(lineType == "ZPR5"){
+		materialNr = get(row, "MATNR");
+		materialPrice = get(row, "KBETR");
+		
+		if(scaleFrom <> "" OR scaleTo <> ""){
+			scalePriceJson = json();			
+			matArray = jsonkeys(materialScaleAdNFAJson);
+			if (findinarray(matArray, materialNr) <> -1){
+				scalePriceJson = jsonget(materialScaleAdNFAJson, materialNr, "json");
+			}
+			jsonput(scalePriceJson, scaleFrom + "~$~" + scaleTo, materialPrice);
+			jsonput(materialScaleAdNFAJson, materialNr, scalePriceJson);
+		}
+		else{
+			lineDataStr = "Prc:" + materialPrice; // 04-Feb-2021 - Updated to keep code in-sync with CSP upload script
+			jsonput(materialScaleAdNFAJson, materialNr, lineDataStr);
+		}
+		
+		jsonarrayappend(materialsJsonArr, materialNr);
+	}
+	
+	if(lineType == "ZK35"){
+		priceGrp = get(row, "MVGR5");
+		discount = get(row, "KBETR");
+		
+		lineDataStr = "Dscnt:" + discount; //04-Feb-2021 - Updated to keep code in-sync with CSP upload script
+		jsonput(priceGrpAndDisc, "VPG"+priceGrp, lineDataStr);
+		jsonarrayappend(PriceGroupsJsonArr, priceGrp);
+	}
+	
+	jsonput(rowJsonObj, "MaterialScaleAndNFA", materialScaleAdNFAJson);
+	jsonput(rowJsonObj, "PriceGrpAndDiscount", priceGrpAndDisc);
+	jsonput(rowJsonObj, "MaterialNumbers", materialsJsonArr);
+	jsonput(rowJsonObj, "PriceGroup", PriceGroupsJsonArr);
+	jsonput(transactionsJsonObj, jsonKey, rowJsonObj);	
+}
+
+dspRecordKeys = jsonkeys(transactionsJsonObj);
+
+for eachkey in dspRecordKeys{
+	StrDict = dict("string");
+	transactionNumber = "";
+	id = "";
+	eachDspRecord = jsonget(transactionsJsonObj, eachkey, "json");
+	transactionName = jsonget(eachDspRecord, "TransactionName", "string");
+	transactionType = jsonget(eachDspRecord, "TRANS_TYPE", "string");
+	SalesOrg 	= jsonget(eachDspRecord, "SalesOrg", "string");
+	distributnChannel = jsonget(eachDspRecord, "DistributionChannel", "string");
+	customerNumber = jsonget(eachDspRecord, "CustomerNumber", "string");
+	
+	eNumber = jsonget(eachDspRecord, "eNumber", "string");
+	name1 = jsonget(eachDspRecord, "Name", "string");
+	telf1 = jsonget(eachDspRecord, "Telf", "string");
+	email1 = jsonget(eachDspRecord, "Email", "string");
+	eRecID = jsonget(eachDspRecord, "eRecID", "string");
+	title = jsonget(eachDspRecord, "Title", "string");
+	
+	validFrom = jsonget(eachDspRecord, "FromDate", "string");
+	validTo = jsonget(eachDspRecord, "ToDate", "string");
+	
+	//Format validFrom and validTo date.
+	validFrom = replace(validFrom,".","-");
+	validTo = replace(validTo,".","-");
+
+	//--------------> STEP 1:CREATE Transaction Start
+	createUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction";
+	currency = jsonget(eachDspRecord, "CURRENCY", "string");
+
+	// Rest parameters
+	jsonParams = json();
+	jsonput(jsonParams,"_currency_pref",currency);
+
+	params = jsontostr(jsonParams);
+
+	results = urldatabypost(createUrl, params, "ERROR", headers, true);
+
+	id = jsonget(json(results),"_id");
+	result = "SUCCESS";
+
+	if(find(results,"ERROR")<>-1){
+		print "Step 1: Transaction creation failed";
+		print id;
+		
+		put(StrDict, "BS_ID", id);
+		put(StrDict, "TableName", tableName_t);
+		put(StrDict, "Status", "Failure");
+		put(StrDict, "Message", "Step 1: Transaction creation failed, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+		put(StrDict, "Index", "0");		
+		ret = util.transactionUploadStatusLog(StrDict);
+		
+		continue;
+	}
+	//STEP 1:CREATE Transaction End <-----------
+
+	//--------------> STEP 1.1:Set Transaction attribute values start
+	setTrnsAttributesURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/apiSave_t";
+
+	document = json();
+	
+	jsonput(document,"ntSelectedSalesOrg_t",SalesOrg);
+	jsonput(document,"ntDistributionChannel_t",distributnChannel);	
+	jsonput(document,"qq_nt_TransactionName_t",transactionName);
+	jsonput(document,"qq_ntTransactionType_t",transactionType);
+	jsonput(document,"qq_customerSearchField_t",customerNumber);
+	jsonput(document,"pSDTransactionApprovalHistoryInfo_t",jsontostr(eachDspRecord));
+	jsonput(document,"qq_MnlShpTo_Language_t","DE");	
+		
+	//user details
+	jsonput(document,"owner_t",eNumber);
+	jsonput(document,"adminSalesLogin_t",eNumber);
+	jsonput(document,"preparedBySalesOrg_t",salesOrg);
+	jsonput(document,"preparedByName_t",name1);
+	jsonput(document,"createdBy_t",name1);
+	jsonput(document,"preparedByPhone_t",telf1);
+	jsonput(document,"preparedByEmail_t",email1);
+	jsonput(document,"eRecordID_t",eRecID);
+	jsonput(document,"preparedByTitle_t",title);
+	
+	// Rest parameters
+	setTrnsAttrJsonParams = json();
+	jsonput(setTrnsAttrJsonParams,"documents",document);
+	setTrnsAttrParams = jsontostr(setTrnsAttrJsonParams);
+
+	results = urldatabypost(setTrnsAttributesURL, setTrnsAttrParams, "ERROR", headers, true);
+	if(find(results,"ERROR")<>-1){
+		print "STEP 1.1: Transaction attribute values set failed";
+		print id;
+		
+		put(StrDict, "BS_ID", id);
+		put(StrDict, "TableName", tableName_t);
+		put(StrDict, "Status", "Failure");
+		put(StrDict, "Message", "STEP 1.1: Transaction attribute values set failed, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+		put(StrDict, "Index", "0");		
+		ret = util.transactionUploadStatusLog(StrDict);
+		
+		continue;
+	}
+	//STEP 1.1:Set Transaction attribute values End <--------------
+
+	//--------------> STEP 2:Search Customer Start
+	searchCustomerURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/jetSearchCustomer_t";
+
+	results = urldatabypost(searchCustomerURL, "", "ERROR", headers, true);
+	if(find(results,"ERROR")<>-1){
+		print "STEP 2: Customer search failed";
+		print id;
+		
+		put(StrDict, "BS_ID", id);
+		put(StrDict, "TableName", tableName_t);
+		put(StrDict, "Status", "Failure");
+		put(StrDict, "Message", "STEP 2: Customer search failed, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+		put(StrDict, "Index", "0");		
+		ret = util.transactionUploadStatusLog(StrDict);
+		
+		continue;
+	}
+	//STEP 2:Search Customer End <----------------
+
+	//-------------> STEP 3:Select Customer from Arrayset Start
+	selectCustURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/nTSelectCustomer";
+	results = urldatabypost(selectCustURL, "", "ERROR", headers, true);
+	
+	if(find(results,"ERROR")<>-1){
+		print "STEP 3: Select Customer from Arrayset failed";
+		print id;
+		
+		put(StrDict, "BS_ID", id);
+		put(StrDict, "TableName", tableName_t);
+		put(StrDict, "Status", "Failure");
+		put(StrDict, "Message", "STEP 3: Select Customer from Arrayset failed, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+		put(StrDict, "Index", "0");
+		ret = util.transactionUploadStatusLog(StrDict);
+		
+		continue;
+	}
+	/*STEP 3:Select Customer from Arrayset End <-----------*/
+
+	/*-------------> STEP 4:Add Customer Start */
+	selectCustURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/jetAddCustomer_t";
+	results = urldatabypost(selectCustURL, "", "ERROR", headers, true);
+	
+	if(find(results,"ERROR")<>-1){
+		print "STEP 4: Add Customer failed";
+		print id;
+		
+		put(StrDict, "BS_ID", id);
+		put(StrDict, "TableName", tableName_t);
+		put(StrDict, "Status", "Failure");
+		put(StrDict, "Message", "STEP 4: Add Customer failed, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+		put(StrDict, "Index", "0");
+		ret = util.transactionUploadStatusLog(StrDict);
+		continue;
+	}
+	//STEP 4:Add Customer End <-----------
+
+	//-------------> STEP 5:Save Transaction Start
+	selectCustURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/cleanSave_t";
+	results = urldatabypost(selectCustURL, params, "ERROR", headers, true);
+	
+	if(find(results,"ERROR") == -1){
+		transactionNumber = jsonget(json(results),"transactionNumber_t");
+	}
+	
+	if(find(results,"ERROR")<>-1){
+		print "STEP 5: First Save Transaction failed";
+		print id;
+		
+		put(StrDict, "BS_ID", id);
+		put(StrDict, "TableName", tableName_t);
+		put(StrDict, "Status", "Failure");
+		put(StrDict, "Message", "STEP 5: First Save Transaction failed, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+		put(StrDict, "Index", "0");		
+		ret = util.transactionUploadStatusLog(StrDict);
+		
+		continue;
+	}
+	//STEP 5:Save Transaction End <-----------
+
+	//-------------> STEP 6:Bulk Search Materials and Pricing Groups Start
+	document2 = json();
+	setTrnsAttrJsonParams2 = json();
+	jsonput(document2,"agreementValidFrom_t",validFrom); 
+	jsonput(document2,"agreementValidTo_t",validTo);
+
+	updateTrnsAttributesURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/apiSave_t";
+	bulkSearchMaterialsURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/searchMaterialAndPriceGroup_t";
+	addSelectURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/addMaterialItemsWoGroups_t";
+
+	priceGroupJArr 	= jsonget(eachDspRecord, "PriceGroup", "jsonarray");
+	priceGrpRange = range(jsonarraysize(priceGroupJArr));
+	
+	materialNumbJArr = jsonget(eachDspRecord, "MaterialNumbers", "jsonarray");
+	matnrRange = range(jsonarraysize(materialNumbJArr));
+	
+	materialScaleJSON2 = json();
+	matnrStr = "";
+	count = 0;
+	continueFlag = false;
+	
+	for eachPriceGrp in priceGrpRange{
+		count = count + 1;
+		priceGrp = jsonarrayget(priceGroupJArr, eachPriceGrp);
+		
+		jsonput(materialScaleJSON2, priceGrp, 1);
+		
+		if(matnrStr == ""){
+			matnrStr = "('VPG" + priceGrp + "'";
+		}
+		else{
+			matnrStr = matnrStr + ", 'VPG" + priceGrp + "'";
+		}
+		
+		if(count == 500){
+			matnrStr = matnrStr + ")";
+			count = 0;
+			
+			jsonput(eachDspRecord, "SearchString", matnrStr);
+			jsonput(eachDspRecord, "MaterialScaleJSON2", materialScaleJSON2);
+			jsonput(document2,"pSDTransactionApprovalHistoryInfo_t",jsontostr(eachDspRecord));
+			jsonput(setTrnsAttrJsonParams2,"documents",document2);
+			setTrnsAttrParams2 = jsontostr(setTrnsAttrJsonParams2);
+			
+			results = urldatabypost(updateTrnsAttributesURL, setTrnsAttrParams2, "ERROR", headers, true);			
+			if(find(results,"ERROR")<>-1){
+				print "STEP 5.1: Save before Materials search failed1";
+				print transactionNumber;
+				continueFlag = true;
+				
+				put(StrDict, "BS_ID", id);
+				put(StrDict, "TransNum", transactionNumber);
+				put(StrDict, "TableName", tableName_t);
+				put(StrDict, "Status", "Failure");
+				put(StrDict, "Message", "STEP 5.1: Save before Materials search failed1, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+				put(StrDict, "Index", "0");	
+				ret = util.transactionUploadStatusLog(StrDict);
+				break;
+			}
+		
+			results = urldatabypost(bulkSearchMaterialsURL, "", "ERROR", headers, true);
+			if(find(results,"ERROR")<>-1){
+				print results;
+				print "STEP 6: Bulk Material Search failed1";
+				print transactionNumber;
+				continueFlag = true;
+				
+				put(StrDict, "BS_ID", id);
+				put(StrDict, "TransNum", transactionNumber);
+				put(StrDict, "TableName", tableName_t);
+				put(StrDict, "Status", "Failure");
+				put(StrDict, "Message", "STEP 6: Bulk Material Search failed1, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+				put(StrDict, "Index", "0");	
+				ret = util.transactionUploadStatusLog(StrDict);
+				break;
+			}
+			
+			results = urldatabypost(addSelectURL, "", "ERROR", headers, true);
+			if(find(results,"ERROR")<>-1){
+				print "STEP 8: Bulk Material Add to LIG Failed1";
+				print transactionNumber;
+				continueFlag = true;
+				
+				put(StrDict, "BS_ID", id);
+				put(StrDict, "TransNum", transactionNumber);
+				put(StrDict, "TableName", tableName_t);
+				put(StrDict, "Status", "Failure");
+				put(StrDict, "Message", "STEP 8: Bulk Material Add to LIG Failed1, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+				put(StrDict, "Index", "0");	
+				ret = util.transactionUploadStatusLog(StrDict);
+				break;
+			}
+			
+			matnrStr = "";
+			materialScaleJSON2 = json();
+		}			
+	}
+
+	if(continueFlag){
+		continue; // continue to next transaction
+	}
+	
+	for eachMaterial in matnrRange{
+		count = count + 1;
+		materialNr = jsonarrayget(materialNumbJArr, eachMaterial);
+		
+		materialScale =	jsonget(materialScaleJSON2, materialNr, "integer", 0);		
+		if(materialScale > 0){
+			jsonput(materialScaleJSON2, materialNr, materialScale+1);
+		}else{
+			jsonput(materialScaleJSON2, materialNr, 1);
+		}
+		
+		if(matnrStr == ""){
+			matnrStr = "('" + materialNr + "'";
+		}
+		else{
+			matnrStr = matnrStr + ", '" + materialNr + "'";
+		}
+		
+		if(count == 500){
+			matnrStr = matnrStr + ")";
+			count = 0;
+			
+			jsonput(eachDspRecord, "SearchString", matnrStr);
+			jsonput(eachDspRecord, "MaterialScaleJSON2", materialScaleJSON2);
+			jsonput(document2,"pSDTransactionApprovalHistoryInfo_t",jsontostr(eachDspRecord));
+			jsonput(setTrnsAttrJsonParams2,"documents",document2);
+			setTrnsAttrParams2 = jsontostr(setTrnsAttrJsonParams2);
+			
+			results = urldatabypost(updateTrnsAttributesURL, setTrnsAttrParams2, "ERROR", headers, true);			
+			if(find(results,"ERROR")<>-1){
+				print "STEP 5.1: Save before Materials search failed1";
+				print transactionNumber;
+				continueFlag = true;
+				
+				put(StrDict, "BS_ID", id);
+				put(StrDict, "TransNum", transactionNumber);
+				put(StrDict, "TableName", tableName_t);
+				put(StrDict, "Status", "Failure");
+				put(StrDict, "Message", "STEP 5.1: Save before Materials search failed1, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+				put(StrDict, "Index", "0");	
+				ret = util.transactionUploadStatusLog(StrDict);
+				break;
+			}
+		
+			results = urldatabypost(bulkSearchMaterialsURL, "", "ERROR", headers, true);
+			if(find(results,"ERROR")<>-1){
+				print results;
+				print "STEP 6: Bulk Material Search failed1";
+				print transactionNumber;
+				continueFlag = true;
+				
+				put(StrDict, "BS_ID", id);
+				put(StrDict, "TransNum", transactionNumber);
+				put(StrDict, "TableName", tableName_t);
+				put(StrDict, "Status", "Failure");
+				put(StrDict, "Message", "STEP 6: Bulk Material Search failed1, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+				put(StrDict, "Index", "0");	
+				ret = util.transactionUploadStatusLog(StrDict);
+				break;
+			}
+			
+			results = urldatabypost(addSelectURL, "", "ERROR", headers, true);
+			if(find(results,"ERROR")<>-1){
+				print "STEP 8: Bulk Material Add to LIG Failed1";
+				print transactionNumber;
+				continueFlag = true;
+				
+				put(StrDict, "BS_ID", id);
+				put(StrDict, "TransNum", transactionNumber);
+				put(StrDict, "TableName", tableName_t);
+				put(StrDict, "Status", "Failure");
+				put(StrDict, "Message", "STEP 8: Bulk Material Add to LIG Failed1, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+				put(StrDict, "Index", "0");	
+				ret = util.transactionUploadStatusLog(StrDict);
+				break;
+			}
+			
+			matnrStr = "";
+			materialScaleJSON2 = json();
+		}
+	}
+	if(continueFlag){
+		continue; // continue to next transaction
+	}
+	
+	if(count > 0 AND count < 500){
+		matnrStr = matnrStr + ")";
+		count = 0;
+
+		jsonput(eachDspRecord, "SearchString", matnrStr);
+		jsonput(eachDspRecord, "MaterialScaleJSON2", materialScaleJSON2);
+		jsonput(document2,"pSDTransactionApprovalHistoryInfo_t",jsontostr(eachDspRecord));
+		jsonput(setTrnsAttrJsonParams2,"documents",document2);
+		setTrnsAttrParams2 = jsontostr(setTrnsAttrJsonParams2);
+		
+		results = urldatabypost(updateTrnsAttributesURL, setTrnsAttrParams2, "ERROR", headers, true);			
+		if(find(results,"ERROR")<>-1){
+			print "STEP 5.1: Save before Material search failed2";
+			print transactionNumber;
+			
+			put(StrDict, "BS_ID", id);
+			put(StrDict, "TransNum", transactionNumber);
+			put(StrDict, "TableName", tableName_t);
+			put(StrDict, "Status", "Failure");
+			put(StrDict, "Message", "STEP 5.1: Save before Material search failed2, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+			put(StrDict, "Index", "0");	
+			ret = util.transactionUploadStatusLog(StrDict);
+			continue;
+		}
+		
+		results = urldatabypost(bulkSearchMaterialsURL, "", "ERROR", headers, true);			
+		if(find(results,"ERROR")<>-1){
+			print "STEP 6: Bulk Material Search failed2";
+			print transactionNumber;
+			
+			put(StrDict, "BS_ID", id);
+			put(StrDict, "TransNum", transactionNumber);
+			put(StrDict, "TableName", tableName_t);
+			put(StrDict, "Status", "Failure");
+			put(StrDict, "Message", "STEP 6: Bulk Material Search failed2, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+			put(StrDict, "Index", "0");
+			ret = util.transactionUploadStatusLog(StrDict);
+			continue;
+		}
+		
+		results = urldatabypost(addSelectURL, "", "ERROR", headers, true);
+		if(find(results,"ERROR")<>-1){
+			print "STEP 8: Bulk Material Add to LIG Failed2";
+			print transactionNumber;
+			
+			put(StrDict, "BS_ID", id);
+			put(StrDict, "TransNum", transactionNumber);
+			put(StrDict, "TableName", tableName_t);
+			put(StrDict, "Status", "Failure");
+			put(StrDict, "Message", "STEP 8: Bulk Material Add to LIG Failed2, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+			put(StrDict, "Index", "0");	
+			ret = util.transactionUploadStatusLog(StrDict);
+			continue;
+		}
+		
+		matnrStr = "";
+		materialScaleJSON2 = json();
+	}
+	
+	//-------------> STEP 9:Set Net Fixed Amount and Price Group discounts Start
+	addSelectURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/updateNFAAndMPGD_t";
+		
+	results = urldatabypost(addSelectURL, "", "ERROR", headers, true);
+
+	if(find(results,"ERROR")<>-1){
+		print "STEP 9: Set Net Fixed Amount and Discounts Failed";
+		print transactionNumber;
+		
+		put(StrDict, "BS_ID", id);
+		put(StrDict, "TransNum", transactionNumber);
+		put(StrDict, "TableName", tableName_t);
+		put(StrDict, "Status", "Failure");
+		put(StrDict, "Message", "STEP 9: Set Net Fixed Amount and Discounts Failed, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+		put(StrDict, "Index", "100");		
+		ret = util.transactionUploadStatusLog(StrDict);
+		continue;
+	}
+	//STEP 9:Set Net Fixed Amount and Price Group discounts End <-----------
+	
+	//-------------> STEP 10:Final Save Start
+	selectCustURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/cleanSave_t";
+	results = urldatabypost(selectCustURL, params, "ERROR", headers, true);
+	
+	if(find(results,"ERROR")<>-1){
+		print "STEP 9: Final Save Failed";
+		print transactionNumber;
+		
+		put(StrDict, "BS_ID", id);
+		put(StrDict, "TransNum", transactionNumber);
+		put(StrDict, "TableName", tableName_t);
+		put(StrDict, "Status", "Failure");
+		put(StrDict, "Message", "STEP 9: Final Save Failed, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+		put(StrDict, "Index", "100");		
+		ret = util.transactionUploadStatusLog(StrDict);
+		continue;
+	}
+	
+	put(StrDict, "BS_ID", id);
+	put(StrDict, "TransNum", transactionNumber);
+	put(StrDict, "TableName", tableName_t);
+	put(StrDict, "Status", "Success");
+	put(StrDict, "Message", "Agreement Successfully created, CustNo - "+customerNumber+", From Dt-"+validFrom+", To Dt-"+validTo);
+	put(StrDict, "Index", "999");		
+	ret = util.transactionUploadStatusLog(StrDict);
+	
+	print transactionNumber;
+	print "----------";
+	//STEP 10:Final Save End <-----------
+}
+endDate = getdate();
+
+setattributevalue(1,"startTime_t", datetostr(startDate));
+setattributevalue(1,"endTim_te", datetostr(endDate));
+
+startDateStr = datetostr(startDate, "dd-MM-yyyy HH:mm:ss");
+endDateStr = datetostr(endDate, "dd-MM-yyyy HH:mm:ss");
+
+StrDict2 = dict("string");
+put(StrDict2, "BS_ID", startDateStr);
+put(StrDict2, "TransNum", endDateStr);
+put(StrDict2, "TableName", tableName_t);
+put(StrDict2, "Status", "BatchComplete");
+put(StrDict2, "Message", "Current Batch Processing complete");
+put(StrDict2, "Index", "111");
+ret = util.transactionUploadStatusLog(StrDict2);
+return id;

@@ -1,0 +1,11 @@
+{
+  "name" : "Move Transactions to Expire Step",
+  "variableName" : "moveTransactionsToExpireStep",
+  "description" : "",
+  "libraryFunctions" : [ "util.triggerAnyActionUsingRESTAPI" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "status_t", "bs_id", "agreementValidTo_t" ],
+  "systemAttributes" : [ ]
+}

@@ -1,0 +1,14 @@
+{
+  "name" : "Determine selected Material Groups and Items",
+  "variableName" : "determineSelectedMaterialGroupsAndItems",
+  "description" : "Generate a JSON object containing arrays of IDs for Material Groups and Material Items currently present in the arrangement.",
+  "libraryFunctions" : [ "util.getStringDict" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputParams",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ "materialPricingGroup_l", "materialLineItem_l", "qqProductType_l" ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

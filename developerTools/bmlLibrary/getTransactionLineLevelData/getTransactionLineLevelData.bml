@@ -1,0 +1,173 @@
+/**********************************************************************************
+//** Function: 	To get the line level attribute values.
+
+//** Description: Project#49074|Eagle Development
+
+//** History:	Rev. Date 	Developer	Notes / Comments
+		----------------------------------------------------------------------
+		22-01-2020	Rahul Uttarwar	Initial version
+		04-05-2020	Dhananjay	Setting is_placeholder value to Zero if its null, 
+						to avoid mass update on old models
+		12-05-2020	Shardul S	Added ConfigId as a parameter
+		25-07-2020	Dhananjay	Logic to fix the null point exceptions at line 24 and 25
+		03-09-2020	Dhananjay	CPQ-2557: Added is_configured_product in the payload
+		21-09-2020	Shardul S	CPQ-2806: Fixed else part when adding items to jsonarrayobj
+		30-11-2020  	Shardul S   	CPQ-69: PSD Only Line owner should be able to reconfigure line
+		03-02-2021  	Dhananjay	CPQ-4160: Placeholder item opened in Read Only mode in Bid Man
+		08-03-2021  	Dhananjay	CPQ-4454: CR: Awarded line items should open Bidman Configuration in Read Only
+*************************************************************************************/
+jsonArrayobj = jsonarray();
+arrObj 	= string[];
+
+xmlData = gettransaction(atoi(bsId)); // get transaction XML
+lineAttrKeys 	= keys(xPathDictionary);
+lineAttrNames 	= values(xPathDictionary);
+append(lineAttrKeys,"line_item_status");//Fix for CPQ-4454
+append(lineAttrNames ,"//transactionLine/lineItemStatus_l");//Fix for CPQ-4454
+lineAttrValueDict = readxmlmultiple(xmlData, lineAttrNames); // get values for all the attributes
+//print lineAttrValueDict ;
+lineAttrArray = get(lineAttrValueDict, lineAttrNames[0]);  // get the first array object from result dictionary 
+
+transactionXPaths = string[] {
+		"//transaction/step_var_name",
+		"//transaction/qqBusinessLineForSalesOrg_t", //CPQ-69
+		"//transaction/qq_Contact2Name_t",	//CPQ-69
+		"//transaction/qq_Contact4Name_t"	//CPQ-69		
+		};
+headerAttrValueDict = readxmlsingle(xmlData , transactionXPaths); 
+currentStep = get(headerAttrValueDict , "//transaction/step_var_name");
+businessGroup = get(headerAttrValueDict , "//transaction/qqBusinessLineForSalesOrg_t");
+salesContact = get(headerAttrValueDict , "//transaction/qq_Contact2Name_t");
+customerSupportContact = get(headerAttrValueDict , "//transaction/qq_Contact4Name_t");
+//numOfLines = range(sizeofarray(lineAttrArray));
+//numOfAttrs = range(sizeofarray(lineAttrNames));
+
+totalLines = 0;
+totalAtts = 0;
+if(not(isnull(lineAttrArray))){
+	totalLines = sizeofarray(lineAttrArray);
+}
+if(not(isnull(lineAttrNames))){
+	totalAtts = sizeofarray(lineAttrNames);
+}
+
+numOfLines = range(totalLines);
+numOfAttrs = range(totalAtts);
+
+if(lineDocNum == "" OR ISNULL(lineDocNum)){
+  lineNum = 0;
+}else{
+  lineNum = atoi(lineDocNum);
+}
+
+
+lineDocNumArrObj = get(lineAttrValueDict,"//transactionLine/_document_number");
+lineconfigId = get(lineAttrValueDict,"//transactionLine/externalConfigData_l");	
+lineowner = get(lineAttrValueDict,"//transactionLine/lineOwner_l");	//CPQ-69
+lineowner = get(lineAttrValueDict,"//transactionLine/requestConfigReviewFlag_l");//CPQ-69
+
+eachKey = "";
+eachLineVal = "";
+jsonObj1 = json();
+
+for eachLine in numOfLines { // loop through all the lines
+	jsonObj = json();
+	isReadonly = false;
+	reviewflag = "";
+	for eachAttr in numOfAttrs{
+		//Added by Shardul for CPQ-69
+		arrObj = get(lineAttrValueDict,lineAttrNames[eachAttr]);
+		eachKey = lineAttrKeys[eachAttr];
+		eachLineVal = arrObj[eachLine];
+		if(eachKey == "reqconfreviewflag")
+		{
+			reviewflag = eachLineVal;
+			break;
+		}
+	}
+	for eachAttr in numOfAttrs{ // loop through all attributes of current line
+		arrObj = get(lineAttrValueDict,lineAttrNames[eachAttr]);
+		eachKey = lineAttrKeys[eachAttr];
+		//Added by Shardul
+		confID = "";
+		if (eachKey == "config_id" )
+		{
+			SAPconf = arrObj[eachLine];      
+			//print SAPconf;     
+			if(len(SAPconf) <> 0)
+			{
+				startConfigId = find(SAPconf , "<SAP_ConfigurationID>");
+				if( startConfigId > -1 ) {
+					startConfigIdValue = find(SAPconf , ">", startConfigId);
+					endstartConfigIdValue = find(SAPconf , "<", startConfigIdValue);
+					confID= subString(SAPconf, startConfigIdValue + 1, endstartConfigIdValue);
+				}
+				else
+				{
+					confID = SAPconf;
+				}		
+				eachLineVal = confID;
+			}else{
+				eachLineVal = "";
+			}
+			//print  eachLineVal;
+		}
+		else
+		{
+		  eachLineVal = arrObj[eachLine];		
+		}
+		if(eachKey == "is_placeholder" AND isnull(eachLineVal)){
+			eachLineVal = "0";
+		}
+		if(eachKey == "qqProductType" AND NOT(isnull(eachLineVal)) AND eachLineVal=="configuration"){
+			jsonput(jsonObj, "is_configured_product", true);
+		}elif(eachKey == "qqProductType" AND NOT(isnull(eachLineVal)) AND eachLineVal<>"configuration"){
+			jsonput(jsonObj, "is_configured_product", false);
+		}
+
+		if(eachKey == "lineOwner")
+		{
+			if(businessGroup == "PSD")
+			{
+			    	//lowner = "";
+			    	lowner = eachLineVal;//Fix for CPQ-4160
+			    	if(eachLineVal=="salesContact")
+				{
+					lowner = salesContact;
+				}
+				elif(eachLineVal=="customerSupport")
+				{
+					lowner = customerSupportContact;
+				}
+				if(lowner <> _user_name AND reviewflag == "true") //if not the line owner, send the flag read only = true for the Bid Man call
+				{
+					isReadonly = true;
+				}
+			}			
+		}
+		//if(NOT(isnull(currentStep)) AND currentStep <> "draft"){
+		//Fix for CPQ-4454
+		if((NOT(isnull(currentStep)) AND currentStep <> "draft")
+			OR (eachKey == "line_item_status" AND eachLineVal == "awarded")){
+			isReadonly = true;
+		}
+		jsonput(jsonObj , "read_only", isReadonly);
+		//End CPQ-69
+		jsonput(jsonObj, eachKey, eachLineVal);
+		//jsonput(jsonObj, lineAttrKeys[eachAttr], arrObj[eachLine]);
+	}
+	
+	if(lineNum > 0 AND atoi(lineDocNumArrObj[eachLine]) == lineNum){ // compare input line number to get array index
+		jsonArrayobj = jsonarray();
+		jsonarrayappend(jsonArrayobj, jsonObj);
+		break; // exit loop on building jsonarray for input line number
+	}elif(configId <> "" AND lineconfigId[eachLine] == configId){
+		jsonarrayappend(jsonArrayobj, jsonObj);
+		print jsonObj;
+	}elif(lineNum == 0 AND (isnull(configId) OR configId == "")){ //Added by Shardul for CPQ-2806
+		jsonarrayappend(jsonArrayobj, jsonObj);
+		print jsonObj;
+	}
+}
+
+return jsonArrayobj;

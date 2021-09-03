@@ -1,0 +1,205 @@
+result="";
+/*
+if(qqBusinessLineForSalesOrg_t== "ES-EMEA" and (transactionType_t =="CSP" OR transactionType_t =="DSP"))
+{
+	siteID = _system_supplier_company_name;
+	user = util.getSiteSpecificData(siteID);
+	login = jsonget(user, "FieldName", "string", "");
+	password = jsonget(user, "Value1", "string", "");
+	requestHeaders = dict("string");
+	serviceEndpoint= "https://" + _system_supplier_company_name +".bigmachines.com/v2_0/receiver/commerce/oraclecpqo";
+	if(transactionNumber_t <>qqRootTransactionNumber_t)
+	{
+		requestBody= "<?xml version='1.0' encoding='UTF-8'?><soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/'><soapenv:Header><wsse:Security xmlns:wsse='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd' xmlns:wsu='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd'><wsse:UsernameToken wsu:Id='UsernameToken-2'><wsse:Username>"+login+"</wsse:Username><wsse:Password Type='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText'>"+password+"</wsse:Password></wsse:UsernameToken></wsse:Security></soapenv:Header><soapenv:Body><bm:updateTransaction xmlns:bm='http://xmlns.oracle.com/cpqcloud/commerce/oraclecpqo' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'><bm:transaction><bm:id>"+parent_transaction_id_createRenewal+"</bm:id><bm:process_var_name>oraclecpqo</bm:process_var_name><bm:supplier_company_name>"+_system_supplier_company_name+"</bm:supplier_company_name><bm:data_xml><bm:transaction bm:bs_id='"+parent_transaction_id_createRenewal+"' bm:data_type='0' bm:document_name='Transaction' bm:document_number='1' bm:document_var_name='transaction' bm:process_var_name='oraclecpqo' bm:supplier_company_name='"+_system_supplier_company_name+"'><bm:createRenewalFlag_t>true</bm:createRenewalFlag_t></bm:transaction></bm:data_xml><bm:action_data><bm:action_var_name>apiSave_t</bm:action_var_name></bm:action_data></bm:transaction></bm:updateTransaction></soapenv:Body></soapenv:Envelope>";
+		response = urldatabypost(serviceEndpoint, requestBody, "ERROR during updating create renewal flag value",requestHeaders ,true);
+		//print response;
+		xpaths = string[1];
+		xpaths[0] ="//bm:status//bm:success";
+		output = readxmlsingle(response, xpaths);
+
+		flag= util.getStringDict( output, xpaths[0], "");
+
+		if(flag=="true")
+		{
+			flag = "Success";
+		}
+		else
+		{
+			flag = "Fail";
+		}
+		print flag;
+		//print recordset;
+		retJ = json();
+		jsonput(retJ, "BS_ID", parent_transaction_id_createRenewal );
+		jsonput(retJ, "STATUS", "Success" );
+		jsonput(retJ, "ERROR_MESSAGE", flag );
+		jsonput(retJ, "IDENTIFIER", "RENEWAL FLAG" );
+		varA = commerce.updateUpdateDescription(retJ);
+	}
+	if(expireandrenew_t =="true")
+	{
+		requestBody= "<?xml version='1.0' encoding='UTF-8'?><soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/'><soapenv:Header><wsse:Security xmlns:wsse='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd' xmlns:wsu='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd'><wsse:UsernameToken wsu:Id='UsernameToken-2'><wsse:Username>"+login+"</wsse:Username><wsse:Password Type='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText'>"+password+"</wsse:Password></wsse:UsernameToken></wsse:Security></soapenv:Header><soapenv:Body><bm:updateTransaction xmlns:bm='http://xmlns.oracle.com/cpqcloud/commerce/oraclecpqo' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'><bm:transaction><bm:id>"+parent_transaction_id_createRenewal+"</bm:id><bm:process_var_name>oraclecpqo</bm:process_var_name><bm:supplier_company_name>"+_system_supplier_company_name+"</bm:supplier_company_name><bm:data_xml><bm:transaction bm:bs_id='"+parent_transaction_id_createRenewal+"' bm:data_type='0' bm:document_name='Transaction' bm:document_number='1' bm:document_var_name='transaction' bm:process_var_name='oraclecpqo' bm:supplier_company_name='"+_system_supplier_company_name+"'><bm:parentERFlag_t>true</bm:parentERFlag_t></bm:transaction></bm:data_xml><bm:action_data><bm:action_var_name>apiSave_t</bm:action_var_name></bm:action_data></bm:transaction></bm:updateTransaction></soapenv:Body></soapenv:Envelope>";
+		response = urldatabypost(serviceEndpoint, requestBody, "ERROR during updating create renewal flag value",requestHeaders ,true);
+		xpaths = string[1];
+		xpaths[0] ="//bm:status//bm:success";
+		output = readxmlsingle(response, xpaths);
+		print output;
+		flag= util.getStringDict( output, xpaths[0], "");
+		print flag;
+		if(flag=="true")
+		{
+			flag = "Success";
+		}
+		else
+		{
+			flag = "Fail";
+		}
+		//print recordset;
+		retJ = json();
+		jsonput(retJ, "BS_ID", parent_transaction_id_createRenewal );
+		jsonput(retJ, "STATUS", "Success" );
+		jsonput(retJ, "ERROR_MESSAGE", flag );
+		jsonput(retJ, "IDENTIFIER", "EXPIRE FLAG" );
+		varA = commerce.updateUpdateDescription(retJ);
+	}
+}
+//below code is to update Selected Customer Array sets (1&2)
+shipTo = "Ship to";
+soldTo = "Sold to";
+retJArr = jsonarray();
+
+if(NOT(ISNULL(selectedCustomerArraySet2_t))){//selectedCustomerArraySet2_t -- Arrayset in Draft step. As this array holds final values, no need to disturb the arrayset. So, read values from the same arrayset and set them back accept "Associated". As this column is new and will not have values on legacy quotes. For Associated,compare SelectedCustomer Type Text value  and associatedCustomer value and set the Associated value accordingly Refer #01 below for more details
+	indexArr = range(jsonarraysize(selectedCustomerArraySet2_t));
+	for index in indexArr{
+		custJ = jsonarrayget(selectedCustomerArraySet2_t, index, "json");
+		selectedCustJ = json();
+		
+		
+		//Read values from selectedCustomerArraySet2_t from Draft step/page 
+		selectedCustomerType  = trim(lower(jsonget(custJ, "type_selctdCust2_t","string","")));
+		associatedCustomer    = jsonget(custJ, "shipToCustomer_selctdCust2_t","string","");
+		jsonput(selectedCustJ, "type_selctdCust2_t", jsonget(custJ, "type_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "customer_selctdCust2_t", jsonget(custJ, "customer_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "name_selctdCust2_t", jsonget(custJ, "name_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "postalCode_selctdCust2_t", jsonget(custJ, "postalCode_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "city_selctdCust2_t", jsonget(custJ, "city_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "region_selctdCust2_t", jsonget(custJ, "region_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "country_selctdCust2_t", jsonget(custJ, "country_selctdCust2_t","string",""));
+		
+		
+		//#01
+		//set associateSelected customer based on the condition i.e  selectedCustomerType == "Ship To" and associatedCustomer value is not empty then set the associateSelected customer  as "Sold To"; 
+		if(selectedCustomerType == trim(lower(shipTo)) AND associatedCustomer <> "")
+		{
+			
+			jsonput(selectedCustJ, "associated_selctdCust2_t",soldTo);
+			
+			
+		}
+		//set associateSelected customer based on the condition i.e  selectedCustomerType == "Sold To" and associatedCustomer value is not empty then set the associateSelected customer  as "Sold To"; 
+		elif(selectedCustomerType == trim(lower(soldTo)) AND associatedCustomer <> "")
+		{
+			
+			
+			jsonput(selectedCustJ, "associated_selctdCust2_t",shipTo);
+			
+		}
+	    //set associateSelected customer based on the condition i.e  associatedCustomer value is  empty then set the associateSelected customer  as "";
+		elif(associatedCustomer == "")
+		{
+			
+			jsonput(selectedCustJ, "associated_selctdCust2_t","");
+			
+		}
+		
+		jsonput(selectedCustJ, "shipToCustomer_selctdCust2_t", jsonget(custJ, "shipToCustomer_selctdCust2_t","string",""));
+		jsonput(selectedCustJ, "primary_selctdCust2_t", jsonget(custJ, "primary_selctdCust2_t","boolean",false));
+		jsonarrayappend(retJArr, selectedCustJ);
+	}
+}
+
+
+result = result + "1~selectedCustomerArraySet2_t~" + jsonarrayrefid(retJArr) + "|";
+
+//reinitialize the return array
+retJArr = jsonarray();
+
+if(NOT(ISNULL(selectedCustomerArraySet_t))){//selectedCustomerArraySet_t -- Arrayset in Transaction step. Read values from the same arrayset and set them back accept "Associated". As this column is new and will not have values on legacy quotes. For Associated,compare SelectedCustomer Type Text value  and associatedCustomer value and set the Associated value accordingly Refer #02 below for more details
+	indexArr = range(jsonarraysize(selectedCustomerArraySet_t));
+	for index in indexArr{
+		custJ = jsonarrayget(selectedCustomerArraySet_t,index, "json");
+		selectedCustJ = json();
+		
+
+		//Read values from selectedCustomerArraySet_t from Draft step/page 
+		selectedCustomerType  = trim(lower(jsonget(custJ, "type_selctdCust_t","string","")));
+		associatedCustomer    = jsonget(custJ, "shipToCustomer_selctdCust_t","string","");
+		jsonput(selectedCustJ, "type_selctdCust_t", jsonget(custJ, "type_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "customer_selctdCust_t", jsonget(custJ, "customer_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "name_selctdCust_t", jsonget(custJ, "name_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "postalCode_selctdCust_t", jsonget(custJ, "postalCode_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "city_selctdCust_t", jsonget(custJ, "city_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "region_selctdCust_t", jsonget(custJ, "region_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "country_selctdCust_t", jsonget(custJ, "country_selctdCust_t","string",""));
+		
+		//#02
+		//set associateSelected customer based on the condition i.e  selectedCustomerType == "Ship To" and associatedCustomer value is not empty then set the associateSelected customer  as "Sold To"; 
+		if(selectedCustomerType == trim(lower(shipTo)) AND associatedCustomer <> "")
+		{
+			jsonput(selectedCustJ, "associated_selctdCust_t",soldTo);	
+		}
+		//set associateSelected customer based on the condition i.e  selectedCustomerType == "Sold To" and associatedCustomer value is not empty then set the associateSelected customer  as "Sold To"; 
+		elif(selectedCustomerType == trim(lower(soldTo)) AND associatedCustomer <> "")
+		{
+			jsonput(selectedCustJ, "associated_selctdCust_t",shipTo);
+		}
+		//set associateSelected customer based on the condition i.e  associatedCustomer value is  empty then set the associateSelected customer  as "";
+		elif(associatedCustomer == "")
+		{
+			jsonput(selectedCustJ, "associated_selctdCust_t","");
+		}
+		
+		jsonput(selectedCustJ, "shipToCustomer_selctdCust_t", jsonget(custJ, "shipToCustomer_selctdCust_t","string",""));
+		jsonput(selectedCustJ, "primary_selctdCust_t", jsonget(custJ, "primary_selctdCust_t","boolean",false));
+		jsonarrayappend(retJArr, selectedCustJ);
+	}
+}
+	
+result = result + "1~selectedCustomerArraySet_t~" + jsonarrayrefid(retJArr) + "|";
+
+//below code is to update Line Item Status with Rejected if the Transaction status is Rejected
+if(status_t == "rejected"){
+	for line in transactionLine {
+		result = result + line._document_number+"~lineItemStatus_l~rejected|";
+	}
+}*/
+if(qqBusinessLineForSalesOrg_t== "ES-EMEA")
+{
+	if(transactionType_t =="CSP" OR transactionType_t =="DSP")
+	{
+		if(createRenewalFlag_t<>true)
+		{
+			print "here";
+			result = result + "1~createRenewalFlag_t~false|";
+		}
+		if(parentERFlag_t<>true)
+		{
+			result = result + "1~parentERFlag_t~false|";
+		}
+	}
+		oldDateJson = json();
+		oldDateValueDate= strtodate(agreementValidFrom_t,"yyyy-MM-dd",_system_user_time_zone);
+		oldDateValue=datetostr(oldDateValueDate,"yyyy-MM-dd",_system_user_time_zone);
+		jsonput(oldDateJson,"Valid From",oldDateValue);	
+		oldListPriceDate="";
+		if(oldPriceListDate_t<>"")
+		{
+			oldListPriceDate= datetostr(strtodate(oldPriceListDate_t,"yyyy-MM-dd",_system_user_time_zone),"yyyy-MM-dd",_system_user_time_zone);
+			jsonput(oldDateJson,"Old Price Date",oldListPriceDate);
+		}
+		jsonput(oldDateJson,"Old Price Date",oldListPriceDate);
+		
+		result = result + "1~oldDatesJson_t~" +  jsontostr(oldDateJson)+ "|";
+}
+
+return result;

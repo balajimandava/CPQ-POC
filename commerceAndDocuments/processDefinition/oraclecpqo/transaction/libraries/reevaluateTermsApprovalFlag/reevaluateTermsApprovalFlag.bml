@@ -1,0 +1,177 @@
+/**
+@name Re-evaluate Terms Approval Flag
+@api reevaluateTermsApprovalFlag
+@attribute agreementDeliveryTerms_t
+@attribute agreementPaymentTerms_t
+@attribute agreementPeriodOfInvoicing_t
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute aluminium_t
+@attribute bs_id
+@attribute choosePricelist_t
+@attribute copper_t
+@attribute expectedVolume_t
+@attribute extendCurrentListPrices_t
+@attribute minimumOrderVolume_t
+@attribute paymentTermsShipTo_t
+@attribute periodOfInvoicingShipTo_t
+@attribute previousApprovedValues_t
+@attribute silver_t
+@attribute surchargeExemption_t
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@return Boolean
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-16|Tat.Leung            |JIRA QQ-322
+2018-01-26|Tat.Leung            |JIRa QQ-378
+2019.02.13|Tanya Arora          |Added Volume Bonus Table data string to evaluate whether the previously approved string 
+		                |is same as current or not and if yes then no need to get it approve again.
+
+*/
+oldValues = json();
+if (isnull(previousApprovedValues_t) or previousApprovedValues_t == "") {
+	return true;
+}
+oldValues = json(previousApprovedValues_t);
+print oldValues;
+
+// agreementDeliveryTerms_t
+logStatus = util.u_logString("COM_APPROVAL", 4, agreementDeliveryTerms_t, "agreementDeliveryTerms_t");
+agreementDeliveryTerms = jsonpathgetsingle(oldValues, "$.agreementDeliveryTerms_t.value", "string", "");
+if (agreementDeliveryTerms <> agreementDeliveryTerms_t) {
+    return true;
+}
+
+// agreementPaymentTerms_t
+logStatus = util.u_logString("COM_APPROVAL", 4, agreementPaymentTerms_t, "agreementPaymentTerms_t");
+agreementPaymentTerms = jsonpathgetsingle(oldValues, "$.agreementPaymentTerms_t.value", "string", "");
+if (agreementPaymentTerms <> agreementPaymentTerms_t) {
+    return true;
+}
+
+// agreementPeriodOfInvoicing_t
+logStatus = util.u_logString("COM_APPROVAL", 4, agreementPeriodOfInvoicing_t, "agreementPeriodOfInvoicing_t");
+agreementPeriodOfInvoicing = jsonpathgetsingle(oldValues, "$.agreementPeriodOfInvoicing_t.value", "string", "");
+if (agreementPeriodOfInvoicing <> agreementPeriodOfInvoicing_t) {
+    return true;
+}
+
+// agreementValidFrom_t
+logStatus = util.u_logString("COM_APPROVAL", 4, agreementValidFrom_t, "agreementValidFrom_t");
+agreementValidFrom = jsonpathgetsingle(oldValues, "$.agreementValidFrom_t", "string", "");
+if (not startswith(agreementValidFrom_t, agreementValidFrom)) {
+    return true;
+}
+
+// agreementValidTo_t
+logStatus = util.u_logString("COM_APPROVAL", 4, agreementValidTo_t, "agreementValidTo_t");
+agreementValidTo = jsonpathgetsingle(oldValues, "$.agreementValidTo_t", "string", "");
+if (not startswith(agreementValidTo_t, agreementValidTo)) {
+    return true;
+}
+
+// aluminium_t
+logStatus = util.u_logString("COM_APPROVAL", 4, aluminium_t, "aluminium_t");
+aluminium = jsonpathgetsingle(oldValues, "$.aluminium_t.value", "string", "");
+if (aluminium <> aluminium_t) {
+    return true;
+}
+
+// bs_id
+
+// choosePricelist_t
+logStatus = util.u_logString("COM_APPROVAL", 4, choosePricelist_t, "choosePricelist_t");
+choosePricelist = jsonpathgetsingle(oldValues, "$.choosePricelist_t", "string", "");
+if (choosePricelist <> choosePricelist_t and choosePriceList <> "null" and choosePricelist_t <> "") {
+    return true;
+}
+
+// copper_t
+logStatus = util.u_logString("COM_APPROVAL", 4, copper_t, "copper_t");
+copper = jsonpathgetsingle(oldValues, "$.copper_t.value", "string", "");
+if (copper <> copper_t) {
+    return true;
+}
+
+// expectedVolume_t
+logStatus = util.u_logString("COM_APPROVAL", 4, string(expectedVolume_t), "expectedVolume_t");
+expectedVolume = jsonpathgetsingle(oldValues, "$.expectedVolume_t.value", "float", 0.0);
+if (expectedVolume <> expectedVolume_t) {
+    return true;
+}
+
+// extendCurrentListPrices_t
+logStatus = util.u_logString("COM_APPROVAL", 4, string(extendCurrentListPrices_t), "extendCurrentListPrices_t");
+extendCurrentListPrices = jsonpathgetsingle(oldValues, "$.extendCurrentListPrices_t.value", "boolean", false);
+if (extendCurrentListPrices <> extendCurrentListPrices_t) {
+    return true;
+}
+
+// minimumOrderVolume_t
+logStatus = util.u_logString("COM_APPROVAL", 4, minimumOrderVolume_t, "minimumOrderVolume_t");
+minimumOrderVolume = jsonpathgetsingle(oldValues, "$.minimumOrderVolume_t", "string", "");
+if (minimumOrderVolume <> minimumOrderVolume_t and minimumOrderVolume <> "null" and minimumOrderVolume_t <> "") {
+    return true;
+}
+
+// paymentTermsShipTo_t
+logStatus = util.u_logString("COM_APPROVAL", 4, paymentTermsShipTo_t, "paymentTermsShipTo_t");
+paymentTermsShipTo = jsonpathgetsingle(oldValues, "$.paymentTermsShipTo_t.value", "string", "");
+if (paymentTermsShipTo <> paymentTermsShipTo_t) {
+    return true;
+}
+
+// periodOfInvoicingShipTo_t
+logStatus = util.u_logString("COM_APPROVAL", 4, periodOfInvoicingShipTo_t, "periodOfInvoicingShipTo_t");
+periodOfInvoicingShipTo = jsonpathgetsingle(oldValues, "$.periodOfInvoicingShipTo_t.value", "string", "");
+if (periodOfInvoicingShipTo <> periodOfInvoicingShipTo_t) {
+    return true;
+}
+
+// silver_t
+logStatus = util.u_logString("COM_APPROVAL", 4, silver_t, "silver_t");
+silver = jsonpathgetsingle(oldValues, "$.silver_t.value", "string", "");
+if (silver <> silver_t) {
+    return true;
+}
+
+// surchargeExemption_t
+logStatus = util.u_logString("COM_APPROVAL", 4, string(surchargeExemption_t), "surchargeExemption_t");
+surchargeExemption = jsonpathgetsingle(oldValues, "$.surchargeExemption_t", "boolean", false);
+if (surchargeExemption <> surchargeExemption_t) {
+    return true;
+}
+
+//INC000012958461 -Start
+//As the arrayset is available in commerce library, importing the arrayset and updating the quoteJson with same old key "bonusTableDataString_t" with existing string format $@$€10,00$;$$@$3,00%$;$$@$01.01.2019$;$$@$31.12.2019
+columnDelimiter = "$;$";
+rowDelimiter = "$@$";
+arraySetJson = json();
+bonusTableDataString = "";
+
+jsonput(arraySetJson, "BonusArraySet", bonusArraySet_t);
+volumeBonusArr = jsonpathgetmultiple(arraySetJson, "$..volume_bonusArraySet");
+discountBonusArr = jsonpathgetmultiple(arraySetJson, "$..bonusDiscount_bonusArraySet");
+validFromArr = jsonpathgetmultiple(arraySetJson, "$..validFrom_bonusArraySet");
+validToArr = jsonpathgetmultiple(arraySetJson, "$..validTo_bonusArraySet");
+bonusArrSetSize = jsonarraysize(bonusArraySet_t);
+dummyArr = range(bonusArrSetSize);
+
+for eachRec in dummyArr{
+	print jsonarrayget(volumeBonusArr,eachRec);
+	bonusTableDataString = bonusTableDataString + rowDelimiter + jsonarrayget(volumeBonusArr,eachRec) + columnDelimiter 
+						    + rowDelimiter + jsonarrayget(discountBonusArr,eachRec) + columnDelimiter 
+						    + rowDelimiter + jsonarrayget(validFromArr,eachRec) + columnDelimiter 
+						    + rowDelimiter + jsonarrayget(validToArr,eachRec)
+						    ;
+}
+//VolumebonusApproval - Added for DE1818 By Tanya Arora
+logStatus = util.u_logString("COM_APPROVAL", 4, bonusTableDataString, "bonusTableDataString_t");
+volumeBonusTableData= jsonpathgetsingle(oldValues, "$.bonusTableDataString_t", "string", "");
+if (bonusTableDataString <> volumeBonusTableData) {
+    return true;
+}
+
+//INC000012958461 - End
+return false;

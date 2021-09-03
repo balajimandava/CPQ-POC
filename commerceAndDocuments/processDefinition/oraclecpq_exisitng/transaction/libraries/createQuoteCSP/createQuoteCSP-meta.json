@@ -1,0 +1,11 @@
+{
+  "name" : "Create Quote - CSP",
+  "variableName" : "createQuoteCSP",
+  "description" : "",
+  "libraryFunctions" : [ "util.addMPG", "util.customerHierarchyLookup", "util.getDummyCustomer" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionName_t", "tableName_t" ],
+  "systemAttributes" : [ "_system_user_session_id", "_system_company_name", "_system_supplier_company_name" ]
+}

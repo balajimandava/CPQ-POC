@@ -1,0 +1,11 @@
+{
+  "name" : "Set Customer Details",
+  "variableName" : "setCustomerDetails",
+  "description" : "Sets the values for the customer attributes after querying the customer master data table.",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.getCUSMAS", "util.getCUSMASDetails", "util.getCurrencyFormatting", "util.getCustomerVendor", "util.getSiteSpecificData", "util.getStringDict", "util.getSupplierCompanyName", "util.u_logString" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number" ],
+  "mainDocAttributes" : [ "customerCity_t", "customerName_t", "customerPlace_t", "customerNumber_t", "customerAccountNumber_t", "customerPostalCodeZip_t", "customerBranch_t", "_transaction_document_number", "customerRecordKey_t", "customerContact_t", "salesOrg_t", "wholesaler_t", "accountTypeKTOKD_t", "currency_t", "paymentTermsShipTo_t", "periodOfInvoicingShipTo_t", "agreementHierarchy_t", "soldToNumber_t", "shipToNumber_t", "headquartersNumber_t", "preparedBySalesOrg_t", "agreementDeliveryTerms_t", "agreementPaymentTerms_t", "agreementPeriodOfInvoicing_t", "outputDocSalesOrgSpecific_t", "salesOffice_t", "salesGroup_t", "eRecordID_t", "customerName2_t", "customerName3_t", "currentUserERecordID_t", "transactionType_t", "primaryCustomerDeliveryTerm_t", "primaryCustomerPaymentTerms_t", "ntSelectedSalesOrg_t", "qq_CD_selectedShipTo_t", "distributionChannel_t", "qq_ntTransactionType_t", "qqBusinessLineForSalesOrg_t", "ntDistributionChannel_t", "psd_priceGroup_t", "psd_customerGroup_t", "salesGroup_Menu_t", "isVendorQuote_t", "oldCustomerNo_t", "qqCustomerGroup_t", "priceGroup_t", "isLegacyEaton_t", "isCopyOrVersion_t", "salesDistrict_t", "primaryCustomerCurrency_t", "vendorNumber_t" ],
+  "systemAttributes" : [ "_system_user_currency_pref", "_system_current_step_var", "_system_supplier_company_name", "_system_user_groups", "_system_company_name" ]
+}

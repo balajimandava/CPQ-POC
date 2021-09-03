@@ -1,0 +1,11 @@
+{
+  "name" : "Update C360 Sync Status",
+  "variableName" : "updateC360SyncStatus",
+  "description" : "",
+  "libraryFunctions" : [ "util.getListOfTransactionsForQuery", "util.updateTransactionSOAP" ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "c360LatestSyncStatus_t" ],
+  "systemAttributes" : [ ]
+}

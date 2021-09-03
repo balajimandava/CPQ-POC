@@ -1,0 +1,444 @@
+//**              2017.06.07	dBo Haizlip     Initial version
+//**		  2017.06.20	vhingorani	Changed return value for currency formatter to blank out currency symbol rather than removing first character	
+//**		  2017.07.11    shansen         Removed formatting - handling in formulas and constraint to limit to agreement currency format
+//**		  2017.07.28    shansen         added call to re-price lines lib
+//**		  2018.05.25	Ani		added commerce.getOutputDocTableData to populate attributes for QQ output document
+//**		  2018.06.26	shibaji		added code for QQ-529
+//**		  2018.07.02	vhingorani	Added call to set Eaton Contacts QQ:676	
+//**		  2018.07.04	shibaji		Added call for updatePricePerEditable for updating the Price Per editable attribute. Formula Error was being received otherwise.
+//**		  2018.07.05	vhingorani	Moved call for Eaton Contacts util to after formulas	
+//**              2018.09.21    Sharath a       Added util.util.getOutputDefaultValues to populate the Output default values.   Defect #1202
+//**		  2018.09.27	shibaji		Added code for default show/hide columns for BUSSMANN (QQ-837)
+//**		2019.03.19		Smriti Chaturvedi	Added a If condition for Bline to uncheck SAP Automatically for defect 1316
+//**		2019.04.01		Ankit		Added condition to avoid send automatically if uploaded transaction
+//**		2019.04.11 		Harshit Maheshwari : JET UI changes. Checking if Primary customer is selected. If not selected, validation will come in action
+//**		2019.07.05 		Vasundhara Pentakota : JET UI changes. Setting the Notes Table
+//**		2020.01.06 		Dhananjaya : Adding commerce.setCPIAttributes(""), to set the Commodity Price Index attributes
+//**		2020.01.30 		Ankit : Copy Selected end customer to Customer Tab selected end customer arrayset
+//**		2020.02.18		Priyanka: CPQ-658 Primary End Customer on the Output Templates
+//**		2020.02.19	CPQ-678|RahulU: Eagle Development|Populating Project info details(Country, Region and City)
+//**		2020.02.20	RahulU: Eagle Development|Setting default for Eaton Contact Tab attributes as per code review comments
+//**	    2020/04/16     Gautam Timblo       Zilliant Issue no CPQ-98 Added condition to avoid appending CustomerNo in End customer Details if the BusinessType is  ES-EMEA and  //**	    Transaction Type is  CSP
+//CPQ 1548 2020/08/10  Pooja -  Code to populate default value of Old Price Date
+//**		2020.10.05		Vijetha			As part of Review step, to reduce the load on Save and to re-use the same logic on Ready for Review this commerce library has been created. Logic from before formulas of Save action has been moved to this library. Some attribute need to be sent from the calling action using Json parameter.
+// 2020/11/02  Neha -  CPQ 3263
+// 2021/01/06  Neha -  CPQ-2228  Update qq_MnlShpTo_Language_t on Save
+//2021/02/01	Anita- Updated code for default value of Bid group description | CPQ-4124  
+//2021/02/12			Pooja Gupta 	Get guidance from zilliant
+//2021/03/05	Anita- Updated code for CPQ-4475
+//2021/03/09	Anita- CPQ-4431 moved code for defaulting Bid group# and description to "saveActionAdvModifyAfterFormulas"
+//2021/03/17    Shardul Performance impv for check biz group conditions table
+//2021/07/01    Nithin CPQ-5694 Word Output as Default Attached Output for Automatic for PSD Business
+//2021/07/12    Dhananjaya CPQ-5911:Change New Item Functionality to allow Drop Down Options for each Sales Org
+//**********************************************************************************************************************************************
+
+debugMode = false;
+
+if(debugMode){
+print _system_current_user_language;
+print "********************** For RC ************************";
+print "***** Save Action - Start *****"; 
+print "Setting the showColumns default for pricePer as checked for BUSSMANN";
+print "***** Save Action - End *****";
+}
+//import updated values from inputParamJson sent from corresponding action.
+qqBusinessLineForSalesOrg_t = jsonget(inputParamJson,"qqBusinessLineForSalesOrg_t","string");
+ntSelectedSalesOrg_t = jsonget(inputParamJson,"ntSelectedSalesOrg_t","string");
+qq_ntTransactionType_t = jsonget(inputParamJson,"qq_ntTransactionType_t","string");
+uploadedAgreement_t = jsonget(inputParamJson,"uploadedAgreement_t","Boolean");
+qqBudgetary_t = jsonget(inputParamJson,"qqBudgetary_t","Boolean");
+ntDistributionChannel_t = jsonget(inputParamJson,"ntDistributionChannel_t","string");
+qq_ntCountry_t = jsonget(inputParamJson,"qq_ntCountry_t","string");
+qq_ntRegionSelect_t = jsonget(inputParamJson,"qq_ntRegionSelect_t","string");
+qq_ntCity_t = jsonget(inputParamJson,"qq_ntCity_t","string");
+oldCustomerNo_t = jsonget(inputParamJson,"oldCustomerNo_t","string");
+salesOrg_t = jsonget(inputParamJson,"salesOrg_t","string");
+previousAction_t = jsonget(inputParamJson,"previousAction_t","string");
+extendCurrentListPrices_t = jsonget(inputParamJson,"extendCurrentListPrices_t","Boolean");
+qqCustomerNameCopy_t = jsonget(inputParamJson,"qqCustomerNameCopy_t","string");
+callingAction = jsonget(inputParamJson,"actionCalling");
+retString = "";
+outputTableData = "";
+primeCount = 0;
+
+if(_system_current_step_var == "start_step"){
+	  outputTableData = commerce.getOutputDocTableData();
+	
+	  //Sharath:Calling getOutputDefaultValues to updated the default values of the Output Format attribute. Added on 9/17/2018
+	  params = json();
+	  jsonput(params, "businessGroup",qqBusinessLineForSalesOrg_t);
+	  jsonput(params, "salesOrg", ntSelectedSalesOrg_t);
+	  jsonput(params, "transactionType", qq_ntTransactionType_t);
+	
+	  retString = retString + util.getOutputDefaultValues(params);
+	  	  
+	  //if the User Preference Language is DE Then update 'de' else 'en'.
+	//  if(_system_current_user_language == "de")
+	//  {
+	//Neha: 12 March 2021: updated code for CPQ-4526
+	defaultLang  = outputLanguage_t;	
+	outputLangDefault = BMQL("Select Default From AllAttributes WHERE SalesOrg = $ntSelectedSalesOrg_t AND Variable = 'outputLanguage_t'");
+	for lang in outputLangDefault {
+		defaultLang = get(lang , "Default");	
+	}
+	retString = retString + "1~outputLanguage_t~"+defaultLang + "|";
+	//  }
+	  
+	  // Added for QQ-837 - Start //
+	  
+	  if(qqBusinessLineForSalesOrg_t == "BUSSMANN") {        
+	   	 
+	  	retString = retString + "1~showColumns_t~pricePer" + "|";
+		//Added as part of Project 51951 - CPQ-608
+		if(find(_system_user_groups,"distributor")<>-1 or find(_system_user_groups,"Distributor")<>-1){
+			retString = retString + "1~isQuoteCreatedByDisti_t~true" + "|";
+		}
+		
+	  }
+	  //Smriti :Changes made for defect 1316 where for Bline it should be set as False Added on 19/03/2019
+	  //smriti :- Remove the condition of Bline
+	  if(uploadedAgreement_t OR qqBudgetary_t)
+	  {
+		  retString = retString + "1~qqSendAutomatically_t~false" + "|";
+	  }
+	  else	  
+	  {
+		retString = retString + "1~qqSendAutomatically_t~true" + "|";
+	  }
+	  
+	  // Added for QQ-837 - End //
+	
+	/* Moved this code to "saveActionAdvModifyAfterFormulas" library as part of CPQ-4431
+	//Added for CPQ-4124 - Start //
+	if(_system_current_step_var == "start_step"){
+		if(qqBusinessLineForSalesOrg_t <> "PSD" AND NOT isCopyOrVersion_t){
+			retString = retString + commerce.generateBidGroupNo();
+			retString = retString + "1~bidGroupDescription_t~" + transactionName_t +  "|";
+		}
+	}
+	//Added for CPQ-4124 - End // 
+	*/
+	//Added for CPQ-4475 - Start //
+	if(isCopyOrVersion_t){
+		retString =  retString + "1~searchBidArraySet_t~|";
+	}
+	//Added for CPQ-4475 - End //
+	
+	primeCount = commerce.returnArraysetCount(nt_selectedEndCustomerArrayset_t, "primary", "nt_primaryEndCustomer_t");
+	endCustCount = commerce.returnArraysetCount(nt_selectedEndCustomerArrayset_t, "All", "nt_selectedEndCustomer_t");
+	
+	//RahulU|2020.02.20|Eagle Development - Setting default values for Eaton Contact Tab Sales Org and Distribution Channel attributes
+	retString = retString + "1~" +"salesOrgForChangeContact_t~"+ntSelectedSalesOrg_t+ "|";
+	retString = retString + "1~" +"distributionChannelForChangeContact_t~"+ntDistributionChannel_t+ "|";
+
+	//Start : CPQ-678
+	retString = retString + "1~" +"qqCountry_t~"+qq_ntCountry_t+ "|";
+	retString = retString + "1~" +"qqCountryRegion_t~"+qq_ntRegionSelect_t+ "|";
+	retString = retString + "1~" +"qqCity_t~"+qq_ntCity_t+ "|";
+	//End : CPQ-678
+	
+	inputData = dict("anytype");
+	currency = currency_t;
+	put(inputData, "baseCurrency",currency); 
+	if(qqBusinessLineForSalesOrg_t == "PSD"){
+		put(inputData, "baseCurrency","USD"); 
+	} 
+	put(inputData, "targetCurrency",currency);
+	exchangeRate = util.getExchangeRate(inputData);
+	retString = retString + "1~" +"newExchangeRate_t~"+string(exchangeRate)+ "|";
+	retString = retString + "1~" +"oldExchangeRate_t~"+string(exchangeRate)+ "|";
+	//CPQ-5694
+	if(qqBusinessLineForSalesOrg_t == "PSD")
+	{
+	retString = retString + "1~" +"documentFormatOutputTab_t~Word"+ "|";
+	}
+	//CPQ-5911
+	if(qqBusinessLineForSalesOrg_t <> "PSD"){
+		retString = retString + "1~newMaterialItem_t~NEWITEM|";
+	}
+}
+
+// 4/11/2019 : Harshit Maheshwari : JET UI : START
+	
+	//Populate End Customer ArraySet (present in customer tab), Selected Customer ArraySet (present in customer tab) and other attributes
+	if(_system_current_step_var == "start_step"){
+		if(oldCustomerNo_t <> "0000061145"){ // condition added to skip customer search for siemens quote - project 51951
+		inputJ = json();
+		jsonput(inputJ, "arraySet", "SelectedCust_EndCust_2");
+		retString = retString + jsonget(commerce.populateArraySet(inputJ), "data", "string", "");
+		//print "populateArraySet-SS2";
+        //print jsonget(commerce.populateArraySet(inputJ), "data", "string", "");
+        //print "populateArraySet-SS2";
+	}}
+	
+//}print "populateArraySet-SS2";
+// 4/11/2019 : Harshit Maheshwari : JET UI : END
+
+// 07/05/2019 : Vasundhara Pentakota : JET UI : Start - Notes Table
+//if(find(_system_user_groups, "jETUITest") <> -1 
+if(_system_current_step_var == "start_step"){
+	tncDetails = json();
+	tncDetailsResults = BMQL("Select NOTES_NAME, NOTES_DESCRIPTION From TncNotesDetails WHERE ACTIVE_FLAG ='TRUE'");
+	i = 0;
+	for tnc in tncDetailsResults{
+		notesName = get(tnc, "NOTES_NAME");
+		notesNameData = jsonarray();
+		if(findinarray(jsonkeys(tncDetails), notesName) > -1) {
+			notesNameData = jsonget(tncDetails, notesName, "jsonarray");
+		}
+		notesDesc = get(tnc, "NOTES_DESCRIPTION");
+		if(notesDesc <> ""){	
+			jsonarrayappend(notesNameData, notesDesc);
+			jsonput(tncDetails, notesName, notesNameData);	
+		}
+	}
+
+	companyName = _system_supplier_company_name;
+	siteURL = "https://" + companyName + ".bigmachines.com/";
+
+	dbResults = BMQL("Select CustomTnCNoteName, CustomTnCNoteLoc From CustomTnCNotes where SalesOrg = $salesOrg_t");
+	inputJ = json();
+	retJ = jsonarray();
+	for row in dbResults {
+		noteName = get(row, "CustomTnCNoteName");
+		noteSiteUrl = siteURL + get(row, "CustomTnCNoteLoc");
+		tempArr = jsonarray();
+		noteDescriptionArr = jsonget(tncDetails, noteName, "jsonarray",tempArr);
+		noteDescriptionStr = jsonarraytostr(noteDescriptionArr);
+		
+		if(noteDescriptionStr <> ""){
+			tableRow = jsonarray();
+			jsonarrayappend(tableRow,noteName);
+			jsonarrayappend(tableRow,noteDescriptionStr);
+			jsonarrayappend(retJ,tableRow);
+		}
+	}
+
+	//Populate Notes ArraySet (present in TncNotesDetails && CustomTnCNotes Tables)
+	//This block of code is fix for CPQ-3316. To Pass the selected notes for Cloned quotes
+	alreadySelectednotes= jsonarray();
+	if(NOT(isnull(noteArraySet_t)) AND jsonarraysize(noteArraySet_t)>0){
+		noteJson = json();
+		jsonput(noteJson,"notes",noteArraySet_t);
+		jsonPath = "$.notes[?(@.select_notesArraySet==true)].noteName_notesArraySet";
+		alreadySelectednotes = jsonpathgetmultiple(noteJson, jsonPath);
+	}
+	jsonput(inputJ, "alreadySelectednotes", jsonarraytostr(alreadySelectednotes));
+	jsonput(inputJ, "arraySet", "notesTableCallOnSave");
+	jsonput(inputJ,"noteSection",retJ);
+	retString = retString + jsonget(commerce.populateArraySet(inputJ), "data", "string", "");
+}
+//Added below condition for ALM 2592
+if(_system_current_step_var == "start_step" and previousAction_t == "copy"){
+	
+	retString = retString + "1~optySyncArraySet_t~|";
+}
+
+//Ali - Added below condition as part of INC000013026180
+if(extendCurrentListPrices_t == false){
+	retString = retString + "1~choosePricelist_t~|";
+}
+//Set Primary end Customer name and number for output tab
+
+//set primary customer contact name for output tab~chandan
+	
+	
+if(_system_current_step_var=="start_step"){
+retString = retString +"1~soldToName_t~" + qqCustomerNameCopy_t+ "|";
+}
+
+pricingDict = dict("string");
+retString = retString + commerce.rePriceLines(pricingDict) //+ "|"
+  		+ commerce.populateLineData() + "|"
+  		+ outputTableData + "|"
+  		+ commerce.keepOpportunityInfo() // "|" // Added for QQ-529
+  		+ commerce.updatePricePerEditable()
+  		+ commerce.setCPIAttributes("")
+  		+ commerce.clearAttacmentTypeAndSelectCheckBox();
+
+
+	custDetailsString = ""; 
+	//if(oldCustomerNo_t <> "0000061145"){ // condition added to skip customer search for siemens quote - project 51951
+		custDetailsString  = commerce.setCustomerDetails();
+	 //}
+	retString = retString  + custDetailsString ;
+
+//Chandan - 12/02/2020 - 49704 - Eagle Development - Added the below condition to add the primary Customer back to Selected Customer Grid
+// Multiple AND conditions for Project 51951
+currUserrGrpArray = split(_system_user_groups, "+");
+if(_system_current_step_var <> "start_step" 
+AND (findinarray(currUserrGrpArray , "distributor") == -1 
+AND findinarray(currUserrGrpArray , "nonPricingCustomer") == -1
+AND findinarray(currUserrGrpArray , "siemens") == -1 AND findinarray(currUserrGrpArray , "legacyEaton") == -1 AND findinarray(currUserrGrpArray , "legacyEatonPSD") == -1
+AND find(_system_user_groups, "siemensSuperUser") == -1 AND find(_system_user_groups, "siemensSuperUserNew") == -1)
+AND NOT isLegacyEaton_t){
+	selectedCustRecordsJson= json();
+	jsonput(selectedCustRecordsJson, "records", selectedCustomerArraySet2_t);
+	//Fetch selected rows from the array
+	selectedCustRecordsJsonArray = jsonpathgetmultiple(selectedCustRecordsJson, "$.records[?(@.primary_selctdCust2_t==true)]");
+	arraySize = jsonarraysize(selectedCustRecordsJsonArray);
+	lengthArray = range(arraySize);
+	//print "arraySize ";
+	//print arraySize ;
+	if(arraySize <= 0){
+		inputJ = json();
+		jsonput(inputJ, "arraySet", "Add_Primary_Customer");
+		retString = retString + jsonget(commerce.populateArraySet(inputJ), "data", "string", "");
+		
+		if(_system_current_user_language == "de"){
+		retString = retString + "1~primaryCustomerWarningMessage_t~" + "Der primäre Endkunde kann nicht gelöscht werden, der Kunde wurde wieder in die Liste der ausgewählten Kunden aufgenommen." + "|";
+		}
+		else{
+			retString = retString + "1~primaryCustomerWarningMessage_t~" + "Primary Customer cannot be deleted, the Customer has been reapplied to the Selected Customer list" + "|";
+		}
+		
+	}
+	else{
+		retString = retString + "1~primaryCustomerWarningMessage_t~" + "" + "|";
+	}		
+}
+
+//Chandan - 12/02/2020 - 49704 - Eagle Development - Added the below condition to add the primary Customer back to Selected Customer Grid
+//Pooja - CPQ 1548 Code to populate default value of Old Price Date
+oldDateJson = json();
+if( _system_current_step_var == "start_step") {
+		oldDateValue= substring(datetostr(getdate(TRUE), "yyyy-MM-dd HH:mm:ss",_system_user_time_zone),0,10);
+		jsonput(oldDateJson,"Valid From",oldDateValue);
+		jsonput(oldDateJson,"Old Price Date","");
+		retString = retString + "1~oldDatesJson_t~" +  jsontostr(oldDateJson)+ "|";
+	
+}
+
+// Neha: 6 Jan 2021: Update qq_MnlShpTo_Language_t on Save CPQ-2228
+retValLang= "";
+//salesOrg = ntSelectedSalesOrg_t;
+bussGrpJ = json(businessGroupTableData_t);
+businessGrp = jsonget(bussGrpJ, ntSelectedSalesOrg_t , "string", "");
+fieldVar = "qq_MnlShpTo_Language_t";
+
+defaultValue = BMQL("Select Default From AllAttributes Where (SalesOrg = $ntSelectedSalesOrg_t OR BusinessGroup = $businessGrp) And Variable = $fieldVar");
+
+index = 0;
+allowedval = "";
+for a in defaultValue {
+	index = index + 1;
+	retValLang= get(a, "Default");
+	break;
+}
+retString = retString + "1~qq_MnlShpTo_Language_t~" +  retValLang + "|";
+
+/* Project 51951 : 22 July 2020*/
+currUserArray = split(_system_user_groups, "+");
+	if(findinarray(currUserArray , "distributor") <> -1  OR findinarray(currUserArray , "nonPricingCustomer") <> -1 OR findinarray(currUserArray , "siemens") <> -1){
+	retString = retString + commerce.updateCustomerDetails(_system_company_name, ntSelectedSalesOrg_t, ntDistributionChannel_t);
+	}
+
+	if(findinarray(currUserArray , "legacyEaton") <> -1){
+		retString = retString + commerce.updateCustomerDetails("0650004140", ntSelectedSalesOrg_t, ntDistributionChannel_t);		
+	}
+
+	if(findinarray(currUserArray , "legacyEatonPSD") <> -1){
+		retString = retString + commerce.updateCustomerDetails("0650004135", ntSelectedSalesOrg_t, ntDistributionChannel_t);
+	}
+//Added logic for CPQ-4103 
+//Added logic for CPQ-4103 
+if//_system_current_step_var == "draft" AND 
+(findinarray(currUserrGrpArray , "distributor") <> -1
+OR findinarray(currUserrGrpArray , "nonPricingCustomer") <> -1
+OR findinarray(currUserrGrpArray , "legacyEaton") <> -1 
+OR findinarray(currUserrGrpArray , "legacyEatonPSD") <> -1
+){	
+	inputJ = json();
+	customerNumber =  customerNumber_t;
+	qqCustomerNameCopy = qqCustomerNameCopy_t;
+	customerPostalCodeZip = customerPostalCodeZip_t;
+	qqCityAndRegionCopy = qqCityAndRegionCopy_t;
+	customerCountry = customerCountry_t;	
+    print "***Save Action***";	
+	print customerNumber;
+	print qqCustomerNameCopy;
+	print customerPostalCodeZip;
+	print qqCityAndRegionCopy;
+	print customerCountry;
+	print "Before getting from retString";
+	print retString;
+	if(customerNumber_t == "")
+	{
+		searchKey1 = "~customerNumber_t~";
+		searchKey2 = "~qqCustomerNameCopy_t~";
+		searchKey3 = "~customerPostalCodeZip_t~";
+		searchKey4 = "~qqCityAndRegionCopy_t~";
+		searchKey5 = "~customerCountry_t~";
+		startPoint1 = find(retString,searchKey1);
+		endPoint1 = find(retString,"|",startPoint1+len(searchKey1));
+		if(startPoint1 >= 0){
+			customerNumber = substring(retString, startPoint1+len(searchKey1),endPoint1);
+			
+		}
+		startPoint2 = find(retString,searchKey2);
+		endPoint2 = find(retString,"|",startPoint2+len(searchKey2));
+		if(startPoint2 >= 0){
+			qqCustomerNameCopy = substring(retString, startPoint2+len(searchKey2),endPoint2);
+			
+		}
+		startPoint3 = find(retString,searchKey3);
+		endPoint3 = find(retString,"|",startPoint3+len(searchKey3));
+		if(startPoint3 >= 0){
+			customerPostalCodeZip = substring(retString, startPoint3+len(searchKey3),endPoint3);
+		}
+		startPoint4 = find(retString,searchKey4);
+		endPoint4 = find(retString,"|",startPoint4+len(searchKey4));
+		if(startPoint4 >= 0){
+			qqCityAndRegionCopystr = substring(retString, endPoint4);
+			print 371;
+			print qqCityAndRegionCopystr;
+			startPointreg = find(qqCityAndRegionCopystr,searchKey4);
+			print startPointreg;
+			endPointreg = find(qqCityAndRegionCopystr,"|",startPointreg+len(searchKey4));
+			print endPointreg;
+			print 377;
+			if(startPointreg >= 0){
+				qqCityAndRegionCopy = substring(qqCityAndRegionCopystr, startPointreg+len(searchKey4),endPointreg);
+			}
+			
+		}
+		startPoint5 = find(retString,searchKey5);
+		endPoint5 = find(retString,"|",startPoint5+len(searchKey5));
+		if(startPoint5 >= 0){
+			customerCountry = substring(retString, startPoint5+len(searchKey5),endPoint5);
+		}
+	}
+	jsonput(inputJ, "customerNumber", customerNumber);
+	jsonput(inputJ, "qqCustomerNameCopy", qqCustomerNameCopy);
+	jsonput(inputJ, "customerPostalCodeZip", customerPostalCodeZip);
+	jsonput(inputJ, "qqCityAndRegionCopy", qqCityAndRegionCopy);
+	jsonput(inputJ, "customerCountry", customerCountry);
+
+	jsonput(inputJ, "arraySet", "Set_Customer_for_External_Users");
+	retString =  retString + jsonget(commerce.populateArraySet(inputJ), "data", "string", "");
+}	
+//Zilliant - Fetch guidance from zilliant
+print "Save Before***";
+print callingAction;
+print _system_current_step_var ;
+siteID =  _system_supplier_company_name;
+if(((callingAction=="Save" AND _system_current_step_var == "start_step") OR (callingAction =="review")) AND ((qqBusinessLineForSalesOrg_t=="ES-EMEA") OR (qqBusinessLineForSalesOrg_t=="PSD")))
+{        
+        
+	document = json();
+	actionJson = json();
+	jsonput(actionJson,"siteID",siteID);
+	jsonput(actionJson,"id", bs_id);
+	jsonput(actionJson,"actionName","refreshPricingFromBM");
+	jsonput(actionJson,"document", document);
+	saveResponse = util.clickAnAction(actionJson);
+	print 1;
+}
+//retString = retString + commerce.taggedGuidance();
+
+
+
+print "return from Save Befre";
+print retString;
+
+return retString;

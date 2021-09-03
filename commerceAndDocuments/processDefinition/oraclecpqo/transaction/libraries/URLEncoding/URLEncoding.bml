@@ -1,0 +1,12 @@
+/*
+Used for URL encoding 
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+02/02/2021|Anita		|Initial version
+	
+*/
+
+retURL = replace(url," ","%20");
+retURL = replace(retURL,"&","%26");
+
+return retURL;

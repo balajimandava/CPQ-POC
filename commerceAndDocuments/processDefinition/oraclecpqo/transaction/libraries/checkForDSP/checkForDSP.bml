@@ -1,0 +1,75 @@
+//************************************************************************************************************
+//** Function:    Check for DSP
+//** Type:        Commerce Library Function   
+//**
+//** Description: This checks to see if a DSP is in SAP Complete or Active within the valid from date of a 
+//**		  CSP agreement
+//** 
+//** Return type: BOOLEAN -- TRUE if valid DSP is in Approved, SAP Complete or Active status
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              2017.08.28	dBo Haizlip     Initial version
+//**						(47017656) CSP (53957058) CSP2
+//**		  2017.09.26	dBo Haizlip	Disabled per UAT Testing 
+//************************************************************************************************************
+retBoo= FALSE;
+
+//  Turned off per Eaton
+if (TRUE) {
+  return TRUE;
+}
+
+currentAgreementNumber= bs_id;
+agreementHierarchy = json(agreementHierarchy_t);
+hdqtrs= jsonget(agreementHierarchy, "aLevel1");
+if (hdqtrs == customerNumber_t) {
+  hdqtrs= "";
+}
+
+transactionTypeXPATH= string[1];
+transactionTypeXPATH[0]= "//transactionType_t";
+inputDict= dict("string");
+put(inputDict,"Valid From Date",agreementValidFrom_t);
+put(inputDict,"Valid To Date",agreementValidTo_t);
+put(inputDict,"Customer Number",customerNumber_t);
+put(inputDict,"Sales Org",salesOrg_t);
+put(inputDict,"Return ALL","true");
+	
+allAgreements= util.agreementStatus(inputDict);
+
+  allKeys= jsonkeys(allAgreements);
+  for eachKey in allKeys {
+    if (eachKey == currentAgreementNumber) {
+      //  Skip this CSP agreement
+      print "same agreement...skipped";
+      continue;
+    }
+    cpqBSID= jsonget(allAgreements,eachKey);
+    //  Lets see if any of these are DSPs???
+    transXML= gettransaction(atoi(eachKey));
+    transactionD= readxmlsingle(transXML,transactionTypeXPATH);
+    transactionType= get(transactionD,transactionTypeXPATH[0]);
+    if (transactionType == "DSP") {
+      retBoo= TRUE;
+    }
+  }
+  
+// If not TRUE and we have a hdqtrs, let's look for that DSP
+if ( (hdqtrs <> "") AND (NOT retBoo)) {
+  put(inputDict,"Customer Number",hdqtrs);
+  allAgreements= util.agreementStatus(inputDict);
+  allKeys= jsonkeys(allAgreements);
+  for eachKey in allKeys {
+    cpqBSID= jsonget(allAgreements,eachKey);
+    //  Lets see if any of these are DSPs???
+    transXML= gettransaction(atoi(eachKey));
+    transactionD= readxmlsingle(transXML,transactionTypeXPATH);
+    transactionType= get(transactionD,transactionTypeXPATH[0]);
+    if (transactionType == "DSP") {
+      retBoo= TRUE;
+    }
+  }
+}
+
+return retBoo;

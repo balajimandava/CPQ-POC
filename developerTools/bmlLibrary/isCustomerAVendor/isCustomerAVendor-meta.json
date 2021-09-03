@@ -1,0 +1,12 @@
+{
+  "name" : "Is Customer A Vendor",
+  "variableName" : "isCustomerAVendor",
+  "description" : "Check if a customer number is a vendor",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "vendorNumber",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

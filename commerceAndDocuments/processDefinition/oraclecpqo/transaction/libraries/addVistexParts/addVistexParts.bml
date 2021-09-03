@@ -1,0 +1,136 @@
+/**
+@name Add Vistex Parts
+@api addVistexParts
+@summary 
+@param inputJson Json
+@attribute _document_number
+@attribute _system_supplier_company_name
+@attribute bs_id
+@attribute currentSelectedMaterialItems_t
+@attribute qq_NewItem_MaterialItem_t
+@attribute qq_NewItem_NetPrice_t
+@attribute qq_NewItem_Notes_t
+@attribute qq_NewItem_ProductLine_t
+@attribute qq_NewItem_ProposedMaterialNum_t
+@function Json clickAnAction(Json inputJson)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-06-26|Harshit Mehta        |Intial version
+
+*/
+ret = "";
+
+// Declarations
+debugMode = TRUE;
+webServiceFlag = TRUE;
+allParts = "";
+apiUserID = "";
+apiPassID = "";
+allItems = jsonget(inputJson,"currentSelectedMaterialItems","string","");
+rowSep = "#@#";
+colSep = "$,$";
+transactionId = bs_id;
+siteID = _system_supplier_company_name;
+addItemEndpoint = "https://"+ siteID + ".bigmachines.com/v2_0/receiver/commerce/oraclecpqo";
+
+// Action Json declaration
+actionJson = json();
+jsonput(inputJson,"siteID",siteID);
+jsonput(inputJson,"id",bs_id);
+
+
+/******** 1.click on save action ***********/
+document = json();
+jsonput(document,"currentSelectedMaterialItems_t",allItems);
+/*Elements for New Item*/
+jsonput(document,"qq_NewItem_NetPrice_t", qq_NewItem_NetPrice_t);
+jsonput(document,"qq_NewItem_ProposedMaterialNum_t", qq_NewItem_ProposedMaterialNum_t);
+jsonput(document,"qq_NewItem_Notes_t", qq_NewItem_Notes_t);
+
+docArray = string[];
+//Store existing document Numbers
+for line in transactionLine{
+	append(docArray,line._document_number);
+}
+jsonput(document,"documentNumbersBeforeNewAdd_t",join(docArray,"$,$"));
+
+
+// Action Json declaration
+actionJson = json();
+jsonput(actionJson,"siteID",siteID);
+jsonput(actionJson,"id",transactionId);
+jsonput(actionJson,"actionName","apiSave_t");
+jsonput(actionJson,"document", document);
+saveResponse = util.clickAnAction(actionJson);
+
+
+/******** 2.Add parts using webservice ***********/
+
+// Set headers for request message
+//Get API username pass
+siteBMQL= bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+  for eachSite in siteBMQL {
+    apiUserID= get(eachSite,"FieldName");
+    apiPassID= get(eachSite,"Value1");
+}
+
+requestHeaders = dict("string");
+put(requestHeaders, "Content-Type", "text/xml");
+put(requestHeaders, "Referer", addItemEndpoint);
+
+
+// Generate body of request message
+requestParameters = dict("string");
+put(requestParameters, "USERNAME",apiUserID);
+put(requestParameters, "PASSWORD",apiPassID);
+put(requestParameters, "TRANSACTION_ID", transactionId);
+
+//TODO: Logic to Build All parts
+partBody = applytemplate("$BASE_PATH$/WebServices/individualItem.xml", requestParameters); 
+partsArray = split(allItems, rowSep);
+for i in partsArray{
+    allParts = allParts + partBody;
+}
+
+
+requestBody = applytemplate("$BASE_PATH$/WebServices/addIndividualItems.xml", requestParameters); 
+requestBody = replace(requestBody,"ALLPARTS",allParts);
+
+// Send request message to service endpoint
+if (debugMode) {
+    print "***  REQUEST HEADERS  ***";
+    print requestHeaders;
+    print "";
+    print "***  REQUEST BODY  ***";
+    print requestBody;
+    print "";
+}
+
+if(webServiceFlag){
+	response = urldatabypost(addItemEndpoint, requestBody, "ERROR occurred durring service call (AddItems)", requestHeaders, true);
+	print "******* RESPONSE ********";
+	print response;
+}
+
+/******** 3.click on action to update new part line values ***********/
+
+
+actionJson = json();
+jsonput(actionJson,"siteID",siteID);
+jsonput(actionJson,"id",transactionId);
+jsonput(actionJson,"actionName","updateVistexMaterialItems_t");
+saveResponse = util.clickAnAction(actionJson);
+
+document = json();
+jsonput(document,"isAddNewLine_t","TRUE");
+
+actionJson = json();
+jsonput(actionJson,"siteID",siteID);
+jsonput(actionJson,"id",transactionId);
+jsonput(actionJson,"actionName","refreshNetPrice");
+jsonput(actionJson,"document", document);
+saveResponse = util.clickAnAction(actionJson);
+
+return ret;

@@ -1,0 +1,14 @@
+{
+  "name" : "Line Item Advance Default",
+  "variableName" : "lineItemAdvanceDefault",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.assignLineNumber", "util.enableDebugLog", "util.u_logString" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

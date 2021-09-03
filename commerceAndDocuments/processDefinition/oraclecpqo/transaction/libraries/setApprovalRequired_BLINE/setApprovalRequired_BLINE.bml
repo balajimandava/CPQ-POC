@@ -1,0 +1,118 @@
+/**
+@name setApprovalRequired_BLINE
+@api setApprovalRequired_BLINE
+@summary CHEMEA: 
+Determine if approval is required based on the conditions.
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-05|Shibaji.Ganguly	| Initial Version
+2018-04-06|Shibaji.Ganguly	| QQ-438 Related changes.
+*/
+
+
+
+// return commerce.setApprovalRequired_BUSSMANN_BLINE(); // Commented for QQ-438 implementation
+
+returnString = commerce.setApprovalRequired_BUSSMANN_BLINE();
+
+// Extracting the Agreement Warning Message, if any.
+findstr1 = "~agreementWarningMessages_t~";
+findstr2 = "|";
+startIndex = find(returnString, findstr1);
+endIndex = -1;
+agreementWarningMsgs = "";
+if(startIndex <> -1) {
+	endIndex = find(returnString, findstr2, startIndex);
+	agreementWarningMsgs = substring(returnString, startIndex + len(findstr1), endIndex);
+}
+
+// Getting the list of Delivery Terms which don't require approval.
+deliveryTermsFrmCUSMAS = string[];
+deliveryRS = BMQL("Select Distinct INCO1 From CUSMAS Where KUNNR = $customerNumber_t AND VKORG = $salesOrg_t");
+for eachRow in deliveryRS {
+	append(deliveryTermsFrmCUSMAS, get(eachRow, "INCO1"));
+}
+
+// Checking if the selected Delivery Term requires approval or not.
+deliveryTerms = agreementDeliveryTerms_t;
+deliveryApproval = "";
+overallTerm = "";
+if(findinarray(deliveryTermsFrmCUSMAS, deliveryTerms) == -1) {
+	deliveryApproval = "CSM";
+	returnString = returnString + _transaction_document_number + "~whatLevelOfDeliveryTermsApprovalRequired_t~" + deliveryApproval + "|";
+	
+	overallTerm = deliveryApproval;
+	returnString = returnString + _transaction_document_number + "~overallTermsApprovalLevel_t~" + overallTerm + "|";
+}
+
+//********************** Approval Notification at Top of the page
+//eNumber = "E3508510"; // defualt eNumber to get Approver Names
+eNumber = "E3506636"; // ---> USE THIS ONE (USERS SET UO FIR THIS)
+eNumber = owner_t;
+userLanguage = _system_current_user_language;
+
+// Fetching the appropriate warning messages
+WARNING_MESSAGE_Term = util.getRemark("WARNING_MESSAGE_3", userLanguage);
+WARNING_MESSAGE_1 = util.getRemark("WARNING_MESSAGE_1", userLanguage);
+
+//Query Sales Team table
+idColumn = "eNumber, Name, Title, Email, SalesOrg, Level2, Level3, Level4, CSM";
+salesTeam = bmql("SELECT $idColumn FROM SalesTeams");
+
+salesTable = json();
+for person in salesTeam {
+    // JSON object for each row of the table
+    salesPerson = json();
+    // put the information of that row into the JSON object
+    jsonput(salesPerson, "Name", get(person, "Name"));
+    jsonput(salesPerson, "Title", get(person, "Title"));
+    jsonput(salesPerson, "Email", get(person, "Email"));
+    jsonput(salesPerson, "SalesOrg", get(person, "SalesOrg"));
+    jsonput(salesPerson, "Level2", get(person, "Level2"));
+    jsonput(salesPerson, "Level3", get(person, "Level3"));
+    jsonput(salesPerson, "Level4", get(person, "Level4"));
+    jsonput(salesPerson, "CSM", get(person, "CSM"));
+    // put that JSON object inside the salesTable JSON object so it can be called using the eNumber of the row
+    jsonput(salesTable, get(person, "eNumber"), salesPerson);
+}
+
+//Approval message variables
+notificationMessage = "";
+notificationsArray = string[];
+
+if (overallTerm <> "") {
+	eNumberData = jsonget(salesTable, eNumber);
+	if (NOT isnull(eNumberData)) {
+		csmApprover = jsonget(json(eNumberData), "CSM");
+		returnString = returnString + _transaction_document_number + "~cSMEmail_t~" + csmApprover + "|";
+		
+		approverID = csmApprover;
+		approverData = jsonget(salesTable, approverID);
+		if (NOT isnull(approverData)) {
+			termApprovers = jsonget(json(approverData), "Name") + " (" + jsonget(json(approverData), "Title") + " - CSM)";
+			msgBody = "<b>" + WARNING_MESSAGE_Term + "</b> ";
+			append(notificationsArray, "<p>" + msgBody + " " + WARNING_MESSAGE_1 + " " + termApprovers + "</p>");			
+		}
+	}
+}
+
+if (sizeofarray(notificationsArray) > 0) {
+    notificationMessage = join(notificationsArray, "/n");
+}
+
+if(startIndex <> -1 AND endIndex <> -1) {
+	returnStringPart1 = substring(returnString, 0, startIndex);
+	returnStringPart2 = substring(returnString, endIndex + 1);
+	if(agreementWarningMsgs == "") {
+		agreementWarningMsgs = notificationMessage;
+	} else {
+		agreementWarningMsgs = agreementWarningMsgs + "/n" + notificationMessage;
+	}
+	returnString = returnStringPart1 + "~agreementWarningMessages_t~" + agreementWarningMsgs + "|" + returnStringPart2;
+} else {
+	returnString = returnString + _transaction_document_number + "~agreementWarningMessages_t~" + notificationMessage + "|";
+}
+
+return returnString;

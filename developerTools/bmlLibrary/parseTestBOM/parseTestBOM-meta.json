@@ -1,0 +1,12 @@
+{
+  "name" : "parseTestBOM",
+  "variableName" : "parseTestBOM",
+  "description" : "parse Bid manager BOM into parent line and array of child line items.",
+  "libraryFunctions" : [ "util.getStringDict" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "bom",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

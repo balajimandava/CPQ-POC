@@ -1,0 +1,180 @@
+//************************************************************************************************************
+//** Function:    Search for material items based on specified parameters
+//** Type:        Utility function
+//**
+//** Description: Generate a JSON array containing the IDs and details of Material Items that satisfy the 
+//**              specified search
+//**              criteria.
+//** 
+//** Param:       See above for main document and sub-document fields used by this function
+//**
+//** Return type: JSON array
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              13/06/2017    shibaji      Initial version
+//**              28/06/2019	Ankit	     ALM-2158 Added column PH3_TEXT in query to default if productline is blank
+//**		  13/01/2020	Dhananjay    PSD Development : Included MVGR1 in the query to get the Brand value, 
+//**				    					 and add this value at the last index of return JSON Array
+//**		  19/03/2020	Atul Jain	
+//**		  23/11/2020	Malli 		CPQ-2225 - Modified the logic to fetch the material description for languages 
+//**						other than english i.e, MAKTXDE
+//**		  18/06/2021	Rahul		Project#53393 - New elif added to get 3 digit MPG
+//************************************************************************************************************
+
+// Get parameters from the input dictionary
+searchMode = util.getStringDict(searchParams, "searchMode", "SEARCH_GLOBAL");
+salesOrg = util.getStringDict(searchParams, "salesOrg", "");
+transactionType = util.getStringDict(searchParams, "transactionType", "");
+salesOrgPrefix = "";
+language = upper(util.getStringDict(searchParams, "language", "EN"));
+if(language <> "EN"){ // This is added as part of CPQ-2225
+		language = "DE"; // for language oter than english, Description to be fetched from column MAKTXDE
+}
+materialGroupPrefix = util.getStringDict(searchParams, "materialGroupPrefix", "");
+debugMode = false;
+
+// Determine the sales org prefix to use
+rows = bmql("SELECT Prefix FROM MPG_Prefix WHERE VKORG = $salesOrg");
+for row in rows {
+    salesOrgPrefix = get(row, "Prefix");
+}
+
+// Set up search, based on mode specified by user
+searchResultSet = recordset();
+searchMPG = util.checkBizGroupCondition("materialGroupMPG", transactionType, salesOrg);
+searchPH5 = util.checkBizGroupCondition("materialGroupPH5", transactionType, salesOrg);
+searchMG5 = util.checkBizGroupCondition("materialGroupMG5", transactionType, salesOrg);
+
+if (searchMode == "SEARCH_WITHIN_GROUPS") {
+    // Retrieve a list of material items based on a set of groups
+    filterMaterialGroupIds = split(util.getStringDict(searchParams, "filterMaterialGroupIds", ""), ",");
+
+    // Prepend sales org prefix to each material group ID
+    prefixedMaterialGroupIds = string[];
+    for groupId in filterMaterialGroupIds {
+        prefixedGroupId = salesOrgPrefix + groupId;
+        append(prefixedMaterialGroupIds, prefixedGroupId);
+    }
+	if( searchMPG ) {
+		searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, PRODUCTLINE,PH3_TEXT,MVGR1 FROM MAT01 WHERE (VKORG = $salesOrg AND MPG IN $prefixedMaterialGroupIds AND VMSTA='Z2')");
+	} elif ( searchPH5 ) {
+		searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, PRODUCTLINE,PH3_TEXT,MVGR1 FROM MAT01 WHERE (VKORG = $salesOrg AND PH5 IN $prefixedMaterialGroupIds AND VMSTA='Z2')");
+    } else {
+		searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, PRODUCTLINE,PH3_TEXT,MVGR1 FROM MAT01 WHERE (VKORG = $salesOrg AND MVGR5 IN $prefixedMaterialGroupIds AND VMSTA='Z2')");
+	}
+	
+} else {
+	if(debugMode){
+	 print searchResultSet;
+	}
+    // Search for a specific material item
+    searchTerm = util.getStringDict(searchParams, "filterItemSearchTerm", "");
+    searchTerm = "%" + upper(searchTerm) + "%";  // Add wildcard symbol around search term
+
+    // Search query is dependent on language
+    if (language == "DE") {
+        // German language search
+        // GERMAN LANGUAGE DESCRIPTIONS CURRENTLY DO NOT EXIST SO THIS FAILS TO RETURN ANYTHING. FOR NOW THE ENGLISH SEARCH IS USED
+		if( searchMPG ) {
+			searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, PRODUCTLINE,PH3_TEXT,MVGR1 FROM MAT01 WHERE (MPG IS NOT NULL AND VKORG = $salesOrg AND VMSTA='Z2' AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm)) ORDER BY MATNR");		
+		} elif ( searchPH5 ) {
+			searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, PRODUCTLINE,PH3_TEXT,MVGR1 FROM MAT01 WHERE (PH5 IS NOT NULL AND VKORG = $salesOrg AND VMSTA='Z2' AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm)) ORDER BY MATNR");
+		} else {
+			searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, PRODUCTLINE,PH3_TEXT,MVGR1 FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND VMSTA='Z2' AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm)) ORDER BY MATNR");
+		}		
+		
+    } else {
+        // English language search (default)
+		if( searchMPG ) {
+			searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, PRODUCTLINE,PH3_TEXT,MVGR1 FROM MAT01 WHERE (MPG IS NOT NULL AND VKORG = $salesOrg AND VMSTA='Z2' AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm)) ORDER BY MATNR");
+		} elif ( searchPH5 ) {
+			searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, PRODUCTLINE,PH3_TEXT,MVGR1 FROM MAT01 WHERE (PH5 IS NOT NULL AND VKORG = $salesOrg AND VMSTA='Z2' AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm)) ORDER BY MATNR");
+		} else {
+			searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, PRODUCTLINE,PH3_TEXT,MVGR1 FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND VMSTA='Z2' AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm)) ORDER BY MATNR");
+		}		
+    }
+}
+if (debugMode) {
+print searchResultSet;
+}
+
+// Process result set, and determine material number for each record
+materialItemGroupsDict = dict("string");
+materialProductLineDict = dict("string");
+materialBrandDict = dict("string");//This is to capture the Brand value for each material#
+	if (debugMode) {
+		print searchResultSet;
+	}
+for row in searchResultSet {
+    // Only add items where LVORM is empty
+    lvorm = trim(get(row, "LVORM"));
+    if (lvorm == "" OR lvorm == "null") {
+    	//Get Brand value from query result
+    	materialBrand = get(row,"MVGR1");
+    	
+        // Get material details from search results
+	materialGroupId = substring(get(row,"MVGR5"), 1);
+	if (debugMode) {
+		print materialGroupId ;
+	}
+	if( searchMPG ) {
+		materialGroupId = get(row,"MPG");
+	} elif ( searchPH5 ) {
+		materialGroupId = get(row,"PH5");
+	} elif( searchMG5 ){ // New elif added to get 3 digit MPG
+		materialGroupId = get(row,"MVGR5");
+	}
+        materialItemId = get(row, "MATNR");
+	materialProductLine = get(row, "PRODUCTLINE");
+	if(materialProductLine  =="" OR materialProductLine  == "null"){
+		materialProductLine = get(row, "PH3_TEXT");
+	}
+        put(materialItemGroupsDict, materialItemId, materialGroupId);
+	put(materialProductLineDict, materialItemId, materialProductLine);
+	put(materialBrandDict, materialItemId, materialBrand);
+    }
+}
+
+// Get material item descriptions
+// MAT02 is no longer used for the descriptions
+materialItemIds = keys(materialItemGroupsDict);
+materialDescriptionDict = dict("string");
+
+// the column for the language that the description should be in
+descLanguage = "MAKTX"+ language;
+if (debugMode) {
+	print "DESCRIPTION LANGUAGE COLUMN: " + descLanguage;
+}
+// Query MAT01 for both German and English Descriptions
+descriptionResultSet = bmql("select MATNR, MAKTXEN, MAKTXDE from MAT01 where MATNR in $materialItemIds");
+
+for description in descriptionResultSet {
+    materialItemId = get(description, "MATNR");
+    materialItemDescription = "";
+    // Check that the german description is present if the specified language is german
+    // If German is not present then default to English
+    if (get(description, desclanguage) == "") {
+        materialItemDescription = get(description, "MAKTXEN");
+    }
+    else {
+        materialItemDescription = get(description, descLanguage);
+    }
+    put(materialDescriptionDict, materialItemId, materialItemDescription);
+}
+
+// Format response as a JSON array
+result = jsonarray();
+for materialItemId in materialItemIds {
+    // Store item details
+    itemDetails = jsonarray();
+    jsonarrayappend(itemDetails, "");  // Empty value for checkbox in data table
+    jsonarrayappend(itemDetails, get(materialItemGroupsDict, materialItemId));  // Material group
+    jsonarrayappend(itemDetails, materialItemId);                               // Material item ID
+    jsonarrayappend(itemDetails, get(materialDescriptionDict, materialItemId)); // Material item description
+    jsonarrayappend(itemDetails, get(materialProductLineDict, materialItemId)); // Product Line
+    jsonarrayappend(itemDetails, get(materialBrandDict, materialItemId)); // Brand
+    jsonarrayappend(result, itemDetails);
+}
+
+return result;

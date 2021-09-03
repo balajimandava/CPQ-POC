@@ -1,0 +1,219 @@
+/**********************************************************************************
+//** Function: 	To get the line level attribute values.
+
+//** Description: Project#49074|Eagle Development
+
+//** History:	Rev. Date 	Developer	Notes / Comments
+		----------------------------------------------------------------------
+		22-01-2020	Rahul Uttarwar	Initial version
+		04-05-2020	Dhananjay	Setting is_placeholder value to Zero if its null, 
+						to avoid mass update on old models
+		12-05-2020	Shardul S	Added ConfigId as a parameter
+		25-07-2020	Dhananjay	Logic to fix the null point exceptions at line 24 and 25
+		03-09-2020	Dhananjay	CPQ-2557: Added is_configured_product in the payload
+*************************************************************************************/
+jsonArrayobj = jsonarray();
+arrObj 	= string[];
+
+xmlData = gettransaction(atoi(bsId)); // get transaction XML
+lineAttrKeys 	= keys(xPathDictionary);
+lineAttrNames 	= values(xPathDictionary);
+lineAttrValueDict = readxmlmultiple(xmlData, lineAttrNames); // get values for all the attributes
+print lineAttrValueDict ;
+lineAttrArray = get(lineAttrValueDict, lineAttrNames[0]);  // get the first array object from result dictionary 
+
+//numOfLines = range(sizeofarray(lineAttrArray));
+//numOfAttrs = range(sizeofarray(lineAttrNames));
+
+totalLines = 0;
+totalAtts = 0;
+if(not(isnull(lineAttrArray))){
+	totalLines = sizeofarray(lineAttrArray);
+}
+if(not(isnull(lineAttrNames))){
+	totalAtts = sizeofarray(lineAttrNames);
+}
+
+numOfLines = range(totalLines);
+numOfAttrs = range(totalAtts);
+
+if(lineDocNum == "" OR ISNULL(lineDocNum)){
+  lineNum = 0;
+}else{
+  lineNum = atoi(lineDocNum);
+}
+
+lineDocNumArrObj = get(lineAttrValueDict,"//transactionLine/_document_number");
+lineconfigId = get(lineAttrValueDict,"//transactionLine/externalConfigData_l");	
+//print "external config data _ l is";
+//print lineconfigId;
+
+eachKey = "";
+eachLineVal = "";
+jsonObj1 = json();
+if(lineNum > 0){ // get attribute values specific to input line number
+  for eachLine in numOfLines { // loop through all the lines
+    jsonObj = json();
+    if(atoi(lineDocNumArrObj[eachLine]) == lineNum){ // compare input line number to get array index
+      for eachAttr in numOfAttrs{ // loop through all attributes of current line
+        arrObj = get(lineAttrValueDict,lineAttrNames[eachAttr]);
+        eachKey = lineAttrKeys[eachAttr];
+        //Added by Shardul
+        confID = "";
+        if (eachKey == "config_id" )
+        {
+          SAPconf = arrObj[eachLine];           
+          if(len(SAPconf) <> 0)
+          {
+
+		  startConfigId = find(SAPconf , "<SAP_ConfigurationID>");
+		  if( startConfigId > -1 ) {
+			startConfigIdValue = find(SAPconf , ">", startConfigId);
+			endstartConfigIdValue = find(SAPconf , "<", startConfigIdValue);
+			confID= subString(SAPconf, startConfigIdValue + 1, endstartConfigIdValue);
+			
+		  }
+		  else
+		  {
+		  	confID = SAPconf;
+		  }		
+		  eachLineVal = confID;
+	  }
+	  else
+	  {
+	  	eachLineVal = "";
+	  }
+       	  //print  eachLineVal;
+        }
+        else
+        {
+       	  eachLineVal = arrObj[eachLine];		
+        }
+        if(eachKey == "is_placeholder" AND isnull(eachLineVal)){
+        	eachLineVal = "0";
+        }
+        if(eachKey == "qqProductType" AND NOT(isnull(eachLineVal)) AND eachLineVal=="configuration"){
+		jsonput(jsonObj, "is_configured_product", true);
+	}elif(eachKey == "qqProductType" AND NOT(isnull(eachLineVal)) AND eachLineVal<>"configuration"){
+		jsonput(jsonObj, "is_configured_product", false);
+	}
+        jsonput(jsonObj, eachKey, eachLineVal);
+        //jsonput(jsonObj, lineAttrKeys[eachAttr], arrObj[eachLine]);
+      }
+      jsonarrayappend(jsonArrayobj, jsonObj);
+      break; // exit loop on building jsonarray for input line number
+    }
+  }
+}else{ // get attribute values for all lines
+
+    if (configId <> "") //Added by Shardul for Residential Configurator Start
+    {
+	  for eachLine in numOfLines { // loop through all the lines
+	    	  jsonObj1 = json();
+	    	  //print 90;
+	    	  //print configId;
+	    	  //print lineconfigId[eachLine];
+	    	  if(lineconfigId[eachLine] == configId)
+		  {
+		    	for eachAttr in numOfAttrs{ // loop through all attributes of current line
+			       arrObj = get(lineAttrValueDict,lineAttrNames[eachAttr]);
+			       //jsonput(jsonObj1, lineAttrKeys[eachAttr], arrObj[eachLine]);			     
+			       eachKey = lineAttrKeys[eachAttr];
+			       confID = "";
+			       if (eachKey == "config_id")
+			       {
+			          SAPconf = arrObj[eachLine];
+			          //print 99;
+			          //print SAPconf;
+			          if(len(SAPconf) <> 0)
+			          {
+			      		  startConfigId = find(SAPconf , "<SAP_ConfigurationID>");
+					  if( startConfigId > -1 ) {
+						startConfigIdValue = find(SAPconf , ">", startConfigId);
+						endstartConfigIdValue = find(SAPconf , "<", startConfigIdValue);
+						confID= subString(SAPconf, startConfigIdValue + 1, endstartConfigIdValue);
+					  }		
+			  		  else
+					  {
+					  	confID = SAPconf;
+					  	
+					  }
+					  eachLineVal = confID;
+				  }
+				  else
+				  {
+				  	eachLineVal = "";
+				  }
+			       	  //print  eachLineVal;
+			       }
+			       else
+			       {
+			       	  eachLineVal = arrObj[eachLine];		
+			       }
+			       if(eachKey == "is_placeholder" AND isnull(eachLineVal)){
+					eachLineVal = "0";
+			       }
+			        if(eachKey == "qqProductType" AND NOT(isnull(eachLineVal)) AND eachLineVal=="configuration"){
+					jsonput(jsonObj1, "is_configured_product", true);
+				}elif(eachKey == "qqProductType" AND NOT(isnull(eachLineVal)) AND eachLineVal<>"configuration"){
+					jsonput(jsonObj1, "is_configured_product", false);
+				}
+			       jsonput(jsonObj1, eachKey, eachLineVal);
+			}
+			jsonarrayappend(jsonArrayobj, jsonObj1);			
+		   }
+    	   }
+    }//Added by Shardul for Residential Configurator End
+    else
+    {
+	for eachLine in numOfLines { // loop through all the lines
+	   	jsonObj1 = json();
+		for eachAttr in numOfAttrs{ // loop through all attributes of current line
+		       arrObj = get(lineAttrValueDict,lineAttrNames[eachAttr]);
+		       //jsonput(jsonObj1, lineAttrKeys[eachAttr], arrObj[eachLine]);
+		       eachKey = lineAttrKeys[eachAttr];
+		       confID = "";
+		       if (eachKey == "config_id" )
+		       {
+		          SAPconf = arrObj[eachLine];
+		          if(len(SAPconf) <> 0)
+		          {
+		      		  startConfigId = find(SAPconf , "<SAP_ConfigurationID>");
+				  if( startConfigId > -1 ) {
+					startConfigIdValue = find(SAPconf , ">", startConfigId);
+					endstartConfigIdValue = find(SAPconf , "<", startConfigIdValue);
+					confID= subString(SAPconf, startConfigIdValue + 1, endstartConfigIdValue);
+				  }	
+		  		  else
+				  {
+				  	confID = SAPconf;
+				  }	
+				  eachLineVal = confID;
+			  }
+			  else
+			  {
+			  	eachLineVal = "";
+			  }
+		       	  //print  eachLineVal;
+		       }
+		       else
+		       {
+		       	  eachLineVal = arrObj[eachLine];		
+		       }
+		       if(eachKey == "is_placeholder" AND isnull(eachLineVal)){
+				eachLineVal = "0";
+		       }
+		        if(eachKey == "qqProductType" AND NOT(isnull(eachLineVal)) AND eachLineVal=="configuration"){
+				jsonput(jsonObj1, "is_configured_product", true);
+			}elif(eachKey == "qqProductType" AND NOT(isnull(eachLineVal)) AND eachLineVal<>"configuration"){
+				jsonput(jsonObj1, "is_configured_product", false);
+			}
+		       jsonput(jsonObj1, eachKey, eachLineVal);
+		}
+		jsonarrayappend(jsonArrayobj, jsonObj1);
+	}
+    }
+    
+}
+
+return jsonArrayobj;

@@ -1,0 +1,9 @@
+{
+  "name" : "Move to a Step",
+  "variableName" : "moveToAStep",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "attributes" : [ "_current_date" ]
+}

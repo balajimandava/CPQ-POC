@@ -1,0 +1,12 @@
+{
+  "name" : "Click an Action",
+  "variableName" : "clickAnAction",
+  "description" : "REST call to click a Commerce action.",
+  "libraryFunctions" : [ "util.getSiteSpecificData" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,182 @@
+/**
+@name Assemble Previous Approved Values
+@api assemblePreviousApprovedValues
+@summary Extract previously approved quote and lines.
+@attribute _system_supplier_company_name
+@attribute bs_id
+@function Boolean u_logJson(String category, Integer level, Json jsonObject, String label)
+@function Boolean u_logJsonArray(String category, Integer level, JsonArray jsonArr, String label)
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@function Boolean u_logStringDict(String category, Integer level, String Dictionary strDict, String label)
+@function Json getSiteSpecificData(String siteID)
+@function String getSupplierCompanyName()
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-16|Tat.Leung            |JIRA QQ-322 - Initial version
+2018-01-27|Tat.Leung            |
+2018-02-01|Tat.Leung            |Added system user to header to address email approval issue.
+2018.05.17|dBo Haizlip		|Added pricing group and material item
+2018.06.19|dBo Haizlip		|Added metal surchages amounts to be saved
+2018.06.26|dBo Haizlip		|Added Scale From and Scale To
+2019.02.13|Tanya Arora          |Added Volume Bonus Table data string to get the previously approved values
+2019.02.15|Tanya Arora          |Added feedbackdiscount_l for fetching feedback given by Feedback Team for DE1811 By Tanya Arora
+2019.07.03|Harshit Mehta		|19B Upgrade : Updated code to use urldatabyget function instead of urldata while fetching data for line items.
+2019.08.05|Harshit Mehta		|19B Upgrade : Updated code to use header in urldatabyget function.
+2020.04.22|Harshit Mehta		|Collaborative Editing : Updated code to pass different header for different urldata/urldatabyget function.
+2020-10-07|Smita   |CPQ-1460-  If book price is less than valid from Date, it should trigger CSM Approval; Added an Attribute
+*/
+
+// -----------------------
+// get header level fields
+// -----------------------
+headerFields = string[] {
+    // approval main vars
+    "whatLevelOfDiscountApprovalRequired_t",
+    "overallTermsApprovalLevel_t",
+    "bs_id",
+    // validityPeriodApproval
+    "agreementValidFrom_t",
+    "agreementValidTo_t",
+    // minimumOrderApproval
+    "minimumOrderVolume_t",
+    // metalApproval
+    "silver_t",
+    "silverValue_t",
+    "copper_t",
+    "copperValue_t",
+    "aluminium_t",
+    "aluminiumValue_t",
+    "surchargeExemption_t",
+    // extensionApproval
+    "extendCurrentListPrices_t",
+    "choosePricelist_t",
+    // expectedVolumeApproval
+    "expectedVolume_t",
+    // invoiceApproval
+    "agreementPeriodOfInvoicing_t",
+    "periodOfInvoicingShipTo_t",
+    // termLevelApproval
+    "agreementPaymentTerms_t",
+    "paymentTermsShipTo_t",
+	//totaltransaction value
+   "qqTotalValue_t",
+    // deliveryApproval
+    "agreementDeliveryTerms_t",
+    //CPQ-1460-Added for Book Price Approval
+	"bookPriceDate_t",
+	"priceListFrom_t",
+	"priceListTo_t"
+    //Volume Bonus Data String - Added for DE1818 by Tanya Arora
+	//Commented as part of INC000012958461. Removing the string "bonusTableDataString_t" reference. Instead using the arrayset. 
+    //"bonusTableDataString_t"
+};
+
+company = util.getSupplierCompanyName();
+url = "https://" + company + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction/" + bs_id;
+debugStatus = util.u_logString("COM_APPROVAL", 4, url, "url");
+parameters = join(headerFields, ",");
+debugStatus = util.u_logString("COM_APPROVAL", 4, parameters, "parameters");
+
+// get system user
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+headers = dict("string");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+
+quoteHeaderResp = urldata(url + "?fields=" + parameters, "get", headers);
+print "quoteHeaderRespquoteHeaderResp";
+print quoteHeaderResp;
+statusCode = get(quoteHeaderResp, "Status-Code");
+print statusCode;
+if (not isnumber(statusCode) and atoi(statusCode) >= 400) {
+    debugStatus = util.u_logStringDict("COM_APPROVAL", 4, quoteHeaderResp, "quoteHeaderResp");
+    throwerror("Unable to get quote header data for quote.", true);
+}
+quoteHeader = get(quoteHeaderResp, "Message-Body");
+quoteJson = json(quoteHeader);
+
+print quoteJson;
+
+// save line link
+lineUrl = jsonpathgetsingle(quoteJson, "$.links[?(@.name =='transactionLine')].href", "string", "");
+debugStatus = util.u_logString("COM_APPROVAL", 4, lineUrl, "lineUrl");
+
+jsonremove(quoteJson, "links");
+
+// ---------------------
+// get line level fields
+// ---------------------
+lineFields = string[] {
+    "_document_number",
+    "qqProductType_l",
+    "materialPricingGroup_l",
+    "materialLineItem_l",
+    "agreementNetDiscountRequested_l",
+    "discountString_l",
+    "customDiscountType_l",
+    "scaleFrom_l",
+    "oldListPrice_l",
+    "scaleTo_l",
+    "feedbackDiscount_l"
+};
+
+parameters = join(lineFields, ",");
+
+/*Harshit Mehta START : Changing function to pass differnt header in urlData function.
+After enabling "Collaboration Editing" urlData function was giving error like : Reserved HTTP header was found: X-SAME-SITE-REQ
+22-April-2020 ::: It is happening due to Bug 30134316 : CONSECUTIVE URLDATABYPOST WEB SERVICE CALLS IN BML CANNOT USE THE SAME HEADER
+We can switch back to same header once oracle will fix this issue.
+*/
+lineHeaders = dict("string");
+put(lineHeaders, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(lineHeaders, "Content-Type", "application/json");
+//quoteLineResp = urlData(lineUrl + "?fields=" + parameters, "get", lineHeaders);
+quoteLineResp = urldatabyget(lineUrl,"fields="+parameters,"ERROR",-5000,lineHeaders);
+
+if (quoteLineResp == "ERROR") {
+    //debugStatus = util.u_logStringDict("COM_APPROVAL", 1, quoteLineResp, "quoteLineResp");
+    throwerror("Unable to get line data for quote.",true); 
+}
+lineDataJson = json(quoteLineResp);
+
+//Harshit Mehta END : Changing code to pass different header in urlData function.
+
+jsonpathremove(lineDataJson, "$..links");
+lineJsonArray = jsonget(lineDataJson, "items", "jsonarray");
+
+debugStatus = util.u_logJsonArray("COM_APPROVAL", 4, lineJsonArray, "lineJsonArray");
+
+// -------------------------
+// assemble return json data
+// -------------------------
+jsonput(quoteJson, "items", lineJsonArray);
+//INC000012958461 -Start
+//As the arrayset is available in commerce library, importing the arrayset and updating the quoteJson with same old key "bonusTableDataString_t" with existing string format $@$€10,00$;$$@$3,00%$;$$@$01.01.2019$;$$@$31.12.2019
+columnDelimiter = "$;$";
+rowDelimiter = "$@$";
+arraySetJson = json();
+bonusTableDataString = "";
+
+jsonput(arraySetJson, "BonusArraySet", bonusArraySet_t);
+volumeBonusArr = jsonpathgetmultiple(arraySetJson, "$..volume_bonusArraySet");
+discountBonusArr = jsonpathgetmultiple(arraySetJson, "$..bonusDiscount_bonusArraySet");
+validFromArr = jsonpathgetmultiple(arraySetJson, "$..validFrom_bonusArraySet");
+validToArr = jsonpathgetmultiple(arraySetJson, "$..validTo_bonusArraySet");
+bonusArrSetSize = jsonarraysize(bonusArraySet_t);
+dummyArr = range(bonusArrSetSize);
+
+for eachRec in dummyArr{
+	print jsonarrayget(volumeBonusArr,eachRec);
+	bonusTableDataString = bonusTableDataString + rowDelimiter + jsonarrayget(volumeBonusArr,eachRec) + columnDelimiter 
+						    + rowDelimiter + jsonarrayget(discountBonusArr,eachRec) + columnDelimiter 
+						    + rowDelimiter + jsonarrayget(validFromArr,eachRec) + columnDelimiter 
+						    + rowDelimiter + jsonarrayget(validToArr,eachRec)
+						    ;
+}
+jsonput(quoteJson, "bonusTableDataString_t", bonusTableDataString);
+//INC000012958461 - End
+return quoteJson;

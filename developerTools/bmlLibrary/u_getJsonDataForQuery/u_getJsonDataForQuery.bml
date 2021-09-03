@@ -1,0 +1,67 @@
+/**
+@name Get JSON Data for Query
+@api u_getJsonDataForQuery
+@summary Retrieve the data using the BMQL in the query parameter.  Data is returned in JSON format.
+@param query String the BMQL statement to retrieve the data
+@return JsonArray the data return from the query.
+@package utils/Data Access
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-17|tleung               |Initial version
+*/
+result = jsonArray();
+
+statement = trim(replace(query, "\n", " "));
+
+upperStatement = upper(statement);
+statementLen = len(statement);
+
+// make sure the query starts with "SELECT"
+if (not startsWith(upperStatement, "SELECT ")) {
+    throwError("BMQL does not contain a 'SELECT' clause.");
+}
+
+// determine where the FROM and WHERE clauses start.
+fromStart = find(upperStatement, " FROM ");
+if (fromStart == -1) {
+    throwError("BMQL does not contain a FROM clause.");
+}
+
+whereStart = find(upperStatement, " WHERE ");
+if (whereStart == -1) {
+    whereStart = statementLen;
+}
+
+// get all columns
+columns = substring(statement, 7, fromStart);
+
+// get table name
+table = substring(statement, fromStart + 6, whereStart);
+
+// get where clause
+whereClause = "";
+if (whereStart <> statementLen) {
+    whereClause = substring(statement, whereStart + 7, statementLen);
+}
+
+resultSet = RecordSet();
+if (whereClause == "") {
+    resultSet = bmql("select $columns from $table");
+} else {
+    resultSet = bmql("select $columns from $table where $whereClause");
+}
+if (hasError(resultSet)) {
+    throwError(getMessage(resultSet) + " for table " + table, false);
+}
+
+columnNames = split(columns, ",");
+for record in resultSet {
+    jsonRecord = json();
+    for col in columnNames {
+        jsonPut(jsonRecord, col, get(record, col));
+    }
+    jsonArrayAppend(result, jsonRecord);
+}
+
+return result;

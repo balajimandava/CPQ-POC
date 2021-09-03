@@ -1,0 +1,13 @@
+currentDate = minusdays(getdate(), 1);
+validDate = strtojavadate(agreementValidTo_t, "yyyy-MM-dd HH:mm:ss");
+dateDiff = comparedates(currentDate, validDate);
+parmsDict = dict("string");
+if(dateDiff == 1 AND lower(status_t)=="active"){
+	put(parmsDict , "BSID",bs_id);
+	//put(parmsDict , "ACTION", "cleanSave_t");
+	put(parmsDict , "ACTION", "active_Timer");
+	put(parmsDict , "SiteName", "eatontest2");
+	resp = util.triggerAnyActionUsingRESTAPI(parmsDict);print resp;
+}
+
+return "";

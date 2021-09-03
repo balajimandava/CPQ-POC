@@ -1,0 +1,11 @@
+{
+  "name" : "Temp",
+  "variableName" : "temp",
+  "description" : "",
+  "libraryFunctions" : [ "util.getEnvironmentVariable" ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "listPrice_l", "coperSurcharge_l", "silverSurcharge_l", "aluminumSurcharge_l", "taxAmount1_l", "taxAmount2_l", "taxAmount3_l", "taxAmount4_l", "taxAmount5_l", "taxAmount6_l", "commodityCode_l", "countryOfOrigin_l", "EAN_l", "EANCategory_l" ],
+  "mainDocAttributes" : [ "qqSAPQuoteNumber_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

@@ -1,0 +1,15 @@
+{
+  "name" : "Get Remark",
+  "variableName" : "getRemark",
+  "description" : "Returns remark in the user's language",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "rowIndex",
+    "type" : "String"
+  }, {
+    "name" : "language",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

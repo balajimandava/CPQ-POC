@@ -1,0 +1,24 @@
+/**
+@name 		Primary Customer
+@api 		primaryCustomer
+@summary 	49704 - Eagle Development | System should not allow user to delete Primary Customer in Customer Tab
+@param      - 
+@return 	Boolean
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+02/05/2020|Chandan A J			|49704 - Eagle Development
+*/
+
+returnValue = false;
+if(_system_current_step_var <> "start_step"){
+	selectedCustRecordsJson= json();
+	jsonput(selectedCustRecordsJson, "records", selectedCustomerArraySet2_t);
+	selectedCustRecordsJsonArray = jsonpathgetmultiple(selectedCustRecordsJson, "$.records[?(@.primary_selctdCust2_t==true)]");
+	arraySize = jsonarraysize(selectedCustRecordsJsonArray);
+	lengthArray = range(arraySize);
+	if(arraySize <= 0){
+		returnValue = true;
+	}
+}
+return returnValue;

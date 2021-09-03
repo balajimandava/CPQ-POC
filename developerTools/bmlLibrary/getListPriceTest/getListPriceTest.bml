@@ -1,0 +1,272 @@
+/**
+@name Get List Price
+@api getListPrice
+@summary Retrieve list price(current and future) for a material item
+@param inputDict StringDictionary (Material Number, Sales Org, System Date, Quote Currency, Price List)
+@attribute _current_date
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+26/04/2017|vhingorani           |Initial version
+12/07/2017|vhingorani           |Added qty for PER
+24/08/2017|dBo Haizlip          |Changed KWAEH -> KONWA for PRI01 and PRI02
+25/08/2017|dBo Haizlip          |Date format from SAP changed YYYY.MM.DD to YYYYMMDD
+07/09/2017|PKhanal              |Added UOM to be included in the bmql query (445)
+2018-01-10|Tat.Leung            |Reformatted code
+2018-04-30|shibaji.ganguly	|QQ-503 Related Changes
+2018.06.08|dBo Haizlip		|Added support for PLTYP for all non-4942 in PRI01.  494	2 remains the same...look 1st in PRI02...if none then use PRI01
+				|Note: We were already looking in two places for the list price.  So I've changed this to use a dynamic bmql call.
+				|      If it is not 4942 then both BMQL calls lookup in PRI01 (One for the PLTYP and One for a blank)
+				|      If it is 4942 then 1 looks in PRI02 and the other uses PRI01
+2018-06-12|michael.yeung        |
+2018-06-13|michael.yeung        |
+2018-06-16|michael.yeung        |
+2018-06-18|michael.yeung        |
+2018-06-26|michael.yeung        |
+2019-02-11|Harshit Mehta		| INC000012157604 : Always fetch latest prices from PRI01 table for sales org 4942 and remove dependency on PRI02 table.
+2019-07-03|Ankit Vernekar		| Distribution channel not applicable for ESEMEA 
+2019-08-21|Balaji Konagalla		| ALM 2436 :Fix for List prices not coming for CH EMEA
+2020-03-17|Atul Jain			| Removed commented code, and added debug mode to print statements.
+2020-11-05|Vasundhara Pentakoat | Performance Changes
+*/
+
+ret = json();
+pricingDict = dict("string");
+debugMode = false;
+// Get Params
+materialNo = split(get(inputDict, "materialNo"),","); // MATNR
+salesOrg = get(inputDict, "salesOrg"); // "4942"; // VKORG
+distributionChannel = get(inputDict, "distributionChannel");
+business = get(inputDict, "business");
+
+currentDate = strtojavadate(get(inputDict, "currentDate"), "yyyy-MM-dd"); // system date (YYYY/MM/dd hh:mm:ss)
+currency = get(inputDict, "currency"); // "EUR";  KONWA
+priceList = get(inputDict, "priceList"); // PLTYP
+uom = split(get(inputDict, "UOM"),","); // KMEIN
+OldlistPrice = get(inputDict, "OldlistPrice");
+
+// Set Defaults
+currentPrice = "0.0";
+futurePrice = "0.0";
+finalQty = "1";
+latestDate = _current_date;
+count = 0;
+finalPLTYP = ""; //INC000012157604 ::: Harshit added new flag to store PLTYP value.
+//inPRI02 = false; //INC000012157604 : Harshit Mehta :: No need to use inPRI02 flag any more.
+
+
+//  Dynamic call to use either PLTYP in PRI01 only (non ES-EMEA) or PRI02/PRI01 (ES-EMEA)
+// INC000012157604 : Harshit Mehta :: As per discussion with business and FAs no need to refer PRI02 table any more.
+
+table1 = "PRI01";
+
+//INC000012157604 : Harshit Mehta ::: Removing 2 calls of PRI01 table.
+//Look for PLTYP value with blank and actual value and sort result by PLTYP
+//With this always non blank value of PLTYP column will come first and later blank one.
+//Preference will give to non blank PLTYP column value if that is not valid then only blank value will refer
+
+results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN,PLTYP from $table1 Where MATNR in $materialNo AND VKORG = $salesOrg AND KONWA=$currency AND VTWEG = $distributionChannel AND (PLTYP=$priceList OR PLTYP is null) AND KMEIN in $uom ORDER BY PLTYP");
+
+//start of ALM 2436 :Fix for List prices not coming for CH EMEA
+if(business =="CH-EMEA"){ 
+	results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN,PLTYP from $table1 Where MATNR in $materialNo AND VKORG = $salesOrg AND KONWA=$currency AND VTWEG = $distributionChannel AND KMEIN in $uom ");
+}
+//end of ALM 2436 :Fix for List prices not coming for CH EMEA
+
+if (business == "BUSSMANN") {
+	results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN,PLTYP from $table1 Where MATNR in $materialNo AND VKORG = $salesOrg AND KONWA=$currency  AND (PLTYP=$priceList OR PLTYP is null) AND KMEIN in $uom ORDER BY PLTYP");
+}
+if(business =="ES-EMEA")
+{
+	results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN,PLTYP from $table1 Where MATNR in $materialNo AND VKORG = $salesOrg AND KONWA=$currency  AND KMEIN in $uom");
+}
+
+//added below code for #1034 - Gunashree
+if(salesOrg == "1216" AND distributionChannel == "10"){
+	if(priceList <> ""){
+	print "10";
+	print materialNo;
+	print salesOrg;
+	print currency;
+	print priceList;
+	print uom;
+	results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN from $table1 Where MATNR in $materialNo AND VKORG = $salesOrg AND KONWA=$currency AND (PLTYP = $priceList OR PLTYP is not null) AND KMEIN in $uom");
+	
+}}if(salesOrg == "1216" AND distributionChannel == "20"){
+print "20";
+	results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN from $table1 Where MATNR in $materialNo AND VKORG = $salesOrg AND KONWA=$currency AND (PLTYP = $priceList OR PLTYP is null) AND KMEIN in $uom");
+	
+}
+print results;
+for r in results {
+    dateAB = get(r, "DATAB");
+	materialNum = get(r,"MATNR");
+    dateFromString = dateAB;
+    if (len(dateAB) == 8) {
+        dateFromString = substring(dateAB, 0, 4) + "." + substring(dateAB, 4, 6) + "." + substring(dateAB, 6);
+    }
+    dateBI = get(r, "DATBI");
+    dateToString = dateBI;
+    if (len(dateBI) == 8) {
+        dateToString = substring(dateBI, 0, 4) + "." + substring(dateBI, 4, 6) + "." + substring(dateBI, 6);
+    }
+
+    price = get(r, "KBETR");
+    qty = get(r, "KPEIN");
+    pltype = get(r, "PLTYP");
+
+    // Convert Date From to yyyy-MM-dd
+    if (dateFromString == "") {
+        dateFromString = "1900.01.01";
+    }
+
+    dateFrom = strtojavadate(dateFromString, "yyyy.MM.dd");
+	if (debugMode) {	
+	print dateFrom;
+	}
+
+    // Convert Date To to yyyy-MM-dd
+    if (dateToString == "") {
+        dateToString = "9999.01.01";
+    }
+
+    dateTo = strtojavadate(dateToString, "yyyy.MM.dd");
+	if (debugMode) {
+     print dateTo;
+	}
+    
+    // For ignoring From Date which are way out in the future. For QQ-503.
+    ignoreDateString = "3000.01.01";
+    ignoreDate = strtojavadate(ignoreDateString, "yyyy.MM.dd");		
+    if(comparedates(dateFrom, ignoreDate) == 1) {
+        continue;
+    }
+   // print "dates";
+   // print dateFrom;
+   // print currentDate;
+  //  print dateTo;
+   // print "dates";
+  //  print comparedates(dateFrom, currentDate);
+    // Get Current List Price
+	if(business <>"ES-EMEA")//Added business condition becuase data maintained in PRIO1 for ES-EMEA is changed 
+	{
+		
+    if (comparedates(dateFrom, currentDate) == -1 AND comparedates(dateTo, currentDate) == 1) {
+	
+        if (NOT containskey(pricingDict,materialNum)) {	
+			 latestDate = dateFrom;
+                currentPrice = price;
+                finalQty = qty;
+				finalPLTYP = pltype;
+			put(pricingDict,materialNum,materialNum);
+        }else{
+			
+			// Check if new record start date is greater than old one
+			// INC000012157604 : Harshit Mehta :: To cover below corner case added condition for pltype match
+			/* pltype should match with previous value of PLTYP to make sure that in below cases always we will get correct prices.
+			
+			CASE# 1 (Current date : 13Feb2019, customer price list : Q) : Correct price is 100
+			MATNR	PLTYP	KBETR	DATAB		DATABI
+			Part1	Q		100		20171001	99991231
+			Part1			200		20181001	99991231
+			
+			CASE#2 (Current date : 13Feb2019, customer price list blank): Correct price is 500 
+			MATNR	PLTYP	KBETR	DATAB		DATABI
+			Part1	Q		100		20161001	99991231
+			Part1			200		20181001	99991231
+			Part1   		500     20181201    99991231	
+			*/
+			
+            if (comparedates(dateFrom, latestDate) == 1 AND finalPLTYP == pltype) { 
+               // print "New Greater than old";
+                latestDate = dateFrom;
+                currentPrice = price;
+                finalQty = qty;
+            }
+        }
+		if (debugMode) {
+         print "Found current:" + price;
+        }
+		// INC000012157604 : Harshit Mehta :: PRI01 table will be called only once.
+    }
+	}
+	else //Get Old List Price
+	{
+		if((comparedates(dateFrom, currentDate) == -1 OR comparedates(dateFrom, currentDate) == 0) AND (comparedates(dateTo, currentDate) == 1 OR comparedates(dateTo, currentDate) == 0)) {
+   	// print "here";
+          if (NOT containskey(pricingDict,materialNum)) {	
+			 latestDate = dateFrom;
+                currentPrice = price;
+                finalQty = qty;
+				finalPLTYP = pltype;
+			put(pricingDict,materialNum,materialNum);
+        }else {
+			
+			// Check if new record start date is greater than old one
+			// INC000012157604 : Harshit Mehta :: To cover below corner case added condition for pltype match
+			/* pltype should match with previous value of PLTYP to make sure that in below cases always we will get correct prices.
+			
+			CASE# 1 (Current date : 13Feb2019, customer price list : Q) : Correct price is 100
+			MATNR	PLTYP	KBETR	DATAB		DATABI
+			Part1	Q		100		20171001	99991231
+			Part1			200		20181001	99991231
+			
+			CASE#2 (Current date : 13Feb2019, customer price list blank): Correct price is 500 
+			MATNR	PLTYP	KBETR	DATAB		DATABI
+			Part1	Q		100		20161001	99991231
+			Part1			200		20181001	99991231
+			Part1   		500     20181201    99991231	
+			*/
+			
+            if (comparedates(dateFrom, latestDate) == 1 AND finalPLTYP == pltype) { 
+              //  print "New Greater than old";
+                latestDate = dateFrom;
+                currentPrice = price;
+                finalQty = qty;
+            }
+        }
+		if (debugMode) {
+         print "Found current:" + price;
+        }
+		count = count + 1;
+		
+		// INC000012157604 : Harshit Mehta :: PRI01 table will be called only once.
+    }
+		
+	}
+
+    // Get Future List Price if available
+    if (comparedates(dateFrom, currentDate) == 1 AND comparedates(dateTo, currentDate) == 1) {
+        if (debugMode) {
+		 print "Found future:" + get(r,"KBETR");
+        }
+		futurePrice = price;
+    }
+	//Performance Changes - START
+    inputJson = json();
+	jsonput(inputJson, "CurrentPrice", atof(currentPrice));
+	jsonput(inputJson, "FuturePrice", atof(futurePrice));
+	jsonput(inputJson, "qty", atoi(finalQty));
+	jsonput(ret,materialNum,inputJson);
+	//Performance Changes - END
+}
+//Performance Changes - START
+currentPrice = "0.0";
+futurePrice = "0.0";
+finalQty = "1";
+for each in materialNo{
+	materialNumStr = jsonget(ret,each);
+	if(isnull(materialNumStr)){
+		inputJson = json();
+		jsonput(inputJson, "CurrentPrice", atof(currentPrice));
+		jsonput(inputJson, "FuturePrice", atof(futurePrice));
+		jsonput(inputJson, "qty", atoi(finalQty));
+		jsonput(ret,each,inputJson);
+	}
+}
+//Performance Changes - END
+//INC000012157604 : Harshit Mehta:: Removed 2nd call of PRI01 in all cases for code cleanup and all cases handled in above code.
+// ** Search in PRI01 when no results in PRI02
+
+return ret;

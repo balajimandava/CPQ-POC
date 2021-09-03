@@ -1,0 +1,19 @@
+link = linkToDocument_t;
+suplierCompany = util.getSupplierCompanyName();
+
+posDblSlsh = find(link, "//");
+posSnglSlsh = find(link, "/", posDblSlsh + 2);
+siteLink = substring(link, posDblSlsh + 2, posSnglSlsh);
+
+pos = find(siteLink, suplierCompany);
+retStr = "";
+
+if(pos == -1) {
+	subStr1 = substring(link, 0, posDblSlsh+2); print subStr1; print "";
+	subStr2 = lower(suplierCompany)+ ".bigmachines.com"; print subStr2; print "";
+	substr3 = substring(link, posSnglSlsh); print subStr3; print "";
+	retLink = subStr1 + subStr2 + subStr3;
+	retStr = retStr + "1~linkToDocument_t~" + retLink + "|";
+}
+
+return retStr;

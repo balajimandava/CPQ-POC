@@ -1,0 +1,12 @@
+{
+  "name" : "Get Sales Org for Condition",
+  "variableName" : "getSalesOrgForCondition",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputCondition",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

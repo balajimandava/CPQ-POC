@@ -1,0 +1,89 @@
+/**
+@name General Checks
+@api generalChecks
+@param inputJson Json
+@return Json
+@revision
+Rev. Date  |Developer            |Notes / Comments
+-----------|---------------------|-------------------------------------------------------------------------
+28-Mar-2019|Gaurav Singh         |Initial version
+08-May-2019|Harshit Maheshwari   |ALM 683. Added logic to catch items not getting added via Quick add with error message
+**/
+
+returnJson = json();//Used to return the needed key-values
+
+//Get the Function Name from inputJson
+functionName = jsonget(inputJson, "functionName", "string", "NO_FUNCTION");
+
+//Process to check Status of Materials
+if(functionName == "ActiveMaterial"){
+	
+	// 5/8/2019 : Harshit Maheshwari : ALM 683. START
+	userLanguage = jsonget(inputJson, "currLang", "string", "");
+	item = jsonget(inputJson, "itemNo", "string", "");
+	sku = jsonget(inputJson, "sku", "string", "");
+	ActiveMsg =  util.getRemark("ERROR_CSV_UPLOAD_14", userLanguage); // Msg: is marked as inactive for Sales Org
+	LVORMMsg = util.getRemark("ERROR_MESSAGE_13", userLanguage); // Msg: is marked for deletion for this Sales Org
+	itemAvailMsg = util.getRemark("ERROR_CSV_UPLOAD_15", userLanguage); // Msg: is not available for Sales Org
+	errorMsgArr = string[];
+	if(sku == ""){
+		append(errorMsgArr, item + " " + itemAvailMsg);
+	}
+	// 5/8/2019 : Harshit Maheshwari : ALM 683. END
+	
+	jsonput(returnJson, "materialStatus", false);//Default the Material Status to false and then based on checks convert to true
+	conditionsJson = json();//To store conditions list and their statuses
+	//Get the parameters from inputJson to check for active status
+	salesOrg = jsonget(inputJson, "salesOrg", "string", "");
+	VMSTA = jsonget(inputJson, "VMSTA", "string", "");
+	MSTAV = jsonget(inputJson, "MSTAV", "string", "");
+	LVORM = jsonget(inputJson, "LVORM", "string", "");
+	//Standard Check that LVORM should be blank so placing it as is
+	if(ISNULL(LVORM) OR LVORM == ""){
+		jsonput(returnJson, "materialStatus", true);//Set to true
+		//In case VMSTA or MSTAV is blank then set it to NULL as it is active for few Sales Orgs
+		if(VMSTA == ""){
+			VMSTA = "NULL";
+		}
+		if(MSTAV == ""){
+			MSTAV = "NULL";
+		}
+		//Query GenericConditions data table to check for existence of Sales Org and other conditions
+		tableRecords = bmql("select Condition, Value from GenericConditions where Function=$functionName AND SalesOrg=$salesOrg");
+		//Loop over record set to know if a record was found in table or not
+		for eachRecord in tableRecords{
+			//If a record is found in data table then this is an active record
+			tableCondition = get(eachRecord, "Condition");
+			tableValue = get(eachRecord, "Value");
+			//Make an entry in the conditionsJson
+			if(isnull(jsonget(conditionsJson, tableCondition))){
+				jsonput(conditionsJson, tableCondition, false);
+			}
+			if(tableCondition == "VMSTA" AND VMSTA == tableValue){
+				jsonput(conditionsJson, "VMSTA", true);
+			}
+			elif(tableCondition == "MSTAV" AND MSTAV == tableValue){
+				jsonput(conditionsJson, "MSTAV", true);
+			}
+		}
+		//Check if all the conditions are true then mark material as true else false
+		conditionNamesArray = jsonkeys(conditionsJson);
+		//Loop to check each condition
+		for eachCondition in conditionNamesArray{
+			if(NOT jsonget(conditionsJson, eachCondition, "boolean")){
+				jsonput(returnJson, "materialStatus", false);
+				// 5/8/2019 : Harshit Maheshwari : ALM 683. Store items for which are not active
+				if(sku <> ""){
+					append(errorMsgArr, item + " " + ActiveMsg);
+				}
+				break;
+			}
+		}
+	}
+	// 5/8/2019 : Harshit Maheshwari : ALM 683. Store items for which LVORM is not blank
+	else{
+		append(errorMsgArr, item + " " + LVORMMsg);
+	}																
+	jsonput(returnJson, "errorMsg", join(errorMsgArr, "/n")); // put error message array in return json.
+}
+return returnJson;

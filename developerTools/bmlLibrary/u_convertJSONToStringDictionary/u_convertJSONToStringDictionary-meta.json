@@ -1,0 +1,12 @@
+{
+  "name" : "Convert JSON to String Dictionary",
+  "variableName" : "u_convertJSONToStringDictionary",
+  "description" : "Convert a Json object into string dictionary.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

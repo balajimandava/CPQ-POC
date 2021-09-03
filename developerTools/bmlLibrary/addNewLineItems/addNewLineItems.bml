@@ -1,0 +1,81 @@
+/**
+@name Add New Line Items
+@api addNewLineItems
+@summary Add a list of parts (items) to a given quote.  The following attributes are expected in the "data" parameters:
+# BS_ID - bs id of transaction to add the parts
+# ITEMS - jsonarray of {line, quantity}
+# SESSION_ID - current user's session id.  _user_session_id is used if it is not in data
+@param data JsonArray
+@attribute _user_session_id
+@function String getSupplierCompanyName()
+@return JsonArray an array of document number just added to the quote
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-07|Tat.Leung            |Initial version
+2018-03-16|Tat.Leung            |
+*/
+templateFileLocation = "$BASE_PATH$/WebServices/AddItemTemplate.xml";
+xslFileLocation = "$BASE_PATH$/WebServices/ExtractNewLineDocNums.xsl";
+debugMode = false;
+/// populate company name, session id and bs id 
+companyName = util.getSupplierCompanyName();
+sessionId = jsonget(data, "SESSION_ID", "string", _user_session_id);
+bsId = jsonget(data, "BS_ID", "string", "");
+
+if (bsId == "") {
+    throwerror("Missing transaction bs_id in util.addNewLineItems", false);
+}
+
+/// build request payload tokens
+items = jsonget(data, "LINES", "jsonarray", jsonarray());
+numOfItems = jsonarraysize(items);
+loop = range(numOfItems);
+newDummyItems = string[];
+for i in loop {
+    quantity = jsonget(jsonarrayget(items, i, "json"), "quantity", "string", "1");
+    append(newDummyItems, "<bm:partItem><bm:part>EatonMat1</bm:part><bm:quantity>" + quantity + "</bm:quantity></bm:partItem>");
+}
+
+payload = dict("string");
+put(payload, "LINES", join(newDummyItems, ""));
+put(payload, "BS_ID", bsId);
+put(payload, "COMPANY_NAME", companyName);
+put(payload, "SESSION_ID", sessionId);
+
+/// build request
+request = applytemplate(templateFileLocation, payload, "ERROR");
+request = replace(request, "&lt;", "<");
+request = replace(request, "&gt;", ">");
+
+if (debugMode){
+	print request;
+}
+
+/// build service url
+url = "https://" + companyName + ".bigmachines.com/v1_0/receiver";
+
+/// post reqeust to add the lines
+headers = dict("string");
+parameters = request;
+response = urldata(url, "POST", headers, parameters); 
+
+/// check status
+if (get(response, "Status-Code") <> "200") {
+    // log reqeust and response for debugging
+    if(debugMode){
+	    print request;
+	    print response;
+    }
+    throwerror("Error adding items to quote " + jsonarraytostr(items), false);
+}
+
+/// extract the document number of the newly added lines
+responseData = get(response, "Message-Body");
+newDocNums = transformxml(responseData, xslFileLocation, "ERROR");
+result = jsonarray();
+if (newDocNums <> "ERROR") {
+    result = jsonarray(newDocNums);
+}
+
+return result;

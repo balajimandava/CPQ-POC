@@ -1,0 +1,15 @@
+{
+  "name" : "Resolve VPG for MPG",
+  "variableName" : "resolveVPGForMPG",
+  "description" : "Resolve the VPG for a given list of MPG's",
+  "libraryFunctions" : [ "util.u_getJsonDataForQuery" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "mpgList",
+    "type" : "String[]"
+  }, {
+    "name" : "salesOrg",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

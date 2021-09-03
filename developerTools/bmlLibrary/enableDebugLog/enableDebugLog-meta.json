@@ -1,0 +1,9 @@
+{
+  "name" : "Enable Debug Log",
+  "variableName" : "enableDebugLog",
+  "description" : "Enable debugging flags",
+  "libraryFunctions" : [ "util.u_setLogLevel" ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "attributes" : [ ]
+}

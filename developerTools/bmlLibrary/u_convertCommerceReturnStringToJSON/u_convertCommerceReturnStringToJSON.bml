@@ -1,0 +1,43 @@
+/**
+@name Convert Commerce Return String to JSON
+@api u_convertCommerceReturnStringToJSON
+@summary Convert the commerce return string to JSON format.  This function should be used to convert the result for existing function for compatibility with the JSON API.
+@param returnString String
+@function Json u_getLineFromJson(Json data, String docNum)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-21|Tat.Leung            |Initial version
+2018-03-30|Tat.Leung            |Skip empty fields in return string
+*/
+
+elements = split(returnString, "|");
+jsonResult = json();
+for element in elements {
+    // skip empty fields
+    if (isnull(element) or trim(element) == "") {
+        continue;
+    }
+    
+    attributeValues = split(element, "~");
+    if (attributeValues[0] == "1") {
+        // set the quote level attribute
+        jsonput(jsonResult, attributeValues[1], attributeValues[2]);
+    } else {
+        path = "$.items[?(@._document_number=='" + attributeValues[0] + "')]";
+        
+        // create the line if it does not exist yet
+        if (not jsonpathcheck(jsonResult, path)) {
+            line = util.u_getLineFromJson(jsonResult, attributeValues[0]);
+        }
+
+        // get the line from the jsonResult object
+        line = jsonpathgetsingle(jsonResult, path, "json");
+
+        // set the value for the attribute.
+        jsonput(line, attributeValues[1], attributeValues[2]);
+    }
+}
+
+return jsonResult;

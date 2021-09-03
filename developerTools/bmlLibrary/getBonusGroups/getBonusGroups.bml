@@ -1,0 +1,38 @@
+//************************************************************************************************************
+//** Function:    Get Bonus Griups
+//** Type:        Util Library Function   
+//**
+//** Description: Get customer specific bonus discount data for each MPG 
+//** 
+//** Return type: String  
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              30/05/2017    PKhanal         Initial version (EATON-218)
+//**              13/07/2017    Shansen         Changed to return single customer results
+//**              17/07/2017    PKhanal         Removed json path check. Now using default json values
+//**			  17/03/2020	Atul Jain		Removed commented code and added debug to print statement
+//************************************************************************************************************
+
+salesOrg = jsonget(customerInfo,"salesOrg");
+customerNumber=jsonget(customerInfo, "customerNumber");
+
+//JSON object consisting of the MPG and the corresponding BonusGroup
+mpg_bonus_groups = bmql("SELECT MPG, BonusGroup from MPG01 where SalesOrg=$salesOrg");
+
+// Customer specific bonus discount group percentage data
+customerBonus = bmql("SELECT BonusGroup, BonusDiscount FROM BonusGroupDiscounts where CustomerNumber=$customerNumber");
+customerJson = json();
+for customerRow in customerBonus {
+	jsonput(customerJson, get(customerRow, "BonusGroup"), get(customerRow, "BonusDiscount"));
+}
+mpgJson = json();
+for mpg_row in mpg_bonus_groups{
+
+		noDiscount = jsonget(customerJson, get(mpg_row, "BonusGroup"), "string", "0.0");
+		row_data = json();
+		jsonput(row_data, "BonusGroup", get(mpg_row, "BonusGroup"));
+		jsonput(row_data, "Discount", noDiscount);
+		jsonput(mpgJson, get(mpg_row, "MPG"), row_data);
+}
+return mpgJson;

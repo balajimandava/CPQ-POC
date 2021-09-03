@@ -1,0 +1,142 @@
+/**
+@name getCustomerOverlappingTransactions
+@api getCustomerOverlappingTransactions
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute customerNumber_t
+@attribute qq_CD_SelectedAdditionalSoldTo_t
+@attribute salesOrg_t
+@attribute transactionNumber_t
+@attribute transactionType_t
+@function JsonArray getListOfTransactionsForQuery(Json params)
+@return JsonArray
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-09-11|michael.yeung        | 
+2018-09-13|michael.yeung        |
+2018-10-10|michael.yeung        |
+2018-10-11|michael.yeung        | QQ-849 Fix null transaction #\
+2020-07-14|Mubarak Ali		|INC000013663117 - Used status_t instead of cpqStep_t as it was storing previous step.
+2020-11-30|Johnny Lin 		|INC000014007966 - updated conditions of the overlapping transaction
+*/
+
+// get list of sold to customers on the current transaction
+// get all transactions list with matching sold to customer and transaction type, and steps in active, sap complete, approved
+// if current transaction start end date overlap list's start/end date 
+// add REST result JSON to return JSON array
+
+retJsonArr = jsonarray();
+allSelectedSoldTo= string[];
+allSoldTo= split(qq_CD_SelectedAdditionalSoldTo_t,"#@#");
+for eachSoldTo in allSoldTo {
+  if (eachSoldTo <> "")  {
+    splitArray= split(eachSoldTo,"-");
+    eachSalesOrg= splitArray[0];
+    eachHierarchy= splitArray[1];
+    eachCustNumber= splitArray[2];
+	if (findinarray(allSelectedSoldTo,eachCustNumber) == -1) {
+		append(allSelectedSoldTo, eachCustNumber);
+	}
+  }
+}
+append(allSelectedSoldTo, customerNumber_t);
+
+listOfExistingTransactions = string [];
+for eachSoldTo in allSelectedSoldTo {
+
+	// query customer # field
+	fields = "bs_id,transactionNumber_t, vistexAgreement_t , customerNumber_t,agreementValidFrom_t,agreementValidTo_t,status_t";
+	query = json();
+	jsonput(query, "salesOrg_t", salesOrg_t );
+	jsonput(query, "transactionType_t", transactionType_t );
+	jsonput(query, "customerNumber_t", eachSoldTo );
+	params = json();
+	// jsonput(params, "fields", fields);
+	jsonput(params, "query", query);
+	
+	transactions = util.getListOfTransactionsForQuery(params);
+
+	loopCtrl = range(jsonarraysize(transactions));
+	
+	for i in loopCtrl {
+		existingTransaction = jsonarrayget(transactions, i, "json");
+		existingTransactionValidFrom = jsonget(existingTransaction, "agreementValidFrom_t", "string", "");
+		existingTransactionValidTo = jsonget(existingTransaction, "agreementValidTo_t", "string", "");
+		//Ali - INC000013663117 - Used status_t instead of cpqStep_t as it was storing previous step.
+		existingTransactionStepJson = jsonget(existingTransaction, "status_t", "json", json());
+		existingTransactionStep =  jsonget(existingTransactionStepJson,"value","string","");
+		existingTransactionNumber = jsonget(existingTransaction, "transactionNumber_t", "string", "");
+
+		if( transactionNumber_t == existingTransactionNumber OR existingTransactionNumber=="" OR isNull (existingTransactionNumber) OR existingTransactionNumber=="null" ) {
+			continue;
+		}
+		// INC000014007966 started
+		//if ( existingTransactionStep == "active" OR existingTransactionStep == "approved" OR existingTransactionStep == "sapComplete" ) {
+		if ( existingTransactionStep <> "draft" AND existingTransactionStep <> "canceled" ) {
+		// INC000014007966 ended
+			if ( existingTransactionValidTo <> "" AND existingTransactionValidFrom <> "" AND agreementValidFrom_t<>"" and agreementValidTo_t<> "") {
+				existingValidFrom = strtojavadate(existingTransactionValidFrom, "yyyy-MM-dd");
+				existingValidTo = strtojavadate(existingTransactionValidTo, "yyyy-MM-dd");
+				currentValidFrom = strtojavadate(agreementValidFrom_t, "yyyy-MM-dd");
+				currentValidTo = strtojavadate(agreementValidTo_t, "yyyy-MM-dd");
+				exitingBSID  = jsonget(existingTransaction, "bs_id", "string", "");
+				if( comparedates(existingValidFrom, currentValidTo)<= 0 AND 
+				comparedates(currentValidFrom, existingValidTo)<= 0 ) {
+					// existing transaction overlapping new transaction
+					if( findinarray(listOfExistingTransactions, exitingBSID)== -1 ) {
+						transactionCopy = jsoncopy(existingTransaction);
+						jsonarrayappend ( retJsonArr, transactionCopy );
+						append(listOfExistingTransactions, exitingBSID);
+					}
+				}
+			}
+		}
+	}
+
+	// query additional Sold to field
+	query = json();
+	jsonput(query, "salesOrg_t", salesOrg_t );
+	jsonput(query, "transactionType_t", transactionType_t );
+	likeQuery = json();
+	jsonput (likeQuery, "$like","%" + customerNumber_t + "%" );
+	jsonput(query, "qq_CD_SelectedAdditionalSoldTo_t", likeQuery );
+	params = json();
+	// jsonput(params, "fields", fields);
+	jsonput(params, "query", query);
+	transactions = util.getListOfTransactionsForQuery(params);
+
+	loopCtrl = range(jsonarraysize(transactions));
+	for i in loopCtrl {
+		existingTransaction = jsonarrayget(transactions, i, "json");
+		existingTransactionValidFrom = jsonget(existingTransaction, "agreementValidFrom_t", "string", "");
+		existingTransactionValidTo = jsonget(existingTransaction, "agreementValidTo_t", "string", "");
+		existingTransactionStep = jsonget(existingTransaction, "cPQStep_t", "string", "");
+		existingTransactionNumber = jsonget(existingTransaction, "transactionNumber_t", "string", "");
+		if( transactionNumber_t == existingTransactionNumber OR existingTransactionNumber=="" OR isNull (existingTransactionNumber) OR existingTransactionNumber=="null" ) {
+			continue;
+		}
+		// INC000014007966 started
+		//if ( existingTransactionStep == "active" OR existingTransactionStep == "approved" OR existingTransactionStep == "sapComplete" ) {
+		if ( existingTransactionStep <> "draft" AND existingTransactionStep <> "canceled" ) {
+		// INC000014007966 ended
+			if ( existingTransactionValidTo <> "" AND existingTransactionValidFrom <> "" AND agreementValidFrom_t<>"" and agreementValidTo_t<> "") {
+				existingValidFrom = strtojavadate(existingTransactionValidFrom, "yyyy-MM-dd");
+				existingValidTo = strtojavadate(existingTransactionValidTo, "yyyy-MM-dd");
+				currentValidFrom = strtojavadate(agreementValidFrom_t, "yyyy-MM-dd");
+				currentValidTo = strtojavadate(agreementValidTo_t, "yyyy-MM-dd");
+				exitingBSID  = jsonget(existingTransaction, "bs_id", "string", "");
+				if( comparedates(existingValidFrom, currentValidTo)<= 0 AND 
+				comparedates(currentValidFrom, existingValidTo)<= 0 ) {
+					// existing transaction overlapping new transaction
+					if( findinarray(listOfExistingTransactions, exitingBSID)== -1 ) {
+						transactionCopy = jsoncopy(existingTransaction);
+						jsonarrayappend ( retJsonArr, transactionCopy );
+						append(listOfExistingTransactions, exitingBSID);
+					}					
+				}
+			}
+		}
+	}
+}
+return retJsonArr;

@@ -1,0 +1,681 @@
+/**
+	@name Search material items
+	@api searchMaterialItems
+	@summary Generate a JSON array containing the IDs and details of Material Items that satisfy the specified search criteria.
+	@param searchParams StringDictionary
+	@function Boolean checkBizGroupCondition(String condition, String transactionType, String salesOrg)
+	@function String getStringDict(String Dictionary inputDict, String key, String default)
+	@return JsonArray
+	@revision
+	Rev. Date |Developer            |Notes / Comments
+	----------|---------------------|-------------------------------------------------------------------------
+	13/06/2017|apatterson           |Initial version
+	15/06/2017|apatterson           |Changed response format to match that required by 
+			  |                     |datatables.net package (to prevent double-processing on front
+			  |                     |end)
+	23/06/2107|vhignorani	        |Added Order By to Generic Search to restrict results to be 1000 records
+	09/08/2017|PKhanal              |Fix for "search term" search not working in German
+	07/09/2017|PKhanal              |Refactor item description lookups to use MAT01 instead of MAT02 (443)
+	20/11/2017|myeung               |convert search term to uppercase and search new upper case columns (UPPER_MAKTXEN, UPPER_MAKTXDE) in MAT01 to do ignorecase search
+	20/11/2017|myeung               |add MPG, PH5 group lookup based on salesOrg using checkBizGroupCondition util funciton
+	01/05/2018|MYeung               |do not prefix MPG, PH5
+	2018-05-11|vhignorani           | Added condition for Searching groups
+	2018-05-16|michael.yeung        |
+	2018-05-18|vhignorani           |Changed the return order to have Catalog # value at index 3
+	2018-05-18|Vivek.Hingorani      |Update SEARCH_ALL & SEARCH GLOBAL to have ZCATNO in search query
+	2018-05-21|michael.yeung        |
+	2018-06-06|michael.yeung        |
+	2018-06-11|shibaji.ganguly      |CSV related changes for QQ-437.
+	2018-06-26|michael.yeung        |
+	2018-07-26|dBo Haizlip			| Added checking for Distribution Channel on Group searches to prevent duplicates
+	2018-07-30|shibaji.ganguly		| Added "VTWEG" to the "columns" variable.
+	2018-07-31|shibaji.ganguly  	| Added code for QQ-721.
+	2018-08-01|shibaji.ganguly  	| Added code to rectify the JS error.
+	2018-10-15|michael.yeung        |  ALM-1440
+	2018-01-20|Smriti Chaturvedi	|ALM -  1486 To handle all the material query on MAT01
+	2019-01-29|Sharath A	        |ALM -   587 To Search material item using Cross Reference
+	2019-02-14|Harshit Maheshwari   | ALM - 938 For CSV upload. TO add items without entering Leading zeros
+	2019-03-27|Gaurav Singh			|ALM - 1911: Removed changes for Lighting and added logic to decide inactive materials
+	2019-04-27|Gaurav Singh			|JET UI changes along with ALM-587
+	2019-05-30|Harshit Maheshwari	|ALM 2115 . Added check before substring fn to avoid runtime error
+	2019-07-10|Vasundhara			|ALM-587 Added columns VMSTA, MSTAV
+	2019-09-05|Vasundhara			|ALM-2482 Added cross Reference query for CSV SEARCH
+	2019-12-05|Dhananjaya			|INC000013097805: Added new columns  MATGRP5_TEXTDE, MATGRP5_TEXTEN for all queries if the quickAddFlag <> "true"
+	2020-03-24|Atul Jain			|BackUp code kept unchanged.
+	*/
+
+	print "************ Search Material Items - Start ************";
+	// Get parameters from the input dictionary
+	searchMode = util.getStringDict(searchParams, "searchMode", "SEARCH_GLOBAL");
+	salesOrg = util.getStringDict(searchParams, "salesOrg", "");
+	distributionChannel = util.getStringDict(searchParams, "distributionChannel", "");
+	transactionType = util.getStringDict(searchParams, "transactionType", "");
+	salesOrgPrefix = "";
+	language = upper(util.getStringDict(searchParams, "language", "EN"));
+	materialGroupPrefix = util.getStringDict(searchParams, "materialGroupPrefix", "");
+	businessGrp = util.getStringDict(searchParams, "businessGrp", ""); // Added for QQ-721.
+	quickAddFlag = util.getStringDict(searchParams, "quickAdd", ""); // Added for Quick Add
+	filterItemSearchTerm = upper(util.getStringDict(searchParams, "filterItemSearchTerm", "")); // // Added for Quick Add
+	type = "normal";
+
+	searchTerm = util.getStringDict(searchParams, "filterItemSearchTerm", "");
+	if( searchTerm == "@@BLANK@@") {
+		searchTerm = "%";  // Add wildcard symbol around search term
+	} else {		
+		searchTerm = "%" + upper(searchTerm) + "%";  // Add wildcard symbol around search term
+	}
+	searchMPG = util.checkBizGroupCondition("materialGroupMPG", transactionType, salesOrg);
+	searchPH5 = util.checkBizGroupCondition("materialGroupPH5", transactionType, salesOrg);
+	//Checking if salesOrg belongs to B-LINE -- By Ani on 2/7/2018
+	bizGroupFlag = util.checkBizGroupCondition("truncateMPG", transactionType , salesOrg);
+	result = jsonarray();
+	//Handle Quick Add in if because it contains an exact match of Cat # or Mat #
+	if(quickAddFlag == "true"){
+		materialGroupIdtext = "";
+		//For B-LINE business check for Cross Reference also, for others Cross Reference is not applicable
+		//if(searchMode <> "SEARCH_UPC_OR_CROSS_REFERENCE"){ // ALM-587 Vasundhara - Commented the If and else so that quick add is not dependent on Search type.
+			//11-07-2019 Vasundhara -ALM-587: Added VMSTA and MSTAV in from list of below query to know the status of the item
+			quickAddRecordSet = bmql("select MPG, ZZCATNO, MATNR, MVGR5, MAKTXEN, MATGRP5_TEXTEN, MATGRP5_TEXTDE, VMSTA, MSTAV, LVORM, PH5 from MAT01 where VKORG = $salesOrg AND VTWEG = $distributionChannel AND (MATNR = $filterItemSearchTerm OR ZZCATNO = $filterItemSearchTerm OR EAN11 = $filterItemSearchTerm) AND VMSTA IN ('Z2','ZQ')");
+			//If records not found with MAT01 then check with Cross reference
+			recordFound = false;
+			for eachRecord in quickAddRecordSet{
+				recordFound = true;
+				break;
+			}
+			if(NOT recordFound){
+				//11-07-2019 Vasundhara -ALM-587: Added VMSTA and MSTAV in from list of below query to know the status of the item
+				quickAddRecordSet = bmql("SELECT M.MVGR5, M.MATNR, M.MPG, M.MAKTXEN, M.MATGRP5_TEXTEN, M.MATGRP5_TEXTDE, M.VMSTA, M.MSTAV, M.LVORM, M.ZZCATNO, M.PH5, C.CrossReference, C.ValidFrom, C.ValidTo FROM MAT01 M INNER JOIN CrossRefDetails C ON C.MaterialNum = M.MATNR WHERE (C.CrossReference = $filterItemSearchTerm) AND M.VKORG = $salesOrg AND M.VMSTA IN('Z2','ZQ') AND M.VTWEG = $distributionChannel ORDER BY M.MATNR"); // Added MATNR to the query to get Material Number for Cross Reference. - Added by Vasundhara - ALM-587
+			}
+			for eachRec in quickAddRecordSet{
+				//Compare From and To dates to get correct record
+				todaysDate = strtojavadate(getstrdate(), "MM/dd/yyyy");
+				validFromDate = getDate();
+				if(NOT ISNULL(get(eachRec, "ValidFrom")) AND get(eachRec, "ValidFrom") <> ""){
+					validFromDate = strtojavadate(get(eachRec, "ValidFrom"), "MM/dd/yyyy");
+				}
+				validToDate = getDate();
+				if(NOT ISNULL(get(eachRec, "ValidTo")) AND get(eachRec, "ValidTo") <> ""){
+					validToDate = strtojavadate(get(eachRec, "ValidTo"), "MM/dd/yyyy");
+				}
+				if((comparedates(validFromDate, todaysDate) == -1 AND comparedates(validToDate, todaysDate) == 1) OR recordFound){
+					lvorm = trim(get(eachRec, "LVORM"));
+					if (lvorm == "" OR lvorm == "null"){//Existing Active Material Check
+						materialGroupId = "";
+						materialGroupId = get(eachRec, "MPG");
+						materialNumStr = get(eachRec, "MATNR");
+						MaterialDescStr = get(eachRec, "MAKTXEN");
+						catalogNumStr = get(eachRec, "ZZCATNO");
+						crossReferenceStr = get(eachRec, "CrossReference");
+						vmsta = get(eachRec, "VMSTA"); //11-07-2019 Added by Vasundhara - ALM-587 
+						mstav = get(eachRec, "MSTAV"); //11-07-2019 Added by Vasundhara - ALM-587 
+						quantity = util.getStringDict(searchParams, "quantity", "1");
+						// Get material details from search results
+						if(get(eachRec, "MVGR5") <> ""){
+							// 5/30/2019 : ALM 2115 : Harshit Maheshwari : Added null and blank check before substring
+							if(NOT(isnull(get(eachRec, "MVGR5"))) AND get(eachRec, "MVGR5") <> ""){
+								materialGroupId = substring(get(eachRec, "MVGR5"), 1);
+								//ALM: 2589 Added by Sharath. To enable the Pricing Group and Pricing Group Description for Individual Quick Add 
+								if(language == "DE")
+								{
+								    materialGroupIdtext = get(eachRec, "MATGRP5_TEXTDE");
+								}else{
+								    materialGroupIdtext = get(eachRec, "MATGRP5_TEXTEN");
+								}
+								    
+							}
+						}
+						if(searchMPG){
+							materialGroupId = get(eachRec, "MPG");
+						}elif(searchPH5){
+							materialGroupId = get(eachRec, "PH5");
+							if(bizGroupFlag){
+								materialGroupIdtext = materialGroupId;
+								materialGroupId = substring(materialGroupId, 9, 12);
+							}
+						}
+						
+						itemDetails = jsonarray();
+						jsonarrayappend(itemDetails, "");  // Empty value for checkbox in data table - 0
+						jsonarrayappend(itemDetails, quantity);  // Quantity - 1
+						jsonarrayappend(itemDetails, materialGroupId);  // Material Group - 2
+						jsonarrayappend(itemDetails, materialNumStr);  // Material # - 3
+						jsonarrayappend(itemDetails, catalogNumStr);  // Catalog # - 4
+						jsonarrayappend(itemDetails, MaterialDescStr);  // Description - 5
+						jsonarrayappend(itemDetails, materialGroupIdtext);  // truncated value of GroupID for B-LINE - 6
+						jsonarrayappend(itemDetails, "normal");  // type of line whether group or normal - 7
+						jsonarrayappend(itemDetails, crossReferenceStr);  // Cross Reference - 8
+						jsonarrayappend(itemDetails, vmsta);  // VMSTA - 9 //11-07-2019 Added by Vasundhara - ALM-587 
+						jsonarrayappend(itemDetails, mstav);  // MSTAV - 10 //11-07-2019 Added by Vasundhara - ALM-587 
+						jsonarrayappend(itemDetails, lvorm);  // LVORM - 11 //11-07-2019 Added by Vasundhara - ALM-587 
+						jsonarrayappend(result, itemDetails);
+						//Only One record allowed
+						break;
+					}
+				}
+			}
+		/*}
+		else{
+			//11-07-2019 Vasundhara -ALM-587: Added VMSTA and MSTAV in from list of below query to know the status of the item
+			quickAddRecordSet = bmql("SELECT M.MVGR5, M.MATNR, M.MPG, M.MAKTXEN, M.VMSTA, M.MSTAV, M.LVORM, M.ZZCATNO, M.PH5, C.CrossReference, C.ValidFrom, C.ValidTo FROM MAT01 M INNER JOIN CrossRefDetails C ON C.MaterialNum = M.MATNR WHERE (C.CrossReference = $filterItemSearchTerm) AND M.VKORG = $salesOrg AND M.VMSTA IN('Z2','ZQ') AND M.VTWEG = $distributionChannel ORDER BY M.MATNR"); // Added MATNR to the query to get Material Number for Cross Reference. - Added by Vasundhara - ALM-587
+			//If records not found with Cross Reference then check for UPC
+			recordFound = false;
+			for eachRecord in quickAddRecordSet{
+				recordFound = true;
+				break;
+			}
+			if(NOT recordFound){
+				quickAddRecordSet = bmql("select MPG, ZZCATNO, MATNR, MVGR5, MAKTXEN, LVORM, PH5 from MAT01 where VKORG = $salesOrg AND VTWEG = $distributionChannel AND (EAN11 = $filterItemSearchTerm) AND VMSTA IN ('Z2','ZQ')");
+			}
+			for eachRec in quickAddRecordSet{
+				//Compare From and To dates to get correct record
+				todaysDate = strtojavadate(getstrdate(), "MM/dd/yyyy");
+				validFromDate = getDate();
+				if(NOT ISNULL(get(eachRec, "ValidFrom")) AND get(eachRec, "ValidFrom") <> ""){
+					validFromDate = strtojavadate(get(eachRec, "ValidFrom"), "MM/dd/yyyy");
+				}
+				validToDate = getDate();
+				if(NOT ISNULL(get(eachRec, "ValidTo")) AND get(eachRec, "ValidTo") <> ""){
+					validToDate = strtojavadate(get(eachRec, "ValidTo"), "MM/dd/yyyy");
+				}
+				if((comparedates(validFromDate, todaysDate) == -1 AND comparedates(validToDate, todaysDate) == 1) OR NOT recordFound){
+					lvorm = trim(get(eachRec, "LVORM"));
+					if (lvorm == "" OR lvorm == "null"){//Existing Active Material Check
+						materialGroupId = "";
+						materialGroupId = get(eachRec, "MPG");
+						materialNumStr = get(eachRec, "MATNR");
+						MaterialDescStr = get(eachRec, "MAKTXEN");
+						catalogNumStr = get(eachRec, "ZZCATNO");
+						crossReferenceStr = get(eachRec, "CrossReference");
+						vmsta = get(eachRec, "VMSTA"); //11-07-2019 Added by Vasundhara - ALM-587 
+						mstav = get(eachRec, "MSTAV"); //11-07-2019 Added by Vasundhara - ALM-587 
+						quantity = util.getStringDict(searchParams, "quantity", "1");
+						// Get material details from search results
+						if(get(eachRec, "MVGR5") <> ""){
+							// 5/30/2019 : ALM 2115 : Harshit Maheshwari : Added null and blank check before substring
+							if(NOT(isnull(get(searchParams, "MVGR5"))) AND get(searchParams, "MVGR5") <> ""){
+								materialGroupId = substring(get(searchParams, "MVGR5"), 1);
+							}
+						}
+						if(searchMPG){
+							materialGroupId = get(eachRec, "MPG");
+						}elif(searchPH5){
+							materialGroupId = get(eachRec, "PH5");
+							if(bizGroupFlag){
+								materialGroupIdtext = materialGroupId;
+								materialGroupId = substring(materialGroupId, 9, 12);
+							}
+						}
+						
+						itemDetails = jsonarray();
+						jsonarrayappend(itemDetails, "");  // Empty value for checkbox in data table - 0
+						jsonarrayappend(itemDetails, quantity);  // Quantity - 1
+						jsonarrayappend(itemDetails, materialGroupId);  // Material Group - 2
+						jsonarrayappend(itemDetails, materialNumStr);  // Material # - 3
+						jsonarrayappend(itemDetails, catalogNumStr);  // Catalog # - 4
+						jsonarrayappend(itemDetails, MaterialDescStr);  // Description - 5
+						jsonarrayappend(itemDetails, materialGroupIdtext);  // truncated value of GroupID for B-LINE - 6
+						jsonarrayappend(itemDetails, "normal");  // type of line whether group or normal - 7
+						jsonarrayappend(itemDetails, crossReferenceStr);  // Cross Reference - 8
+						jsonarrayappend(itemDetails, vmsta);  // VMSTA - 9 //11-07-2019 Added by Vasundhara - ALM-587 
+						jsonarrayappend(itemDetails, mstav);  // MSTAV - 10 //11-07-2019 Added by Vasundhara - ALM-587 
+						jsonarrayappend(itemDetails, lvorm);  // LVORM - 11 //11-07-2019 Added by Vasundhara - ALM-587 
+						jsonarrayappend(result, itemDetails);
+						//Only One record allowed
+						break;
+					}
+				}
+			}
+		}*/
+	}else{ // Quick Quoting
+		// Determine the sales org prefix to use
+		rows = bmql("SELECT Prefix FROM MPG_Prefix WHERE VKORG = $salesOrg");
+		for row in rows {
+			salesOrgPrefix = get(row, "Prefix");
+		}
+
+		// Set up search, based on mode specified by user
+		searchResultSet = recordset();
+		searchResultSet2 = recordset();
+		searchResultSet3 = recordset();
+		searchMG5 = util.checkBizGroupCondition("materialGroupMG5", transactionType, salesOrg);
+		searchBrand = util.checkBizGroupCondition("materialGroupBrand", transactionType, salesOrg);
+		
+		// Dynamic BMQL elements
+		columns = "MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, VTWEG, MATGRP5_TEXTDE, MATGRP5_TEXTEN";
+		fields = dict("string");
+		lang = dict("string");
+		put(fields, "$org", salesOrg);
+		put(fields, "$VMSTA", "Z2");
+		put(fields, "$MTART", "DIEN");
+		put(fields, "$MATNR", "VPG%");
+		put(fields, "$searchTerm", searchTerm);
+
+		if (searchMode == "SEARCH_WITHIN_GROUPS") {
+			// Retrieve a list of material items based on a set of groups
+			filterMaterialGroupIds = split(util.getStringDict(searchParams, "filterMaterialGroupIds", ""), ", ");
+
+			// Prepend sales org prefix to each material group ID
+			prefixedMaterialGroupIds = string[];
+			materialPricingGroupIds= string[];
+			for groupId in filterMaterialGroupIds {
+				prefixedGroupId = salesOrgPrefix + groupId;
+				append(prefixedMaterialGroupIds, prefixedGroupId);
+			}
+
+			if( searchMPG ) {
+				//Smriti -  Added the below bussmann logic for ALM- 1621
+				if(businessGrp == "BUSSMANN") {        
+					searchResultSet3 = bmql("Select MPG From Bussman_GroupDesc Where VPG in $prefixedMaterialGroupIds And SalesOrg = $salesOrg");
+					for eachVPG in searchResultSet3 {                
+						materialGroupVal = get(eachVPG, "MPG");
+					   append(materialPricingGroupIds, materialGroupVal);					  
+					}
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE, MATGRP5_TEXTEN FROM MAT01 WHERE (VKORG = $salesOrg AND VTWEG = $distributionChannel AND MPG IN $materialPricingGroupIds AND VMSTA in('Z2','Z3','ZQ') AND MTART<>'DIEN')");	
+				}				
+				else
+				{
+				searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE, MATGRP5_TEXTEN FROM MAT01 WHERE (VKORG = $salesOrg AND VTWEG = $distributionChannel AND MPG IN $prefixedMaterialGroupIds AND VMSTA in('Z2','Z3','ZQ') AND MTART<>'DIEN')");
+				}
+			} elif ( searchPH5 ) {
+				if(businessGrp == "CH-EMEA") {   
+				searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE, MATGRP5_TEXTEN FROM MAT01 WHERE (VKORG = $salesOrg AND VTWEG = $distributionChannel AND PH5 IN $prefixedMaterialGroupIds AND VMSTA in('Z2','Z3','ZQ') AND MTART<>'DIEN')");
+				}
+				elif(businessGrp == "B-LINE") {   
+				searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE, MATGRP5_TEXTEN FROM MAT01 WHERE (VKORG = $salesOrg AND VTWEG = $distributionChannel AND PH5 IN $prefixedMaterialGroupIds AND VMSTA in('Z2','ZQ') AND MTART<>'DIEN')");
+				}
+			} else {
+				if(salesOrg == "4942"){			
+				searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE, MATGRP5_TEXTEN FROM MAT01 WHERE (VKORG = $salesOrg AND VTWEG = $distributionChannel AND MVGR5 IN $prefixedMaterialGroupIds AND (VMSTA is null OR  VMSTA in('Z2','Z3','Z5','MA','M6','M7')) AND (MSTAV is null OR MSTAV in ('Z2','Z3','Z5','MA','M6','M7')) AND MTART<>'DIEN')");
+				}
+				if(salesOrg == "4946")
+				{
+				searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE, MATGRP5_TEXTEN FROM MAT01 WHERE (VKORG = $salesOrg AND VTWEG = $distributionChannel AND MVGR5 IN $prefixedMaterialGroupIds AND (VMSTA is null OR VMSTA in('Z2','Z3','Z5','MA','M5','M6','M7')) AND (MSTAV is null OR MSTAV in ('Z2','Z3','Z5','MA','M5','M6','M7')) AND MTART<>'DIEN')");
+				}
+			}
+		} elif(searchMode == "SEARCH_GLOBAL"){
+			// Search for a specific material item
+			// Search query is dependent on language
+			if (language == "DE") {
+				// German language search
+				// GERMAN LANGUAGE DESCRIPTIONS CURRENTLY DO NOT EXIST SO THIS FAILS TO RETURN ANYTHING. FOR NOW THE ENGLISH SEARCH IS USED
+				//searchResultSet = bmql("SELECT MATNR, MVGR5, LVORM FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND MSTAE='Z1' AND VMSTA='Z2' AND (MATNR LIKE $searchTerm OR MAKTXDE LIKE $searchTerm)) ORDER BY MATNR");
+				
+				if( searchMPG ) {
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTDE FROM MAT01 WHERE (MPG IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','Z3','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");		
+				} elif ( searchPH5 ) {
+					if(businessGrp == "CH-EMEA") {   
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTDE FROM MAT01 WHERE (PH5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','Z3','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+					elif(businessGrp == "B-LINE") {
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTDE FROM MAT01 WHERE (PH5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+				} else {
+					if(salesOrg == "4942"){
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTDE FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND (VMSTA is null OR  VMSTA in('Z2','Z3','Z5','MA','M6','M7')) AND (MSTAV is null OR MSTAV in ('Z2','Z3','Z5','MA','M6','M7')) AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+					if(salesOrg == "4946")
+					{
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTDE FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND (VMSTA is null OR VMSTA in('Z2','Z3','Z5','MA','M5','M6','M7')) AND (MSTAV is null OR MSTAV in ('Z2','Z3','Z5','MA','M5','M6','M7')) AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");	
+					}
+				}		
+				
+			} else {
+				// English language search (default)
+				if( searchMPG ) {
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTEN FROM MAT01 WHERE (MPG IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','Z3','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+				} elif ( searchPH5 ) {
+					if(businessGrp == "CH-EMEA") { 
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTEN FROM MAT01 WHERE (PH5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','Z3','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+					elif(businessGrp == "B-LINE") {
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTEN FROM MAT01 WHERE (PH5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+					
+				}elif(searchBrand){
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTEN FROM MAT01 WHERE (MVGR1 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','Z3','ZB','ZC','ZJ','ZN') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					
+				} else {
+					if(salesOrg == "4942"){
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTEN FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND (VMSTA is null OR  VMSTA in('Z2','Z3','Z5','MA','M6','M7')) AND (MSTAV is null OR MSTAV in ('Z2','Z3','Z5','MA','M6','M7')) AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+				}
+				if(salesOrg == "4946")
+				{
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO,MATGRP5_TEXTEN FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND (VMSTA is null OR VMSTA in('Z2','Z3','Z5','MA','M5','M6','M7')) AND (MSTAV is null OR MSTAV in ('Z2','Z3','Z5','MA','M5','M6','M7')) AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+				}
+				
+				}
+				
+			}
+		}elif(searchMode == "SEARCH_GROUPS"){
+		   where = "VKORG = $org AND VMSTA=$VMSTA AND MTART=$MTART AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm)"; // AND MATNR like $MATNR";
+		   searchResultSet2 = bmql("Select $columns from MAT01 where $where ORDER by MATNR",lang,fields); 
+
+		} elif( searchMode == "SEARCH_ALL") {
+			// Search for a specific material item
+
+			// Search query is dependent on language
+			if (language == "DE") {
+				// German language search
+				// GERMAN LANGUAGE DESCRIPTIONS CURRENTLY DO NOT EXIST SO THIS FAILS TO RETURN ANYTHING. FOR NOW THE ENGLISH SEARCH IS USED
+				//searchResultSet = bmql("SELECT MATNR, MVGR5, LVORM FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND MSTAE='Z1' AND VMSTA='Z2' AND (MATNR LIKE $searchTerm OR MAKTXDE LIKE $searchTerm)) ORDER BY MATNR");
+				
+				if( searchMPG ) {
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE FROM MAT01 WHERE (MPG IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','Z3','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");		
+				} elif ( searchPH5 ) {
+					if(businessGrp == "CH-EMEA") { 
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE  FROM MAT01 WHERE (PH5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','Z3','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+					if(businessGrp == "B-LINE") {
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE  FROM MAT01 WHERE (PH5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+				} else {
+					if(salesOrg == "4942"){					
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE  FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND (VMSTA is null OR  VMSTA in('Z2','Z3','Z5','MA','M6','M7')) AND (MSTAV is null OR MSTAV in ('Z2','Z3','Z5','MA','M6','M7')) AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+				}
+					if(salesOrg == "4946")
+					{
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTDE  FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND (VMSTA is null OR VMSTA in('Z2','Z3','Z5','MA','M5','M6','M7')) AND (MSTAV is null OR MSTAV in ('Z2','Z3','Z5','MA','M5','M6','M7')) AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+					
+				}			
+				
+			} else {
+				// English language search (default)
+				if( searchMPG ) {
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTEN FROM MAT01 WHERE (MPG IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in('Z2','Z3','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+				} elif ( searchPH5 ) {
+					if(businessGrp == "CH-EMEA") { 
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTEN FROM MAT01 WHERE (PH5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in ('Z2','Z3','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+					if(businessGrp == "B-LINE") { 			
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTEN FROM MAT01 WHERE (PH5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND VMSTA in ('Z2','ZQ') AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+					}
+				 else {
+					if(salesOrg == "4942"){	
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTEN FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND (VMSTA is null OR  VMSTA in('Z2','Z3','Z5','MA','M6','M7')) AND (MSTAV is null OR MSTAV in ('Z2','Z3','Z5','MA','M6','M7')) AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+					if(salesOrg == "4946")
+					{ 
+					searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, MATGRP5_TEXTEN FROM MAT01 WHERE (MVGR5 IS NOT NULL AND VKORG = $salesOrg AND VTWEG = $distributionChannel AND (VMSTA is null OR VMSTA in('Z2','Z3','Z5','MA','M5','M6','M7')) AND (MSTAV is null OR MSTAV in ('Z2','Z3','Z5','MA','M5','M6','M7')) AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm) AND MTART<>'DIEN') ORDER BY MATNR");
+					}
+					
+				}		
+			}
+		   where = "VKORG = $org AND VMSTA=$VMSTA AND MTART=$MTART AND (MATNR LIKE $searchTerm OR UPPER_MAKTXEN LIKE $searchTerm OR ZZCATNO LIKE $searchTerm)"; // AND MATNR like $MARTNR";
+		   searchResultSet2 = bmql("Select $columns from MAT01 where $where ORDER by MATNR",lang,fields); 
+		} elif(searchMode == "SEARCH_CSV") {
+			print "Inside 'SEARCH_CSV' module...";
+			// To be used only for search through CSV.
+			materialNum = util.getStringDict(searchParams, "materialNum", "");
+			catalogNum = util.getStringDict(searchParams, "catalogNum", "");
+			EANNum = util.getStringDict(searchParams, "EANNum", "");
+			crossRefNum = util.getStringDict(searchParams, "crossRefNum", ""); //03-09-2019 Vasundhara Added as a part of ALM-2482
+			distributionChannel = util.getStringDict(searchParams, "distributionChannel", "");
+			
+			if(crossRefNum <> ""){ //03-09-2019 Vasundhara Added if condition as a part of ALM-2482 
+				searchResultSet = bmql("SELECT MAT01.MATNR, MAT01.MVGR5, MAT01.MPG, MAT01.PH5, MAT01.LVORM, MAT01.MTART, MAT01.ZZCATNO,MAT01.VMSTA, MAT01.MSTAV, MAT01.MATGRP5_TEXTDE, MAT01.MATGRP5_TEXTEN ,CrossRefDetails.CrossReference FROM CrossRefDetails INNER JOIN MAT01 ON CrossRefDetails.MaterialNum = MAT01.MATNR WHERE CrossRefDetails.CrossReference LIKE $crossRefNum AND CrossRefDetails.SalesOrg = MAT01.VKORG AND MAT01.VMSTA in('Z2','ZQ') AND MAT01.VTWEG = $distributionChannel ORDER BY MAT01.MATNR");
+			}
+			else{
+				// 2/14/2019 Harshit Maheshwari . Added MATNR_SEARCH in where clause
+				//Gaurav: Added VMSTA and MSTAV in from list of below query for 1911 to know the status of the item
+				searchResultSet = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM, MTART, ZZCATNO, VMSTA, MSTAV, MATGRP5_TEXTDE, MATGRP5_TEXTEN FROM MAT01 WHERE ((MATNR = $materialNum OR MATNR_SEARCH = $materialNum OR ZZCATNO = $catalogNum OR EAN11 = $EANNum) AND VKORG = $salesOrg AND VTWEG = $distributionChannel) ORDER BY MATNR"); 
+			}			
+
+		}
+		elif(businessGrp == "B-LINE" AND searchMode == "SEARCH_UPC_OR_CROSS_REFERENCE") {  //Sharath: Added as part of  ALM-587
+			searchResultSet = bmql("SELECT MAT01.MATNR, MAT01.MVGR5, MAT01.MPG, MAT01.PH5, MAT01.LVORM, MAT01.MTART, MAT01.ZZCATNO, MAT01.MATGRP5_TEXTDE, MAT01.MATGRP5_TEXTEN, CrossRefDetails.CrossReference FROM CrossRefDetails INNER JOIN MAT01 ON CrossRefDetails.MaterialNum = MAT01.MATNR WHERE CrossRefDetails.CrossReference LIKE $searchTerm AND CrossRefDetails.SalesOrg = MAT01.VKORG AND MAT01.VMSTA in('Z2','ZQ') AND MAT01.VTWEG = $distributionChannel ORDER BY MAT01.MATNR");
+			//If records not found with Cross Reference then check for UPC
+			recordFound = false;
+			for eachRecord in searchResultSet{
+				recordFound = true;
+				break;
+			}
+			if(NOT recordFound){
+				searchResultSet = bmql("select MPG, ZZCATNO, MATNR, MVGR5, MAKTXEN, LVORM, MTART, PH5, MATGRP5_TEXTDE, MATGRP5_TEXTEN from MAT01 where VKORG = $salesOrg AND VTWEG = $distributionChannel AND (EAN11 = $filterItemSearchTerm) AND VMSTA IN ('Z2','ZQ')");
+			}
+		}
+		//Process result set, and determine material number for each record
+		materialItemGroupsDict = dict("string");
+		materialItemGroupsTextDict = dict("string");
+		materialItemCatalogNumDict = dict("string");
+		materialItemTypeDict = dict("string");
+		materialItemStatusDict = dict("string");
+		materialItemCrossRefDict = dict("string");
+		for row in searchResultSet {
+			// Only add items where LVORM is empty
+			materialGroupIdtext = "";
+			lvorm = trim(get(row, "LVORM"));
+			
+			if (lvorm == "" OR lvorm == "null" OR searchMode == "SEARCH_CSV") {
+				
+				//Dhananjaya:: Added this condition to fix the incident INC000013097805
+				//To get the pricing group description
+				if (language == "DE" AND NOT(isnull(get(row, "MATGRP5_TEXTDE")))) {
+					
+					materialGroupIdtext = get(row, "MATGRP5_TEXTDE");
+					
+				}elif(NOT(isnull(get(row, "MATGRP5_TEXTEN")))) {
+					
+					materialGroupIdtext = get(row, "MATGRP5_TEXTEN");
+					
+				}
+				
+				// Get material details from search results
+				materialGroupId = substring(get(row, "MVGR5"), 1);
+				if( searchMPG ) {
+					materialGroupId = get(row, "MPG");
+				} elif ( searchPH5 ) {
+					materialGroupId = get(row, "PH5");
+					if(bizGroupFlag){
+						materialGroupIdtext = materialGroupId;
+						materialGroupId = substring(materialGroupId,9,12);
+					}
+				}
+				// For QQ-721 - Start //
+				if(businessGrp == "BUSSMANN") {
+					grpBmql = BMQL("Select VPG From Bussman_GroupDesc Where MPG = $materialGroupId And SalesOrg = $salesOrg");
+					for eachVPG in grpBmql {
+						materialGroupId = get(eachVPG, "VPG");
+						break;
+					}
+				}
+
+				// For QQ-721 - End //
+				materialItemId = get(row, "MATNR");
+				catalogNumber = get(row, "ZZCATNO");
+				mtart = get(row, "MTART");
+				put(materialItemGroupsDict, materialItemId, materialGroupId);
+				put(materialItemGroupsTextDict, materialItemId, materialGroupIdtext);
+				put(materialItemCatalogNumDict, materialItemId, catalogNumber);
+				if( mtart == "DIEN") {
+					put(materialItemTypeDict, materialItemId, "group");
+				} else {
+					put(materialItemTypeDict, materialItemId, "normal");
+				}
+				//Populate Cross References for B-Line
+				crossReference = "";
+				if(businessGrp == "B-LINE"){
+					crossReference = get(row, "CrossReference");
+				}
+				put(materialItemCrossRefDict, materialItemId, crossReference);
+				
+				// To send the active status back to CSV search call.
+				if(searchMode == "SEARCH_CSV") {
+					//Gaurav: Additional checks for checking active status
+					inputJson = json("{\"functionName\":\"ActiveMaterial\",\"salesOrg\":\"" + salesOrg + "\",\"itemId\":\"" + materialItemId + "\",\"VMSTA\":\"" + get(row, "VMSTA") + "\",\"MSTAV\":\"" + get(row, "MSTAV") + "\"}");
+					responseJson = util.generalChecks(inputJson);
+					activeFlag = jsonget(responseJson, "materialStatus", "boolean", false);
+					if ((lvorm == "" OR lvorm == "null") AND activeFlag){
+						put(materialItemStatusDict, materialItemId, "active");
+					} else {
+						put(materialItemStatusDict, materialItemId, "inactive");
+					}
+				}
+			}
+		}
+		for row in searchResultSet2 {
+			// Only add items where LVORM is empty
+			materialGroupIdtext = "";
+			lvorm = trim(get(row, "LVORM"));
+			
+			//  Skip it if it's not in the same distribution channel
+			vtweg= get(row, "VTWEG");
+			if (vtweg <> distributionChannel) {
+			  continue;
+			}
+			
+			if (lvorm == "" OR lvorm == "null") {
+				
+				//Dhananjaya:: Added this condition to fix the incident INC000013097805
+				//To get the pricing group description
+				if (language == "DE" AND NOT(isnull(get(row, "MATGRP5_TEXTDE")))) {
+					
+					materialGroupIdtext = get(row, "MATGRP5_TEXTDE");
+					
+				}elif(NOT(isnull(get(row, "MATGRP5_TEXTEN")))) {
+					
+					materialGroupIdtext = get(row, "MATGRP5_TEXTEN");
+					
+				}
+				
+				// Get material details from search results
+				materialGroupId = substring(get(row, "MVGR5"), 1);
+				if( searchMPG ) {
+					materialGroupId = get(row, "MPG");
+				} elif ( searchPH5 ) {
+					materialGroupId = get(row, "PH5");
+					if(bizGroupFlag){
+						materialGroupIdtext = materialGroupId;
+						materialGroupId = substring(materialGroupId,9,12);
+					}
+				}
+
+				// For QQ-721 - Start //
+				if(businessGrp == "BUSSMANN") {
+					grpBmql = BMQL("Select VPG From Bussman_GroupDesc Where MPG = $materialGroupId And SalesOrg = $salesOrg");
+					for eachVPG in grpBmql {
+						materialGroupId = get(eachVPG, "VPG");
+						break;
+					}
+				}
+				// For QQ-721 - End //
+				materialItemId = get(row, "MATNR");
+				catalogNumber = get(row, "ZZCATNO");
+				mtart = get(row, "MTART");
+				if(startswith(materialItemId, "VPG")) {
+					put(materialItemGroupsDict, materialItemId, materialGroupId);
+					put(materialItemGroupsTextDict, materialItemId, materialGroupIdtext);
+					put(materialItemCatalogNumDict, materialItemId, catalogNumber);
+					if( mtart == "DIEN") {
+						put(materialItemTypeDict, materialItemId, "group");
+					} else {
+						put(materialItemTypeDict, materialItemId, "normal");
+					}
+				}
+			}
+		}
+
+		// Get material item descriptions
+		// MAT02 is no longer used for the descriptions
+		materialItemIds = keys(materialItemGroupsDict);
+		materialItemIds = sort( materialItemIds, "asc", "text" );
+
+		materialDescriptionDict = dict("string");
+			
+		//the column for the language that the description should be in
+		descLanguage = "MAKTX"+ language;
+		// Query MAT01 for both German and English Descriptions
+		descriptionResultSet = bmql("select MATNR, MAKTXEN, MAKTXDE from MAT01 where MATNR in $materialItemIds");
+
+
+		//descriptionResultSet = bmql("SELECT MATNR, MAKTX FROM MAT02 WHERE SPRAS = $language AND MATNR IN $materialItemIds");
+
+		for description in descriptionResultSet {
+			materialItemId = get(description, "MATNR");
+			materialItemDescription = "";
+			// Check that the german description is present if the specified language is german
+			// If German is not present then default to English
+			if (get(description, desclanguage) == "") {
+				materialItemDescription = get(description, "MAKTXEN");
+			}
+			else {
+				materialItemDescription = get(description, descLanguage);
+			}
+			//materialItemDescription = get(description, "MAKTX");
+			put(materialDescriptionDict, materialItemId, materialItemDescription);
+		}
+
+		// Format response as a JSON array
+		result = jsonarray();
+		userGroups = util.getStringDict(searchParams, "userGroups", ""); // Added for JET UI
+		//if(find(userGroups, "jETUITest") <> -1){
+			for materialItemId in materialItemIds {
+				// Store item details
+				itemDetails = jsonarray();
+				jsonarrayappend(itemDetails, "");  // Empty value for checkbox in data table
+				//Commented for 1911
+				jsonarrayappend(itemDetails, get(materialItemTypeDict, materialItemId)); // type of line whether group or normal
+				jsonarrayappend(itemDetails, "1");  // Qty
+				jsonarrayappend(itemDetails, get(materialItemGroupsDict, materialItemId));  // Material group
+				jsonarrayappend(itemDetails, get(materialItemGroupsTextDict, materialItemId)); //truncated value of GroupID for B-LINE
+				jsonarrayappend(itemDetails, get(materialItemCatalogNumDict, materialItemId)); //catalog Number
+				jsonarrayappend(itemDetails, materialItemId);                               // Material item ID
+				descrptn = get(materialDescriptionDict, materialItemId);
+				if(businessGrp == "BUSSMANN" AND startswith(materialItemId, "VPG")) {
+					matrGrpId = get(materialItemGroupsDict, materialItemId);
+					rsBmql = BMQL("Select Description From Bussman_GroupDesc Where VPG = $matrGrpId And SalesOrg = $salesOrg");
+					for eachDesc in rsBmql {
+						descrptn = get(eachDesc, "Description"); // Material item description
+						break;
+					}
+				}
+				jsonarrayappend(itemDetails, descrptn); // Material item description
+				jsonarrayappend(itemDetails, get(materialItemCrossRefDict, materialItemId)); // Cross Reference Number
+				
+				if(searchMode == "SEARCH_CSV"){
+					jsonarrayappend(itemDetails, get(materialItemStatusDict, materialItemId)); // status of line whether active or inactive to be passed only on CSV search call.
+				}
+				jsonarrayappend(result, itemDetails);
+				if(jsonarraysize(result) > 4999){
+					break;
+				}
+			}
+		//}
+		
+		/*
+		else{
+			//QQ Population
+			for materialItemId in materialItemIds {
+				// Store item details
+				itemDetails = jsonarray();
+				jsonarrayappend(itemDetails, "");  // Empty value for checkbox in data table
+				//Commented for 1911
+				jsonarrayappend(itemDetails, "1");  // Qty
+				jsonarrayappend(itemDetails, get(materialItemGroupsDict, materialItemId));  // Material group
+				jsonarrayappend(itemDetails, materialItemId);                               // Material item ID
+				jsonarrayappend(itemDetails, get(materialItemCatalogNumDict, materialItemId)); //catalog Number
+				descrptn = get(materialDescriptionDict, materialItemId);
+				if(businessGrp == "BUSSMANN" AND startswith(materialItemId, "VPG")) {
+					matrGrpId = get(materialItemGroupsDict, materialItemId);
+					rsBmql = BMQL("Select Description From Bussman_GroupDesc Where VPG = $matrGrpId And SalesOrg = $salesOrg");
+					for eachDesc in rsBmql {
+						descrptn = get(eachDesc, "Description"); // Material item description
+						break;
+					}
+				} 
+				jsonarrayappend(itemDetails, descrptn); // Material item description
+				jsonarrayappend(itemDetails, get(materialItemGroupsTextDict, materialItemId)); //truncated value of GroupID for B-LINE
+				jsonarrayappend(itemDetails, get(materialItemTypeDict, materialItemId)); // type of line whether group or normal
+				jsonarrayappend(itemDetails, get(materialItemCrossRefDict, materialItemId)); // Cross Reference Number
+				
+				if(searchMode == "SEARCH_CSV") {
+					jsonarrayappend(itemDetails, get(materialItemStatusDict, materialItemId)); // status of line whether active or inactive to be passed only on CSV search call.
+				}
+				jsonarrayappend(result, itemDetails);
+			}
+		}   */
+	}
+	print "************ Search Material Items - End ************";
+	print jsonarraysize(result) ;
+	return result;

@@ -1,0 +1,12 @@
+{
+  "name" : "Resolve PH4 for MPG",
+  "variableName" : "resolvePH4ForMPG",
+  "description" : "Resolve the PH4 values for a given list of MPG's",
+  "libraryFunctions" : [ "util.u_getJsonDataForQuery" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "mpgList",
+    "type" : "String[]"
+  } ],
+  "attributes" : [ ]
+}

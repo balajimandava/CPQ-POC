@@ -1,0 +1,27 @@
+/**
+@name Get Transaction Data
+@api getTransactionData
+@summary Get Transaction Header Data
+@param bsId String
+@param xpaths String[]
+@attribute _user_session_id
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-13|Tat.Leung            |Initial version
+2020-03-19|Atul Jain		|Deleted attribute "_user_session_id"
+*/
+xmlData = gettransaction(atoi(bsId));
+values = readxmlsingle(xmlData, xpaths);
+jsonData = json();
+for xpath in xpaths {
+    paths = split(xpath, "/");
+    key = xpath;
+    if (sizeofarray(paths) > 1) {
+        key = paths[sizeofarray(paths) - 1];
+    }
+    jsonput(jsonData, key, get(values, xpath));
+}
+print jsonData;
+return jsonData;

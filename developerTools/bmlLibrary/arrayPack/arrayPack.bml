@@ -1,0 +1,27 @@
+//***********************************************************************************************************
+//** Function:    	Array Pack
+//** Type:        	BML Util Function   
+//**                                                                                                       
+//** Description: 	Converts a string array into a delimited packed string                                            
+//**                                                                                                       
+//** Parameters:  	inputArray (string[])
+//**			delimiter (string)                                                                                                                          
+//**                                                                                   
+//** History:   	Date		Author			VER #		Comment                                                              
+//**            	2017.05.04	dBoHaizlip(PW)		VER 1.0		Initial
+//***********************************************************************************************************
+
+retString= "";
+delimit = delimiter;
+if(len(delimit) == 0) { //SET DEFAULT
+
+	delimit = "$,$";
+}
+for each in inputArray{
+		if(retString <> ""){
+			retString= retString + delimit;
+		}
+		retString= retString + each;
+}
+
+return retString;

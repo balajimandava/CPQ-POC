@@ -1,0 +1,12 @@
+ret = default;
+//Gaurav: Added a check for null value in dictionary
+if(NOT isnull(inputDict) AND containskey(inputDict,key) AND NOT isnull(get(inputDict,key))){
+	ret = get(inputDict,key);
+}
+
+//  If the default is a number then set it a number if the tag is there but null
+if ( ((default == "0.00") OR (default == "0")) AND (isnull(ret)) ) {
+  ret= default;
+}
+
+return ret;

@@ -1,0 +1,1624 @@
+/**
+@name ntCustomerSearch
+@api ntCustomerSearch
+@summary New Transaction Customer Search
+@attribute _system_company_name
+@attribute _system_user_groups
+@attribute isDistiQuote_t
+@attribute isVendorQuote_t
+@attribute ntDistributionChannel_t
+@attribute ntSelectedSalesOrg_t
+@attribute owner_t
+@attribute qq_customerSearchField_t_t
+@attribute qq_ntTransactionType_t
+@function Boolean checkBizGroupCondition(String condition, String transactionType, String salesOrg)
+@function Dictionary of String Dictionaries customerMasterInfo(String Dictionary inputDict)
+@function JsonArray customerHierarchyLookup(String customerNumber, String customerSalesOrg)
+@function JsonArray getCUSMAS(String Dictionary parmsDict)
+@function String Dictionary getRegionsForSalesOrg(String[] salesOrgs)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-09|michael.yeung        |
+2018-07-11|michael.yeung        |
+2018-07-16|michael.yeung        |
+2018-07-18|michael.yeung        |
+2018-07-20|michael.yeung        |
+2018-08-01|Vivek.Hingorani      | QQ:735 Updated HierarchyDatatable query to have search term in where clause
+2018-08-01|Vivek.Hingorani      | QQ:735 UpdatedES-EMEA non CSP query to have all search(searchTerm,properSearchTerm & lowersearchTerm) terms in where clause
+
+2018-08-08|michael.yeung        | QQ-759 do not show customers ship to that is the same as Sold to.  They should be displayed as sold to only.
+2018-08-19|michael.yeung        |
+2018-08-21|michael.yeung        | QQ: 735 remove duplicate ship to rows
+2018-09-28|michael.yeung        |
+2018-10-05|michael.yeung        |
+2018-10-06|michael.yeung        |QQ-844
+2018-10-11|michael.yeung        |
+2018-10-13|michael.yeung        |
+2018-10-13|Michael.Yeung        |
+2018-10-13|michael.yeung        |Remove ship to customer that does not exist
+2018-10-16|michael.yeung        |QQ-844 add check for ship to belongs to sales user only for ES-EMEA
+2018-10-18|michael.yeung        |
+2018-10-22|michael.yeung        |
+2018-10-24|michael.yeung        | keep sold to record if ship to is not found
+2018-11-13|Harshit Mehta		|Defect# 1494 : Increasing 500 limit to 800 to make sure all customer data will available in search.
+2018-12-28|Smriti Chaturvedi	| Defect 1256- Search based on NAME2 field
+2019-03-22|Harshit Mehta		|Defect# 1880 : Remove condition KUNNR == KUNN2 for shipto customer type.
+2019-03-28|Harshit Mehta		|Defect# 1933 : Added extra condition for KUNNR == KUNN2 column to check displayAssociatedShiptoCustomer.
+2019-04-01|Harshit Mehta		|Defect# 1933 : Removing Code added as part of Defect# 1880
+2019-05-03|Harshit Mehta		|Defect# 1990 : Adding code for BLine to show individual Sold To & SoldTo + Ship To both
+2019-05-30|Harshit Mehta		|Defect# 1448 : Added code to call "customerHierarchyLookupNew" instead of customerHierarchyLookup.
+2019-05-30|Harshit Mehta		|Defect# 2162 : Added code to restrict individual soldTo on customer search result for BLine partners and display only shipTo + SoldTo.
+2019-06-04|Harshit Mehta 		|Defect# 2166 : ES-EMEA : Removing code to restrict shiptoCustomer for partner user in search result if corresponding soldto is not accessible to that partner.
+2019-12-05|Pooja Gupta			|Defect 2123 : enable record in search where sold to = ship to on Quotes
+2020-02-14|Chandan				|49704 - Eagle Development - Added the BZIRK (Slaes District column) in every query to be fetched from CUSMAS data table
+2020-02-27|Nithin               |CPQ-637 - Populating oneTimeCustomer for Partner org user
+2020-03-11|Chandan				|ALM # 2717 - Added Distribution Channel into query
+2020-05-08|Vijetha				|CPQ-1069 - Customer: Sold to displayed as Hierarchy both for 4942 and 4946
+2020-05-28|Gautam				|CPQ-INC000013508064 R1 Prod Tickets - Customer: Customer record does not show up in search
+2020-06-01|Neha G			|Changes after enabling Collaborative Quoting
+2020-08-25|Johnny Lin			|INC000013737787: update BMQL for AML 2162 change
+2020-09-03|Dhananjay			|CPQ-2482: Sold To / Ship To Combination not available
+2020-12-03|Dhananjay			|CPQ-3368: Search Sold To customers for Z300 Account Type
+2021-06-25|Praveen Sahu			|Changed the WD salesOrg from 3209 to 3208
+2021-07-06|Nithin               |CPQ-5712
+2021-07-15/Neha			|CPQ-5931/5873 : sales org like operator condition
+*/
+
+retRecordData = "";
+ntCustomerSearchStart = getcurrenttimeinmillis();
+searchTermStart = getcurrenttimeinmillis();
+searchTerm = trim(qq_customerSearchField_t);
+lowerSearchTerm  = trim(qq_customerSearchField_t);
+upperSearchTerm  = trim(qq_customerSearchField_t);
+properSearchTerm = trim(qq_customerSearchField_t);
+print "ntCustomerSearch :qq_customerSearchField_t_t:"+qq_customerSearchField_t;
+
+
+//Chandan - 49704 - Eagle Development - Added the below condition to fetch the Search filter from the Customer Tab not from New Transaction Tab - START
+if(_system_current_step_var <> "start_step"){
+	searchTerm = trim(search_CusTab_t);
+	lowerSearchTerm  = trim(search_CusTab_t);
+	upperSearchTerm  = trim(search_CusTab_t);
+	properSearchTerm = trim(search_CusTab_t);
+}
+//Chandan - 49704 - Eagle Development - Added the below condition to fetch the Search filter from the Customer Tab not from New Transaction Tab - END
+
+KTOKD ="";
+qqBusinessLineForSalesOrg="";
+if(ntSelectedSalesOrg_t == "2400" OR ntSelectedSalesOrg_t == "1214")
+{
+	////print 61;
+qqBusinessLineForSalesOrg = "PSD";
+}
+if( searchTerm == "" or searchTerm == "@@BLANK@@") {
+	searchTerm = "%";  // Add wildcard symbol around search term
+} else {
+	searchTerm = "%" + searchTerm + "%";  // Add wildcard symbol around search term
+}
+if( lowerSearchTerm == "" or lowerSearchTerm == "@@BLANK@@") {
+	lowerSearchTerm = "%";  // Add wildcard symbol around search term
+} else {
+	lowerSearchTerm = "%" + lower(lowerSearchTerm) + "%";  // Add wildcard symbol around search term
+}
+if( upperSearchTerm == "" or upperSearchTerm == "@@BLANK@@") {
+	upperSearchTerm = "%";  // Add wildcard symbol around search term
+} else {
+	upperSearchTerm = "%" + upper(upperSearchTerm) + "%";  // Add wildcard symbol around search term
+}
+
+if( properSearchTerm == "" or properSearchTerm == "@@BLANK@@") {
+	properSearchTerm = "%";  // Add wildcard symbol around search term
+} else {
+	properWords = string[];
+	searchWords = split(properSearchTerm, " ");
+	properSearchTerm = "";
+	for eachWord in searchWords {
+		if( len(eachWord) >= 2 ) {
+		   append(properWords, upper(substring(eachWord,0,1))+lower(substring(eachWord,1)));
+		} else {
+		   append(properWords, upper(eachWord));
+		}
+	}
+	properSearchTerm = "%" + join (properWords, " " ) + "%";  // Add wildcard symbol around search term
+
+}
+searchTermEnd = getcurrenttimeinmillis();
+colSep = "$,$";
+rowSep = "#@#";
+
+salesOrg= ntSelectedSalesOrg_t;
+salesOrgArr = string[] {
+	salesOrg
+};
+
+eRecordIDs = string[];
+regionLookupStart = getcurrenttimeinmillis();
+regionLookup = util.getRegionsForSalesOrg(salesOrgArr);
+regionLookupEnd = getcurrenttimeinmillis();
+//Check if validations of QQ have to be run or not
+if (isDistiQuote_t) {
+	append(eRecordIDs, _system_company_name);
+} elif (isVendorQuote_t) {
+	append(eRecordIDs, substring(_system_company_name,1));
+}
+//Harshit Mehta : ALM 1448 : Removing code to set byERecordID local variable as it is not in use.
+customerTypeProcessStart = getcurrenttimeinmillis();
+//Set the Types of customer to be shown based on Transaction Type and Sales Org
+displayPrimaryHierarchyCustomer = util.checkBizGroupCondition("displayPrimaryHierarchyCustomer", qq_ntTransactionType_t, ntSelectedSalesOrg_t);
+displayPrimaryShiptoCustomer = util.checkBizGroupCondition("displayPrimaryShiptoCustomer", qq_ntTransactionType_t, ntSelectedSalesOrg_t);
+displayAssociatedShiptoCustomer = util.checkBizGroupCondition("displayAssociatedShiptoCustomer", qq_ntTransactionType_t, ntSelectedSalesOrg_t);
+hideStandaloneSoldToCustomer = util.checkBizGroupCondition("hideStandaloneSoldToCustomer", qq_ntTransactionType_t, ntSelectedSalesOrg_t);
+displayWholesaleCustomerOnly = util.checkBizGroupCondition("displayWholesaleCustomerOnly", qq_ntTransactionType_t, ntSelectedSalesOrg_t);
+customerTypeProcessEnd = getcurrenttimeinmillis();
+displayZ300SoldTos = false;
+customerTypeArr = string[];
+append(customerTypeArr, "Z001" );
+if(qqBusinessLineForSalesOrg == "PSD" OR salesOrg == "1231"){
+	append(customerTypeArr, "Z300");
+	displayZ300SoldTos = true;
+}
+// oneTimeCustomer for Partner org
+append(customerTypeArr, "ZCPD"  );
+
+if( displayPrimaryHierarchyCustomer) {
+	append(customerTypeArr, "Z012"  );
+}
+if( displayPrimaryShiptoCustomer OR displayAssociatedShiptoCustomer) {
+	append(customerTypeArr, "Z002"  );
+}
+///////////////////////////////////// from customer MasterInfo
+variablesDeclarationStart = getcurrenttimeinmillis();
+retDict = dict("dict<string>");
+emptyHierarchyDict = dict("string");
+emptyHierarchyIDs = dict("string");
+zALLDict = dict("string");
+primaryShipToDict = dict("string");
+hierarchyDict = dict("string");
+miscArray = string[]; // Contains additional KUNNR's that need to be added to the return Dictionary
+eSalesCustIDsArray = string[];
+shipToCustIDsArray = string[];
+hierCustIDsArray = string[];
+variablesDeclarationEnd = getcurrenttimeinmillis();
+businessGroupStart = getcurrenttimeinmillis();
+isESEMEA = false;
+isBLINE = false;
+isPSD = false;
+uniqueSoldToArray = string [];
+bizGrpsRS = BMQL("Select SalesOrg, BusinessGroup From BusinessGroup where SalesOrg = $ntSelectedSalesOrg_t");
+for eachBizGrp in bizGrpsRS {
+	if ("ES-EMEA" == get(eachBizGrp, "BusinessGroup")) {
+		isESEMEA = true;
+		break;
+	}
+	
+	if("B-LINE" == get(eachBizGrp,"BusinessGroup"))
+	{
+		isBLINE = true;
+		break;
+	}
+
+}
+businessGroupEnd = getcurrenttimeinmillis();
+lookupTypeStart = getcurrenttimeinmillis();
+lookupType = "";
+sapUserIDs = string [];
+dogRecords = string [];
+if(NOT ( isDistiQuote_t OR isVendorQuote_t)) {
+	// lookup user's customer lookup method
+	userLookupRecords = BMQL("SELECT lookupType, KUNNR, VKORG, VTWEG, VKBUR, VKGRP, BZIRK FROM UserCustomerLookup WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND UserId = $owner_t");
+	////print userLookupRecords ;
+	for eachUserLookup in userLookupRecords {
+		lookupType = get(eachUserLookup, "lookupType");
+		if( lookupType == "DOG") {
+			district = get(eachUserLookup, "BZIRK");
+			office = get(eachUserLookup, "VKBUR");
+			group = get(eachUserLookup, "VKGRP");
+			append ( dogRecords, district + colSep + office + colSep + group );  // string array of District$,$Office$,$Group
+		} else {
+			// partner lookup
+			currSAPUserId = get(eachUserLookup, "KUNNR" );
+			append(sapUserIDs, currSAPUserId);
+			// in case the rep is a delegate of another sales rep, get that rep's customers in addition to their own
+			//Neha:13July2021: CPQ-5931/5873 :Like condition in sales orgs to search for approvers
+			fields = dict("string");
+			lang = dict("string");
+			searchTerm = "%"+ntSelectedSalesOrg_t+"%"; 
+			whereclauseCond = stringbuilder();
+			put(fields,"$searchTerm",searchTerm);
+			put(fields, "$owner_t",owner_t);
+			sbappend(whereclauseCond ,"SalesOrg LIKE $searchTerm AND SalesDelegate=$owner_t AND OutOfOffice='Y'");
+			whereClauseConditions_str = sbtostring(whereclauseCond );
+			
+			delegateOfRS = BMQL("Select eNumber from SalesTeams where $whereClauseConditions_str",lang,fields);
+
+			for delegateOf in delegateOfRS {
+				//get the reps' sales org and erecord ID
+				repOfENum = get(delegateOf, "eNumber");
+				repOfERecordID = "";
+				repOfCUSMASRS = BMQL("SELECT lookupType, KUNNR, VKORG, VTWEG, VKBUR, VKGRP, BZIRK FROM UserCustomerLookup WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND UserId = $repOfEnum");
+				for repOfCUSMAS in repOfCUSMASRS {
+					repOfERecordID = get(repOfCUSMAS, "KUNNR");
+				}
+				append(sapUserIDs, repOfERecordID);
+			}            
+		}
+	}
+}
+lookupTypeEnd = getcurrenttimeinmillis();
+
+if( lookupType == "DOG") {
+	dogSart = getcurrenttimeinmillis();
+	salesRepCustomerIDsBMQL = recordset();
+	for dog in dogRecords {
+		// loop and add customers related to each DOG line to eSalesCustIDsArray
+		dogRec = split(dog, colSep);
+		districtStr = dogRec[0];
+		officeStr = dogRec[1];
+		groupStr = dogRec[2];
+		// UserCustomerLookup datatable is storing comma separated value
+		district = split(districtStr, ",");
+		office = split(officeStr, ",");
+		group = split(groupStr, ",");
+		salesRepCustomerIDsBMQL = recordset();
+		// need to do individual BMQL because IN cannot be used in dynamic WHERE clause
+		queryDecisionSart = getcurrenttimeinmillis();
+		if( districtStr <> "" ) {
+			if( officeStr <> "" ) {
+				if( groupStr <> "" ) { // Smriti - ALM-1256- Below all the queries is modified to fetch and search Name2
+					//Chandan A J - 49704 - Eagle Development - Below all the queries is modified to fetch and search BZIRK(Sales District)
+					salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR  NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm  OR KUNNR like $lowerSearchTerm OR  NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND BZIRK in $district AND VKBUR in $office  AND VKGRP in $group");
+				} else {
+					salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND BZIRK in $district AND VKBUR in $office");
+				}
+			} else {
+				if( groupStr <> "" ) {
+					salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND BZIRK in $district AND VKGRP in $group");
+				} else {
+					salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR  NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND BZIRK in $district");
+				}
+			}
+		} else {
+			if( officeStr <> "" ) {
+				if( groupStr <> "" ) {
+					salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR  NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND VKBUR in $office  AND VKGRP in $group");
+				} else {
+					salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND VKBUR in $office");
+				}
+			} else {
+				if( groupStr <> "" ) {
+					salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND VKGRP in $group");
+				} else {
+					// no DOG defined, i.e. sales org only
+					salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2,BZIRK FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm )");
+				}
+			}
+		}
+		queryDecisionEnd = getcurrenttimeinmillis();
+		queryProcessStart = getcurrenttimeinmillis();
+		for eachCustID in salesRepCustomerIDsBMQL {
+			KUNNR = get(eachCustID, "KUNNR");
+			KUNN2 = get(eachCustID, "KUNN2");
+			KTOKD = get(eachCustID, "KTOKD");
+			PARVW = get(eachCustID, "PARVW");
+			HKUNNR = get(eachCustID, "HKUNNR");
+			NAME1 = get(eachCustID, "NAME1");
+			NAME2 = get(eachCustID, "NAME2"); //Smriti - ALM- 1256 Added for Name2 search
+			BZIRK = get(eachCustID, "BZIRK"); //Chandan A J - 49704 - Eagle Development - Added for BZIRK search
+			
+			//updated below conditon with "AND ntSelectedSalesOrg_t <> "1216"" for allowing WD customers without KUNN2 value in table - Gunashree
+			//Changed the WD salesOrg from 3209 to 3208
+			if (KUNN2 == "" AND KTOKD == "Z012" AND displayPrimaryHierarchyCustomer AND (ntSelectedSalesOrg_t <> "1216" AND ntSelectedSalesOrg_t <> "2500" AND ntSelectedSalesOrg_t <> "3208")) {
+				put(emptyHierarchyDict, KUNNR, "Y");
+			} elif (KTOKD == "Z012" AND displayPrimaryHierarchyCustomer ) {
+				if(findinarray(eSalesCustIDsArray, KUNNR) == -1) {
+					append(eSalesCustIDsArray, KUNNR);
+					if( sizeofarray(eSalesCustIDsArray) > 1000 ) {
+						break;
+					}
+				}
+			} elif (KTOKD == "Z001" AND (PARVW == "RE" OR PARVW == "AG")) {
+				if(findinarray(eSalesCustIDsArray, KUNNR) == -1) {
+					append(eSalesCustIDsArray, KUNNR);
+					if( sizeofarray(eSalesCustIDsArray) > 1000 ) {
+						break;
+					}
+				}
+			} elif (KTOKD == "Z300" AND (PARVW == "RE" OR PARVW == "AG")) {
+				if(findinarray(eSalesCustIDsArray, KUNNR) == -1) {
+					append(eSalesCustIDsArray, KUNNR);
+					if( sizeofarray(eSalesCustIDsArray) > 1000 ) {
+						break;
+					}
+				}
+			} 
+			//Project#49704-selected customers Start
+
+			elif (KTOKD == "ZCPD" AND qqBusinessLineForSalesOrg == "PSD") {
+				
+				if(findinarray(eSalesCustIDsArray, KUNNR) == -1) {
+					append(eSalesCustIDsArray, KUNNR);
+					if( sizeofarray(eSalesCustIDsArray) > 1000 ) {
+						break;
+					}
+				}
+			}
+			//Project#49704-selected customers end
+			if ((KTOKD == "Z002" ) AND (displayPrimaryShiptoCustomer OR displayAssociatedShiptoCustomer) ) {
+				if(findinarray(shipToCustIDsArray, KUNNR) == -1) {
+					append(shipToCustIDsArray, KUNNR);
+					if( sizeofarray(shipToCustIDsArray) > 1000 ) {
+						break;
+					}
+				}
+			}
+		}
+		queryProcessEnd = getcurrenttimeinmillis();
+	}
+	dogEnd = getcurrenttimeinmillis();
+
+} 
+else {
+////print "Partner Quote";
+	// else condition for disti, vendor, and partner Type
+	//If a rep is a delegate they need to get all related customer info, so data will be passed in as an array - 134
+	
+	//ALM 1448 Harshit Mehta : Removing code to split byERecordID as there is no use of this.
+
+	salesRepCustomerIDsBMQL = recordset();
+		if (isDistiQuote_t) { //Smriti - ALM- 1256 below queries's are modified to fetch and search NAME2
+			//Chandan A J - 49704 - Eagle Development - below queries's are modified to fetch and search NAME2
+			//print searchTerm;
+			//print customerTypeArr ;
+			//print eRecordIDs;
+			salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1, NAME2, BZIRK  FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR  NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND (KUNN2 IN $eRecordIDs)");
+		//print salesRepCustomerIDsBMQL ;
+		} 
+		//CPQ-5712 - Starting
+		elif (isVendorQuote_t) 
+			{
+			//CPQ-637 - Populating oneTimeCustomer for Partner org user start, KTOKDV variable added variable added for below query
+			KTOKDV = "ZCPD";
+						
+			
+			partnerFunction = string[]{"Z1", "Z2", "Z3","Z4","Z5", "Z7","WE"};
+			if(startswith(_system_company_name,"V"))
+			{
+			salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK  FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND ((KUNN2 IN $eRecordIDs OR   KTOKD=$KTOKDV) AND (PARVW in $partnerFunction) )");
+			}
+			else
+			{salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK  FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND (PARVW in $partnerFunction)");
+			}
+         //CPQ-5712-End
+		} 
+		elif (lookupType == "Partner") {
+
+			if( isESEMEA ) {
+				if (displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1) {
+					salesRepCustomerIDsBMQL = BMQL("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK  FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR  NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND  ((KUNN2 IN $sapUserIDs OR (KTOKD='Z012' AND (KUNN2='' OR KUNN2 IS NULL))) OR KDGRP='43')"); //)");// 
+				} else {
+					// Commented for QQ:735
+					 salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND KTOKD in $customerTypeArr AND (KUNN2 IN $sapUserIDs OR (KTOKD='Z012' AND (KUNN2='' OR KUNN2 IS NULL)))");
+				}
+			} else {
+					salesRepCustomerIDsBMQL = bmql("SELECT  KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, NAME1,NAME2, BZIRK FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND (KUNNR like $searchTerm OR NAME2 like $searchTerm OR NAME1 like $searchTerm OR PSTLZ like $searchTerm OR ORT01 like $searchTerm OR LAND1 like $searchTerm OR REGIO like $searchTerm OR KUNNR like $upperSearchTerm OR NAME2 like $upperSearchTerm OR NAME1 like $upperSearchTerm OR PSTLZ like $upperSearchTerm OR ORT01 like $upperSearchTerm OR LAND1 like $upperSearchTerm OR REGIO like $upperSearchTerm OR KUNNR like $lowerSearchTerm OR NAME2 like $lowerSearchTerm OR NAME1 like $lowerSearchTerm OR PSTLZ like $lowerSearchTerm OR ORT01 like $lowerSearchTerm OR LAND1 like $lowerSearchTerm OR REGIO like $lowerSearchTerm OR KUNNR like $properSearchTerm OR NAME2 like $properSearchTerm OR NAME1 like $properSearchTerm OR PSTLZ like $properSearchTerm OR ORT01 like $properSearchTerm OR LAND1 like $properSearchTerm OR REGIO like $properSearchTerm ) AND (KUNN2 IN $sapUserIDs )");
+			}
+				
+		}
+
+		for eachCustID in salesRepCustomerIDsBMQL {
+			
+			KUNNR = get(eachCustID, "KUNNR");
+			KUNN2 = get(eachCustID, "KUNN2");
+			KTOKD = get(eachCustID, "KTOKD");
+			PARVW = get(eachCustID, "PARVW");
+			HKUNNR = get(eachCustID, "HKUNNR");
+			NAME1 = get(eachCustID, "NAME1");
+			NAME2 = get(eachCustID, "NAME2"); // Smriti - ALM- 1256- Added to NAme2
+			BZIRK = get(eachCustID, "BZIRK"); // Chandan A J - 49704 - Eagle Development - Added to BZIRK		
+			if (KUNN2 == "" AND KTOKD == "Z012" AND displayPrimaryHierarchyCustomer) {
+				put(emptyHierarchyDict, KUNNR, "Y");
+			} elif (KTOKD == "Z012" AND displayPrimaryHierarchyCustomer ) {
+				if(findinarray(eSalesCustIDsArray, KUNNR) == -1) {
+					append(eSalesCustIDsArray, KUNNR);
+					//Harshit :Defect# 1494: Increasing limit from 500 to 800 to make sure all customer data will available in search.
+					if( sizeofarray(eSalesCustIDsArray) > 800 ) {
+						break;
+					}
+				}
+			} elif (KTOKD == "Z001" ) {
+				if(findinarray(eSalesCustIDsArray, KUNNR) == -1) {
+					append(eSalesCustIDsArray, KUNNR);
+					//Harshit :Defect# 1494: Increasing limit from 500 to 800 to make sure all customer data will available in search.
+					if( sizeofarray(eSalesCustIDsArray) > 800 ) {
+						break;
+					}
+				}
+			}elif (KTOKD == "Z300" ) {
+				if(findinarray(eSalesCustIDsArray, KUNNR) == -1) {
+					append(eSalesCustIDsArray, KUNNR);
+					//Harshit :Defect# 1494: Increasing limit from 500 to 800 to make sure all customer data will available in search.
+					if( sizeofarray(eSalesCustIDsArray) > 800 ) {
+						break;
+					}
+				}
+			}
+			
+			//Chandan - 40974 - Eagle Development - Added the below condition to fetch the One Time Customers from CUSMAS data table - START
+			elif (KTOKD == "ZCPD" ) {
+				if(findinarray(eSalesCustIDsArray, KUNNR) == -1) {
+					append(eSalesCustIDsArray, KUNNR);
+					if( sizeofarray(eSalesCustIDsArray) > 800 ) {
+						break;
+					}
+				}
+			}
+			//Chandan - 40974 - Eagle Development - Added the below condition to fetch the One Time Customers from CUSMAS data table - END
+			
+			if ((KTOKD == "Z002") AND (displayPrimaryShiptoCustomer OR displayAssociatedShiptoCustomer) ) {
+				if(findinarray(shipToCustIDsArray, KUNNR) == -1) {
+					append(shipToCustIDsArray, KUNNR);
+					//Harshit :Defect# 1494: Increasing limit from 500 to 800 to make sure all customer data will available in search.
+					if( sizeofarray(shipToCustIDsArray) > 800 ) {
+						break;
+					}
+				}
+			}
+		}    
+}
+allCustomersList = string[];
+allCustomersList2 = string[];
+
+// Hierarchy handling
+//  This looks in the temporary alternate table for the list of HQ's a Sales Rep may be in charge of
+
+if( displayPrimaryHierarchyCustomer) {
+	//print 67;
+// 1) add list of hierarchies in the HierarchyDetails datatable (from Agreement project) to allCustomersList
+// 2) add list of hierarchies matches search criteria  to allCustomersList
+
+	// Commented for QQ:735	
+	salesRepHierarchyIDsBMQL = bmql("SELECT CustomerNumber, SAPRecordID FROM HierarchyDetails WHERE SalesOrg = $ntSelectedSalesOrg_t AND (CustomerNumber like $searchTerm  OR CustomerNumber like $upperSearchTerm  OR CustomerNumber like $lowerSearchTerm OR CustomerNumber like $properSearchTerm OR NAME1 like $searchTerm OR NAME1 like $upperSearchTerm OR NAME1 like $lowerSearchTerm OR NAME1 like $properSearchTerm)");
+
+	for eachCustID in salesRepHierarchyIDsBMQL {
+		customerNumber = get(eachCustID, "CustomerNumber");
+		SAPRecordID = get(eachCustID, "SAPRecordID");
+		if (SAPRecordID <> "") {
+			if (findinarray(sapUserIDs, SAPRecordID) <> -1) {
+				put(emptyHierarchyDict, customerNumber, "Y");
+			} elif (containskey(emptyHierarchyDict, customerNumber)) {
+				//store a value - if the key is Y that means there's no association and the heirarchy should be available to all
+				//There is an association in this case - so store a value so that it's not included asa customer
+				put(emptyHierarchyDict, customerNumber, SAPRecordID);
+			}
+		}
+	}
+	
+	unassociatedCount = 0;
+	unassociatedHierarchies = keys(emptyHierarchyDict);
+	for unassociatedHierarchy in unassociatedHierarchies {
+		if (get(emptyHierarchyDict, unassociatedHierarchy) == "Y") {
+			// Added for array size exceeded error (array size > 5000)
+			if(sizeofarray(allCustomersList) < 5000) {
+			append(allCustomersList, unassociatedHierarchy);
+		} else {
+			append(allCustomersList2, unassociatedHierarchy);
+		}
+			unassociatedCount = unassociatedCount + 1;
+		}
+	}
+}
+if (sizeofarray(eSalesCustIDsArray) > 0) {
+	for eachCustomer in eSalesCustIDsArray {
+		
+		/*START Harshit Mehta--- ALM 1448 Changes : Removing call of customerHierarchyLookup and calling new function customerHierarchyLookupNew   	that will contains JSON as parameter.
+		*/
+			//customerHierarchyJSON = util.customerHierarchyLookup(eachCustomer, ntSelectedSalesOrg_t);   // should return all soldto/ship to in the hierarchy
+			inputParam = json();
+			customerOwner = "";
+			jsonput(inputParam,"customerNumber",eachCustomer);
+			jsonput(inputParam,"customerSalesOrg",ntSelectedSalesOrg_t);
+			jsonput(inputParam,"partnerFunction","Z1,Z5,ZW"); 
+			//Z1 -> Agents, Z5/ZW -> Partners
+			if(qqBusinessLineForSalesOrg == "PSD")
+			{
+			 jsonput(inputParam,"BusinessLineForSalesOrg","PSD");
+			}
+			if(isBLINE)  //Only for Bline we need to check if soldTo & shipTo owners are same.
+			{
+				if(sizeofarray(sapUserIDs) > 0 ) //current user is partner user
+				{
+					customerOwner = join(sapUserIDs,",");
+				}
+				if(sizeofarray(eRecordIDs) > 0) //current user is either vendor OR distributor
+				{
+					customerOwner = join(eRecordIDs,",");
+				}
+				jsonput(inputParam,"customerOwner",customerOwner);
+			}
+			customerHierarchyJSON = util.customerHierarchyLookupNew(inputParam);
+			
+		//END Harshit Mehta--- ALM 1448 Changes : Removing call of customerHierarchyLookup and calling new function customerHierarchyLookupNew   	that will contains JSON as parameter.
+		loopCNT = range(jsonarraysize(customerHierarchyJSON));
+		for eachCust in loopCNT {
+			isSoldTo = false;
+			custJSON = jsonarrayget(customerHierarchyJSON, eachCust, "json");
+			customerHierarchy = jsonget(custJSON, "Hierarchy", "string", "");
+			if (jsonpathcheck(custJSON, "$..SoldTo")) {
+				customerHierarchy = jsonget(custJSON, "SoldTo", "string", "");
+				isSoldTo = true;
+			} elif (jsonpathcheck(custJSON, "$..ShipTo")) {
+				customerHierarchy = jsonget(custJSON, "ShipTo", "string", "");
+			}
+
+			if( customerHierarchy =="" ) {
+				continue;
+			}
+
+			splitHier = split(customerHierarchy, ".");
+			topLevel = splitHier[0];
+			soldTo = "";
+			shipTo = "";
+			cNumber = "";
+			if (sizeofarray(splitHier) == 1) {
+				cNumber = splitHier[0];
+			}
+			if (sizeofarray(splitHier) > 1) {
+				soldTo = splitHier[1];
+				cNumber = soldTo;
+			}
+			if (sizeofarray(splitHier) == 3) {
+				shipTo = splitHier[2];
+				cNumber = shipTo;
+			}
+
+		   if ( hideStandaloneSoldToCustomer ) {
+			   if( shipTo == "" ) {  // QQ-840
+					continue;
+			   }
+			} elif( soldTo == shipTo ) {
+				shipTo = "";
+				customerHierarchy = splitHier[0]+"."+splitHier[1];
+			}
+
+			if (NOT containskey(zALLDict, customerHierarchy) and not isnull(cNumber)) {
+				put(zALLDict, customerHierarchy, cNumber);
+			}
+
+			if ((findinarray(allCustomersList, topLevel) == -1) AND (findinarray(allCustomersList2, topLevel) == -1) AND (topLevel <> "")) {
+				if(sizeofarray(allCustomersList) < 5000) {
+					append(allCustomersList, topLevel);
+					
+				} else {
+					append(allCustomersList2, topLevel);
+				}
+			}
+
+			if ((findinarray(allCustomersList, soldTo) == -1) AND (findinarray(allCustomersList2, soldTo) == -1) AND (soldTo <> "")) {
+					if(sizeofarray(allCustomersList) < 5000) {
+						append(allCustomersList, soldTo);
+					} else {
+						append(allCustomersList2, soldTo);
+					}
+				}
+
+			if ((findinarray(allCustomersList, shipTo) == -1) AND (findinarray(allCustomersList2, shipTo) == -1) AND (shipTo <> "")) {
+					if(sizeofarray(allCustomersList) < 5000) {
+						append(allCustomersList, shipTo); // Added for QQ-482
+					} else {
+						append(allCustomersList2, shipTo); // Added for QQ-482
+				
+					}				
+			}
+
+			// Add all associated shipto to customer list
+			if( (displayAssociatedShiptoCustomer OR displayPrimaryShiptoCustomer) AND isSoldTo) {
+				parmsDict = dict("string");
+				put(parmsDict, "KUNNR", soldTo);
+				put(parmsDict, "VKORG", ntSelectedSalesOrg_t);
+				put(parmsDict, "KTOKD", "Z001");
+				put(parmsDict, "PARVW", "WE");
+				put(parmsDict, "CustomerSearchCall", "True");
+				customerDetails = util.getCUSMAS(parmsDict);
+				//Looking customer for Z300
+				customerDetailsJSON = json();
+				jsonput(customerDetailsJSON,"customerDetails",customerDetails);
+				if(jsonpathcheck(customerDetailsJSON, "$..totalcustomers")){
+					customerTotal = jsonpathgetsingle(customerDetailsJSON, "$..totalcustomers","integer", 0);
+					if(customerTotal == 0 AND displayZ300SoldTos){
+						parmsDict = dict("string");
+						put(parmsDict, "KUNNR", soldTo);
+						put(parmsDict, "VKORG", ntSelectedSalesOrg_t);
+						put(parmsDict, "KTOKD", "Z300");
+						put(parmsDict, "PARVW", "WE");
+						put(parmsDict, "CustomerSearchCall", "True");
+						customerDetails = util.getCUSMAS(parmsDict);
+					}
+				}
+				
+				loopCustomerDetails = range(jsonarraysize(customerDetails));
+				customerDetailsSize=jsonarraysize(customerDetails);
+				customerDetailsSize=customerDetailsSize-1;
+				for eachCustDetail in loopCustomerDetails {
+					custJSON = jsonarrayget(customerDetails, eachCustDetail, "json");					
+					if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+						customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+					} else {
+						KUNNR = jsonget(custJSON, "KUNNR");
+						KTOKD = jsonget(custJSON, "KTOKD");
+						PARVW = jsonget(custJSON, "PARVW");
+						KUNN2 = jsonget(custJSON, "KUNN2");
+						HKUNR = jsonget(custJSON, "HKUNNR");
+						NAME1 = jsonget(custJSON, "NAME1");
+						NAME2 = jsonget(custJSON, "NAME2");
+						PSTLZ =  jsonget(custJSON, "PSTLZ");
+						ORT01 = jsonget(custJSON, "ORT01");
+						LAND1 = jsonget(custJSON, "LAND1");
+						REGIO = jsonget(custJSON, "REGIO");//Smriti - ALM-1256 - Added for Name2 search									
+						BZIRK = jsonget(custJSON, "BZIRK");//Chandan - 49704 - Eagle Development - Added for BZRIK search
+						crKey = LAND1 + "_" + REGIO;
+						regn = get(regionLookup, crKey);
+						//Smriti - ALM-1256 - Added for Name2 search
+						if(KUNNR == KUNN2)
+						{
+						//2123 : enable record in search where sold to = ship to on Quotes
+						customerRecordRow = string[];	
+						//This condition is to display one extra row with Ship To is blank
+						//If the customer sold to and ship to customer number are same						
+						if(qqBusinessLineForSalesOrg == "PSD"){
+							put(zALLDict, KUNNR + "." + KUNNR , soldTo);
+							put(primaryShipToDict, KUNNR + "." + KUNNR , soldTo);
+						}
+						if(isESEMEA AND (qq_ntTransactionType_t == "WQ" OR qq_ntTransactionType_t == "DS") AND customerDetailsSize>1){
+						
+						append(customerRecordRow, "Sold to");
+						append(customerRecordRow, KUNNR);
+						append(customerRecordRow, NAME1);
+						append(customerRecordRow, NAME2); //Smriti - ALM-1256 - Added for Name2 search
+						append(customerRecordRow, PSTLZ);
+						append(customerRecordRow, ORT01);
+						if(NOT isnull(regn)){ // C9940122 - added if-else for CPQ-1814
+						append(customerRecordRow, regn);}
+						else
+						{append(customerRecordRow, "");}
+						append(customerRecordRow, LAND1);
+						append(customerRecordRow, "Ship to"); // only ship to associated type
+						append(customerRecordRow, KUNNR);
+						append(customerRecordRow, NAME1);
+						append(customerRecordRow, PSTLZ);
+						append(customerRecordRow, ORT01);
+						if(NOT isnull(regn)){// C9940122 - added if-else for CPQ-1814
+						append(customerRecordRow, regn);
+						}
+						else
+						{						
+						append(customerRecordRow, "");
+						}
+						
+						append(customerRecordRow, LAND1);
+						//append(customerRecordRow, KUNNR);
+						append(customerRecordRow, HKUNR);//This position in ntCustomerSearch string is for Hierarchy#
+						append(customerRecordRow, ntSelectedSalesOrg_t);
+						append(customerRecordRow, BZIRK); //Chandan - 49704 - Eagle Development - Added for BZRIK search
+						//print customerRecordRow;
+						if (retRecordData <> "") {
+							retRecordData = retRecordData + rowSep;
+						}
+						retRecordData = retRecordData + join(customerRecordRow, colSep);
+						}
+						else{continue;}
+						}
+						if(KUNNR <> KUNN2){
+
+						if (HKUNR <> "") {
+							put(zALLDict, HKUNR + "." + KUNNR + "." + KUNN2 , soldTo);
+							put(primaryShipToDict, HKUNR + "." + KUNNR + "." + KUNN2 , soldTo);
+
+							if ((findinarray(allCustomersList, HKUNR) == -1) AND (findinarray(allCustomersList2, HKUNR) == -1)) {
+								if(sizeofarray(allCustomersList) < 5000) {
+									append(allCustomersList, HKUNR);
+								} else {
+									append(allCustomersList2, HKUNR);
+								}
+							}
+						} else {
+							put(zALLDict, KUNNR + "." + KUNNR + "." + KUNN2, soldTo);
+							put(primaryShipToDict, KUNNR + "." + KUNNR + "." + KUNN2 , soldTo);
+							//put(zALLDict, " ." + KUNNR + "." + KUNN2, soldTo);
+							//put(primaryShipToDict, " ." + KUNNR + "." + KUNN2 , soldTo);
+
+						}
+						if ((findinarray(allCustomersList, KUNNR) == -1) AND (findinarray(allCustomersList2, KUNNR) == -1) AND (KUNNR <> "")) {
+								if(sizeofarray(allCustomersList) < 5000) {
+									append(allCustomersList, KUNNR);
+								} else {
+									append(allCustomersList2, KUNNR);
+								}
+						}
+
+						if ((findinarray(allCustomersList, KUNN2) == -1) AND (findinarray(allCustomersList2, KUNN2) == -1) AND (KUNN2 <> "")) {
+								if(sizeofarray(allCustomersList) < 5000) {
+									append(allCustomersList, KUNN2);
+								} else {
+									append(allCustomersList2, KUNN2);
+								}				
+						}      
+							
+						
+					}
+					}
+				}
+			}            
+		}
+
+	}
+}
+// Matching Shipto
+// 1) if displayPrimaryShiptoCustomer get hierarchy and sold to
+// displayPrimaryShiptoCustomer
+//print shipToCustIDsArray;
+if ( (displayPrimaryShiptoCustomer OR displayAssociatedShiptoCustomer) AND sizeofarray(shipToCustIDsArray) > 0) {
+    //print 69;
+	for eachCustomer in shipToCustIDsArray {
+		parmsDict = dict("string");
+		put(parmsDict, "KUNN2", eachCustomer);
+		put(parmsDict, "VKORG", ntSelectedSalesOrg_t);
+		put(parmsDict, "PARVW", "WE");
+		put(parmsDict, "VTWEG", ntDistributionChannel_t);//Chandan - ALM # 2717 - Added Distribition Channel filter into query
+		customerDetails = util.getCUSMAS(parmsDict);
+		loopCustomerDetails = range(jsonarraysize(customerDetails));
+		for eachCustDetail in loopCustomerDetails {
+			custJSON = jsonarrayget(customerDetails, eachCustDetail, "json");
+			if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+				customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+			} else {
+				KUNNR = jsonget(custJSON, "KUNNR");
+				KTOKD = jsonget(custJSON, "KTOKD");
+				PARVW = jsonget(custJSON, "PARVW");
+				KUNN2 = jsonget(custJSON, "KUNN2");
+				HKUNR = jsonget(custJSON, "HKUNNR");
+				NAME1 = jsonget(custJSON, "NAME1");
+				NAME2 = jsonget(custJSON, "NAME2"); //Smriti - ALM-1256 - Added for Name2 search
+				BZIRK = jsonget(custJSON, "BZIRK"); //Chandan A J - 49704 - Eagle Development - Added for Name2 search
+				
+				//Harshit Mehta : Defect# 1880 : Remove this check for ship to customer type to enable search if KUNNR == KUNN2..
+				//Harshit Mehta : Defect# 1933 : Removing Commented code, added as part of 1880. It is required to work search functionality correctly.
+				if(KUNNR == KUNN2 ) { continue; }
+				
+				/*START Harshit Mehta : ALM 2162 changes
+					For shipto record there is no necessary that BLine partners will also owner of corresponding soldto.
+					So only one row soldTo + ShipTo available in customer search. Individual SOld TO record should restrict if no access to partners.
+				*/
+				if(isBLINE AND (sizeofarray(sapUserIDs) > 0 OR sizeofarray(eRecordIDs) > 0))
+				{
+					//Z1 => Agents, Z5/ZW => Partners
+					partnerFunction = String[]{"Z1","Z5","ZW"};
+					
+					//INC000013737787 start changes
+					fields= dict("string");
+					lang = dict("string");
+   					partnerFunctionString = "('" + join(partnerFunction,"','") + "')";	
+					
+					whereCondition = "KUNNR =" + KUNNR + " AND VKORG =" +  ntSelectedSalesOrg_t + " AND PARVW IN " + partnerFunctionString ;
+					sapUserIDString = "('" + join(sapUserIDs,"','") + "')";
+					eRecordIDString = "('" + join(eRecordIDs,"','") + "')";
+					whereCondition = whereCondition + " AND (KUNN2 IN " + sapUserIDString + " OR KUNN2 IN " + eRecordIDString + ")";
+					soldToValidation = bmql("select KUNNR from CUSMAS where $whereCondition", lang, fields);
+					// INC000013737787 end changes
+					//soldToValidation = BMQL("SELECT KUNNR from CUSMAS WHERE KUNNR = $KUNNR AND VKORG = $ntSelectedSalesOrg_t AND PARVW IN $partnerFunction AND (KUNN2 IN $sapUserIDs  OR KUNN2 IN $eRecordIDs)");		// INC000013737787 commented out
+					validSoldToCustomer = false;
+					for validSoldTo in soldToValidation
+					{
+						validSoldToCustomer = true;
+					}
+					if(NOT validSoldToCustomer)
+					{
+						append(uniqueSoldToArray,KUNNR);  //uniqueSoldToArray so it will not appear in search result.
+					}
+				}
+				//END Harshit Mehta : ALM 2162 changes
+				
+				if (HKUNR <> "") {
+					put(primaryShipToDict, HKUNR + "." + KUNNR + "." + KUNN2 , eachCustomer);
+				} else {
+					put(primaryShipToDict, KUNNR + "." + KUNNR + "." + KUNN2, eachCustomer);
+					//put(primaryShipToDict, " ." + KUNNR + "." + KUNN2, eachCustomer);
+				}
+				if ((findinarray(allCustomersList, KUNNR) == -1) AND (findinarray(allCustomersList2, KUNNR) == -1) AND (KUNNR <> "")) {
+						if(sizeofarray(allCustomersList) < 5000) {
+							append(allCustomersList, KUNNR);
+						} else {
+							append(allCustomersList2, KUNNR);
+						}
+				}
+				if ((findinarray(allCustomersList, KUNN2) == -1) AND (findinarray(allCustomersList2, KUNN2) == -1) AND (KUNN2 <> "")) {
+						if(sizeofarray(allCustomersList) < 5000) {
+							append(allCustomersList, KUNN2);
+						} else {
+							append(allCustomersList2, KUNN2);
+						}				
+				}                    
+				
+			}
+		}
+	}
+
+
+}
+
+
+
+
+fromTable = "CUSMAS";
+selectColumns = "KUNNR,KTOKD,PARVW,KUNN2,HKUNNR,NAME1,NAME2,NAME3,SORT1,ORT01,PSTLZ,STRAS,LAND1,REGIO,TELF1,INCO1,PLTYP,WAERS,SMTP_ADDR, KDGRP,BZIRK"; //Chandan - 49704 - Eagle Development - Added BZIRK(Sales District) column in query
+
+if (sizeofarray(allCustomersList) > 0) {
+	//print 70;
+	fromTable = "CUSMAS";
+	selectColumns = "KUNNR,KTOKD,PARVW,KUNN2,HKUNNR,NAME1,NAME2,NAME3,SORT1,ORT01,PSTLZ,STRAS,LAND1,REGIO,TELF1,INCO1,PLTYP,WAERS,SMTP_ADDR, KDGRP,BZIRK";
+    
+	//Chandan - 49704 - Eagle Development - Added BZIRK(Sales District) column in query
+	custBMQL = recordset();
+	
+	// Added for array size exceeded error (array size > 5000)
+	//2123 : enable record in search where sold to = ship to on Quotes
+	if(isESEMEA AND (qq_ntTransactionType_t == "WQ" OR qq_ntTransactionType_t == "DS"))
+		{
+			if(sizeofarray(allCustomersList2) > 0) {
+	    //custBMQL = bmql("SELECT $selectColumns FROM $fromTable WHERE (KUNNR IN $allCustomersList OR KUNNR IN $allCustomersList2) AND VKORG = $ntSelectedSalesOrg_t AND KUNNR<>KUNN2");
+		//CPQ-INC000013508064 R1 Prod Tickets - Customer: Customer record does not show up in search
+	   custBMQL = bmql("SELECT $selectColumns FROM $fromTable WHERE (KUNNR IN $allCustomersList OR KUNNR IN $allCustomersList2) AND VKORG = $ntSelectedSalesOrg_t");
+	} else {
+	//custBMQL = bmql("SELECT $selectColumns FROM $fromTable WHERE KUNNR IN $allCustomersList AND VKORG = $ntSelectedSalesOrg_t AND KUNNR<>KUNN2");
+	//CPQ-INC000013508064 R1 Prod Tickets - Customer: Customer record does not show up in search
+	custBMQL = bmql("SELECT $selectColumns FROM $fromTable WHERE KUNNR IN $allCustomersList AND VKORG = $ntSelectedSalesOrg_t");
+	}
+		}
+		else
+		{
+			
+	if(sizeofarray(allCustomersList2) > 0) {
+		////print "allCustomersList3";
+	custBMQL = bmql("SELECT $selectColumns FROM $fromTable WHERE (KUNNR IN $allCustomersList OR KUNNR IN $allCustomersList2) AND VKORG = $ntSelectedSalesOrg_t");
+	} 
+	else {
+		//print "allCustomersList3 ";
+			////print allCustomersList  ;
+			////print "allCustomersList3";
+	custBMQL = bmql("SELECT $selectColumns FROM $fromTable WHERE KUNNR IN $allCustomersList AND VKORG = $ntSelectedSalesOrg_t");
+	}
+		}
+
+	splitColumns = split(selectColumns, ",");
+	for eachCustomer in custBMQL {
+		CustInfoDict = dict("string");
+		
+		for eachColumn in splitColumns {
+			eachValue = get(eachCustomer, eachColumn);
+			put(CustInfoDict, eachColumn, eachValue);
+		}
+
+		KUNNR = get(CustInfoDict, "KUNNR");
+		put(retDict, KUNNR, CustInfoDict);
+		KTOKD = get(CustInfoDict, "KTOKD");
+		if (KTOKD == "Z012") {
+			put(zALLDict, KUNNR, KUNNR);    // hierarchy only
+		}
+	}
+}
+allkeys = keys(zALLDict);
+//print "allkeys";
+////print allkeys;
+//print "allkeys";
+allKeysSorted = sort(allKeys, "asc", "text");
+
+/*
+0 Type
+1 customer#
+2 name
+3 postalCode
+4 city 
+5 region 
+6 country 
+7 AssociatedType 
+8 Associated Customer#
+9 Name
+10 Postal Code
+11 City
+12 Region
+13 Country
+14 Hierarchy
+15 salesOrg
+*/
+for eachID in allKeysSorted {
+	hqNumber = "";
+	lastLevel = "";
+	splitIds = split(eachID, ".");
+	maxCNT = sizeofarray(splitIDs);
+	//hqNumber = splitIds[0];//As per the existing logic, 0th position is for Hierarchy#. However, if Hierarchy# is empty in the CUSMAS table, Customer# is been set at the 0th position. So, it is not ideal to pull 0th position everytime for Hierarchy#. And hence commented this line to fix CPQ-1069. - Vijetha
+	/*=======CPQ-1069======
+	Below logic to fix Hierarchy# issue CPQ-1069.
+	Sample for eachID (Hierarchy#.Customer#.AssoCustomer# //Customer#.Customer#.AssoCustomer# // Customer#.AssoCustomer# // Hierarchy# // Hierarchy#.Customer#). These are the possible keys in allKeysSorted array.
+	Customer# and Hierarchy# will never be same.
+	So, if 0th position is not equal to 1st and 2nd positions, i.e, its Hierarchy#.
+	Only then set hqNumber with 0th position of the splitIds Array.
+	=========CPQ-1069======*/
+	//CPQ-1069 - Start
+	if((maxCNT == 2 AND splitIds[0] <> splitIds[1])OR(maxCNT == 3 AND splitIds[0] <> splitIds[1] AND splitIds[0] <> splitIds[2])){
+		hqNumber = splitIds[0];
+	}
+	if(maxCNT == 1){
+		hqNumber = eachID;
+	}
+	//CPQ-1069 - END
+	lastLevel = splitIds[maxCNT - 1];
+	if (maxCNT == 3 OR maxCNT == 2 or maxCNT == 1) { // Entry containing non-blank Sold Tos Only.
+		customerRecordRow = string[];
+		if( maxCNT==1  ) {
+			if( not displayPrimaryHierarchyCustomer ) {
+				continue;
+			}
+			if(findinarray(eSalesCustIDsArray, hqNumber) == -1) {
+				continue;
+			}
+			if( isESEMEA AND lookupType == "Partner" ) 
+			{
+				soldToCustomerRecord  = recordset();
+				if (displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1) {
+					soldToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $hqNumber AND (KUNN2 IN $sapUserIDs OR KDGRP='43')");
+				} else {
+					soldToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $hqNumber AND KUNN2 IN $sapUserIDs" );
+				}
+				foundSoldTo = false;
+				for eachCustID in soldToCustomerRecord {
+					foundSoldTo = true; 
+					break;
+				}
+				if(NOT foundSoldTo) {
+					continue;
+				}        
+			}                                 
+			// hierarchy record only
+			hqCustInfoDict = get(retDict, hqNumber);
+			name1 = util.getStringDict(hqCustInfoDict, "NAME1", "");
+			name2 = util.getStringDict(hqCustInfoDict, "NAME2", "");//Smriti - ALM-1256 - Added for Name2 search
+			pstlz = util.getStringDict(hqCustInfoDict, "PSTLZ", "");
+			ort01 = util.getStringDict(hqCustInfoDict, "ORT01", "");
+			land1 = util.getStringDict(hqCustInfoDict, "LAND1", "");
+			regio = util.getStringDict(hqCustInfoDict, "REGIO", "");
+			bzirk = util.getStringDict(hqCustInfoDict, "BZIRK", "");//Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+			crKey = land1 + "_" + regio;
+			regn = get(regionLookup, crKey);
+			if (isnull(regn) OR (regn == "ES-EMEA" OR regn == "CH-EMEA")) {
+				regn = "";
+			}
+			append(customerRecordRow, "Hierarchy");
+			append(customerRecordRow, hqNumber);
+			append(customerRecordRow, name1);
+			append(customerRecordRow, name2); //Smriti - ALM-1256 - Added for Name2 search
+			append(customerRecordRow, pstlz);
+			append(customerRecordRow, ort01);
+			append(customerRecordRow, regn);
+			append(customerRecordRow, land1);
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, ntSelectedSalesOrg_t);
+			append(customerRecordRow, bzirk);//Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+		} elif( maxCNT==2 ) {
+			soldToNumber = splitIds[1];
+
+			if( isESEMEA AND lookupType == "Partner" ) 
+			{
+				soldToCustomerRecord  = recordset();
+				if (displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1) {
+					soldToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $soldToNumber AND (KUNN2 IN $sapUserIDs OR KDGRP='43')");
+				} else {
+					soldToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $soldToNumber AND KUNN2 IN $sapUserIDs" );
+				}
+				foundSoldTo = false;
+				for eachCustID in soldToCustomerRecord {
+					foundSoldTo = true; 
+					break;
+				}
+				if(NOT foundSoldTo) {
+					continue;
+				}        
+			} 
+
+			if(findinarray(eSalesCustIDsArray, soldToNumber) == -1) {
+				continue;
+			}
+			if( findinarray( uniqueSoldToArray, soldToNumber)> -1 ) {
+				continue;
+			}
+
+			custInfoDict = get(retDict, soldToNumber);
+			name1 = util.getStringDict(custInfoDict, "NAME1", "");
+			name2 = util.getStringDict(custInfoDict, "NAME2", "");//Smriti - ALM-1256 - Added for Name2 search
+			pstlz = util.getStringDict(custInfoDict, "PSTLZ", "");
+			ort01 = util.getStringDict(custInfoDict, "ORT01", "");
+			land1 = util.getStringDict(custInfoDict, "LAND1", "");
+			regio = util.getStringDict(custInfoDict, "REGIO", "");
+			bzirk = util.getStringDict(custInfoDict, "BZIRK", "");//Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+			crKey = land1 + "_" + regio;
+			regn = get(regionLookup, crKey);
+			if (isnull(regn) OR (regn == "ES-EMEA" OR regn == "CH-EMEA")) {
+				regn = "";
+			}
+			kdgrp = util.getStringDict(custInfoDict, "KDGRP", "");
+
+			if( displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1 ) 
+			{
+				if( kdgrp <> "43" ) {
+					continue;
+				}
+			}
+			append(uniqueSoldToArray, soldToNumber);
+
+			append(customerRecordRow, "Sold to");
+			append(customerRecordRow, soldToNumber);
+			append(customerRecordRow, name1);
+			append(customerRecordRow, name2); //Smriti - ALM-1256 - Added for Name2 search
+			append(customerRecordRow, pstlz);
+			append(customerRecordRow, ort01);
+			append(customerRecordRow, regn);
+			append(customerRecordRow, land1);
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, "");
+			append(customerRecordRow, hqNumber);
+			append(customerRecordRow, ntSelectedSalesOrg_t);
+			append(customerRecordRow, bzirk); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+
+		} elif( maxCNT==3 ) {
+
+			soldToNumber = splitIds[1];
+			if(findinarray(eSalesCustIDsArray, soldToNumber) == -1) {
+				continue;
+			}
+			if(displayAssociatedShiptoCustomer) {
+				shipToNumber = splitIds[2];
+				shipToCustInfoDict = get(retDict, splitIds[2]);
+				if( isnull (shipToCustInfoDict) ) {
+					continue;
+				} 
+
+			if( isESEMEA AND lookupType == "Partner" ) 
+			{
+				shipToCustomerRecord  = recordset();
+				if (displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1) {
+					shipToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $shipToNumber AND (KUNN2 IN $sapUserIDs OR KDGRP='43')");
+				} else {
+					shipToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $shipToNumber AND KUNN2 IN $sapUserIDs" );
+				}
+
+				foundShipTo = false;
+				for eachCustID in shipToCustomerRecord {
+					foundShipTo = true; 
+					break;
+				}
+				if(NOT foundShipTo) {
+					continue;
+				}
+				soldToCustomerRecord  = recordset();
+				if (displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1) {
+					soldToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $soldToNumber AND (KUNN2 IN $sapUserIDs OR KDGRP='43')");
+				} else {
+					soldToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $soldToNumber AND KUNN2 IN $sapUserIDs" );
+				}
+				foundSoldTo = false;
+				for eachCustID in soldToCustomerRecord {
+					foundSoldTo = true; 
+					break;
+				}
+				if(NOT foundSoldTo) {
+					continue;
+				}        
+			}
+
+			shipName1 = util.getStringDict(shipToCustInfoDict, "NAME1", "");
+			shipName2 = util.getStringDict(shipToCustInfoDict, "NAME2", ""); //Smriti - ALM-1256 - Added for Name2 search
+			shipPstlz = util.getStringDict(shipToCustInfoDict, "PSTLZ", "");
+			shipOrt01 = util.getStringDict(shipToCustInfoDict, "ORT01", "");
+			shipLand1 = util.getStringDict(shipToCustInfoDict, "LAND1", "");
+			shipRegio = util.getStringDict(shipToCustInfoDict, "REGIO", "");
+			shipkdgrp = util.getStringDict(shipToCustInfoDict, "KDGRP", "");
+			shipbzirk = util.getStringDict(shipToCustInfoDict, "BZIRK", ""); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+
+			shipCrKey = shipLand1 + "_" + shipRegio;
+			shipRegn = get(regionLookup, shipCrKey);
+			if (isnull(shipRegn) OR (shipRegn == "ES-EMEA" OR shipRegn == "CH-EMEA")) {
+				shipRegn = "";
+			}
+			custInfoDict = get(retDict, soldToNumber);
+							
+			if( isnull (custInfoDict) ) {
+				continue;
+			} 
+			name1 = util.getStringDict(custInfoDict, "NAME1", "");
+			name2 = util.getStringDict(custInfoDict, "NAME2", "");//Smriti - ALM-1256 - Added for Name2 search
+			pstlz = util.getStringDict(custInfoDict, "PSTLZ", "");
+			ort01 = util.getStringDict(custInfoDict, "ORT01", "");
+			land1 = util.getStringDict(custInfoDict, "LAND1", "");
+			regio = util.getStringDict(custInfoDict, "REGIO", "");
+			kdgrp = util.getStringDict(custInfoDict, "KDGRP", "");
+			bzirk = util.getStringDict(custInfoDict, "BZIRK", ""); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+			crKey = land1 + "_" + regio;
+			regn = get(regionLookup, crKey);
+			if (isnull(regn) OR (regn == "ES-EMEA" OR regn == "CH-EMEA")) {
+				regn = "";
+			}
+			
+			if( displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1 ) 
+			{
+				if( kdgrp <> "43" ) {
+					continue;
+				}
+				if( shipkdgrp <> "43" ) {
+					continue;
+				}
+			}
+			
+			append(customerRecordRow, "Sold to");
+			append(customerRecordRow, soldToNumber);
+			append(customerRecordRow, name1);
+			append(customerRecordRow, name2); //Smriti - ALM-1256 - Added for Name2 search
+			append(customerRecordRow, pstlz);
+			append(customerRecordRow, ort01);
+			append(customerRecordRow, regn);
+			append(customerRecordRow, land1);
+			append(customerRecordRow, "Ship to"); // only ship to associated type
+			append(customerRecordRow, splitIds[2]);
+			append(customerRecordRow, shipName1);
+			append(customerRecordRow, shipPstlz);
+			append(customerRecordRow, shipOrt01);
+			append(customerRecordRow, shipRegio);
+			append(customerRecordRow, shipLand1);
+			append(customerRecordRow, hqNumber);
+			append(customerRecordRow, ntSelectedSalesOrg_t);
+			append(customerRecordRow, bzirk); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+			
+		//Harshit Mehta : ALM# 1990 Changes Start
+			/*********************
+			For BLine in case of Ship To customer 2 line should available in customer search result.
+			 1.  Only Sold TO.
+			 2.  Sold To + Ship To both
+			*********************/
+			if(isBLINE)
+			{
+				if( findinarray( uniqueSoldToArray, soldToNumber) > -1 ) {
+					continue;
+				}						
+				append(uniqueSoldToArray, soldToNumber);
+				
+				/*********************************
+				  As per current implementation only one customer data will available in customerRecordRow 
+				  and then it gets added in final return string through rowSep & colSep.
+				  For BLine in single iteration 2 row we are trying to add so created new array customerRecordRowSoldTo array
+				  and added it in final return statement.
+				**********************************/
+				customerRecordRowSoldTo = string[];
+				append(customerRecordRowSoldTo , "Sold to");
+				append(customerRecordRowSoldTo , soldToNumber);
+				append(customerRecordRowSoldTo , name1);
+				append(customerRecordRowSoldTo , name2);//Smriti - ALM-1256 - Added for Name2 search
+				append(customerRecordRowSoldTo , pstlz);
+				append(customerRecordRowSoldTo , ort01);
+				append(customerRecordRowSoldTo , regn);
+				append(customerRecordRowSoldTo , land1);
+				append(customerRecordRowSoldTo , "");
+				append(customerRecordRowSoldTo , "");
+				append(customerRecordRowSoldTo , "");
+				append(customerRecordRowSoldTo , "");
+				append(customerRecordRowSoldTo , "");
+				append(customerRecordRowSoldTo , "");
+				append(customerRecordRowSoldTo , "");
+				append(customerRecordRowSoldTo , hqNumber);
+				append(customerRecordRowSoldTo , ntSelectedSalesOrg_t);	
+				append(customerRecordRowSoldTo , bzirk); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+				
+				 //Add customerRecordRowSoldTo data in final return string
+				 if (retRecordData <> "") {
+				retRecordData = retRecordData + rowSep;
+				 }
+				 retRecordData = retRecordData + join(customerRecordRowSoldTo , colSep);
+				 
+			} //End condition for isBLINE
+		//Harshit Mehta : ALM# 1990 Changes End
+
+		} else {
+				if( isESEMEA AND lookupType == "Partner" ) 
+				{
+					soldToCustomerRecord  = recordset();
+					if (displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1) {
+						soldToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $soldToNumber AND (KUNN2 IN $sapUserIDs OR KDGRP='43')");
+					} else {
+						soldToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $soldToNumber AND KUNN2 IN $sapUserIDs" );
+					}
+					foundSoldTo = false;
+					for eachCustID in soldToCustomerRecord {
+						foundSoldTo = true; 
+						break;
+					}
+					if(NOT foundSoldTo) {
+						continue;
+					}        
+				}
+				custInfoDict = get(retDict, soldToNumber);
+				if( isnull (custInfoDict) ) {
+					continue;
+				} 
+				name1 = util.getStringDict(custInfoDict, "NAME1", "");
+				name2 = util.getStringDict(custInfoDict, "NAME2", ""); //Smriti - ALM-1256 - Added for Name2 search
+				pstlz = util.getStringDict(custInfoDict, "PSTLZ", "");
+				ort01 = util.getStringDict(custInfoDict, "ORT01", "");
+				land1 = util.getStringDict(custInfoDict, "LAND1", "");
+				regio = util.getStringDict(custInfoDict, "REGIO", "");
+				kdgrp = util.getStringDict(custInfoDict, "KDGRP", "");
+				bzirk = util.getStringDict(custInfoDict, "BZIRK", ""); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+				crKey = land1 + "_" + regio;
+				regn = get(regionLookup, crKey);
+				if (isnull(regn) OR (regn == "ES-EMEA" OR regn == "CH-EMEA")) {
+					regn = "";
+				}
+
+
+				if( displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1 ) 
+				{
+					if( kdgrp <> "43" ) {
+						continue;
+					}
+				}
+				
+				if( findinarray( uniqueSoldToArray, soldToNumber)> -1 ) {
+					continue;
+				}
+				
+				append(uniqueSoldToArray, soldToNumber);
+				append(customerRecordRow, "Sold to");
+				append(customerRecordRow, soldToNumber);
+				append(customerRecordRow, name1);
+				append(customerRecordRow, name2);//Smriti - ALM-1256 - Added for Name2 search
+				append(customerRecordRow, pstlz);
+				append(customerRecordRow, ort01);
+				append(customerRecordRow, regn);
+				append(customerRecordRow, land1);
+				append(customerRecordRow, "");
+				append(customerRecordRow, "");
+				append(customerRecordRow, "");
+				append(customerRecordRow, "");
+				append(customerRecordRow, "");
+				append(customerRecordRow, "");
+				append(customerRecordRow, "");
+				append(customerRecordRow, hqNumber);
+				append(customerRecordRow, ntSelectedSalesOrg_t);
+				append(customerRecordRow, bzirk); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+				
+			}
+
+		}
+		if (retRecordData <> "") {
+			retRecordData = retRecordData + rowSep;
+		}
+		retRecordData = retRecordData + join(customerRecordRow, colSep);
+		
+	}
+}
+if( displayAssociatedShiptoCustomer) {
+	//print 72;
+	soldToKeys = keys(zALLDict);    // QQ-735.  check for duplicate.   All zALLDict record should have been added to display
+	allkeys = keys(primaryShipToDict);
+	allKeysSorted = sort(allKeys, "asc", "text");
+	for eachID in allKeysSorted {
+		if( findinarray(soldToKeys, eachID)>-1 ) {
+			continue; // QQ-735 check for duplicate
+		}
+		
+		customerRecordRow = string[];
+		splitIds = split(eachID, ".");
+		maxCNT = sizeofarray(splitIDs);
+		if( maxCNT <> 3) { continue; }
+		//hqNumber = splitIds[0];//As per the existing logic, 0th position is for Hierarchy#. However, if Hierarchy# is empty in the CUSMAS table, Customer# is been set at the 0th position. So, it is not ideal to pull 0th position everytime for Hierarchy#. And hence commented this line to fix CPQ-1069. - Vijetha
+		/*=======CPQ-1069======
+		Below logic to fix Hierarchy# issue CPQ-1069.
+		Sample for eachID (Hierarchy#.Customer#.AssoCustomer# //Customer#.Customer#.AssoCustomer# // Customer#.AssoCustomer# // Hierarchy# // Hierarchy#.Customer#). These are the possible keys in allKeysSorted array.
+		Customer# and Hierarchy# will never be same.
+		So, if 0th position is not equal to 1st and 2nd positions, i.e, its Hierarchy#.
+		Only then set hqNumber with 0th position of the splitIds Array.
+		=========CPQ-1069======*/
+		//CPQ-1069 - Start
+		hqNumber = "";
+		if((maxCNT == 2 AND splitIds[0] <> splitIds[1])OR(maxCNT == 3 AND splitIds[0] <> splitIds[1] AND splitIds[0] <> splitIds[2])){
+			hqNumber = splitIds[0];
+		}
+		if(maxCNT == 1){//as we are skipping the loop if maxCNT <> 3, maxCNT == 2 and maxCNT == 1 condition wouldn't make sense here. Just for testing.
+			hqNumber = eachID;
+		}
+		//CPQ-1069 - END
+		soldToNumber = splitIds[1];
+		shipToNumber = splitIds[2];
+		shipToCustInfoDict = get(retDict, shipToNumber);
+		if( isnull (shipToCustInfoDict) ) {
+			continue;
+		}
+		if( isESEMEA AND lookupType == "Partner" ) 
+		{
+			shipToCustomerRecord  = recordset();
+			if (displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1) {
+				shipToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $shipToNumber AND (KUNN2 IN $sapUserIDs OR KDGRP='43')");
+			} else {
+				shipToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $shipToNumber AND KUNN2 IN $sapUserIDs" );
+			}
+			foundShipTo = false;
+			for eachCustID in shipToCustomerRecord {
+				foundShipTo = true; 
+				break;
+			}
+			if(NOT foundShipTo) {
+				continue;
+			}
+			soldToCustomerRecord  = recordset();
+			if (displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1) {
+				soldToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $soldToNumber AND (KUNN2 IN $sapUserIDs OR KDGRP='43')");
+			} else {
+				soldToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $soldToNumber AND KUNN2 IN $sapUserIDs" );
+			}
+			foundSoldTo = false;
+			for eachCustID in soldToCustomerRecord {
+				foundSoldTo = true; 
+				break;
+			}
+			if(NOT foundSoldTo) {
+				continue;
+			}        
+		}
+
+		shipName1 = util.getStringDict(shipToCustInfoDict, "NAME1", "");
+		shipName2 = util.getStringDict(shipToCustInfoDict, "NAME2", "");//Smriti - ALM-1256 - Added for Name2 search
+		shipPstlz = util.getStringDict(shipToCustInfoDict, "PSTLZ", "");
+		shipOrt01 = util.getStringDict(shipToCustInfoDict, "ORT01", "");
+		shipLand1 = util.getStringDict(shipToCustInfoDict, "LAND1", "");
+		shipRegio = util.getStringDict(shipToCustInfoDict, "REGIO", "");
+		shipkdgrp = util.getStringDict(shipToCustInfoDict, "KDGRP", "");
+		shipbzirk = util.getStringDict(shipToCustInfoDict, "BZIRK", ""); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+		shipCrKey = shipLand1 + "_" + shipRegio;
+		shipRegn = get(regionLookup, shipCrKey);
+		if (isnull(shipRegn) OR (shipRegn == "ES-EMEA" OR shipRegn == "CH-EMEA")) {
+			shipRegn = "";
+		}
+		custInfoDict = get(retDict, soldToNumber);
+		if( isnull (custInfoDict) ) {
+			continue;
+		}
+		name1 = util.getStringDict(custInfoDict, "NAME1", "");
+		name2 = util.getStringDict(custInfoDict, "NAME2", ""); //Smriti - ALM-1256 - Added for Name2 search
+		pstlz = util.getStringDict(custInfoDict, "PSTLZ", "");
+		ort01 = util.getStringDict(custInfoDict, "ORT01", "");
+		land1 = util.getStringDict(custInfoDict, "LAND1", "");
+		regio = util.getStringDict(custInfoDict, "REGIO", "");
+		kdgrp = util.getStringDict(custInfoDict, "KDGRP", "");
+		bzirk = util.getStringDict(custInfoDict, "BZIRK", ""); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+		crKey = land1 + "_" + regio;
+		regn = get(regionLookup, crKey);
+		if (isnull(regn) OR (regn == "ES-EMEA" OR regn == "CH-EMEA")) {
+			regn = "";
+		}
+
+		if( displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1 ) 
+		{
+			if( kdgrp <> "43" ) {
+				continue;
+			}
+			if( shipkdgrp <> "43" ) {
+				continue;
+			}
+		}
+
+		append(customerRecordRow, "Sold to"); // only ship to associated type
+		append(customerRecordRow, soldToNumber);
+		append(customerRecordRow, name1);
+		append(customerRecordRow, name2); //Smriti - ALM-1256 - Added for Name2 search
+		append(customerRecordRow, pstlz);
+		append(customerRecordRow, ort01);
+		append(customerRecordRow, regn);
+		append(customerRecordRow, land1);
+		append(customerRecordRow, "Ship to");
+		append(customerRecordRow, shipToNumber);
+		append(customerRecordRow, shipName1);
+		append(customerRecordRow, shipPstlz);
+		append(customerRecordRow, shipOrt01);
+		append(customerRecordRow, shipRegio);
+		append(customerRecordRow, shipLand1);
+		append(customerRecordRow, hqNumber);
+		append(customerRecordRow, ntSelectedSalesOrg_t);
+		append(customerRecordRow, bzirk); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+		if (retRecordData <> "") {
+			retRecordData = retRecordData + rowSep;
+		}
+		retRecordData = retRecordData + join(customerRecordRow, colSep);
+		
+		//Harshit Mehta : ALM# 1990 Changes Start
+		/*********************
+		For BLine in case of Ship To customer 2 line should available in customer search result.
+		 1.  Only Sold TO.
+		 2.  Sold To + Ship To both
+		*********************/
+		if(isBLINE)
+		{
+			if( findinarray( uniqueSoldToArray, soldToNumber) > -1 ) {
+				continue;
+			}						
+			append(uniqueSoldToArray, soldToNumber);
+			
+			/*********************************
+			  As per current implementation only one customer data will available in customerRecordRow 
+			  and then it gets added in final return string through rowSep & colSep.
+			  For BLine in single iteration 2 row we are trying to add so created new array customerRecordRowSoldTo array
+			  and added it in final return statement.
+			**********************************/
+			customerRecordRowSoldTo = string[];
+			append(customerRecordRowSoldTo , "Sold to");
+			append(customerRecordRowSoldTo , soldToNumber);
+			append(customerRecordRowSoldTo , name1);
+			append(customerRecordRowSoldTo , name2);//Smriti - ALM-1256 - Added for Name2 search
+			append(customerRecordRowSoldTo , pstlz);
+			append(customerRecordRowSoldTo , ort01);
+			append(customerRecordRowSoldTo , regn);
+			append(customerRecordRowSoldTo , land1);
+			append(customerRecordRowSoldTo , "");
+			append(customerRecordRowSoldTo , "");
+			append(customerRecordRowSoldTo , "");
+			append(customerRecordRowSoldTo , "");
+			append(customerRecordRowSoldTo , "");
+			append(customerRecordRowSoldTo , "");
+			append(customerRecordRowSoldTo , "");
+			append(customerRecordRowSoldTo , hqNumber);
+			append(customerRecordRowSoldTo , ntSelectedSalesOrg_t);
+			append(customerRecordRowSoldTo , bzirk); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search		
+			
+			 //Add customerRecordRowSoldTo data in final return string
+			 if (retRecordData <> "") {
+			retRecordData = retRecordData + rowSep;
+			 }
+			 retRecordData = retRecordData + join(customerRecordRowSoldTo , colSep);
+			 
+		} //End condition for isBLINE
+		//Harshit Mehta : ALM# 1990 Changes End
+	}
+}
+if (displayPrimaryShiptoCustomer) {
+	allkeys = keys(primaryShipToDict);
+	allKeysSorted = sort(allKeys, "asc", "text");
+	for eachID in allKeysSorted {
+		customerRecordRow = string[];
+		splitIds = split(eachID, ".");
+		maxCNT = sizeofarray(splitIDs);
+		if( maxCNT <> 3) { continue; }
+		//hqNumber = splitIds[0];//As per the existing logic, 0th position is for Hierarchy#. However, if Hierarchy# is empty in the CUSMAS table, Customer# is been set at the 0th position. So, it is not ideal to pull 0th position everytime for Hierarchy#. And hence commented this line to fix CPQ-1069. - Vijetha
+		/*=======CPQ-1069======
+		Below logic to fix Hierarchy# issue CPQ-1069.
+		Sample for eachID (Hierarchy#.Customer#.AssoCustomer# //Customer#.Customer#.AssoCustomer# // Customer#.AssoCustomer# // Hierarchy# // Hierarchy#.Customer#). These are the possible keys in allKeysSorted array.
+		Customer# and Hierarchy# will never be same.
+		So, if 0th position is not equal to 1st and 2nd positions, i.e, its Hierarchy#.
+		Only then set hqNumber with 0th position of the splitIds Array.
+		=========CPQ-1069======*/
+		//CPQ-1069 - Start
+		hqNumber = "";
+		if((maxCNT == 2 AND splitIds[0] <> splitIds[1])OR(maxCNT == 3 AND splitIds[0] <> splitIds[1] AND splitIds[0] <> splitIds[2])){
+			hqNumber = splitIds[0];
+		}
+		if(maxCNT == 1){//as we are skipping the loop if maxCNT <> 3, maxCNT == 2 and maxCNT == 1 condition wouldn't make sense here. Just for testing.
+			hqNumber = eachID;
+		}
+		//CPQ-1069 - END
+		soldToNumber = splitIds[1];
+		shipToNumber = splitIds[2];
+		shipToCustInfoDict = get(retDict, shipToNumber);
+
+		if( isnull (shipToCustInfoDict) ) {
+			continue;
+		} 
+
+
+		if( isESEMEA AND lookupType == "Partner" ) 
+		{
+			shipToCustomerRecord  = recordset();
+			if (displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1) {
+				shipToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $shipToNumber AND (KUNN2 IN $sapUserIDs OR KDGRP='43')");
+			} else {
+				shipToCustomerRecord = BMQL("SELECT KUNNR FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg_t AND VTWEG=$ntDistributionChannel_t AND KUNNR = $shipToNumber AND KUNN2 IN $sapUserIDs" );
+			}
+			foundShipTo = false;
+			for eachCustID in shipToCustomerRecord {
+				foundShipTo = true; 
+				break;
+			}
+			if(NOT foundShipTo) {
+				continue;
+			}
+			
+			//Harshit Mehta : ALM # 2166 Changes END to skip check for soldToCustomer ownership for partner users.
+		}
+		shipName1 = util.getStringDict(shipToCustInfoDict, "NAME1", "");
+		shipName2 = util.getStringDict(shipToCustInfoDict, "NAME2", "");  //Smriti - ALM-1256 - Added for Name2 search
+		shipPstlz = util.getStringDict(shipToCustInfoDict, "PSTLZ", "");
+		shipOrt01 = util.getStringDict(shipToCustInfoDict, "ORT01", "");
+		shipLand1 = util.getStringDict(shipToCustInfoDict, "LAND1", "");
+		shipRegio = util.getStringDict(shipToCustInfoDict, "REGIO", "");
+		shipkdgrp = util.getStringDict(shipToCustInfoDict, "KDGRP", "");
+		shipbzirk = util.getStringDict(shipToCustInfoDict, "BZIRK", ""); //Chandan - 49704 - Eagle Development - Added for BZRIK(Slaes District) search
+		shipCrKey = shipLand1 + "_" + shipRegio;
+		shipRegn = get(regionLookup, shipCrKey);
+		if (isnull(shipRegn) OR (shipRegn == "ES-EMEA" OR shipRegn == "CH-EMEA")) {
+			shipRegn = "";
+		}
+		custInfoDict = get(retDict, soldToNumber);
+		if( isnull (custInfoDict) ) {
+			continue;
+		} 
+
+		name1 = util.getStringDict(custInfoDict, "NAME1", "");
+		name2 = util.getStringDict(custInfoDict, "NAME2", ""); //Smriti - ALM-1256 - Added for Name2 search
+		pstlz = util.getStringDict(custInfoDict, "PSTLZ", "");
+		ort01 = util.getStringDict(custInfoDict, "ORT01", "");
+		land1 = util.getStringDict(custInfoDict, "LAND1", "");
+		regio = util.getStringDict(custInfoDict, "REGIO", "");
+		kdgrp = util.getStringDict(custInfoDict, "KDGRP", "");
+		bzirk = util.getStringDict(custInfoDict, "BZIRK", ""); //Chandan - 49704 - Eagle Development - Added for BZIRK(Slaes District) search
+		crKey = land1 + "_" + regio;
+		regn = get(regionLookup, crKey);
+		if (isnull(regn) OR (regn == "ES-EMEA" OR regn == "CH-EMEA")) {
+			regn = "";
+		}
+
+		if( displayWholesaleCustomerOnly AND find(_system_user_groups, "cSPWholesalerAccess") <> -1 ) 
+		{
+			if( kdgrp <> "43" ) {
+				continue;
+			}
+			if( shipkdgrp <> "43" ) {
+				continue;
+			}
+		}
+
+		append(customerRecordRow, "Ship to"); // only ship to associated type
+		append(customerRecordRow, shipToNumber);
+		append(customerRecordRow, shipName1);
+		append(customerRecordRow, shipName2); //Smriti - ALM-1256 - Added for Name2 search
+		append(customerRecordRow, shipPstlz);
+		append(customerRecordRow, shipOrt01);
+		append(customerRecordRow, shipRegio);
+		append(customerRecordRow, shipLand1);
+		append(customerRecordRow, "Sold to");
+		append(customerRecordRow, soldToNumber);
+		append(customerRecordRow, name1);
+		append(customerRecordRow, pstlz);
+		append(customerRecordRow, ort01);
+		append(customerRecordRow, regn);
+		append(customerRecordRow, land1);
+		append(customerRecordRow, hqNumber);
+		append(customerRecordRow, ntSelectedSalesOrg_t);
+		append(customerRecordRow, bzirk); //Chandan - 49704 - Eagle Development - Added for BZIRK(Slaes District) search
+		if (retRecordData <> "") {
+			retRecordData = retRecordData + rowSep;
+		}
+		
+		retRecordData = retRecordData + join(customerRecordRow, colSep);
+
+	}
+}
+
+
+return retRecordData;

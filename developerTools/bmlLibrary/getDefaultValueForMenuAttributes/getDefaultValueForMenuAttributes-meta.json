@@ -1,0 +1,15 @@
+{
+  "name" : "Get Default Value for Menu Attributes",
+  "variableName" : "getDefaultValueForMenuAttributes",
+  "description" : "49704 - Eagle Development | Returns the default values for the menu attributes from AllAttributes Data Table",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  }, {
+    "name" : "inputArray",
+    "type" : "String[]"
+  } ],
+  "attributes" : [ ]
+}

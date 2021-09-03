@@ -1,0 +1,63 @@
+/**
+@name Sort 2-D Array
+@api u_sort2DArray
+@summary Sort a 2-dimensional array based on a set of sorting criteria.
+@param strArray String[][] the 2-D string array to be sorted
+@param sortFields Integer[] one or more column indices of the columns to be sorted
+@param sortOrder String ```asc``` for ascending order; ```desc``` for descending order
+@param sortType String ```text``` for perform text sorting; ```numeric``` for perform numeric sorting
+@return String[][]
+@package utils/Data Manipulation
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-18|tleung               |Initial version
+*/
+result = string[][];
+cache = string[];
+cSize = 0;
+x = 0;
+
+if (sizeOfArray(strArray) > 0) {
+    for sa in strArray {
+        for i in sortFields {
+            cache[x] = cache[x] + sa[i];
+        }
+        strX = string(x);
+        if (len(strX) == 1) {
+            strX = "00" + strX;
+        }
+        elif (len(strX) == 2) {
+            strX = "0" + strX;
+        }
+        cache[x] = cache[x] + "|" + strX;
+        x = x + 1;
+        if (cSize == 0) {
+            cSize = sizeOfArray(sa);
+        }
+    }
+    if (upper(sortOrder) == "ASC") {
+        if (upper(sortType) == "TEXT") {
+            cache = sort(cache, "asc", "text");
+        } 
+        else {
+            cache = sort(cache, "asc", "numeric");
+        }
+    } else {
+        if (upper(sortType) == "TEXT") {
+            cache = sort(cache, "desc", "text");
+        } else {
+            cache = sort(cache, "desc", "numeric");
+        }
+    }
+    cRun = range(cSize);
+    x = 0;
+    for c in cache {
+        nr = split(c, "|");
+        for cr in cRun {
+            result[x][cr] = strArray[atoi(nr[1])][cr];
+        }
+        x = x + 1;
+    }
+}
+return result;

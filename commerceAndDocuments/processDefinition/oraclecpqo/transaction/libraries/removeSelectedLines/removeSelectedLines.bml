@@ -1,0 +1,39 @@
+company = util.getSupplierCompanyName();
+
+removeURL = "https://" + company + ".bigmachines.com/rest/v8/commerceDocumentsOraclecpqoTransaction/" + bsId + "/actions/_remove_transactionLine";
+
+// get system user
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+headers = dict("string");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+
+body = json();
+confID = "";
+linesToDelete = jsonarray();
+
+for line in transactionLine {
+	if( line.externalConfigData_l<>"") {
+		SAPconf = line.externalConfigData_l;	
+		startConfigId = find(SAPconf , "<SAP_ConfigurationID>");
+		  if( startConfigId > -1 ) {
+			startConfigIdValue = find(SAPconf , ">", startConfigId);
+			endstartConfigIdValue = find(SAPconf , "<", startConfigIdValue);
+			confID= subString(SAPconf, startConfigIdValue + 1, endstartConfigIdValue);			
+		  }
+		  if(confID == ConfigurationId)	{		
+			jsonarrayappend(linesToDelete, "transactionLine/" + line._document_number);
+		 }
+	}
+}
+if( jsonarraysize(linesToDelete)>0 ) {
+	jsonput( body, "selections", linesToDelete);
+	bodyStr = jsontostr(body);	
+	results = urldatabypost(removeURL, bodyStr, "ERROR", headers, true);
+	
+}
+
+
+return true;

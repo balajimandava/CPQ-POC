@@ -1,0 +1,58 @@
+rowSep = "#@#";
+colSep = "$,$";
+colSep2 = "=-=";
+condition = inputCondition;
+retStr = "";
+
+salesOrgDict = dict("string");
+allSalesOrgArr = string[];
+salesOrgResults = BMQL("Select SalesOrg, BusinessGroup From BusinessGroup");
+for eachRow in salesOrgResults {
+	// key=BusinessGroup, value=SalesOrg# Array
+	busiGrp = get(eachRow, "BusinessGroup");
+	busiGrpSalesOrgArr = string[];
+	if(containskey(salesOrgDict, busiGrp)){
+		busiGrpSalesOrgArr = split(get(salesOrgDict, busiGrp), colSep2);
+	}
+	busiGrpSalesOrg = get(eachRow, "SalesOrg");
+	append(busiGrpSalesOrgArr, busiGrpSalesOrg);
+	append(allSalesOrgArr, busiGrpSalesOrg);
+	put(salesOrgDict, busiGrp, join(busiGrpSalesOrgArr, colSep2));
+}
+allSalesOrg = join(allSalesOrgArr, colSep2);
+
+transactionTypeArr = string[]{"SA", "DS", "WQ", "RQ", "RA"};
+
+bizGrpCondResults = BMQL("Select SA, DS, WQ, RQ, RA From BizGrpConditions Where Condition = $condition");
+for bizGrpCondEachRow in bizGrpCondResults {
+	for eachTransactionType in transactionTypeArr {
+		bizGrpSalesOrg = "";
+		bizGrp = get(bizGrpCondEachRow, eachTransactionType);
+		if(bizGrp == "ALL") {
+			bizGrpSalesOrg = allSalesOrg;
+		} else {
+			bizGrpArr = split(bizGrp, "~");
+			for eachBizGrp in bizGrpArr {
+				bizGrpSalesOrg = bizGrpSalesOrg + get(salesOrgDict, eachBizGrp) + colSep2;
+			}			
+		}
+		
+		if(endswith(bizGrpSalesOrg, colSep2)) {
+			bizGrpSalesOrg = substring(bizGrpSalesOrg, 0, -3);
+		}
+		
+		if(eachTransactionType == "SA") {
+			eachTransactionType = "DSP";
+		} elif(eachTransactionType == "RA") {
+			eachTransactionType = "CSP";
+		}
+		
+		retStr = retStr + eachTransactionType + colSep + bizGrpSalesOrg + rowSep;
+	}
+}
+
+if(endswith(retStr, rowSep)) {
+	retStr = substring(retStr, 0, -3);
+}
+
+return retStr;

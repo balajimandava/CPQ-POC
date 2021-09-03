@@ -1,0 +1,9 @@
+{
+  "name" : "Connect to Zilliant Copy",
+  "variableName" : "connectToZilliant_Copy",
+  "description" : "Use the OAuth token and connect with Zilliant to fetch the guidance.",
+  "libraryFunctions" : [ "util.getAuthenticationToken", "util.getEnvironmentVariable" ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "attributes" : [ ]
+}

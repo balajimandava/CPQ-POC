@@ -1,0 +1,12 @@
+{
+  "name" : "Get Material Items For Groups",
+  "variableName" : "getMaterialItemsForGroups",
+  "description" : "",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.getStringDict" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

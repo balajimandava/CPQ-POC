@@ -1,0 +1,8 @@
+for line in transactionLine {
+	requested = line.agreementNetDiscountRequested_l;
+	requested_price = line.agreementNetPriceRequested_l;
+	print "Requested Discount: " + string(requested) + " , Requested Price: " + string(requested_price);
+	
+}
+
+return "";

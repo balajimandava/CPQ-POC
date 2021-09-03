@@ -1,0 +1,12 @@
+{
+  "name" : "Get Output Default Values",
+  "variableName" : "getOutputDefaultValues",
+  "description" : "Get the Default values from  'AllAttributes' table based on the Business Group, Sales Org  and Transaction Type.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,372 @@
+/**
+@name Get Eaton Contacts
+@api getEatonContacts
+@summary 
+@attribute customerNumber_t
+@attribute qqBusinessLineForSalesOrg_t
+@attribute salesOrg_t
+@function JsonArray getCUSMAS(String Dictionary parmsDict)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-02|Vivek.Hingorani      |Initial Build
+2018-07-05|Vivek.Hingorani	|Update Contact3 lookup to be from VENDOR table
+2018-11-23|Gaurav Singh		|Changes related to ALM-1747: Added a check to set partner to ZW for BUSSMANN
+2019-04-24|Smriti Chaturvedi	|Changes related to ALM - 1957:- Added a if condition for ES-EMEA, WH quotes to receive Sales Contact against the Ship to 
+5/24/2019 |Harshit Maheshwari  	| ALM 1737Customer . Commented logic for jetUI
+06/06/2019|Murali Krishna      	|added the if condition for ALM 2082 to set the ship to values for eaton contacts
+19/08/2019|Gaurav Singh		|Made changes to accommodate new VENDOR Table structure (addition of PARVW and EMAIL fields also handling multiple
+				 records for the same LIFNR)
+03-Jan-2020|Rahul Uttarwar	|Added code for scenarios defeined for Project#49074.
+31-Jan-2020|Chandan A J		|Added condtion to handle the vedor data for PSD - Eagle Development - 49704
+20-Feb-2020|Rahul Uttarwar	|Project#49074|Get the KUNNR# for the logged-in user from UserCustomerLookup table
+2-June-2020|Rahul Uttarwar	|Project#49074|Added condition for Jira# CPQ-1946
+08-Sep-2020| Nithin         |Project#50986|Added ZW and Z1 Partner to WD
+09-Sep-2020|Subha	|Project#49074|Added condition for Vendor's default email address change for PSD for CR#2571
+09-Sep-2020|Subha	|Project#49074|Removed condition for Vendor's default email address change for PSD for CR#2571
+16-Oct-202|Gunashtee	|Fix for #INC000013593937 
+17-Sep-2021|Nithin      |INC000014667478-LineOwner should updated if transaction owner is updated on start step
+*/
+ret = "";
+bussGroup = qqBusinessLineForSalesOrg_t;
+contact2Name = ""; // contact2 variables for sales contact
+contact2EMail = "";
+contact2Phone = "";
+contact3Name = ""; // contact3 variables for sales agency
+contact3EMail = "";
+contact3Phone = "";
+contact4Name = ""; // contact4 variables for Customer Support Contact
+contact4EMail = "";
+contact4Phone = "";
+transactionOwner = ""; // used to set Transaction Owner attribute
+salesContactNum = "";
+salesAgencyNum = "";
+customerSupportNum = "";
+
+KTOKD = "";
+if(bussGroup == "PSD"){ // This block is added to check the selected customer is 'one time customer'.
+   oneTimeCusQuery = dict("string");
+   put(oneTimeCusQuery,"KUNNR",customerNumber_t);
+   put(oneTimeCusQuery,"VKORG",salesOrg_t);
+   put(oneTimeCusQuery,"VTWEG",ntDistributionChannel_t); // RahulU|Eagle Development|JIRA:CPQ-537
+   oneTimeCus = util.getCUSMAS(oneTimeCusQuery);
+   loopCNT = range(jsonarraysize(oneTimeCus));
+   
+   for eachCus in loopCNT {
+      custJSON = jsonarrayget(oneTimeCus,eachCus,"json");
+
+      if (NOT(jsonpathcheck(custJSON,"$..totalcustomers"))) {
+	KTOKD = jsonget(custJSON,"KTOKD");
+      }
+      if (KTOKD == "ZCPD"){ // its a One time Customer
+      	break;
+      }
+   }
+}
+
+if(bussGroup == "PSD" AND KTOKD == "ZCPD"){ 
+   if(substring(_system_company_name, 0,5) <> "eaton")// Partner org user or Agent
+   {
+      vUserId = substring(_system_company_name, 1);//"V" + _system_user_login;
+      KUNNR = "";
+      //query UserCustomerLookup table to get KUNNR(900000#) using _system_user_login (00003000)
+      userCustTblQryArr = bmql("Select KUNNR from UserCustomerLookup where UserId=$vUserId");
+      for eachusrCusRecord in userCustTblQryArr{
+         KUNNR = get(eachusrCusRecord, "KUNNR");
+      }
+      //Z5(Sales Contact) partner function 
+      Z5SalesConQuery1 = dict("string");
+      put(Z5SalesConQuery1,"KUNNR",KUNNR);
+      put(Z5SalesConQuery1,"VKORG",salesOrg_t);
+      put(Z5SalesConQuery1,"VTWEG",ntDistributionChannel_t); // RahulU|Eagle Development|JIRA:CPQ-537
+      Z5SalesConQuery1Result = util.getCUSMAS(Z5SalesConQuery1);
+  
+      loopCNT= range(jsonarraysize(Z5SalesConQuery1Result));
+      for eachCust in loopCNT {
+      	custJSON= jsonarrayget(Z5SalesConQuery1Result,eachCust,"json");
+		
+      	if (NOT(jsonpathcheck(custJSON,"$..totalcustomers"))) {
+      	  contact2Name = jsonget(custJSON,"NAME1");
+      	  contact2EMail = jsonget(custJSON,"SMTP_ADDR");
+      	  contact2Phone = jsonget(custJSON,"TELF1");
+      	  salesContactNum = KUNNR;
+      	}
+      }
+      //Z1(Sales Agency) Partner Function 
+      vendorBMQL = bmql("SELECT DISTINCT NAME1, TELF1, SMTP_ADDR FROM VENDOR WHERE LIFNR = $vUserId");
+      for eachVendor in vendorBMQL {
+      	contact3Name = get(eachVendor,"NAME1");
+      	contact3EMail = get(eachVendor,"SMTP_ADDR");
+      	contact3Phone = get(eachVendor,"TELF1");
+      	salesAgencyNum = vUserId;
+      }
+	  
+      ret = ret + "1~qq_Contact2Name_t~" + contact2Name + "|";
+      ret = ret + "1~qq_Contact2Phone_t~" + contact2Phone + "|";
+      ret = ret + "1~qq_Contact2Email_t~" + contact2Email + "|";
+      ret = ret + "1~qq_Contact3Name_t~" + contact3Name + "|";
+      ret = ret + "1~qq_Contact3Phone_t~" + contact3Phone + "|";
+      ret = ret + "1~qq_Contact3Email_t~" + contact3Email + "|";
+      ret = ret + "1~salesContactNumber_t~" + salesContactNum + "|";
+      ret = ret + "1~salesAgencyNumber_t~" + salesAgencyNum + "|";
+   }
+   else{
+      //20-Feb-2020|Rahul Uttarwar|Project#49074|Get the KUNNR# for the logged-in user from UserCustomerLookup table
+      kunnrlookupBMQL = bmql("SELECT KUNNR FROM UserCustomerLookup WHERE UserId = $_system_user_login");
+      for eachUser in kunnrlookupBMQL{
+         customerSupportNum = get(eachUser,"KUNNR");
+         if(customerSupportNum <> ""){
+            break;
+         }
+      }
+      if(customerSupportNum <> "" AND not isnull(customerSupportNum)){
+         ret = ret + "1~qq_Contact4Name_t~" + _system_user_name + "|";
+         ret = ret + "1~qq_Contact4Phone_t~" + _system_user_phone + "|";
+         ret = ret + "1~qq_Contact4Email_t~" + _system_user_email + "|";
+         ret = ret + "1~customerSupportNumber_t~" + customerSupportNum + "|";
+      }
+   }
+}
+else{
+	//########## Set PARVW based on businessLine
+	parvw2 = "Z5";
+	//Gaurav: Added BUSSMANN to below if condition to set parvw2 to ZW for BUSSMANN also (ALM-1747)
+	if(bussGroup =="ES-EMEA" OR bussGroup =="BUSSMANN" OR bussGroup == "WD"){
+		parvw2 = "ZW";
+	}
+
+	parvw3 = "";
+	if(bussGroup =="B-LINE" OR bussGroup =="BUSSMANN" OR bussGroup =="PSD" OR bussGroup == "WD"){ // Project#49074|E9913661|Added condition for PSD
+		parvw3 = "Z1";
+	}
+	
+
+	//########## Get Contact 2 Data
+
+	contact2Query1 = dict("string");
+	//Smriti :- Added a if condition for ALM- 1957 to set Ship to sales contact for ES-EMEA
+	if(bussGroup =="ES-EMEA" AND transactionType_t=="WQ")
+	{
+		put(contact2Query1,"KUNNR",qq_customerReferenceShipTo);
+	}
+	else
+	{
+		put(contact2Query1,"KUNNR",customerNumber_t);
+	}
+	put(contact2Query1,"VKORG",salesOrg_t);
+	put(contact2Query1,"PARVW",parvw2);
+	put(contact2Query1,"VTWEG",ntDistributionChannel_t); // RahulU|Eagle Development|JIRA:CPQ-537
+	KUNN2 = "";
+	
+	if (bussGroup <> "BUSSMANN" OR NOT(nationalAccount_t)){ //RahulU|49704|Eagle Development: National Account Bussmann Transaction will have default Sales Contact - 0900003022
+		contact2KUNN2 = util.getCUSMAS(contact2Query1);
+
+		// Get KUNN2
+		loopCNT= range(jsonarraysize(contact2KUNN2));
+		for eachCust in loopCNT {
+			custJSON= jsonarrayget(contact2KUNN2,eachCust,"json");
+			
+			if (NOT(jsonpathcheck(custJSON,"$..totalcustomers"))) {
+				KUNN2 = jsonget(custJSON,"KUNN2");
+			}
+		}
+	}else
+	{
+		KUNN2 = "0900003022";
+	}
+	contact2Query2 = dict("string");
+	put(contact2Query2,"KUNNR",KUNN2);
+	put(contact2Query2,"VKORG",salesOrg_t);
+	put(contact2Query2,"VTWEG",ntDistributionChannel_t); // RahulU|Eagle Development|JIRA:CPQ-537
+
+	contact2 = util.getCUSMAS(contact2Query2);
+
+	// Get Contact2
+	loopCNT= range(jsonarraysize(contact2));
+	for eachCust in loopCNT {
+		custJSON= jsonarrayget(contact2,eachCust,"json");
+		if (NOT(jsonpathcheck(custJSON,"$..totalcustomers"))) {
+			contact2Name = jsonget(custJSON,"NAME1");
+			contact2EMail = jsonget(custJSON,"SMTP_ADDR");
+			contact2Phone = jsonget(custJSON,"TELF1");
+			salesContactNum = KUNN2;
+		}
+	}
+
+
+	//########## Get Contact 3 Data
+	//murali krishna added the if condition for ALM 2082 to set the ship to values for eaton contacts if ship to not present sold to values set to Eaton Contacts 
+	contact3Query1 = dict("string");
+	cusNumber = "";
+	if(bussGroup == "PSD"){ // Eagle Development|RahulU|2ndJune2020|Added condition for Jira# CPQ-1946
+		cusNumber = customerNumber_t;
+	}elif(qq_customerReferenceShipTo<> ""){
+		cusNumber = qq_customerReferenceShipTo;
+	}else{
+		cusNumber = customerNumber_t;
+	}
+	put(contact3Query1,"KUNNR",cusNumber);
+	put(contact3Query1,"VKORG",salesOrg_t);
+	put(contact3Query1,"PARVW",parvw3);
+	put(contact3Query1,"VTWEG",ntDistributionChannel_t); // RahulU|Eagle Development|JIRA:CPQ-537
+	contact3KUNN2 = util.getCUSMAS(contact3Query1);
+
+	KUNN2 = "";
+	// Get KUNN2
+	loopCNT= range(jsonarraysize(contact3KUNN2));
+	for eachCust in loopCNT {
+		custJSON= jsonarrayget(contact3KUNN2,eachCust,"json");
+		
+		if (NOT(jsonpathcheck(custJSON,"$..totalcustomers"))) {
+			KUNN2 = jsonget(custJSON,"KUNN2");
+		}
+	}
+	//Chandan - 49704 - Eagle Development - Added the below if condition to fetch the partner details of the vendor from Vendor datatable - START
+	//added bline in the condition for #INC000013593937 - Gunashree - 10/16/2020
+	if((bussGroup == "PSD" OR bussGroup == "B-LINE") AND isVendorQuote_t){
+		KUNN2 = substring(_system_company_name, 1);
+	}
+	//Chandan - 49704 - Eagle Development - Added the above if condition to fetch the partner details of the vendor from Vendor datatable - END 
+	//Gaurav: Modifying below query and code to make sure contact name, email and phone are taken from the master record and email is fetched from all multiple records for ALM-2382
+	// Check KUNN2 value in VENDOR table
+	contact3 = bmql("Select NAME1,TELF1,SMTP_ADDR,FLGDEFAULT from VENDOR where LIFNR=$KUNN2 AND PARNR IS NULL");
+	//print KUNN2;
+	defaultEmail = "";
+	emailAddrs = "";
+	for contact in contact3{
+		//Gaurav: Check if Name is present then only populate it (as per current data in SAP only master record will have this data for email records all the columns except Email and FLGDFT would be blank)
+		if(get(contact, "NAME1") <> ""){
+			contact3Name = get(contact, "NAME1");
+			contact3EMail = get(contact, "SMTP_ADDR");
+			contact3Phone = get(contact, "TELF1");
+			salesAgencyNum = KUNN2;
+		}
+		//Append all the Email records to the emailAddrs and defaultEmail list
+		if(get(contact, "SMTP_ADDR") <> ""){
+		
+			//Commented the below condition for PSD to default the email address of the creator's for the CR#2571
+			/*if(bussGroup == "PSD" AND lower(preparedByEmail_t)==lower(get(contact, "SMTP_ADDR"))){
+				defaultEmail  =  "<option>" + get(contact, "SMTP_ADDR") + "</option>";
+			}*/
+			if(get(contact, "FLGDEFAULT") == "X"){
+				defaultEmail  =  "<option>" + get(contact, "SMTP_ADDR") + "</option>";
+			}
+			else{
+				emailAddrs = emailAddrs + "<option>" + get(contact, "SMTP_ADDR") + "</option>";
+			}
+		}
+	}
+	//Complete mail address list
+	emailList = defaultEmail + emailAddrs;
+	//Create the retString
+	retStr = emailList;
+
+	ret = ret + "1~vendorEmailsText_t~" + retStr + "|";
+
+	//Gaurav: Changes for ALM-2382 end
+
+	//Return
+	// 5/24/2019 : Harshit Maheshwari : ALM 1737 . If JET UI and B-Line is the business, don't set qq_Contact2Name_t , qq_Contact2Phone_t , qq_Contact2Email_t 
+	if(qqBusinessLineForSalesOrg_t  == "B-LINE"){
+		print "";
+	}
+	else{
+		ret = ret + "1~qq_Contact2Name_t~" + contact2Name + "|";
+		ret = ret + "1~qq_Contact2Phone_t~" + contact2Phone + "|";
+		ret = ret + "1~qq_Contact2Email_t~" + contact2Email + "|";
+		ret = ret + "1~salesContactNumber_t~" + salesContactNum + "|";
+	}
+
+	ret = ret + "1~qq_Contact3Name_t~" + contact3Name + "|";
+	ret = ret + "1~qq_Contact3Phone_t~" + contact3Phone + "|";
+	ret = ret + "1~qq_Contact3Email_t~" + contact3Email + "|";
+	ret = ret + "1~salesAgencyNumber_t~" + salesAgencyNum + "|";
+
+	// Project#49074 | RahulU | Code to fetch Customer Support Contact
+	//########## Get Contact 4 Data
+	parvw4 = "ZM"; // ZM Partner function to be populated in Customer Support attributes for PSD
+	contact4Query1 = dict("string");
+	cusNumber = customerNumber_t; //Sold To for PSD
+
+	if(bussGroup =="B-LINE") // ZQ Partner function to be populated in Customer Support attributes for B-LINE
+	{
+	   parvw4 = "ZQ";
+	}
+	put(contact4Query1,"KUNNR",cusNumber);
+	put(contact4Query1,"VKORG",salesOrg_t);
+	put(contact4Query1,"PARVW",parvw4);
+	put(contact4Query1,"VTWEG",ntDistributionChannel_t); // RahulU|Eagle Development|JIRA:CPQ-537
+	contact4KUNN2 = util.getCUSMAS(contact4Query1);
+	KUNN2 = "";
+	// Get KUNN2
+	loopCNT= range(jsonarraysize(contact4KUNN2));
+	for eachCust in loopCNT {
+	   custJSON= jsonarrayget(contact4KUNN2,eachCust,"json");
+
+	   if (NOT(jsonpathcheck(custJSON,"$..totalcustomers"))) {
+	   	   KUNN2 = jsonget(custJSON,"KUNN2");
+	   }
+	}
+	contact4Query2 = dict("string");
+	put(contact4Query2,"KUNNR",KUNN2);
+	put(contact4Query2,"VKORG",salesOrg_t);
+	put(contact4Query2,"VTWEG",ntDistributionChannel_t); // RahulU|Eagle Development|JIRA:CPQ-537
+	contact4 = util.getCUSMAS(contact4Query2);
+	loopCNT= range(jsonarraysize(contact4));
+	for eachCust in loopCNT {
+	   custJSON= jsonarrayget(contact4,eachCust,"json");
+
+	   if (NOT(jsonpathcheck(custJSON,"$..totalcustomers"))) {
+	      contact4Name = jsonget(custJSON,"NAME1");
+	      contact4EMail = jsonget(custJSON,"SMTP_ADDR");
+	      contact4Phone = jsonget(custJSON,"TELF1");
+	      customerSupportNum = KUNN2;
+	   }
+	}
+	ret = ret + "1~qq_Contact4Name_t~" + contact4Name + "|";
+	ret = ret + "1~qq_Contact4Phone_t~" + contact4Phone + "|";
+	ret = ret + "1~qq_Contact4Email_t~" + contact4Email + "|";
+	ret = ret + "1~customerSupportNumber_t~" + customerSupportNum + "|";
+   }
+
+//Project#49074|E9913664|10thJan2020|Code to determing transaction owner attribute on Eaton Contact Tab
+   if(_system_current_step_var == "start_step"){ // this code should run only when user first creates the transaction
+      dictForTransactionOwner = dict("string");
+      put(dictForTransactionOwner, "qqBusinessLineForSalesOrg_t", qqBusinessLineForSalesOrg_t);
+      put(dictForTransactionOwner, "transactionType_t", transactionType_t);
+      put(dictForTransactionOwner, "contact2Name", contact2Name);
+      put(dictForTransactionOwner, "createdBy_t", createdBy_t);
+      put(dictForTransactionOwner, "nationalAccount_t", string(nationalAccount_t));
+      put(dictForTransactionOwner, "contact3Name", contact3Name);
+      put(dictForTransactionOwner, "isVendorQuote_t", lower(string(isVendorQuote_t)));
+transactionOwner = util.getTransactionOwner(dictForTransactionOwner);
+//print transactionOwner ;
+
+      if(transactionOwner <> ""){
+         ret = ret + "1~transactionOwner_t~" + transactionOwner + "|";
+      }
+//INC000014667478
+      for line in transactionLine
+      {
+      ownername = createdBy_t;
+      if(transactionOwner=="salesContact")
+      {
+      ownername = qq_Contact2Name_t;
+      }
+      elif(transactionOwner=="customerSupport")
+      {
+      ownername = qq_Contact4Name_t;
+      }
+      elif(transactionOwner=="salesAgency")
+      {    
+      ownername = qq_Contact3Name_t;
+      }
+      elif(transactionOwner=="createdBy")
+      {
+      ownername = createdBy_t;
+      }
+      ret = ret+ line._document_number+"~lineOwner_l~"+ ownername + "|";
+      }
+   }
+return ret;

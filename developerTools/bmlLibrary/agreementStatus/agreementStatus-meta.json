@@ -1,0 +1,12 @@
+{
+  "name" : "Agreement Status",
+  "variableName" : "agreementStatus",
+  "description" : "Returns a JSON list of agreements and the status depending on options passed",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.getTransactionData" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

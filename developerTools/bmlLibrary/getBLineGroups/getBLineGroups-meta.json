@@ -1,0 +1,12 @@
+{
+  "name" : "Get BLine Groups",
+  "variableName" : "getBLineGroups",
+  "description" : "Return the B-Line groups that should have access to the quote",
+  "libraryFunctions" : [ "util.getTransactionData", "util.u_logStringArray", "util.u_setLogLevel" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

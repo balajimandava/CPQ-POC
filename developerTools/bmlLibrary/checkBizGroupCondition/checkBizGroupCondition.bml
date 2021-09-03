@@ -1,0 +1,90 @@
+/**
+@name Check Biz Group Condition
+@api checkBizGroupCondition
+@param condition String
+@param transactionType String
+@param salesOrg String
+@return Boolean
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-01|michael.yeung        | Add Sales Org handling
+2018-10-23|michael.yeung        |
+2020-03-18|Atul Jain		|Added debug mode to print statements
+
+*/
+// Fetching all rows from BusinessGroup table and storing it in a dictionary.
+debugMode = true;
+bizGrpsRS = BMQL("Select SalesOrg, BusinessGroup From BusinessGroup");
+bizGrpsDict = dict("string");
+for eachBizGrp in bizGrpsRS {
+	put(bizGrpsDict, get(eachBizGrp, "SalesOrg"), get(eachBizGrp, "BusinessGroup"));
+}
+salesOrgList = keys(bizGrpsDict);
+businessGroupList = values(bizGrpsDict);
+
+// Storing the parameters into local variable.
+cond = condition;
+transactTyp = transactionType;
+slsOrg = salesOrg;
+separator = "~";
+returnValue = false;
+
+if (debugMode) {
+print "Condition: " + cond;
+print "Given Transaction Type: " + transactTyp;
+print "Sales Org: " + slsOrg;
+}
+
+// Converting Transaction Type as per the Columns of BizGrpConditions table.
+if(transactTyp == "DSP") { 
+	transactTyp = "SA";
+} elif(transactTyp == "CSP") {
+	transactTyp = "RA";
+}
+
+transactTypSalesOrg = transactTyp + "SalesOrg";
+selectVar = transactTyp + ", " + transactTypSalesOrg;
+if (debugMode) {
+print "Converted Transaction Type: " + transactTyp;
+}
+// Extracting the Business Group as per the Sales Org from the Business Group Dictionary.
+bizGrp = "";
+if(findinarray(salesOrgList, slsOrg) <> -1) {
+	bizGrp = get(bizGrpsDict, slsOrg);
+} else {
+	// Sales org doesn't exists in the BusinessGroup table. Return False.
+	return false;
+}
+// Extracting the business groups from the BizGrpConditions table.
+bizGrpCondRS = BMQL("Select $selectVar From BizGrpConditions Where Condition  = $cond");
+bizGrpFrmTbl = "";
+salesOrgFrmTbl = "";
+for eachbizGrpCondRS in bizGrpCondRS {
+	bizGrpFrmTbl = get(eachbizGrpCondRS, transactTyp);
+	salesOrgFrmTbl = get(eachbizGrpCondRS, transactTypSalesOrg);
+}
+
+// Return False if bizGrpFrmTbl is empty.
+if((bizGrpFrmTbl == "" OR isnull(bizGrpFrmTbl)) AND (salesOrgFrmTbl=="" OR isnull(salesOrgFrmTbl))) {
+	return false;
+}
+
+// Checking the bizGrp is listed in bizGrpFrmTbl value or not.
+bizGrpFrmTblArr = string[];
+if(bizGrpFrmTbl == "ALL") {
+	bizGrpFrmTblArr = businessGroupList;
+} else {
+	bizGrpFrmTblArr = split(bizGrpFrmTbl, separator);
+}
+salesOrgFrmTblArr = split(salesOrgFrmTbl, separator);
+
+print bizGrpFrmTblArr;
+print salesOrgFrmTblArr;
+if(findinarray(bizGrpFrmTblArr, bizGrp) > -1 OR findinarray(salesOrgFrmTblArr, salesOrg) > -1) {
+	returnValue = true;
+} else {
+	returnValue = false;
+}
+
+return returnValue;

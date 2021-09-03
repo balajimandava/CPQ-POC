@@ -1,0 +1,114 @@
+/**
+@name Send To SAP
+@api sendToSAP
+@summary Used to Send 1 or more Agreements to SAP
+@param inputDict StringDictionary
+@function String getSupplierCompanyName()
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-05|Tat.Leung            |
+2020-03-18|Atul Jain			|Removed commented code, and added debug mode to print statements.
+
+*/
+retString = "";
+debugMode = false;
+triggerDate = datetostr(getdate(true), "yyyy-MM-dd HH:mm:ss");
+if (debugMode) {
+print triggerDate;
+}
+
+tranIDSPacked = "";
+
+triggerList = split(tranIDSPacked, ":-:");
+
+agreementTemplate = "$BASE_PATH$/XMLOutbound/sendToSAP.xml";
+
+headers = dict("string");
+put(headers, "Content-Type", "text/xml");
+
+apiUserID = "";
+apiPassID = "";
+
+siteID = "eaton";
+companyName = util.getSupplierCompanyName();
+
+If(siteID <> companyName) {
+    if (debugMode) {
+	print "SITE NAMES DON'T MATCH";
+    }
+	return "";
+}
+
+serviceEndpoint = "https://" + siteID + ".bigmachines.com/v2_0/receiver/commerce/oraclecpqo";
+baseURL = "https://" + siteID + ".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/";
+
+siteBMQL = bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+for eachSite in siteBMQL {
+    apiUserID = get(eachSite, "FieldName");
+    apiPassID = get(eachSite, "Value1");
+}
+
+headers = dict("string");
+auth_val = "Basic " + encodebase64(apiUserID + ":" + apiPassID);
+
+put(headers, "Authorization", auth_val);
+put(headers, "Content-Type", "Application/Json");
+
+payLoad = "";
+
+agreementTAGS = dict("string");
+put(agreementTAGS, "USERID", apiUserID);
+put(agreementTAGS, "PASSWORD", apiPassID);
+
+processList = "";
+for eachTranID in triggerList {
+
+    put(agreementTAGS, "TRANSACTION_ID", eachTranID);
+    agreementPayload = applytemplate(agreementTemplate, agreementTAGS, "Failed");
+    if (debugMode) {
+	print agreementPayload;
+	}
+
+    if (agreementPayload <> "Failed") {
+        responseD = urldata(serviceEndpoint, "POST", headers, agreementPayload);
+        if (debugMode) {
+		print responseD;
+		}
+
+        statusCode = get(responseD, "Status-Code");
+        messageBody = get(responseD, "Message-Body");
+        errorMessage = get(responseD, "Error-Message");
+        if (isnull(errorMessage)) {
+            errorMessage = "";
+        }
+
+        if (statusCode <> "200") {
+			if (debugMode) {
+            print "******* ERROR ********";
+            print "Transaction:" + eachTranID;
+            print "\tStatus-Code: " + statusCode;
+            print errorMessage;
+            print "**********************";
+			}
+            //  STOP if something goes wrong;
+            break;
+
+        } else {
+            if (debugMode) {
+			print eachTranID + "," + triggerDate;
+			}
+            if (processList <> "") {
+                processList = processList + ":-:";
+            }
+            processList = processList + eachTranID + "@" + triggerDate;
+        }
+    }
+}
+if (debugMode) {
+print "*** PROCESS LIST ***";
+print processList;
+print "********************";
+}
+return retString;

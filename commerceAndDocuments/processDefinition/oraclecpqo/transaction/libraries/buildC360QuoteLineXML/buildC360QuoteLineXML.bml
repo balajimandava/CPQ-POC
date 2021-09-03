@@ -1,0 +1,104 @@
+/**
+@name buildC360QuoteLineXML
+@api buildC360QuoteLineXML
+@summary 
+@param data Json
+@attribute _document_number
+@attribute aluminumSurcharge_l
+@attribute coperSurcharge_l
+@attribute discountString_l
+@attribute discountType_l
+@attribute externalConfigVCData_l
+@attribute lineNumber_l
+@attribute listPrice_l
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute newNetPrice_l
+@attribute quantity_l
+@attribute sAPDeletionFlag_l
+@attribute scaleFrom_l
+@attribute scaleTo_l
+@attribute silverSurcharge_l
+@attribute uOM_l
+@function Json u_getLineFromJson(Json data, String docNum)
+@function String buildVCDataItemsXML(Json quoteLine)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-04-05|michael.yeung        |
+2018-04-18|michael.yeung        | do not send line with no material item number
+2019-04-01|Pooja Gupta          |Modified calculation for net price
+2021-04-13|Shardul S		|CPQ-3646 - Sync Opportunities to C360
+2021-15-06|Gautam               |Changes for CPQ-4228, Display MPG 3 digits(all ES-EMEA countries)
+*/
+quoteLines = string[];
+//TDD-CPQ-3646 - Sync Opportunities to C360
+salesOrg = salesOrg_t;
+distributionChannel = distributionChannel_t;
+ph5flag = false;
+if(qqBusinessLineForSalesOrg_t == "ES-EMEA"){
+ph5flag = true;
+}// End
+for line in transactionLine {
+	materialNo = line.materialLineItem_l;
+    	currentLine = util.u_getLineFromJson(data, line._document_number);
+    	materialLineItem = jsonget(currentline, "materialLineItem_l", "string", line.materialLineItem_l);
+	if( materialLineItem<>"" ) {
+        payload = dict("string");
+        put(payload, "_document_number", line._document_number);
+        put(payload, "materialLineItem_l", jsonget(currentline, "materialLineItem_l", "string", line.materialLineItem_l));
+       // put(payload, "materialPricingGroup_l", jsonget(currentline, "materialPricingGroup_l", "string", line.materialPricingGroup_l));
+        put(payload, "quantity_l", jsonget(currentline, "quantity_l", "string", string(line.quantity_l)));
+        put(payload, "scaleFrom_l", jsonget(currentline, "scaleFrom_l", "string", line.scaleFrom_l));
+        put(payload, "scaleTo_l", jsonget(currentline, "scaleTo_l", "string", line.scaleTo_l));
+        put(payload, "listPrice_l", jsonget(currentline, "listPrice_l", "string", string(line.listPrice_l)));
+	//CPQ-3646 - Sync Opportunities to C360	
+	if (ph5flag == true){
+	        //old code
+	        /*
+		if (line.materialPricingGroup_l == "471"){
+			put(payload, "materialPricingGroup_l", jsonget(currentline, "materialPricingGroup_l", "string", line.productHierarchy_l));
+		}
+		else{
+			put(payload, "materialPricingGroup_l", jsonget(currentline, "materialPricingGroup_l", "string", line.materialPricingGroup_l));
+		}*/
+		//new code CPQ 4228
+		if (line.materialPricingGroup_l == "471"){
+			put(payload, "materialPricingGroup_l", jsonget(currentline, "materialPricingGroup_l", "string", line.productHierarchy_l));
+		}
+		else{
+			put(payload, "materialPricingGroup_l", substring(jsonget(currentline, "materialPricingGroup_l", "string", line.materialPricingGroup_l),1));
+		}
+	}
+	else{//end CPQ-3646
+		put(payload, "materialPricingGroup_l", jsonget(currentline, "materialPricingGroup_l", "string", line.materialPricingGroup_l));
+	}
+        //Pooja Gupta Modified code against ALM 1823-Modified calculation for net price
+        reqnetprice=line.newNetPrice_l;
+        priceper=line.qqPricePerEditable_l;
+        netprice=reqnetprice/priceper;
+	put(payload, "newNetPrice_l", jsonget(currentline, "newNetPrice_l", "string", string(netprice)));
+        put(payload, "discountType_l", jsonget(currentline, "discountType_l", "string", line.discountType_l));
+        put(payload, "discountString_l", jsonget(currentline, "discountString_l", "string", line.discountString_l));
+        put(payload, "sAPDeletionFlag_l", jsonget(currentline, "sAPDeletionFlag_l", "string", string(line.sAPDeletionFlag_l)));
+        put(payload, "lineNumber_l", jsonget(currentline, "lineNumber_l", "string", line.lineNumber_l));
+        put(payload, "coperSurcharge_l", jsonget(currentline, "coperSurcharge_l", "string", string(line.coperSurcharge_l)));
+        put(payload, "silverSurcharge_l", jsonget(currentline, "silverSurcharge_l", "string", string(line.silverSurcharge_l)));
+        put(payload, "aluminumSurcharge_l", jsonget(currentline, "aluminumSurcharge_l", "string", string(line.aluminumSurcharge_l)));
+        put(payload, "uOM_l", jsonget(currentline, "uOM_l", "string", line.uOM_l));
+
+        if (line.externalConfigVCData_l <> "") {
+            jsonput(currentLine, "externalConfigVCData_l", line.externalConfigVCData_l);
+            jsonput(currentLine, "lineNumber_l", line.lineNumber_l);
+            vcData = commerce.buildVCDataItemsXML(currentLine);
+            put(payload, "VC_DATA", vcData);
+        }
+
+		lineXml = applytemplate("$BASE_PATH$/WebServices/c360_quote_line_template.xml", payload, "");
+        lineXml = replace(lineXml, "&lt;", "<");
+        lineXml = replace(lineXml, "&gt;", ">");
+        append(quoteLines, lineXml);
+    }
+}
+return join(quoteLines, "");

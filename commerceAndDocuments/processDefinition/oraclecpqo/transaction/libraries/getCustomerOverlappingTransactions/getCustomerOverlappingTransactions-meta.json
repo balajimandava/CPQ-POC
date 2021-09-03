@@ -1,0 +1,11 @@
+{
+  "name" : "getCustomerOverlappingTransactions",
+  "variableName" : "getCustomerOverlappingTransactions",
+  "description" : "",
+  "libraryFunctions" : [ "util.getListOfTransactionsForQuery" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qq_CD_SelectedAdditionalSoldTo_t", "customerNumber_t", "transactionType_t", "salesOrg_t", "agreementValidFrom_t", "agreementValidTo_t", "transactionNumber_t" ],
+  "systemAttributes" : [ ]
+}

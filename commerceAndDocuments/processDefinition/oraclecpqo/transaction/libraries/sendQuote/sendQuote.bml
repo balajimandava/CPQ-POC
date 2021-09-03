@@ -1,0 +1,105 @@
+/**
+@name Send Quote
+@api sendQuote
+@summary Sends CPQ data to an external destination (SOA)
+@param data Json
+@attribute _system_supplier_company_name
+@function String buildCreateQuoteXML(Json data)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-26|Tat.Leung            |Initial Version
+2018-04-12|michael.yeung        |
+96634041
+ADD Header Discount (perc or amt)...parentSAPLineItem_l and price per (line).  overridePerUnit_l -- 96634041
+*/
+result = data;
+
+userDatePref = "yyyy/MM/dd HH:mm";
+
+userTimeZone = "Europe/Amsterdam";
+if (_system_user_time_zone <> "") {
+    userTimeZone = _system_user_time_zone;
+}
+
+dateTime = replace(datetostr(getdate(), userDatePref + " z", userTimeZone), "/", ".");
+
+CPQ_OUTBOUND_CONTROL = util.getEnvironmentVariable("CPQ_OUTBOUND_CONTROL", "DISABLE");
+
+//  If we are set to Disabled then return the date and time and status code
+if (find(CPQ_OUTBOUND_CONTROL, "DISABLE") <> -1) {
+    // //  Return the results and info
+    jsonput(result, "condaLastSentDate_t", dateTime);
+    jsonput(result, "condaStatusCode_t", "202");
+    jsonput(result, "condaMessageBody_t", "");
+    jsonput(result, "agreementErrorMessages_t", "");
+    jsonput(result, "condaHeader_t", "");
+    jsonput(result, "condaXML_t", "");
+    return result;
+}
+
+siteID = _system_supplier_company_name + "SOA";
+soaUserID = "";
+soaPassID = "";
+
+siteBMQL = bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+for eachSite in siteBMQL {
+    soaUserID = get(eachSite, "FieldName");
+    soaPassID = get(eachSite, "Value1");
+    jsonput(data,"CPQSOASAP",soaUserID);
+    jsonput(data,"CPQSOASAPPW",soaPassID);
+}
+
+
+createQuoteXml = commerce.buildCreateQuoteXML(data);
+envVariable = util.getEnvironmentVariable("SOA_CREATE_QUOTE_URL", "");
+if  (envVariable == "") {
+	throwerror("SOA_CREATE_QUOTE_URL is not configured for " + _system_supplier_company_name, false);
+}
+
+// Set headers for request message
+headers = dict("string");
+put(headers, "Content-Type", "text/xml");
+put(headers, "SOAPAction", "process");
+
+// TODO add actual post code to SOA
+if (not isnull(envVariable) and envVariable <> "") {
+    
+    responseD = urldata(envVariable , "POST", headers, createQuoteXml);
+    statusCode = get(responseD, "Status-Code");
+    messageBody= get(responseD, "Message-Body");
+    errorMessage = get(responseD, "Error-Message");
+    if (statusCode == "202") { //  Get the results of the call to refresh Net Prices
+        errorMessage = "";
+    } else { // Set all the values to a blank because the POST failed
+        throwerror("SOA_SAP_NETPRICE_URL failed " + _system_supplier_company_name + " Status-Code: " + statusCode + " Error-Message" + errorMessage, false);
+    }
+    
+    dataNetPriceReturned=json();
+    jsonput(dataNetPriceReturned,"SAPConditions",messageBody);
+
+    result= commerce.sapConditions(dataNetPriceReturned);
+    //  Just in-case, no Pipes or tilde characters
+    jsonput(result, "condaStatusCode_t", statusCode);
+    jsonput(result, "condaLastSentDate_t", dateTime);
+    jsonput(result, "condaMessageBody_t", messageBody);
+    if (errorMessage <> "") {
+      jsonput(result, "agreementErrorMessages_t", errorMessage);
+    }
+    requestHeaderString = "";
+    allHeaderKeys= keys(headers);
+    for eachKey in allHeaderKeys {
+      requestHeaderString = requestHeaderString + eachKey + ": " + get(headers, eachKey) + "\n";
+    }
+    jsonput(result, "condaHeader_t", requestHeaderString);
+    jsonput(result, "condaXML_t", createQuoteXml);
+    
+} else {
+    print createQuoteXml;
+}
+
+//  Just in-case, no Pipes or tilde characters
+
+return result;

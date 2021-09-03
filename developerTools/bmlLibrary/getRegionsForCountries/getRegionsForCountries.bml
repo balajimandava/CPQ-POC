@@ -1,0 +1,8 @@
+rec = bmql("select CountryCode, RegionCode, Region from SAPRegions where CountryCode in $countries");
+regionsDict = dict("string");
+for r in rec {
+    key = get(r, "CountryCode") + "_" + get(r, "RegionCode");
+    value = get(r, "Region");
+    put(regionsDict, key, value);
+}
+return regionsDict;

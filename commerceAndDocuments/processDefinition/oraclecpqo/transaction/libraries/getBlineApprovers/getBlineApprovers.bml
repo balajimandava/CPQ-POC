@@ -1,0 +1,121 @@
+/*******************************************************************************************************
+//** Description: Approval process for B-LINE business group
+//**		  
+//**History:
+//**	Date         	Author       	Comment 
+//**	------------- 	--------------- ------------------------
+//**	05-Aug-2021 	Dhananjay 		Initial version
+//**
+//********************************************************************************************************/
+
+//Variable Declaration
+blineApprovers = json();
+customernumber ="";
+ZQPartner = "";
+Z1Partner = "";
+customerNumberValue = string[];
+
+//This label using in the banner
+approvalLevelLabels = json();
+jsonput(approvalLevelLabels,"level2ApprovalLabel","Sales Analyst");
+jsonput(approvalLevelLabels,"level3ApprovalLabel","Quotes Reps");
+jsonput(approvalLevelLabels,"level4ApprovalLabel","Quotes Leads");
+jsonput(approvalLevelLabels,"level5ApprovalLabel","Product Manager");
+
+get_approvalLevelLabels_only = jsonget(inputData,"get_approvalLevelLabels_only","boolean",false);
+if(get_approvalLevelLabels_only){
+	jsonput(blineApprovers ,"approvalLevelLabels",approvalLevelLabels);
+	return blineApprovers;
+}
+
+//Sales Analysts: LEVEL-2 APPROVERS
+salesAnalystApprovers = jsonarray();
+jsonarrayappend(salesAnalystApprovers, "chBLineSalesAnalysts");
+
+salesAnalystApproversNames = jsonarray();
+jsonarrayappend(salesAnalystApproversNames, "C-H B-Line Sales Analysts");
+
+jsonput(blineApprovers ,"sales_analyst",salesAnalystApprovers);
+jsonput(blineApprovers ,"salesAnalystApproversNames",salesAnalystApproversNames);
+
+//END OF LEVEL-2 APPROVERS
+
+//Querying the CUSMAS to get the ZQ, and Z1 partners for the selected customer
+//ZQ -  to determine the Quote Rep from BLine_QuoteRepGroups data table
+//Z1 -  to determine the Quotes Leads from Agent_Assign_BLine data table
+if(shipToNumber_t <> ""){
+		customernumber = shipToNumber_t;								
+	}else{
+		if( soldToNumber_t<> ""){								
+				customernumber = soldToNumber_t;
+			}else{
+				customernumber = customerNumber_t;
+			}
+	}	
+append(customerNumberValue, customernumber);		
+append(customerNumberValue, customerNumber_t);
+recordSet = BMQL("Select KUNN2,VKORG,PARVW,ZTERM_SALES,KUNNR,INCO1 from CUSMAS WHERE KUNNR =$customernumber AND VKORG = $salesOrg_t AND PARVW IN ('Z1','ZQ')");
+for eachRecord in recordSet{
+	if(get(eachRecord , "KUNNR")  == customernumber){
+		if(get(eachRecord,"PARVW") == "ZQ"){
+			ZQPartner = get(eachRecord,"KUNN2");
+		}
+		if(get(eachRecord,"PARVW") == "Z1"){
+			Z1Partner = get(eachRecord,"KUNN2");
+		}
+	}
+}
+
+//Quote Rep: LEVEL-3 APPROVERS
+quoteRepsQry = bmql("SELECT * FROM BLine_QuoteRepGroups WHERE ZQPartnerNumber=$ZQPartner");
+quoteRepApprovers = jsonarray();
+quoteRepApproversNames = jsonarray();
+approverNamesOnLIG = jsonarray();
+for eachRec in quoteRepsQry{
+	groupName = get(eachRec,"GroupName");
+	groupVariableName= get(eachRec,"GroupVariableName");
+	approvalLevelLabel = jsonget(approvalLevelLabels,"level3ApprovalLabel","string","");
+	jsonarrayappend(approverNamesOnLIG,groupName);
+	if(len(groupVariableName)== 8 AND startswith(groupVariableName, "E")){
+		groupName = groupName+ " ("+approvalLevelLabel+")";
+	}
+	jsonarrayappend(quoteRepApprovers,groupVariableName);
+	jsonarrayappend(quoteRepApproversNames,groupName);
+}
+jsonput(blineApprovers ,"quote_rep_approvers",quoteRepApprovers);
+jsonput(blineApprovers ,"quoteRepApproverNamesOnLIG",approverNamesOnLIG);
+jsonput(blineApprovers ,"quoteRepApproversNames",quoteRepApproversNames);
+//END of LEVEL-3 APPROVERS
+
+//Quotes Leads: LEVEL-4 APPROVERS
+//print Z1Partner;
+agencyAssignmentRecordSet = bmql("SELECT * FROM Agent_Assign_BLine WHERE Agency_Number=$Z1Partner");
+quoteLeadApprovers = jsonarray();
+for agencyAssignmentRecord in agencyAssignmentRecordSet
+{
+	quoteLeadObj = json();
+	agencyAssignment = get(agencyAssignmentRecord,"Agency_Assignment");
+	quoteManagerENum = get(agencyAssignmentRecord , "Quotes_Leads_E_Num");
+	quoteManagerName=get(agencyAssignmentRecord , "Quotes_Leads_Name");
+	jsonput(quoteLeadObj,"quoteManagerNameOnLIG",quoteManagerName);
+	approvalLevelLabel = jsonget(approvalLevelLabels,"level4ApprovalLabel","string","");
+	if(len(quoteManagerENum)== 8 AND startswith(quoteManagerENum, "E")){
+		quoteManagerName = quoteManagerName+ " ("+approvalLevelLabel+")";
+	}
+	
+	agencyNumber = get(agencyAssignmentRecord , "Agency_Number");
+	jsonput(quoteLeadObj,"agencyAssignment",agencyAssignment);
+	jsonput(quoteLeadObj,"quoteManagerENum",quoteManagerENum);
+	jsonput(quoteLeadObj,"quoteManagerName",quoteManagerName);
+	jsonput(quoteLeadObj,"agencyNumber",agencyNumber);
+	jsonarrayappend(quoteLeadApprovers,quoteLeadObj);
+
+}
+jsonput(blineApprovers ,"quote_lead_approvers",quoteLeadApprovers);
+jsonput(blineApprovers ,"Agency_Number",Z1Partner);
+jsonput(blineApprovers ,"approvalLevelLabels",approvalLevelLabels);
+jsonput(blineApprovers ,"quoteRepApproverNamesOnLIG",approverNamesOnLIG);
+
+//END of LEVEL-4 APPROVERS
+
+return blineApprovers;

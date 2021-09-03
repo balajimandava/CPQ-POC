@@ -1,0 +1,21 @@
+{
+  "name" : "isPerformerExists",
+  "variableName" : "isPerformerExists",
+  "description" : "check if performer exist in the system.  performer can be group or user and company can be partner org or internal (eaton).",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "performer",
+    "type" : "String"
+  }, {
+    "name" : "company",
+    "type" : "String"
+  }, {
+    "name" : "siteID",
+    "type" : "String"
+  }, {
+    "name" : "userorgroup",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

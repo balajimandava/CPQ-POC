@@ -1,0 +1,11 @@
+{
+  "name" : "Update Description",
+  "variableName" : "updateDescription",
+  "description" : "",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.getMAT01Details", "util.getStringDict" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "qqProductType_l", "materialLineItem_l", "materialLineItemShortDescription_l", "materialPricingGroup_l", "materialPricingGroupFullText_l", "materialPricingGroupShortDescription_l" ],
+  "mainDocAttributes" : [ "transactionType_t", "salesOrg_t", "distributionChannel_t", "salesRepLanguage_t", "salesOrgMPGPrefix_t", "salesOrgConditionForTruncatedMPG_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ "_system_current_user_language" ]
+}

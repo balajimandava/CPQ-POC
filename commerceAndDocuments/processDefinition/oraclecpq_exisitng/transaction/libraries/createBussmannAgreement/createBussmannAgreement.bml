@@ -1,0 +1,855 @@
+//************************************************************************************************************
+//** Function:    Create Bussmann Agreement
+//** Type:        Commerce Library Function   
+//**
+//** Description: This will run REST calls to create existing Bussmann agreements
+//** 
+//** Return type: String  
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------------
+//**          	08/10/2018    	Ankit			Initial version 
+//**			08/05/2019    	Ali				MOdified input for getCUSMASDetails lib to pass the Distribution channel as part of INC000012102739 
+
+
+//******************************************************************************************************************
+startDate = getdate();
+startTime = getcurrenttimeinmillis();
+//********************** Read all agreement data from ExitingAgreements Table
+quoteResults = "";
+columDelimiter = "$,$";
+rowDelimiter = "#@#";
+createdQuoteData = ""; // used for HTML table
+surchargeConditions = string[]{"ZMAG","ZMTK","ZMTA"};  //ZMAG => Silver, ZMTK => Copper , ZMTA => Aluminium
+primaryCustomerType = "";
+addCustomerType="";
+tableName = tableName_t;
+ENDUSRSEG ="";
+ENDUSRSUBSEG = "";
+AccountType = "";
+SubAccountType = "";
+application="";
+subapplication="";
+COMMT = "";
+APRVCOMT = "";
+soldTo = "";
+addSoldTo ="";
+endCust="";
+city = "";
+region = "";
+columns = "KUNNR,BUKRS,VKORG,VTWEG,SPART,DATAB,DATBI,AccountType,VistexAgreement,INCO1,ZTERM,PERFK,PLTYP,KOTABNR,KSCHL,HIENR,MVGR5,KBETR,KONWA,MATNR,KPEIN,KSTBM,KSTB, ENUMBER, CURRENCY,KTOKD,ZZPRIM_ENDUSER,AGMTTXT,AGMTNUM_EXT,OWROL	OWNER,VKBUR,VKGRP,ZBKPRICEDT,ZEST_ANN_SALES,NATIONAL_ACCT,ZEUMSEG,SEUMSUBSEG,ZEACTTP,ZEACTSUBTP,APPLICATION,SUBAPPLICATION,NAME1,LAND1,REGION,CITY1,KONDM,KNUMH";
+
+allAgreementDict = dict("string");
+
+//Fetch all agreement data.
+allAgreementData = bmql("Select $columns from $tableName");
+
+for agreementData in allAgreementData{
+	
+	
+	// Get Column values
+	KUNNR = get(agreementData,"KUNNR");
+	BUKRS = get(agreementData,"BUKRS");
+	VKORG = get(agreementData,"VKORG");
+	
+	VTWEG = get(agreementData,"VTWEG");
+	SPART = get(agreementData,"SPART");
+	
+	DATAB = get(agreementData,"DATAB");
+	DATBI = get(agreementData,"DATBI");
+	AccountType = get(agreementData,"AccountType");
+	VistexAgreement = get(agreementData,"VistexAgreement");
+	INCO1 = get(agreementData,"INCO1");
+	
+	ZTERM = get(agreementData,"ZTERM");
+	PERFK = get(agreementData,"PERFK");
+	PLTYP = get(agreementData,"PLTYP");
+	KOTABNR = get(agreementData,"KOTABNR");
+	KSCHL = get(agreementData,"KSCHL");
+	
+	HIENR = get(agreementData,"HIENR");
+	//MVGR5 = substring(get(agreementData,"MVGR5"),1); //No need to do substring as in MAT01 table value is with prefix in MATNR column
+	MVGR5 = get(agreementData,"KONDM");
+	KBETR = get(agreementData,"KBETR");
+	KONWA = get(agreementData,"KONWA");
+	MATNR = get(agreementData,"MATNR");
+	
+	KPEIN = get(agreementData,"KPEIN");
+	KSTBM = get(agreementData,"KSTBM");
+	KSTB = get(agreementData,"KSTB");
+	ENUMBER = get(agreementData,"OWNER");
+	COMMT = get(agreementData,"TOTAL_COMMITMENT");
+	TXNTYPE= get(agreementData,"TRANSACTION_TYPE");
+	ENDUSRSEG= get(agreementData,"ZEUMSEG");
+	ENDUSRSUBSEG= get(agreementData,"SEUMSUBSEG");	
+	CNTRY= get(agreementData,"COUNTRY");
+	CURRENCY = get(agreementData,"CURRENCY");
+	COMPANY = get(agreementData,"COMPANY ");
+	APRVCOMT = get(agreementData,"APPROVAL_COMMENTS");
+	ACCGRP = get(agreementData,"KTOKD");
+	PRMY = get(agreementData,"ZZPRIM_ENDUSER");	
+	ZEACTTP = get(agreementData,"ZEACTTP");
+	ZEACTSUBTP = get(agreementData,"ZEACTSUBTP");
+	APPLICATION = get(agreementData,"APPLICATION");
+	SUBAPPLICATION = get(agreementData,"SUBAPPLICATION");
+	NAME1 = get(agreementData,"NAME1");
+	LAND1 = get(agreementData,"LAND1");
+	REGION = get(agreementData,"REGION");
+	CITY1 = get(agreementData,"CITY1");
+	KNUMH = get(agreementData,"KNUMH");
+
+
+
+	//Build Unique key
+	key = VistexAgreement + DATAB + DATBI; // unique key for same agreement data
+	
+	// Save column values in Line Json
+	columnDetailsJson = json();
+	jsonput(columnDetailsJson,"KUNNR",KUNNR); //line
+	jsonput(columnDetailsJson,"PRMY",PRMY); //line
+	jsonput(columnDetailsJson,"ACCGRP",ACCGRP); //line
+	jsonput(columnDetailsJson,"NAME1",NAME1); //line
+	jsonput(columnDetailsJson,"LAND1",LAND1); //line
+	jsonput(columnDetailsJson,"REGION",REGION); //line
+	jsonput(columnDetailsJson,"CITY1",CITY1); //line
+	jsonput(columnDetailsJson,"KOTABNR",KOTABNR); //line
+	jsonput(columnDetailsJson,"KSCHL",KSCHL); //line
+	
+	jsonput(columnDetailsJson,"HIENR",HIENR);
+	jsonput(columnDetailsJson,"MVGR5",MVGR5); // line
+	jsonput(columnDetailsJson,"discountString",KBETR); // line
+	jsonput(columnDetailsJson,"discountType",KONWA); // line
+	jsonput(columnDetailsJson,"item",MATNR); //line
+	
+	jsonput(columnDetailsJson,"KPEIN",KPEIN); // line
+	jsonput(columnDetailsJson,"scaleTo",KSTBM); //line
+	jsonput(columnDetailsJson,"scaleFrom",KSTB); //line
+	jsonput(columnDetailsJson,"KNUMH",KNUMH); //line
+	
+	//Scale boolean
+	if(KSTBM<>"" OR KSTB<>""){
+		jsonput(columnDetailsJson,"scale","true");
+	}
+	
+	rowJson = json();
+	
+	
+	 
+		if(containskey(allAgreementDict,key)){ // if agreement exists
+			currentAgreementData = get(allAgreementDict,key);
+			currentAgreementDataJson = json(currentAgreementData);
+			
+			rowCount =  jsonget(currentAgreementDataJson,"rowCount","integer");
+			rowCount = rowCount+1;
+			
+			jsonput(currentAgreementDataJson,"rowCount",rowcount);
+			jsonput(currentAgreementDataJson,"row"+string(rowcount),columnDetailsJson);
+		
+			put(allAgreementDict,key,jsontostr(currentAgreementDataJson));
+			//print "currentAgreementDataJson";print currentAgreementDataJson; 
+		}else{ // If first line of new agreement
+			rowcount = 1;
+			jsonput(rowJson,"rowCount",rowcount);
+			jsonput(rowJson,"row"+string(rowcount),columnDetailsJson);
+			
+			headerDetailsJson = json();
+			jsonput(headerDetailsJson,"KUNNR",KUNNR);
+			jsonput(headerDetailsJson,"BUKRS",BUKRS);
+			jsonput(headerDetailsJson,"VKORG",VKORG);
+			jsonput(headerDetailsJson,"VTWEG",VTWEG);
+			jsonput(headerDetailsJson,"SPART",SPART);
+			
+			jsonput(headerDetailsJson,"DATAB",DATAB);
+			jsonput(headerDetailsJson,"DATBI",DATBI);
+			jsonput(headerDetailsJson,"AccountType",AccountType);
+			jsonput(headerDetailsJson,"VistexAgreement",VistexAgreement);
+			jsonput(headerDetailsJson,"INCO1",INCO1);
+			
+			jsonput(headerDetailsJson,"ZTERM",ZTERM);
+			jsonput(headerDetailsJson,"PERFK",PERFK);
+			jsonput(headerDetailsJson,"PLTYP",PLTYP);
+			jsonput(headerDetailsJson,"CURRENCY",CURRENCY);
+			jsonput(headerDetailsJson,"ENUMBER",ENUMBER);
+			jsonput(headerDetailsJson,"COMMT",COMMT);		
+			jsonput(headerDetailsJson,"APRVCOMT",APRVCOMT);
+			jsonput(headerDetailsJson,"ACCGRP",ACCGRP);
+			jsonput(headerDetailsJson,"PRMY",PRMY);
+			jsonput(headerDetailsJson,"ENDUSRSEG",ENDUSRSEG);
+			jsonput(headerDetailsJson,"ENDUSRSUBSEG",ENDUSRSUBSEG);
+			jsonput(headerDetailsJson,"ZEACTTP",ZEACTTP);
+			jsonput(headerDetailsJson,"ZEACTSUBTP",ZEACTSUBTP);
+			jsonput(headerDetailsJson,"APPLICATION",APPLICATION);
+			jsonput(headerDetailsJson,"SUBAPPLICATION",SUBAPPLICATION);
+			jsonput(headerDetailsJson,"NAME1",NAME1);
+			jsonput(headerDetailsJson,"LAND1",LAND1);
+			jsonput(headerDetailsJson,"REGION",REGION);
+			jsonput(headerDetailsJson,"CITY1",CITY1);
+			jsonput(headerDetailsJson,"KNUMH",KNUMH);
+	
+			jsonput(rowJson,"header",headerDetailsJson);
+			
+			put(allAgreementDict,key,jsontostr(rowJson));
+		}
+	
+	
+	//}
+} // End of agreementData in allAgreementData	
+
+agreementNos = keys(allAgreementDict);
+
+siteID = _system_company_name;  //Expected value is eatontest2, eatontest4 etc.
+//API Acess
+apiUserID= "";
+apiPassID= "";
+
+// API Username and password is stroed in Site_Specific table so calling that table to fetch required information.
+  siteBMQL= bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+  for eachSite in siteBMQL {
+    apiUserID= get(eachSite,"FieldName");
+    apiPassID= get(eachSite,"Value1");
+  }
+  
+//Basic authentication required in WebService API call.
+auth_val = "Basic " + encodebase64(apiUserID + ":" + apiPassID);
+
+agreementCount = 1;
+quoteResults = quoteResults + "\n";
+quoteResults = quoteResults + "********Agreement " +string(agreementCount) + " ***********" + "\n";
+for agreement in agreementNos{
+	endCust ="";
+	selectedAddSoldTo = "";
+	currentSelectedMaterialItems  = "";
+	selectedAddDetail = "";
+	data =  get(allAgreementDict,agreement);
+	dataJson = json(get(allAgreementDict,agreement));
+	
+	success = "No Customer"; // for last column in HTML
+	id = "NOT FOUND";
+	link = siteID+".bigmachines.com";
+	//print dataJson;
+	
+	//Extract Header Json
+	header = jsonget(dataJson,"header","json",json());
+	//print "Header =="; print header;
+	customerNumber = jsonget(header,"KUNNR","string","");
+	salesOrg = jsonget(header,"VKORG","string","");
+	
+	if(customerNumber<>"" AND salesOrg<>""){// 
+	//Format validFrom and validTo date.
+	validFrom = replace(jsonget(header,"DATAB","string",""),".","-");
+	validTo = replace(jsonget(header,"DATBI","string",""),".","-");
+	agreementType = jsonget(header,"AccountType","string","");
+	vistexAgreement = jsonget(header,"VistexAgreement","string","");
+	invoicingTerms = jsonget(header,"PERFK","string","");
+	paymentTerms = jsonget(header,"ZTERM","string","");
+	deliveryTerms = jsonget(header,"INCO1","string","");
+	distributionChannel = jsonget(header,"VTWEG","string","");
+	accGrp= jsonget(header,"ACCGRP","string","");
+	primary= jsonget(header,"PRMY","string","");
+	ENDUSRSEG = jsonget(header,"ENDUSRSEG","string","");
+	ENDUSRSUBSEG = jsonget(header,"ENDUSRSUBSEG","string","");
+	accountType = jsonget(header,"ZEACTTP","string","");
+	subAccountType = jsonget(header,"ZEACTSUBTP","string","");
+	application = jsonget(header,"APPLICATION","string","");
+	subapplication = jsonget(header,"SUBAPPLICATION","string","");
+	
+	
+	
+	if(invoicingTerms == ""	){
+		invoicingTerms = "blank";
+	}
+	
+	if(customerNumber<>"" AND accGrp == "Z001" AND primary =="X"){
+		soldTo = customerNumber;
+	}
+	
+	
+
+	
+	eNumber = jsonget(header,"ENUMBER","string","E3506636"); // Default to Marco
+	currency = jsonget(header,"CURRENCY","string","EUR");
+	
+	//Get sales data from CUSMAS table and set it into different attribute for further use.
+	salesRS=BMQL("SELECT SORT2, VKORG, SMTP_ADDR, NAME1, TELF1, KUNNR FROM CUSMAS WHERE KUNNR=$eNumber");	
+	
+	salesENum="";
+	name1= "";
+	usersalesOrg= "";
+	telf1= "";
+	email1="";
+	eRecID="";
+	for eachUser in salesRS{
+		salesENum=get(eachUser, "SORT2");
+		name1= get(eachUser,"NAME1");
+		usersalesOrg= get(eachUser,"VKORG");
+		telf1= get(eachUser,"TELF1");
+		email1=get(eachUser, "SMTP_ADDR");
+		eRecID=get(eachUser, "KUNNR");
+	}
+	
+	//Get Customer Hierarchy
+	aLevel1 = "";
+	aLevel2 = "";
+	aLevel3 = "";
+	hierarcyArray = util.customerHierarchyLookup(soldTo, salesOrg);
+	
+	//Get Add Sold to  Hierarchy
+	addLevel1 = "";
+	addLevel2 = "";
+	addLevel3 = "";
+	
+	
+	//Format for hierarchyArray : [{"SoldTo":"0000011733.0000011733"}]
+	//							  [{"ShipTo":"0000011733.0000011733.0000011745"}]
+	//							  [{"Hierarchy":"0000011654"}]
+	if(jsonarraysize(hierarcyArray) == 0)
+	{
+		if(len(createdQuoteData)>0){
+			createdQuoteData = createdQuoteData + rowDelimiter;
+		}
+		//If Customer doesn't exist then no need to proceed further and report error in createdQuoteData field. Which will display description in 
+		// New process transaction.
+		createdQuoteData = createdQuoteData + agreement + columDelimiter + "NoTransactionCreated" + columDelimiter + "NOLink" + columDelimiter + "Customer not available in CUSMAS";
+		continue; 
+	}
+	
+	// Get Sold TO, Ship To, Hierarchy information. and store that value in aLevel1, aLevel2, aLevel3
+	firstElement = jsonarrayget(hierarcyArray,0,"json");
+	
+	if(jsonget(firstElement,"Hierarchy","string","")<>""){
+		aLevel1 = jsonget(firstElement,"Hierarchy");
+		primaryCustomerType = "Hierarchy";
+	}elif(jsonget(firstElement,"SoldTo","string","")<>""){
+		aLevels = split(jsonget(firstElement,"SoldTo"),".");
+		aLevel1 = aLevels[0];
+		aLevel2 = aLevels[1];
+		primaryCustomerType = "Sold to";
+	}elif(jsonget(firstElement,"ShipTo","string","")<>""){
+		aLevels = split(jsonget(firstElement,"ShipTo"),".");
+		aLevel1 = aLevels[0];
+		aLevel2 = aLevels[1];
+		aLevel3 = aLevels[2];
+		primaryCustomerType = "Ship to";
+	}	
+	
+	
+	
+	//********************** STEP 1:CREATE Transaction ****************************************************/
+	
+	
+	createUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction";
+
+	// Rest parameters
+	jsonParams = json();
+	jsonput(jsonParams,"_currency_pref",currency);
+	
+	params = jsontostr(jsonParams);
+	
+	
+
+	// Rest Header
+	headers = dict("string");  
+	put(headers, "Content-Type", "application/json");
+	//put(headers, "Authorization", auth_val);
+	
+	results = urldatabypost(createUrl, params, "ERROR", headers, true);
+
+	//print results;
+	//Add success
+	if(find(results,"ERROR")<>-1){
+		success = "FAIL";
+	}
+	
+	//print "Link to Quote "+ string(agreementCount)+"===" + jsonget(json(results),"linkToDocument_t");
+	link = jsonget(json(results),"linkToDocument_t");
+	quoteResults = quoteResults + "Link to Quote "+ string(agreementCount)+"===" + jsonget(json(results),"linkToDocument_t","string") + "\n";
+	
+	id = jsonget(json(results),"_id");
+	
+	
+	print "Quote bs_id ===" + id;
+
+	quoteResults = quoteResults + "Quote bs_id ===" + id + "\n";
+	
+	session_id = jsonget(json(results),"sessionId_t");
+	print "Session Id ==== " + session_id;
+ 	
+	
+	//********************** STEP 2:UPDATE Transaction (Click Save to move from Start Step to Pending)
+	//updateUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/apiSave_t";
+	updateUrlSave = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/cleanSave_t";
+	
+	//Header level attributes
+	document = json();
+	jsonput(document,"customerRecordKey_t",customerNumber);
+	//jsonput(document,"agreementHierarchy_t","{\"aLevel1\": \"0000737134\", \"aLevel2\": \"0000737134\", \"aLevel3\": \"\"}"); //TODO: Figure logic for Levels based on customer number(discuss with Dave)
+	jsonput(document,"agreementHierarchy_t","{\"aLevel1\": \""+aLevel1+"\", \"aLevel2\": \""+aLevel2+"\", \"aLevel3\": \""+aLevel3+"\"}"); //TODO: Figure logic for Levels based on customer number(discuss with Dave)
+	jsonput(document,"backupName_t","Vivek");
+	jsonput(document,"transactionType_t",agreementType);
+	jsonput(document,"transactionName_t","IntialLoad-" + string(agreementCount)); //TODO: Decsription with date and Time
+	jsonput(document,"vistexAgreement_t",vistexAgreement);
+	jsonput(document,"agreementValidFrom_t",validFrom); // TODO:Get rid of constraint
+	jsonput(document,"agreementValidTo_t",validTo);
+	
+	//Terms
+	jsonput(document,"agreementPeriodOfInvoicing_t",invoicingTerms);
+	jsonput(document,"agreementPaymentTerms_t",paymentTerms);
+	jsonput(document,"agreementDeliveryTerms_t",deliveryTerms);
+	jsonput(document,"periodOfInvoicingShipTo_t",invoicingTerms);
+	jsonput(document,"paymentTermsShipTo_t",paymentTerms);
+
+	//user details
+	jsonput(document,"owner_t","E9813316");
+	jsonput(document,"adminSalesLogin_t","E9813316");
+	jsonput(document,"preparedBySalesOrg_t",salesOrg);
+	jsonput(document,"preparedByName_t",name1);
+	jsonput(document,"preparedByPhone_t",telf1);
+	jsonput(document,"preparedByEmail_t",email1);
+	jsonput(document,"eRecordID_t",eRecID);
+	
+	jsonput(document,"agreementCoverLetterDelivery_t","post");
+	
+	
+
+	jsonput(document,"existingQuoteData_t",data);//"0000736533$,$4007$,$4942$,$30$,$10$,$2017.10.01$,$2018.09.30$,$DSP#@#");
+	jsonput(document,"uploadedAgreement_t","true");
+	
+	//::: NEW DATA START
+	//For primaryCustomerType as Hierarchy only Level1 will available but Selected Sold to needs aLevel2 also so assigning same value.
+	if(primaryCustomerType == "Hierarchy")
+	{
+		aLevel2 = aLevel1;
+	}
+	selectedSoldTo = salesOrg + "-" + aLevel1 + "-" + aLevel2;
+	selectedShipTo = "";
+	//TO DO : Need to correct aLevel3 value. For Now aLevel2 value is placeHolder for aLevel3
+	//aLevel3 will populated if there are shipTo associated with current customer.
+	if(aLevel3 <> "")
+	{
+		selectedShipTo = salesOrg + "-" + aLevel1 + "-" + aLevel2 + "-" + aLevel3;
+	}
+	
+	
+	
+	// Get Dummy Customer Information
+	inputJson = Json();
+	stringDict = dict("string");
+	jsonput(inputJson,"salesOrg",salesOrg);
+	
+	dummyCustomer = util.getDummyCustomer(inputJson,stringDict);
+	
+		jsonPut(document,"qqDummyCustomerListForTheCurrentUser_t",dummyCustomer);
+		jsonput(document, "qq_ntTransactionType_t" , agreementType);
+     		jsonput(document,"ntSelectedSalesOrg_t",salesOrg);
+     		jsonput(document,"qq_ntSselectedSoldTo_t",selectedSoldTo);
+		jsonput(document,"qq_CD_SelectedSoldTo_t",selectedSoldTo);
+		jsonput(document,"qq_ntSelectedShipTo_t",selectedShipTo);
+		jsonput(document,"qq_CD_selectedShipTo_t",selectedShipTo);
+		jsonput(document,"qq_nt_ValidFrom_t",validFrom);
+		jsonput(document,"qq_nt_ValidTo_t",validTo);
+		 //TO DO : Set Send Automatically always true OR Check with business for expected behavior.
+		jsonput(document,"qqSendAutomatically_t",false);  
+	     	jsonput(document,"ntDistributionChannel_t",distributionChannel);
+	     	jsonput(document,"qq_nt_TransactionName_t",transactionName_t);
+		jsonput(document,"qqSubSegment_t",ENDUSRSUBSEG);
+		jsonput(document,"qqSegment_t",ENDUSRSEG);
+		jsonput(document,"qqAccountType_t",accountType );
+		jsonput(document,"qqSubAccountType_t",subAccountType );
+		jsonput(document,"qqApplication_t",application );
+		jsonput(document,"qqSubApplication_t",subapplication );		
+		//jsonput(document,"qqTotalCommitment_t",COMMT);
+		//jsonput(document,"qqReasonComments_t",APRVCOMT);
+			
+		
+		//To Add Material Items..
+		//currentSelectedMaterialItems_t = "000000000001000076$,$Q5$,$$,$normal$,$52$,$%$,$$,$"; 
+		
+	//  :::: NEW DATA END
+	//jsonput(document,"quickItem_t","Y7-187175,Y7-187174,Y7-187174,Y7-187174"); // TODO: Figure logic for sending line items with discounts and scale when configure API is run
+	
+	/// START Code to create format for materialItems raw data
+	// Check if rowCount is available OR not. For only surcharge lines rowCount will not available.
+	if(jsonpathcheck(dataJson,"$..rowCount"))
+	{
+		 rowcount = jsonget(dataJson,"rowCount","integer"); // get number of rows(line Items)
+		 rowRange = range(rowCount);
+		 
+		 for i in rowRange
+		 { 
+		  
+			 rowNo = i+1;
+			 rowJson = jsonget(dataJson,"row" + string(rowNo),"json");
+			 MVGR5 = jsonget(rowJson,"MVGR5","string","");
+			 custno = jsonget(rowJson,"KUNNR","string","");
+			 MATNR = jsonget(rowJson,"item","string","");
+			 KBETR = jsonget(rowJson,"discountString","string","");
+			 KONWA = jsonget(rowJson,"discountType","string","");
+			 KSCHL = jsonget(rowJson,"KSCHL","string","");
+			 prmy1 = jsonget(rowJson,"PRMY","string","");
+			 accgrp1 = jsonget(rowJson,"ACCGRP","string","");
+			 name1 = jsonget(rowJson,"NAME1","string","");
+			land1 = jsonget(rowJson,"LAND1","string","");
+			region = jsonget(rowJson,"REGION","string","");
+			city1 = jsonget(rowJson,"CITY1","string","");
+			condRec = jsonget(rowJson,"KNUMH","string","");
+			 
+			if(KSCHL =="ZIEV" AND (accgrp1 == "Z340" OR  accgrp1 == "Z001")){
+				if(endCust <> ""){
+					endCust = endCust+"$@$"+ name1+"$;$"+land1+"$;$"+region+"$;$"+city1;
+				}
+				else{
+					endCust =  name1+"$;$"+land1+"$;$"+region+"$;$"+city1;
+				}
+			}
+			if(KSCHL =="ZISV" AND accgrp1 == "Z001" AND prmy1 == ""){
+				addSoldTo = custno;
+				if(addSoldTo<>""){
+				addhierarcyArray = util.customerHierarchyLookup(addSoldTo, salesOrg);				
+				addSoldToElement = jsonarrayget(addhierarcyArray,0,"json");
+				if(jsonget(addSoldToElement,"Hierarchy","string","")<>""){
+					addLevel1 = jsonget(addSoldToElement,"Hierarchy");
+					addCustomerType = "Hierarchy";
+				}elif(jsonget(addSoldToElement,"SoldTo","string","")<>""){
+					addLevels = split(jsonget(addSoldToElement,"SoldTo"),".");
+					addLevel1 = addLevels[0];
+					addLevel2 = addLevels[1];
+					addCustomerType = "SoldTo";
+				}elif(jsonget(addSoldToElement,"ShipTo","string","")<>""){
+					addLevels = split(jsonget(addSoldToElement,"ShipTo"),".");
+					addLevel1 = addLevels[0];
+					addLevel2 = addLevels[1];
+					addLevel3 = addLevels[2];
+					addCustomerType = "ShipTo";
+				}
+				//Modified input for getCUSMASDetails lib to pass the Distribution channel as part of INC000012102739
+				getCusmasDetail = json();
+				jsonput(getCusmasDetail, "VKORG", salesOrg);
+				jsonput(getCusmasDetail, "VTWEG", "");
+				jsonput(getCusmasDetail, "CustomerNumber", addSoldTo);
+				jsonput(getCusmasDetail, "KTOKD", accgrp1);
+				jsonput(getCusmasDetail, "PARVW", "Z1");
+				
+				addDetailElement = util.getCUSMASDetails(getCusmasDetail);
+				//addDetailElement = jsonarrayget(addDetailArray,0,"json");
+				print addDetailElement;print addSoldTo;
+				if(jsonget(addDetailElement,"customercount") <> "0"){
+				selectedAddDetail = selectedAddDetail + "#@#" + addCustomerType + "$,$" + jsonget(addDetailElement,"KUNNR") + "$,$" + jsonget(addDetailElement,"NAME1") + "$,$" + jsonget(addDetailElement,"PSTLZ") + "$,$" + jsonget(addDetailElement,"ORT01") + "$,$" + jsonget(addDetailElement,"REGIO") + "$,$" + jsonget(addDetailElement,"LAND1") + "$,$" + "associatedCustomer" + "$,$" + "" + "$,$" + "selectedSoldTo" + "$,$" + "selectedShipTo" + "$,$" + "agreementHierarchy";
+				}
+				
+				}
+			}
+			// Get additional sold to hierarchy
+			
+			// Additional sold to			
+			if(addLevel1 <> ""){
+				if(selectedAddSoldTo <> ""){
+					selectedAddSoldTo = selectedAddSoldTo +"#@#"+ salesOrg + "-" + addLevel1 + "-" + addLevel2;
+				}
+				else{
+					selectedAddSoldTo =  salesOrg + "-" + addLevel1 + "-" + addLevel2;
+				}
+			}
+			 scale = false;
+			 mpg = "";
+			 if(KONWA <> "%")
+			 {
+			 	KONWA = "amt"; // KONWA is appearing in datatable as currency EUR so consider it as amt.
+			 }
+			 KPEIN = jsonget(rowJson,"KPEIN","string","");    // qqPerUOM_l
+			 KSTB =jsonget(rowJson,"scaleFrom","string",""); //Scale From
+			 KSTBM = jsonget(rowJson,"scaleTo","string",""); //Scale To
+			 
+			 if(KSTB <> "")
+			 {
+				 scale = true;
+			 }
+			 
+			if(currentSelectedMaterialItems <> "")
+			{
+			    currentSelectedMaterialItems = currentSelectedMaterialItems + "#@#"; 
+			}
+			 
+			 if(MVGR5 <> "" AND MATNR == "") 
+			 {
+				 //Current Item is only Pricing Group.
+				 mpg = MVGR5;
+				 MPGMATNR = "VPG" + mpg;
+				 
+				 //TO DO : Need to check if scale fields are needed for only Pricing Group line.
+				 currentSelectedMaterialItems = currentSelectedMaterialItems + MPGMATNR + "$,$" + mpg + "$,$$,$" + "group" + "$,$" + KBETR + "$,$" + KONWA + "$,$" + KSTB + "$,$" + KSTBM + "$,$" + string(scale) + "$,$" + KPEIN;//+ "$,$$,$" + condRec;
+			 }
+				
+			 if(MATNR <> "")
+			 {
+				 //TO DO : Need to consider KPEIN from existingAgreement table.
+				 //Current item is material Item
+				// Format for data would be mAterialItems$,$PricingGroup$,$$,$normal$,$$,$discount$,$DiscountType$,$ScaleFrom$,$ScaleTo$,$scale$,$KPEIN
+				matBMQL= bmql("SELECT MATNR,MVGR5,LVORM FROM MAT01 WHERE VKORG = $salesOrg AND MATNR=$MATNR");
+				
+				for result in matBMQL{
+					mpg = substring(get(result,"MVGR5"),1);
+				}
+				currentSelectedMaterialItems = currentSelectedMaterialItems + MATNR + "$,$" + mpg + "$,$$,$" + "normal" + "$,$" + KBETR + "$,$" + KONWA + "$,$" + KSTB + "$,$" + KSTBM + "$,$" + string(scale) + "$,$" + KPEIN;//+ "$,$$,$" + condRec;
+			 }
+		}
+	} //End of if(jsonpathcheck(dataJson,"$..rowCount"))
+		
+		 //print currentSelectedMaterialItems;
+		 jsonput(document,"currentSelectedMaterialItems_t",currentSelectedMaterialItems);
+		 
+		 if(selectedAddSoldTo <> ""){
+			jsonput(document,"qq_ntSelectedAddtnlSoldTo_t",selectedAddSoldTo);
+			jsonput(document,"qq_CD_SelectedAdditionalSoldTo_t",selectedAddSoldTo);
+		}
+	
+	/// END Code to create format for materialItems raw data
+
+	// Rest parameters
+	jsonParams = json();
+	jsonput(jsonParams,"documents",document);
+	params = jsontostr(jsonParams);
+	
+	// Rest Header  
+	headers = dict("string");
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", auth_val);
+	
+	results = urldatabypost(updateUrlSave, params, "ERROR", headers, true);
+	//print "440";
+	//print results;
+	if(find(results,"ERROR")<>-1){
+		success = "FAIL";
+	}
+   //**********************END STEP 2:UPDATE Transaction (Click Save to move from Start Step to Pending)
+	
+	//Add current customer in qqDevOptSoldTo/shipTo attribute.
+	//qqDevOptSoldTo = jsonget(json(results),"qqDevOptSoldTo_t"); // Currently not needed. Validate it again.
+	//qqDevOptShipTo = jsonget(json(results),"qqDevOptShipTo_t"); // Currently not needed. Validate it again.
+	customerNumber = jsonget(json(results),"customerNumber_t");
+	customerName = jsonget(json(results),"qqCustomerNameCopy_t");
+	customerPostalZip = jsonget(json(results),"customerPostalCodeZip_t");
+	cityAndRegion = jsonget(json(results),"qqCityAndRegionCopy_t");
+	customerCountry = jsonget(json(results),"customerCountry_t");
+	agreementHierarchy = jsonget(json(results),"agreementHierarchy_t");
+	transactionNumber = jsonget(json(results),"transactionNumber_t");
+	associatedCustomer = "";
+	
+	//qqDevOptSoldTo and qqDevOptShipTo is not required after recent changes in customer *********
+	/*qqDevOptSoldTo = qqDevOptSoldTo + "#@#" + salesOrg + "$,$" + customerNumber +  "$,$" + customerNumber + "$,$" 										 + customerName + "$,$" +  customerPostalZip + "$,$" + cityAndRegion + "$,$" + "";
+	
+	qqDevOptShipTo = qqDevOptShipTo + "#@#" + salesOrg + "$,$" + customerNumber +  "$,$" + customerNumber + "$,$" + customerNumber + "$,$"    									  + customerName + "$,$" +  customerPostalZip + "$,$" + cityAndRegion + "$,$" + "";
+	
+	*/
+	
+	document = json();
+	//jsonput(document,"qqDevOptSoldTo_t",qqDevOptSoldTo);
+	//jsonput(document,"qqDevOptShipTo_t",qqDevOptShipTo);
+	
+	//Set correct agreementValidFrom_t and agreementValidTo_t
+	jsonput(document,"agreementValidFrom_t",validFrom); 
+	jsonput(document,"agreementValidTo_t",validTo);
+	
+	
+	/**** Format for Selected Customer Data : 
+	delimiter:  column separator $,$   role separator #@#
+		For each selected customer in a transaction
+		customer Type [value "Sold to", "Ship to", "Hierarchy"]
+		customer # 
+		customer Name
+		Postal Code
+		City
+		Region
+		Country
+		associated Customer #
+		is Primary Customer [checked]
+		salesOrg-hierarchy-soldTo  (same as value in qq_ntSselectedSoldTo_t)
+		salesOrg-hierarchy-soldTo-shipTo (same as value in qq_ntSelectedShipTo_t)
+		same as content in agreementHierarchy_t e.g. {"aLevel1": "0000872498", "aLevel2": "0000872498", "aLevel3": ""}
+		
+		e.g.
+		Sold to$,$0000012134$,$DEALERS ELECTRICAL SUPPLY$,$76701-1716$,$WACO$,$Texas$,$US$,$$,$unchecked$,$1231-0000012134-0000012134$,$$,${"aLevel1": "0000012134", "aLevel2": "0000012134", "aLevel3": ""}#@#Sold to$,$0000677955$,$UNITED CENTRAL INDUSTRIAL SUPPLY$,$81505$,$GRAND JUNCTION$,$Colorado$,$US$,$$,$checked$,$1231-0000677955-0000677955$,$$,${"aLevel1": "0000677955", "aLevel2": "0000677955", "aLevel3": ""}#@#Sold to$,$0000677963$,$UNITED CENTRAL INDUSTRIAL SUPPLY$,$62948-6443$,$HERRIN$,$Illinois$,$US$,$$,$unchecked$,$1231-0000677963-0000677963$,$$,${"aLevel1": "0000677963", "aLevel2": "0000677963", "aLevel3": ""}#@#Sold to$,$0000677964$,$KRIZ DAVIS COMPANY$,$64772-2744$,$NEVADA$,$Missouri$,$US$,$$,$unchecked$,$1231-0000677964-0000677964$,$$,${"aLevel1": "0000677964", "aLevel2": "0000677964", "aLevel3": ""}#@#Sold to$,$0000872498$,$FASTENAL COMPANY LDTN$,$37122-8600$,$MOUNT JULIET$,$Tennessee$,$US$,$$,$unchecked$,$1231-0000872498-0000872498$,$$,${"aLevel1": "0000872498", "aLevel2": "0000872498", "aLevel3": ""}
+	******/
+	
+	if(primaryCustomerType == "Sold to" AND aLevel3 <> "")
+	{
+		//Associated Customer is Ship To
+		//TO DO : Need to validate if this scenario is possible.
+		associatedCustomer = aLevel3;		
+	}
+	
+	if(primaryCustomerType == "Ship to" AND aLevel3 <> "")
+	{
+		//Associated Customer is sold To
+		associatedCustomer = aLevel2;		
+	}
+	
+	/* TODO : Need to split logic for city And Region
+			 Revisit logic for Associated Customer#
+	*/
+	// TODO : Need to split logic for city And Region Revisit logic for Associated Customer#
+	if(cityAndRegion <> ""){
+		city = substring(cityAndRegion , 0,find (cityAndRegion , " ") );
+		region = substring(cityAndRegion , find (cityAndRegion , " ")+1,len(cityAndRegion) );
+	}
+	
+	selectedCustomerData = primaryCustomerType + "$,$" + customerNumber + "$,$" + customerName + "$,$" + customerPostalZip + "$,$" + city + "$,$" + region + "$,$" + customerCountry + "$,$" + associatedCustomer + "$,$" + "checked" + "$,$" + selectedSoldTo + "$,$" + selectedShipTo + "$,$" + agreementHierarchy;
+	if(selectedAddDetail <> ""){
+			selectedCustomerData = selectedCustomerData + selectedAddDetail;
+	}
+	print selectedCustomerData;
+	jsonput(document,"qq_selectedCustomerData_t",selectedCustomerData);
+	jsonput(document,"qq_nt_EndCust_DataString_t",endCust);
+	//Rest Parameters
+	jsonParams = json();
+	jsonput(jsonParams,"documents",document);
+	params = jsontostr(jsonParams);
+	
+	
+	
+	//*************************STEP 3 : Call Save action 2nd time to update correct validTo/From date, Primary Customer as per SAP
+	results = urldatabypost(updateUrlSave, params, "ERROR", headers, true);
+	//print "510";
+	//print results;
+	if(find(results,"ERROR")<>-1){
+		success = "FAIL";
+	}
+	//*************************END STEP 3 : Call Save action 2nd time to update correct validTo/From date, Primary Customer as per SAP
+	
+	//********************** STEP 4:ADD ITEMS (Using Quick Items Add text area to fill items and call Add Items action)
+	
+	///Harshit - START SET attribute value using static STRING of currentSelectedMaterialItems_t
+	//inputJson = json();
+	//currentSelectedMaterialItems_t = "000000000001000076$,$Q5$,$$,$normal#@#000000000001029183$,$1B$,$$,$normal#@#000000000001030505$,$Q1$,$$,$normal";
+	//currentSelectedMaterialItems_t = "000000000001000076$,$Q5$,$$,$normal$,$$,$52$,$%$,$$,$$,$"; //To DO : Make it dynamic..
+	//jsonput(inputJson,"currentSelectedMaterialItems",currentSelectedMaterialItems_t);
+	//b = commerce.addPartLines(inputJson);
+	///Harshit - END SET attribute value using static STRING of currentSelectedMaterialItems_t
+	//print "454";
+	//print dataJson;
+	//itemDataJsonArray = jsonarray();
+	//rowcount = jsonget(dataJson,"rowCount","integer");
+	//rowRange = range(rowCount);
+		//mpgDict = dict("string");
+		//mpgDetails = dict("string");
+		//matDict = dict("string");
+		
+		// Call Add Item URL only if material item is available
+		if(currentSelectedMaterialItems <> "")
+		{
+			addItemsurl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/vistexAddMaterialItem_t";
+										
+			// Rest parameters
+			jsonParams = json();
+			params = jsontostr(jsonParams);
+			
+			// Rest Header  
+			headers = dict("string");
+			put(headers, "Content-Type", "application/json");
+			put(headers, "Authorization", auth_val);
+			
+			results = urldatabypost(addItemsurl, params, "ERROR", headers, true);
+			
+			//print params;
+			//print results;
+			//Add success
+			if(find(results,"ERROR")<>-1){
+				success = "FAIL";
+			}
+		 }// END if(currentSelectedMaterialItems <> "")
+	//**********************END STEP 4:ADD ITEMS (Using Quick Items Add text area to fill items and call Add Items action)
+		
+	//********************** STEP 5 START: Update Transaction : Call Save Action to update transaction total **********************************
+		updateURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/cleanSave_t";
+		
+		
+		// Rest parameters
+		jsonParams = json();
+		document = json();
+		
+		jsonput(jsonParams,"documents",document);
+		params = jsontostr(jsonParams);
+		
+		results = urldatabypost(updateURL,params,"ERROR",headers,true);
+		if(find(results,"ERROR") <> -1){
+			success = "FAIL";
+		}
+		
+	//********************** STEP 5 END : Update Transaction : Call Save Action to update transaction total **********************************/
+		
+
+	
+
+	//********************** STEP 6:Move quote from Pending to Approved Steps ********************************************
+	approveQuoteurl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/moveToApproveStep_t";
+
+	// Rest parameters
+	jsonParams = json();
+	params = jsontostr(jsonParams);
+	
+
+	// Rest Header  
+	headers = dict("string");
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", auth_val);
+
+	results = urldatabypost(approveQuoteurl, params, "ERROR", headers, true);
+	//print results;
+	
+	if(find(results,"ERROR") <> -1){
+			success = "FAIL";
+		}
+	//**********************END STEP 6:Move quote from Pending to Approved Steps ********************************************	
+	
+	 if(success<>"FAIL"){
+		success = "Success";
+	}
+	
+	//Add HTML table data
+	if(len(createdQuoteData)>0){
+		createdQuoteData = createdQuoteData + rowDelimiter;
+	}
+	createdQuoteData = createdQuoteData + agreement + columDelimiter + transactionNumber + columDelimiter + link + columDelimiter + success;
+	agreementCount = agreementCount + 1;
+ } // CLOSE of //if(customerNumber<>"" AND salesOrg<>"")
+		
+} //agreement loop close
+
+	endTime = getcurrenttimeinmillis();
+	endDate =  getdate();
+
+
+
+// **************** CREATE RESULT TRANSACTION IN NEW COMMERCE PROCESS
+
+	//1.> Create
+	 createUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpq_exisitngTransaction";
+	// Rest parameters
+	jsonParams = json();
+	params = jsontostr(jsonParams);
+	// Rest Header
+	headers = dict("string");  
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", auth_val);
+	results = urldatabypost(createUrl, params, "ERROR", headers, true);
+
+	id = jsonget(json(results),"_id");
+	//print "ID ==" + id;
+	
+	//2.Save save_t
+	saveUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpq_exisitngTransaction/"+id+"/actions/save_t";
+	jsonParams = json();
+	document = json();
+
+	jsonput(document,"transactionName_t",transactionName_t);
+	jsonput(document,"existingTableData_t",createdQuoteData);
+	jsonput(document,"result_t",quoteResults);
+	jsonput(document,"startTime_t",datetostr(startDate));
+	jsonput(document,"endTim_te",datetostr(endDate));
+
+	jsonput(jsonParams,"documents",document);
+	//print document;
+	params = jsontostr(jsonParams);
+	results = urldatabypost(saveUrl, params, "ERROR", headers, true);
+	//print results; 
+
+return "";

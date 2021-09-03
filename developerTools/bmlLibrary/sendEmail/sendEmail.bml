@@ -1,0 +1,78 @@
+/**
+@name Send Email
+@api sendEmail
+@summary Send email using webservice 
+@param data Json
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+03/08/2019|Harshit Maheshwari   |Initial version
+*/
+
+ret = json();
+
+//Input Parameters
+siteID = jsonget(inputJson,"siteID","string","");
+bsId = jsonget(inputJson,"bsId","string","");
+actionName = jsonget(inputJson,"actionName","string","");
+ccEmail = jsonget(inputJson,"ccEmail","string","");
+fromName = jsonget(inputJson,"fromName","string","");
+subject = jsonget(inputJson,"subject","string","");
+bccEmail = jsonget(inputJson,"bccEmail","string","");
+toEmail = jsonget(inputJson,"toEmail","string","");
+toName = jsonget(inputJson,"toName","string","");
+comments = jsonget(inputJson,"comments","string","");
+actionVariableName = jsonget(inputJson,"actionVariableName","string","");
+attachmentIds = jsonget(inputJson,"attachmentIds","json",json());
+
+//Get API Username and Password.
+user = util.getSiteSpecificData(siteID);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "") ;
+
+
+if(siteID <> "" AND bsId <> "" AND actionVariableName <> "" AND (ccEmail <> "" OR bccEmail <> "" OR toEmail <> "")){
+	headers = dict("string");
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+
+	actionURL = "https://"+siteID+".bigmachines.com/rest/v7/commerceDocumentsOraclecpqoTransaction/" +bsId+ "/actions/"+ "_send_email";
+	
+	jsonParams = json();
+	jsonput(jsonParams,"ccEmail",ccEmail);
+	jsonput(jsonParams,"fromName",fromName);
+	jsonput(jsonParams,"subject",subject);
+	jsonput(jsonParams,"bccEmail",bccEmail);
+	jsonput(jsonParams,"toEmail",toEmail);
+	jsonput(jsonParams,"toName",toName);
+	jsonput(jsonParams,"comments",comments);
+	jsonput(jsonParams,"actionVariableName",actionVariableName);
+	jsonput(jsonParams,"attachmentIds",attachmentIds);
+   
+	params = jsontostr(jsonParams);
+	
+	debug= false;
+	if(debug){
+		print "actionURL";
+		print actionURL;
+		print "params";
+		print params;
+		print "headers";
+		print headers;
+		print urldatabypost(actionURL, params, "ERROR", headers, true);
+	}
+	
+	triggerEmail = urldatabypost(actionURL, params, "ERROR", headers, true);
+	if(triggerEmail == "ERROR"){
+		jsonput(ret, "errorMessage", "Data not retrieved");
+	}
+	results = json(triggerEmail);
+	jsonput(ret, "successMessage", jsonget(results, "message", "string", "No response received"));
+}
+
+else{
+	jsonput(ret, "errorMessage", "Please make sure to pass siteID, bsId, actionVariableName and toEmail/ccEmail/bccEmail");
+}
+
+return ret;

@@ -1,0 +1,14 @@
+{
+  "name" : "Save Action Adv Modify After Formulas",
+  "variableName" : "saveActionAdvModifyAfterFormulas",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.captureSearchAllValues", "commerce.checkForOverlappingTransaction", "commerce.generateBidGroupNo", "commerce.getCustomerBlockDetails", "commerce.getDupilcateItems", "commerce.getEatonContacts", "commerce.getTransactionOwnerNameEmail", "commerce.populateArraySet", "commerce.populateVolumeBonusColumnsInReport", "commerce.pricingAfterFormulas", "commerce.returnArraysetCount", "commerce.setApprovalRequired", "commerce.setCustomerDetails", "commerce.updateAllAgreements", "commerce.updateCustomerDetails", "commerce.updateHeaderTotalValue", "util.clickAnAction", "util.commonCallToBM", "util.getDefaultValidToDate", "util.getDefaultValidToDate_psd", "util.getListPrice", "util.getRemark", "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputParamJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "qqProductType_l", "materialLineItem_l", "quantity_l", "scaleFrom_l", "scaleTo_l", "uOM_l", "oldListPrice_l", "approver_l", "newNetPrice_l", "qqTotal_l", "qqApprovedTotal_l", "marginPercentage_l", "headerDiscount_l", "cost_l", "qqPricePerEditable_l", "qqApprovedMargin_l", "qqApprovedMarginPercent_l", "approvedDiscount_l", "approvedNetFixedAmount_l", "currentNetPricePerUOM_l", "qqMarginString", "qqmarginApprovedString", "lineItemStatus_l", "qqapprovedExtendedMargin_l", "approvedMarginPer_l", "multiplier_l", "approvalRequired_l", "overrideMultiplier_l", "CPIConfig_l", "brand_l" ],
+  "mainDocAttributes" : [ "currency_t", "bs_id", "endCustomerArraySet2_t", "isCopyOrVersion_t", "newExchangeRate_t", "oldPriceListDate_t", "cpiAdjustmentPercent_t", "cPIConfigAttr", "qq_ntTransactionType_t", "cpiBaseString_t", "transactionName_t", "isLegacyEaton_t" ],
+  "systemAttributes" : [ "_system_company_name", "_system_user_groups", "_system_supplier_company_name", "_system_current_step_var", "_system_user_date_pref", "_system_user_time_zone", "_system_current_user_language", "_system_date" ]
+}

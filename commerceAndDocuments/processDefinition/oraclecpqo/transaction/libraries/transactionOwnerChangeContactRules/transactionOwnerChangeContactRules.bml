@@ -1,0 +1,44 @@
+//************************************************************************************************************
+//** Function:    Created new Commerce library function, used to evaluate rules to constrain Transaction Owner 
+//**              dropdown and Hide Change Eaton Contact button.
+//**
+//** Description: Project#49074|E9913664|8thJan2020
+//**
+//** Return type: Boolean
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              20-Feb-2020   Rahul Uttarwar  Project#49074|Implemented the code review comments
+//************************************************************************************************************
+
+returnflag = true;
+groupFlag = false;
+groupFlag2 = false;
+
+if(qqBusinessLineForSalesOrg_t == "BUSSMANN")
+{
+   if ((find(_system_user_groups, "bussmannInsideSales")>0) OR (find(_system_user_groups, "bussmannPricingTeam")>0))
+   {
+      groupFlag = true;
+   }
+   if((find(_system_user_groups, "approverWithMarginBline")>0))
+   {
+      groupFlag2 = true;
+   }
+}elif(qqBusinessLineForSalesOrg_t == "B-LINE")
+{
+   if((find(_system_user_groups, "approverWithMarginBline")>0))
+   {
+      groupFlag = true;
+   }
+}
+
+if(qqBusinessLineForSalesOrg_t == "BUSSMANN" AND ((status_t == "draft" AND groupFlag) OR (status_t == "pendingApproval" AND groupFlag2)))
+{
+   returnflag = false;
+}elif(qqBusinessLineForSalesOrg_t == "B-LINE" AND ((status_t == "draft" AND (transactionType_t == "CSP" OR transactionType_t == "RQ")) OR (status_t == "pendingApproval" AND groupFlag))){
+   returnflag = false;
+}elif(qqBusinessLineForSalesOrg_t == "PSD" AND ((status_t == "draft" OR status_t == "pendingApproval") OR (status_t == "approved" AND transactionType_t == "BA"))){
+   returnflag = false;
+}
+return returnflag;

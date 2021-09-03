@@ -1,0 +1,19 @@
+// approvalInputs is a JSON file
+// contains the salesOrg and the names of the columns to query in the table
+salesOrg = jsonget(approvalInputs,"salesOrg");
+cols = "PH5, SalesOrg, Level1Max, Level2Max, Level3Max, PLMApproverName";
+table = json();
+ApproversBML = bmql("SELECT $cols from Thresholds_CHEMEA WHERE SalesOrg=$salesOrg");
+
+for row in ApproversBML {
+	// json for the thresholds
+	rowJson = json();
+	jsonput(rowJson, "Level1Max", get(row, "Level1Max")); // > level 1
+	jsonput(rowJson, "Level2Max", get(row, "Level2Max")); // > level 2
+	jsonput(rowJson, "Level3Max", get(row, "Level3Max")); // > level 3
+	jsonput(rowJson, "Email", get(row, "PLMApproverName")); // Email
+	//put the thresholds json into the table json with the discount group as the key
+	jsonput(table, get(row, "PH5"), rowJson);
+}
+
+return table;

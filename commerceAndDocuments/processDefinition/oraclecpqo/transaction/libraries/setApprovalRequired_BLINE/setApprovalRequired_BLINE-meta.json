@@ -1,0 +1,11 @@
+{
+  "name" : "setApprovalRequired_BLINE",
+  "variableName" : "setApprovalRequired_BLINE",
+  "description" : "B-LINE: \nDetermine if approval is required based on the new item and/or new item discounts.",
+  "libraryFunctions" : [ "commerce.setApprovalRequired_BUSSMANN_BLINE", "util.getApprovalThresholds", "util.getEnvironmentVariable", "util.getRemark", "util.stringToFloat", "util.stringToInteger", "util.u_logString" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number" ],
+  "mainDocAttributes" : [ "salesOrg_t", "termsApprovalRequired_t", "_transaction_document_number", "overallTermsApprovalLevel_t", "whatLevelOfDeliveryTermsApprovalRequired_t", "agreementDeliveryTerms_t", "cSMEmail_t", "owner_t", "customerNumber_t" ],
+  "systemAttributes" : [ "_system_current_user_language" ]
+}

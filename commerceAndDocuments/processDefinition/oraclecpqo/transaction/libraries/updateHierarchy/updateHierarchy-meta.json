@@ -1,0 +1,11 @@
+{
+  "name" : "Update Hierarchy",
+  "variableName" : "updateHierarchy",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.massUpdateCustomerSearch" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "customerNumber_t", "selectedCustomerData_t", "salesOrg_t", "transactionType_t" ],
+  "systemAttributes" : [ ]
+}

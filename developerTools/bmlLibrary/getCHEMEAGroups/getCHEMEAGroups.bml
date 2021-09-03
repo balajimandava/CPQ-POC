@@ -1,0 +1,30 @@
+/**
+@name Get CH-EMEA Groups
+@api getCHEMEAGroups
+@summary Return the CH-EMEA groups that should have access to the quote
+@param data Json
+@function Json getTransactionData(String bsId, String[] xpaths)
+@return String[]
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-13|Tat.Leung            |QQ-575 Initial Version
+2018-07-25|Vivek.Hingorani      |Change return to be json
+*/
+retJson = json();
+
+bsId = jsonget(data, "id", "string", "");
+// import data needed for forwarding rules, add more xpath expression here if additional fields are needed
+xpaths = string[] {
+    "//transaction/salesOrg_t"
+};
+headerData = util.getTransactionData(bsId, xpaths);
+
+salesOrg = jsonget(headerData, "salesOrg_t", "string", "");
+
+groups = jsonarray();
+jsonarrayappend(groups, salesOrg);    
+
+
+jsonput(retJson, "Sales User", groups);
+return retJson;

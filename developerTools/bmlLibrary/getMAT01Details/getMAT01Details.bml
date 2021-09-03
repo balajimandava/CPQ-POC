@@ -1,0 +1,140 @@
+/**
+@name Get MAT01 Details
+@api getMAT01Details
+@summary Get data from all columns of MAT01 data table for the specified part in the specified language. Default language is English.
+@param inputJson Json
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+05/09/2017|PKhanal       		|	Initial version (436, 443, 444, 445)
+07/09/2017|PKhanal      		|	Added code to default to english description if specified language is not present
+01/12/2018|michael.yeung        |	Add new Mat01 columns
+2018-04-04|michael.yeung        |
+2018-05-11|Vivek.Hingorani      | Added Sales Org as an input parameter (Jira: QQ 533)
+2018.06.08|dBo Haizlip		    | Added Rounding Quatity (SCMNG) and Min Order Qty (AUMNG)
+2018-06-13|michael.yeung        |
+2018-06-22|Vivek.Hingorani      |Updated input MATNR & ZZCATNO to be upper case to avoid case in getting details. QQ-660
+2018-06-26|michael.yeung        |
+2018-08-24|Vivek.Hingorani      |Added Rounding Quatity (RDPRF) Jira:QQ-799/ALM-605
+
+2018-10-06|michael.yeung        |QQ-845 add UMREZ and MEINH
+2019-01-14|Ankit       		    |Defect 1802 add EAN11
+2019-02-13|Harshit Maheshwari   | Defect #938. Serch and add materials without entering Leading zeros. Added column MATNR_SEARCH in where clause
+2019-03-28|Gaurav Singh			|Added MSTAV column to the columns list for ALM-1911
+2019-04-10|Sharath K A			|Added "NTGEW" and "GEWEI" columns to the columns list for ALM-1878
+2019-07-10|Vasundhara			|Updated the code for catalog Number check
+2020-02-24|Dhananjay		|As part of the US CPQ-470: Added "MVGR1"(Brand) column to the columns array and include  MVGR1 in the return string include
+2020-03-18|Atul Jain			|Removed commented code, and added debug mode to print statements.
+2020-04-02|Dhananjay			|As part of the US CPQ-496: Added PRODH couln in the query and result json to get the Product Hierarchy. This required to get the Lead Time
+23/11/2020|Malli 		       |CPQ-2225 - Modified the logic to fetch the material description for languages
+18/02/2021|Malli 		       |CPQ-2225 - Modified the logic to fetch language paramer from input string i.e, using upper(language)
+*/
+
+
+// Part to query the table for
+part = upper(jsonget(inputJson, "MATNR", "String", ""));
+salesOrg = jsonget(inputJson, "salesOrg", "String", "");
+distributionChannel = jsonget(inputJson, "distributionChannel", "String", "");
+catalogNumber = upper(jsonget(inputJson, "ZZCATNO", "String", ""));
+crossRef = upper(jsonget(inputJson, "CrossReference", "String", "")); //Added by Vasundhara -ALM-587- getting the cross Reference number
+
+found = false;
+lang = "";
+lang1 = "";
+
+language = upper(jsonget(inputJson, "lang", "String", "EN")); // Added by malli as we had issues sometimes on upper/lower case language
+if(language <> "EN"){ // This is added as part of CPQ-2225
+		language = "DE"; // for language oter than english, Description to be fetched from column MAKTXDE
+}
+
+lang = "MAKTX" + language;
+lang1 = "MATGRP5_TEXT" + language;
+
+/*if (jsonget(inputJson, "lang", "String", "EN") == "") {
+	lang = "MAKTX" + "EN";
+	lang1 = "MATGRP5_TEXT" + "EN";
+}
+else {
+	lang = "MAKTX" + upper(jsonget(inputJson, "lang", "String", "EN"));
+	lang1 = "MATGRP5_TEXT" + upper(jsonget(inputJson, "lang", "String", "EN"));
+}*/
+
+
+
+// Json object to return. Contains details of the part
+partJson = json();
+jsonput(partJson, "crossRef", "");//Added by Vasundhara - ALM-587 - Initializing the cross reference is Empty.
+
+columnNames = String[]{"MATNR", "MAKTXEN", "MAKTXDE", "VKORG","VTWEG","BONUS","MVGR5","MEINS","SCMNG","AUMNG",
+	"UOM","RBNRM","MSTAE","VMSTA","DateTimeStamp","LVORM", "DISCOUNTABLE", "ZZCATNO",
+	"PRODUCTLINE", "AltItemNumber", "SALESTEXT", "SALESTEXT2", "SALESTEXT3", 
+	"SALESTEXT4", "SALESTEXT5", "MPG", "PH5","MTART","MPG_TEXT","PH5_TEXT","MATGRP5_TEXTEN","MATGRP5_TEXTEN","MATGRP5_TEXTDE","RDPRF","UMREZ", "MEINH","EAN11", "MSTAV", "NTGEW", "GEWEI","MVGR1","PRODH"};  //ALM 1878:"NTGEW" and "GEWEI" columns Added by Sharath 
+	
+cols= join(columnNames,",");
+//partDetails  = recordset();
+// 2/13/2019 Harshit Maheshwari . Addded MATNR_SEARCH column in where clause
+partDetails = bmql("select $cols from MAT01 where ((MATNR = $part OR MATNR_SEARCH = $part) OR (ZZCATNO=$catalogNumber)) AND VKORG=$salesOrg"); // Adding the where clause for catalog number here
+if( distributionChannel <> "") {
+	partDetails = bmql("select $cols from MAT01 where ((MATNR = $part OR MATNR_SEARCH = $part) OR (ZZCATNO=$catalogNumber)) AND VKORG=$salesOrg AND VTWEG =$distributionChannel");// Adding the where clause for catalog number here
+}
+//else{
+//	partDetails = bmql("select $cols from MAT01 where ((MATNR = $part OR MATNR_SEARCH = $part) OR (ZZCATNO=$catalogNumber)) AND VKORG=$salesOrg"); // Adding the where clause for catalog number here
+//}
+
+
+for row in partDetails {
+	found = true;
+	jsonput(partJson, "MATNR", get(row, "MATNR"));
+	jsonput(partJson, "MPGDESC", get(row, "MPG_TEXT"));
+	jsonput(partJson, "PH5DESC", get(row, "PH5_TEXT"));
+	
+	if (get(row, lang) == "") {
+		jsonput(partJson, "DESC", get(row, "MAKTXEN"));	
+		jsonput(partJson, "MATGRPDESC", get(row, "MATGRP5_TEXTEN"));
+	}
+	else {
+		jsonput(partJson, "DESC", get(row, lang));
+		jsonput(partJson, "MATGRPDESC", get(row, lang1));
+	}
+	
+	jsonput(partJson, "VKORG", get(row, "VKORG"));
+	jsonput(partJson, "VTWEG", get(row, "VTWEG"));
+	jsonput(partJson, "BONUS", get(row, "BONUS"));
+	jsonput(partJson, "MVGR5", get(row, "MVGR5"));
+	jsonput(partJson, "MEINS", get(row, "MEINS"));
+	jsonput(partJson, "UOM", get(row, "UOM"));
+	jsonput(partJson, "RBNRM", get(row, "RBNRM"));
+	jsonput(partJson, "MSTAE", get(row, "MSTAE"));
+	jsonput(partJson, "VMSTA", get(row, "VMSTA"));
+	jsonput(partJson, "DateTimeStamp", get(row, "DateTimeStamp"));
+	jsonput(partJson, "LVORM", get(row, "LVORM"));
+	jsonput(partJson, "DISCOUNTABLE", get(row, "DISCOUNTABLE"));
+	jsonput(partJson, "ZZCATNO", get(row, "ZZCATNO"));
+	jsonput(partJson, "PRODUCTLINE", get(row, "PRODUCTLINE"));
+	jsonput(partJson, "AltItemNumber", get(row, "AltItemNumber"));
+	jsonput(partJson, "SALESTEXT", get(row, "SALESTEXT"));
+	jsonput(partJson, "SALESTEXT2", get(row, "SALESTEXT2"));
+	jsonput(partJson, "SALESTEXT3", get(row, "SALESTEXT3"));
+	jsonput(partJson, "SALESTEXT4", get(row, "SALESTEXT4"));
+	jsonput(partJson, "SALESTEXT5", get(row, "SALESTEXT5"));
+	jsonput(partJson, "MPG", get(row, "MPG"));
+	jsonput(partJson, "PH5", get(row, "PH5"));
+	jsonput(partJson, "MTART", get(row, "MTART"));
+	jsonput(partJson, "SCMNG", get(row, "SCMNG"));
+	jsonput(partJson, "AUMNG", get(row, "AUMNG"));
+	jsonput(partJson, "RDPRF", get(row, "RDPRF"));
+	jsonput(partJson, "UMREZ", get(row, "UMREZ"));
+	jsonput(partJson, "MEINH", get(row, "MEINH"));
+	jsonput(partJson, "EAN11", get(row, "EAN11"));
+	jsonput(partJson, "MSTAV", get(row, "MSTAV"));//Gaurav: Added MSTAV for 1911
+	jsonput(partJson, "NTGEW", get(row, "NTGEW")); //ALM 1878:"NTGEW" and "GEWEI" columns Added by Sharath 
+	jsonput(partJson, "GEWEI", get(row, "GEWEI"));
+	jsonput(partJson, "MVGR1", get(row, "MVGR1"));//Dhana: As part of the US CPQ-470, include MVGR1(Brand value)
+	jsonput(partJson, "PRODH", get(row, "PRODH"));//Dhana: As part of the US CPQ-496, include MVGR1(Brand value)
+}
+//Updated by Vasundhara - Commenting this as we are passing this where clause as a OR condition to the first Query
+//Updated by Atul- deleted commented code
+
+
+return partJson;

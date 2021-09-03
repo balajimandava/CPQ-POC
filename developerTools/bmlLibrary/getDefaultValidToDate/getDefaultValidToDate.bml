@@ -1,0 +1,28 @@
+validFromDate = validFrom;
+if( isnull( validFrom ) ) {
+	validFromDate = getdate();
+}
+
+dateRange = 60;
+dateType = "DAYS";
+
+validRangeRS = bmql("select ValidDateRange, Type from ValidDateRange where TransactionType = $transactionType and SalesOrg = $salesOrg");
+for row in validRangeRS {
+	if( isnumber( get(row, "ValidDateRange") ) ) {
+		dateRange = atoi(get(row, "ValidDateRange"));
+		type = get(row, "Type");
+		if(type == "Y") {
+			dateType = "YEARS";
+		} elif (type == "M") {
+			dateType = "MONTHS";
+		}
+		break;
+	}
+}
+usersessionset("Valid From Date", datetostr(validFromDate));
+//*****COMMENTING THIS CODE AND USING THE UPDATE END DATE CALCULATION LOGIC****KUMAR****06/16/20****
+defaultValidToDate = util.u_addToDate(validFromDate, dateType, dateRange);
+
+//defaultValidToDate = util.calculateEndDate(validFromDate, dateType, dateRange);
+
+return defaultValidToDate;

@@ -1,0 +1,414 @@
+/**
+@name Process Create Quote Response
+@api processCreateQuoteResponse
+@param data Json
+@attribute _document_number
+@attribute _system_user_time_zone
+@attribute aluminumSurcharge_l
+@attribute coperSurcharge_l
+@attribute currency_t
+@attribute lineNumber_l
+@attribute qqBusinessLineForSalesOrg_t
+@attribute qqSAPCreateQuoteStatusMessage_t
+@attribute qqSAPCreateQuoteStatus_t
+@attribute qqSAPQuoteNumber_t
+@attribute qqSAPResult_t
+@attribute silverSurcharge_l
+@attribute taxAmount1_l
+@attribute taxAmount2_l
+@attribute taxAmount3_l
+@attribute taxAmount4_l
+@attribute taxAmount5_l
+@attribute transactionNumber_t
+@function Float stringToFloat(String input)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018.05.29|dBo Haizlip          |Initial Version -- 91596756
+2018.07.25|shibaji.ganguly	|QQ-680 Fix.
+2018.08.09|dBo Haizlip		|Removed zeroing of list price on each quote create so it only sets if it comes in QQ771.
+2018.08.14|dBo Haizlip		|Skip Net Price update if ES-EMEA (QQ-777)
+2018.08.17|dBo Haizlip		|Skip Net Price update for everyone (QQ-766)
+2018-10-16|michael.yeung        |copy attribute from Plant to plant_l
+2018-10-17|michael.yeung        |
+2019-06-24|Smriti Chaturvedi	|ALM-2244 added the below condition of sapresult for error scenerios
+*/
+
+// TODO 
+// - add code to process the response data, 
+// - enable related formulas, 
+// - add transition rule to move the quote to the correct step/status
+retJson= json();
+// ALM - 2244 - Added the below condition of sapresult for error scenerios
+dataABC = json();
+if(qqSAPResult_t <>"")
+{
+	dataABC = json(replace(qqSAPResult_t,"\n",""));
+}
+
+userDatePref = "yyyy/MM/dd HH:mm";
+userTimeZone = "Europe/Amsterdam";
+if (_system_user_time_zone <> "") {
+    userTimeZone = _system_user_time_zone;
+}
+
+dateTime = replace(datetostr(getdate(), userDatePref + " z", userTimeZone), "/", ".");
+
+//  Handle SAP Result is blank
+if (qqSAPResult_t == "") {
+  jsonput(retJson, "condaLastSentDate_t", dateTime);
+  jsonput(retJson, "condaStatusCode_t", "SAP Result EMPTY");
+  jsonput(retJson, "agreementErrorMessages_t", "SAP Message: " + qqSAPCreateQuoteStatusMessage_t +".Please contact the SAP Administrator");
+  jsonput(retJson, "condaMessageBody_t","SAP Message: " + qqSAPCreateQuoteStatusMessage_t);
+ // sapQuoteNumber= jsonget(dataABC,"qqSAPQuoteNumber_t","string","");
+  //jsonput(retJson,"qqSAPQuoteNumber_t",sapQuoteNumber);
+   jsonput(retJson,"qqSAPQuoteNumber_t","");
+  return retJson;
+}
+
+//  Handle SAP Create Quote Error
+if (qqSAPCreateQuoteStatus_t <> "S") {
+  //throwerror("SAP Create Quote Error -- Statis is '" + qqSAPCreateQuoteStatus_t + "' SAP Message: " + qqSAPCreateQuoteStatusMessage_t, false);
+  jsonput(retJson,"fp_transactionNumber_t",transactionNumber_t);
+  jsonput(retJson, "condaLastSentDate_t", dateTime);
+  jsonput(retJson, "condaStatusCode_t", "SAP Create Quote Error -- Statis is '" + qqSAPCreateQuoteStatus_t + "'");
+  jsonput(retJson, "agreementErrorMessages_t", "SAP Message: " + qqSAPCreateQuoteStatusMessage_t);
+  return retJson;
+}
+
+
+
+jsonput(retJson,"fp_transactionNumber_t",transactionNumber_t);
+sapQuoteNumber= jsonget(dataABC,"qqSAPQuoteNumber_t","string","");
+jsonput(retJson,"qqSAPQuoteNumber_t",sapQuoteNumber);
+
+genericAttr= "discSurcharge8_l";
+//genericForm= "CONDSEQ#-CONDTYPE-CONDVALUE-CONDTEXT";
+genericForm= "CONDTYPE CONDTEXT CONDVALUE VALUETYPE";
+genericCNTJson= json();
+genericMAX= 8;
+alternateListPriceCond= "ZVA0";  //  Total these to get list price if not provided
+listPriceName= "oldListPrice_l";  // string to look for in the CPQField for in the SAPConditionTypes data table
+zva0CondJson= json();   //  Running total for ZVA0 conditions
+listPriceJson= json();  //  List Price (If we got one)
+
+successfulMessage= jsonget(dataABC,"conditionTypes_l");
+
+if (NOT jsonpathcheck(dataABC, "$.items")) {
+  return retJson;
+}
+
+successfulMessage= replace(successfulMessage, "&lt;", "<");
+successfulMessage= replace(successfulMessage, "&gt;", ">");
+//print successfulMessage;
+	
+allItems= jsonget(dataABC,"items","jsonarray",jsonarray());
+//print allItems;
+
+// Conditions tags (under each line above)
+xpathConds= string[];
+append(xpathConds,"//_document_number");
+append(xpathConds,"//COND_TYPE");
+append(xpathConds,"//COND_VALUE");
+//append(xpathConds,"//COND_TEXT");
+//append(xpathConds,"//VALUE_TYPE");
+append(xpathConds,"//DiscSurchargeSeq");
+
+condTypesJson= json();
+lineProductType= json();
+
+//  Get all the condition types and the CPQ attribute they populate
+//  Note:  If not in this list then it goes in the generic ones
+rs= bmql("SELECT CondType,CPQField,Description FROM SAPConditionTypes");
+for eachCond in rs {
+  jsonput(condTypesJson,get(eachCond,"CondType"),get(eachCond,"CPQField"));
+}
+//print condTypesJson;
+
+allAttributeFields= jsonpathgetmultiple(condTypesJson,"$.*");
+//print allAttributeFields;
+
+loop1= range(jsonarraysize(allAttributeFields));
+loop2= range(genericMAX);
+
+allDocNumJson= json();
+
+if (jsonArraySize(allItems) == 0) {
+  return retJson;
+}
+
+loopCtrl = range(jsonArraySize(allItems));
+
+
+for idx in loopCtrl {
+    
+    docNumJson= json();
+
+    conditionJson= jsonArrayGet(allItems, idx, "json");
+    docNum= jsonGet(conditionJson, "_document_number");
+    
+    //for idx1 in loop1 {
+    //  jsonput(conditionJson,jsonarrayget(allAttributeFields,idx1),"0.00");
+    //}
+  
+    for idx2 in loop2 {
+      attrName= replace(genericAttr,string(genericMAX),string(idx2+1));
+      print attrName;
+      jsonput(conditionJson,attrName,"");
+    }
+    
+    jsonput(docNumJson,"items",conditionJson);
+    jsonput(allDocNumJson,docNum,docNumJson);
+}
+
+//print allDocNumJson;
+
+xpathConditions= string[];
+append(xpathConditions,"//Conditions");
+allConditionsDict= readxmlsingle(successfulMessage, xpathConditions);
+conditionsXML= get(allConditionsDict,xpathConditions[0]);
+//print conditionsXML;
+
+//  If no cpq:Conditions record then none to process...
+if (NOT isnull(conditionsXML)) {
+  xpathAllConditions= string[];
+  append(xpathAllConditions,"//Condition");
+  conditionsDict= readxmlmultiple(conditionsXML,xpathAllConditions);
+  
+  allConditionsArray= get(conditionsDict,xpathAllConditions[0]);
+  //print allConditionsArray;
+
+  //  If no cpq:condition are present then there are none to process
+  if (NOT isnull(allConditionsArray)) {
+    for eachCond in allConditionsArray {
+
+      //print eachCond;
+      eachCondDict= readxmlsingle(eachCond,xpathConds);
+      
+      docNum= util.getStringDict(eachCondDict, xpathConds[0], "");
+      if (docNum == "") {
+        //Can't do anything with this so we skip it
+        continue;
+      }
+      
+      condType= util.getStringDict(eachCondDict, xpathConds[1], "");
+      //  Skip if Net Price and ES-EMEA (QQ-777) Skip for Everyone (QQ-766)
+      if (condType == "PNTP") {
+        print "Skipped...";
+        continue;
+      }
+      
+      condValue= trim(util.getStringDict(eachCondDict, xpathConds[2], ""));
+      //  Move the "-" to the front
+      if (endswith(condValue,"-")) {
+        condValue= "-"+substring(condValue,0,find(condValue,"-"));
+      }
+      
+      //  If this is an alternate list price condition then add it to the running total
+      if (condType == alternateListPriceCond) {
+        currentZVA0Total= jsonget(zva0CondJson,docNum,"float",0.0);
+        condAmount= currentZVA0Total + util.stringToFloat(condValue);
+        jsonput(zva0CondJson,docNum,condAmount);
+      }
+      
+      //condText= util.getStringDict(eachCondDict, xpathConds[3], "");
+      //valueType= util.getStringDict(eachCondDict, xpathConds[4], "");
+      discSurchargeSeq= util.getStringDict(eachCondDict, xpathConds[3], "");
+    
+      //print docNum + " / " + condType + " / " + condValue + " / " + condText + " / " + valueType + " / " + discSurchargeSeq;
+      
+      docNumJson= jsonget(allDocNumJson,docNum,"json",json());
+      //print docNumJson;
+      
+      conditionJson= jsonget(docNumJson,"items","json",json());
+            
+      //  Check and see if it is a dedicated attribute
+      path= "$.." + condType;
+      if (jsonpathcheck(condTypesJson, path)) {
+        cpqAttribute= jsonget(condTypesJson,condType);
+        if (cpqAttribute == "SKIP") {
+          print "Skipping " + condType;
+          continue;
+        }
+        
+        if (find(cpqAttribute,listPriceName) <> -1) {
+          jsonput(listPriceJson,docNum,condValue);
+        }
+        
+        productType= jsonget(lineProductType,docNum,"string","");
+        
+        //  Special handling for Costs on B-LINE JIRA QQ-552
+        skipCost= FALSE;
+        if ( (qqBusinessLineForSalesOrg_t == "B-LINE") AND (productType == "configuration") ) {
+          skipCost= (condValue == "EK02");
+        } elif ( (qqBusinessLineForSalesOrg_t == "B-LINE") AND (productType <> "configuration") ){
+          skipCost= (condValue == "VPRS");
+        }
+        if (NOT skipCost) {
+          jsonput(conditionJson,cpqAttribute,condValue);
+        }
+      } else {
+        
+        discSurchargeCNT= jsonget(docNumJson,"discSurchargeCNT","integer",1);
+        //print "\t"+string(discSurchargeCNT);
+        
+        //  At the initial build there are only 8 attributes setup for storing these
+        if (discSurchargeCNT > 8) {
+          continue;
+        }
+        
+        discSurcharge= replace(genericForm,"CONDSEQ#",discSurchargeSeq);
+        discSurcharge= replace(discSurcharge,"CONDTYPE",condType);
+        discSurcharge= replace(discSurcharge,"CONDVALUE",replace(trim(condValue),"-",""));
+        //discSurcharge= replace(discSurcharge,"CONDTEXT",condText);
+        //genAttr= replace(genericAttr,string(genericMAX),discSurchargeSeq);
+                
+        genericJson= json();
+        jsonput(genericJson,discSurchargeSeq+"."+string(discSurchargeCNT),discSurcharge);
+        
+        genericItemsJsonArray= jsonget(docNumJson,"discsurchargeitems","jsonarray",jsonarray());
+        jsonarrayappend(genericItemsJsonArray,genericJson);
+        
+        jsonput(docNumJson,"discsurchargeitems",genericItemsJsonArray);
+        jsonput(docNumJson,"discSurchargeCNT",discSurchargeCNT+1);
+                
+      }
+  
+      jsonput(allDocNumJson,docNum,docNumJson);
+    }
+  } else {
+  print "No Conditions record(s) returned...";
+  }
+} else {
+  print "No Condition record returned...";
+}
+
+zva0Keys= jsonkeys(zva0CondJson);
+for eachKey in zva0Keys {
+
+  listPrice= jsonget(listPriceJson,eachKey,"float",0.0);
+  zva0Total= jsonget(zva0CondJson,eachKey,"float",0.0);
+  if ( (listPrice == 0) and (zva0Total > 0) ) {
+    listPrice= zva0Total;
+    
+    docNumJson= jsonget(allDocNumJson,eachKey,"json",json());
+    conditionJson= jsonget(docNumJson,"items","json",json());
+    
+    jsonput(conditionJson,listPriceName,listPrice);
+    
+    discSurchargeCNT= jsonget(docNumJson,"discSurchargeCNT","integer",1);
+    //print "\t"+string(discSurchargeCNT);
+        
+    //  At the initial build there are only 8 attributes setup for storing these
+    if (discSurchargeCNT <= genericMAX) {
+    
+      //discSurcharge= replace(genericForm,"CONDSEQ#",discSurchargeSeq);
+      discSurcharge= replace(genericForm,"CONDTYPE",alternateListPriceCond);
+      discSurcharge= replace(discSurcharge,"CONDVALUE",string(listPrice));
+      discSurcharge= replace(discSurcharge,"CONDTEXT","Sum of all ZVA0 conditions");
+      discSurcharge= replace(discSurcharge,"VALUETYPE",currency_t);
+    
+      genericJson= json();
+      jsonput(genericJson,"999"+"."+string(discSurchargeCNT),discSurcharge);
+        
+      genericItemsJsonArray= jsonget(docNumJson,"discsurchargeitems","jsonarray",jsonarray());
+      jsonarrayappend(genericItemsJsonArray,genericJson);
+        
+      jsonput(docNumJson,"discsurchargeitems",genericItemsJsonArray);
+      jsonput(docNumJson,"discSurchargeCNT",discSurchargeCNT+1);
+    }
+    
+    jsonput(allDocNumJson,eachKey,docNumJson);
+
+  }
+
+}
+
+
+//print allDocNumJson;
+
+allItemsJson= jsonarray();
+
+allDocNums= jsonkeys(allDocNumJson);
+for eachDocNum in allDocNums {
+  docNumJson= jsonget(allDocNumJson,eachDocNum,"json",json());
+  conditionJson= jsonget(docNumJson,"items","json",json());
+  //  Check and see if it is a dedicated attribute
+  path= "discsurchargeitems";
+  if (jsonpathcheck(docNumJson, path)) {
+    discSurchargeJsonArray= jsonget(docNumJson,path,"jsonarray",jsonarray());
+    
+    discSurchargeJson= json();
+    loopROWS= range(jsonarraysize(discSurchargeJsonArray));
+    for eachRow in loopRows {
+      discSurcharge= jsonarrayget(discSurchargeJsonArray,eachRow,"json");
+      discSurchargeKey= jsonkeys(discSurcharge);
+      jsonput(discSurchargeJson,discSurchargeKey[0],jsonget(discSurcharge,discSurchargeKey[0]));
+    }
+    
+    allDiscSurchargeKeys= sort(jsonkeys(discSurchargeJson),"asc","numeric");
+    for eachDiscSurchargeKey in allDiscSurchargeKeys {
+      splitKey= split(eachDiscSurchargeKey ,".");
+      sapSeqNumber= splitKey[0];
+      sapSeqCNT= splitKey[1];
+      print genericAttr;
+      jsonput(conditionJson,replace(genericAttr,string(genericMAX),sapSeqCNT),jsonget(discSurchargeJson,eachDiscSurchargeKey));
+      
+    }
+    
+  }
+  
+  //**** For QQ-680 - Start ****//
+  //Set Net_Price = Net_Price - Copper - Aluminum - Silver
+  if(jsonpathcheck(docNumJson, "items")){
+	  itemJson = jsonget(docNumJson,"items","json",json());
+	  //* Added By Sharath  
+          //* Ticket: INC000012942400
+	  //* Following code is added to remove the customerConditionIn_l from the json t avoid the overiding the "customer condition in %" in LIG when Process Create Quote response action Performed
+	  jsonremove(itemJson,"customerConditionInPer_l");
+	    if (jsonpathcheck(itemJson, "currentNetPrice_l")) {
+	        currentNet = atof(jsonget(itemJson,"currentNetPrice_l","string","0.00"));
+	        aluminum = atof(jsonget(itemJson,"aluminumSurcharge_l","string","0.00"));
+	        copper = atof(jsonget(itemJson,"coperSurcharge_l","string","0.00"));
+	        silver = atof(jsonget(itemJson,"silverSurcharge_l","string","0.00")); 
+	        currentNet = currentNet - silver - aluminum - copper;
+	        jsonput(conditionJson,"currentNetPrice_l",string(currentNet));
+					
+          jsonput(itemJson,"currentNetPrice_l",string(currentNet));
+          jsonput(docNumJson,"items",itemJson);
+	    }
+   	  if (jsonpathcheck(itemJson, "Plant")) {
+	        plant = jsonget(itemJson,"Plant","string");
+          jsonremove(itemJson, "Plant");
+      		jsonput(conditionJson,"plant_l",plant);
+		      jsonput(docNumJson,"items",conditionJson);
+	    }
+	    
+
+	//* Added By Sharath  
+        //* ALM : 1944
+	//* Following code is added to remove the "-" symbol from 'customer condition in %' and rounding the 'customer condition in %' attribute when quote is submited approvel and sent to SAP then Receive the response.
+	//* Value receive from SAP : - 62.500000 
+	//* CPQ Attribute Receives as : 62.5	
+	/*if (jsonpathcheck(itemJson, "customerConditionIn_l")) { 
+		customerConditionIn = round(atof(jsonget(itemJson,"customerConditionIn_l","string","0.00")),2);
+		customerConditionInStr = replace(string(customerConditionIn), "-", "");
+		jsonput(conditionJson,"customerConditionIn_l",customerConditionInStr);         
+	} */ 
+	
+   
+   }
+  //**** For QQ-680 - End ****//
+
+  jsonarrayappend(allItemsJson,conditionJson);
+  
+}
+
+jsonput(retJson,"fp_transactionNumber_t",transactionNumber_t);
+sapQuoteNumber= jsonget(dataABC,"qqSAPQuoteNumber_t","string","");
+jsonput(retJson,"qqSAPQuoteNumber_t",sapQuoteNumber);
+jsonput(retJson,"items",allItemsJson);
+
+return retJson;

@@ -1,0 +1,11 @@
+{
+  "name" : "Create CSP Agreement",
+  "variableName" : "createAustriaCSPAgreement",
+  "description" : "BML Function to create Austria agreement",
+  "libraryFunctions" : [ "util.transactionUploadStatusLog" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionName_t", "tableName_t" ],
+  "systemAttributes" : [ "_system_company_name" ]
+}

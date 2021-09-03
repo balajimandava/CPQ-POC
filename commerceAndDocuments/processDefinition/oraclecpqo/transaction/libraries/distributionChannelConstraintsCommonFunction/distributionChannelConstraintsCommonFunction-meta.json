@@ -1,0 +1,14 @@
+{
+  "name" : "Distribution Channel Constraints common function",
+  "variableName" : "distributionChannelConstraintsCommonFunction",
+  "description" : "Project#49074|E9913664|20Feb202|New function to build constraints for Distribution Channel attribute, will be used in multiple constrain rule actions.",
+  "libraryFunctions" : [ ],
+  "returnType" : "Dictionary of String Dictionaries",
+  "parameters" : [ {
+    "name" : "inParams",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "isDistiQuote_t", "isVendorQuote_t", "owner_t", "qqBusinessLineForSalesOrg_t", "qq_ntTransactionType_t" ],
+  "systemAttributes" : [ "_system_company_name", "_system_user_email", "_system_user_groups", "_system_user_login" ]
+}

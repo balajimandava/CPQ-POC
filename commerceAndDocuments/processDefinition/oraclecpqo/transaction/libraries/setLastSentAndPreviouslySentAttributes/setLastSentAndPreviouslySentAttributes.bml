@@ -1,0 +1,41 @@
+/**
+@name Set Last Sent and Previously Sent attributes
+@api setLastSentAndPreviouslySentAttributes
+@param bsID String
+@attribute agreementPreviousValidTo_t
+@attribute agreementValidTo_t
+@attribute bs_id
+@attribute lastSentLineDetails_t
+@attribute previouslySentLineDetails_t
+@function Json transactionDetailsJson(String buySide_ID)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|---------------------------------------------------------------------------------------
+2018.09.05|Shibaji.Ganguly	| Initial
+2018-09-10|michael.yeung        |	QQ-821 set header previous valid to value
+2018-10-04|michael.yeung        |	set previously sent to the same as last if it is blank
+*/
+returnStr = "";
+
+buysideID = bsID;
+if(buysideID == "") {
+	buysideID = bs_id;
+}
+previousSentLineDetail = "";
+if(lastSentLineDetails_t <> "" AND NOT(isnull(lastSentLineDetails_t))) {
+	previousSentLineDetail = lastSentLineDetails_t;
+}
+
+lastSentLineDetailsLatest = jsontostr(commerce.transactionDetailsJson(buysideID));
+
+returnStr = returnStr + "1~lastSentLineDetails_t~" + lastSentLineDetailsLatest + "|";
+
+if (previousSentLineDetail=="" ) {
+	previousSentLineDetail = lastSentLineDetailsLatest;
+}
+returnStr = returnStr + "1~previouslySentLineDetails_t~" + previousSentLineDetail + "|";
+
+returnStr = returnStr + "1~agreementPreviousValidTo_t~" + agreementValidTo_t + "|";	// QQ-821
+
+return returnStr;

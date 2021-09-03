@@ -1,0 +1,969 @@
+/**
+@name Set Customer Details
+@api setCustomerDetails
+@summary Sets the values for the customer attributes after querying the customer master data table.
+@attribute _document_number
+@attribute _system_current_step_var
+@attribute _system_user_currency_pref
+@attribute _transaction_document_number
+@attribute accountTypeKTOKD_t
+@attribute agreementDeliveryTerms_t
+@attribute agreementHierarchy_t
+@attribute agreementPaymentTerms_t
+@attribute agreementPeriodOfInvoicing_t
+@attribute currency_t
+@attribute currentUserERecordID_t
+@attribute customerAccountNumber_t
+@attribute customerBranch_t
+@attribute customerCity_t
+@attribute customerContact_t
+@attribute customerName2_t
+@attribute customerName3_t
+@attribute customerName_t
+@attribute customerNumber_t
+@attribute customerPlace_t
+@attribute customerPostalCodeZip_t
+@attribute customerRecordKey_t
+@attribute distributionChannel_t
+@attribute eRecordID_t
+@attribute headquartersNumber_t
+@attribute ntSelectedSalesOrg_t
+@attribute outputDocSalesOrgSpecific_t
+@attribute paymentTermsShipTo_t
+@attribute periodOfInvoicingShipTo_t
+@attribute preparedBySalesOrg_t
+@attribute primaryCustomerDeliveryTerm_t
+@attribute primaryCustomerPaymentTerms_t
+@attribute qq_CD_selectedShipTo_t
+@attribute salesGroup_t
+@attribute salesOffice_t
+@attribute salesOrg_t
+@attribute shipToNumber_t
+@attribute soldToNumber_t
+@attribute transactionType_t
+@attribute wholesaler_t
+@attribute salesDistrict_t
+@attribute primaryCustomerCurrency_t
+@attribute vendorNumber_t
+@function Boolean checkBizGroupCondition(String condition, String transactionType, String salesOrg)
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@function Json getCUSMASDetails(String CustomerNumber, String KTOKD, String PARVW, String VKORG)
+@function String Dictionary getCurrencyFormatting(String currency)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@function String[] getCustomerVendor(Json data)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-04-26|PKhanal              |Initial version (EATON-176)
+2017-04-27|PKhanal              |Added setting of wholesaler boolean attribute
+2017-05-04|PKhanal              |Added terms of delivery and terms of invoicing fields setting. These values have hardcoded entries for ship to agreements.  This is for testing purposes. (EATON-166)
+2017-05-05|PKhanal              |Change in how the account type is set (HQ, ship to sold to).  Uses the new "agreementHierarchy_t" field to set these values.
+2017-05-18|PKhanal              |Period of Invoicing filed updated with "blank" option. Code  changed to account for it.
+2017-05-26|Shansen              |Added currency formatting returns
+2017-06-01|dBo Haizlip          |Added VTWEG (Distribution Channel) and Customer Parent logic
+2017-06-01|dBo Haizlip          |Re-worked to get all information
+2017-06-29|PKhanal              |Added payment term default settings
+2017-06-30|dBo Haizlip          |Added lookup for up to 4 levels of Hierarchy
+2017-07-10|PKhanal              |Added SalesOrgName attribute for output doc (121)
+2017-07-10|Shansen              |Changed Headquarter, Sold to, Ship to to only set the lowest level if they're equal (Jira-328)
+2017-07-12|PKhanal              |Added new attribute to hold delimited string of customer details (121)
+2017-07-13|APatterson           |Added customer street and country to details set on agreement
+2017-07-28|dBo Haizlip          |Added Sales Office and Sales Group for Vistex agreements
+2017-08-15|Shansen              |Added logic for wholesaler - 396
+2017-08-17|PKhanal              |Added NAME2 and NAME3 data from CUSMAS
+2017-12-20|PKhanal              |Added Region Lookup
+2018-01-02|Tat.Leung            |
+2018-01-04|Tat.Leung            |
+2018-01-10|Michae.Yeung         |update accountTypeKTOKD_t to actual value of the selected customer
+2018-03-09|michael.yeung        |
+2018-03-15|Tat.Leung            |added (_system_current_step_var == "start_step") near line 313
+2018-04-01|michael.yeung        |add editable paymentTerms for WQ and DS
+2018-04-04|shibaji.ganguly	|QQ-438 related changes
+2018-04-08|michael.yeung        |
+2018-05-25|shibaji.ganguly	|Added code for populating Name(qqCustomerNameCopy_t), Name2(qqCustomerName2Copy_t), Name3(qqCustomerName3Copy_t), and City&Region(qqCityAndRegionCopy_t) attribute 
+2018-05-28|michael.yeung        |
+2018-05-28|shibaji.ganguly	| Added code for populating Customer Group (qqCustomerGroup_t) attribute
+2018.05.31|dBo Haizlip		|Added setting Ship To address when a Primary Ship To is selected -- 91593512
+2018-06-15|michael.yeung        |
+2018-07-12|Tat.Leung            |QQ-575 added salesDistrict_t and populate its value
+2018-07-23|Vivek.Hingorani      |QQ-475 Returned Customer Reference,Name 1,2,3 for Ship To
+
+2018-07-26|michael.yeung        |QQ-575 look up list of vendor using util function getCustomerVendor
+2018-07-31|Vivek.Hingorani      |QQ-703 Not to set read only ship to address details if DSP
+2018-09-27|michael.yeung        |QQ-839 Using sold to's term data.
+2018-09-30|michael.yeung        |QQ-703 Always used sold to as customer unless displaying shipto as customer
+2018-10-22|michael.yeung        |
+2018-11-29|Mubarak.Ali		|QQ-1145 To set the default for DSP
+2019-7-9  |Balaji  Konagalla	|ALM-2305 To set Sales District,Sales Office,Sales Group,Customer Group only based on ship to and only set when sales to when ship to is empty. 
+2019-07-16|Smriti Chaturvedi	| ALM - 2243 Removed the currency format based on customer
+2019-08-22|Balaji Konagalla	|ALM # 2436 , fix for error message when NOK currency is selected
+2019-10-14|Vasundhara Pentakota|ALM 2629 ,Reset qq_customerReferenceShipTo to empty.
+2020-01-08|Komal Agrawal|INC000013160430 Vendor number equal to Z1 for Bline
+2020-05-08|Vijetha		|CPQ-1069 - Customer count and Customer details are not populated.
+2020-05-21|Rahul		|INC000013531503 - Setting price group if it exists in LOVs
+2020-07-21|Rahul		|//Project#49704 - Eagel Development | Setting CustomerDefaultPaymentTerms for approval
+2020-08-18|Subha		|Added the condition for step in Setting the CustomerDefaultPAymentTerms for approval -CPQ-2327
+2020-09-25|Dhananjay		|Fix for CPQ-2854
+2020-10-16|Gunashree		|Fix for #INC000013593937
+2020-11-03|Nithin               |Fix for CPQ-3227 , To set correct value for SalesGroup_Menu_t.
+2020-11-04|Ankit                |Fix for CPQ-3256 , Removed ="blank" condition for invoicing terms to be considered for defaulting from CUSMAS.
+2020-11-24|Anita		|Fix for CPQ-3390 , Removed "AND (not isPaymentDefaultEmpty)" in condition when setting CustomerDefaultPaymentTerms  
+2020-12-30|Dhananjay		|CPQ-3473:Enable Z300 Sold Tos
+2020-04-19|Johnny Lin		|INC000014407449, fixed the missing sales district of PSD quotes by Eaton Legacy group user
+2020-04-28|Johnny Lin		|INC000014441400, fixed the missing vendorNumber_t of PSD quotes if save again by internal users
+2021-05-19|Anita		|Added conditions for new currency as part of 53390 
+2021-06-14|Ankush               |INC000014415115 - Updated condition to set vendor_t for PSD
+*/
+retString = "";
+
+company = util.getSupplierCompanyName();
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+headers = dict("string");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+
+customerNumber = customerNumber_t;
+if (customerNumber == "") {
+    customerNumber = customerRecordKey_t;
+}
+VKORG = salesOrg_t;
+if (VKORG == "") {
+    VKORG = preparedBySalesOrg_t;
+}
+
+setZ300SoldTos = false;
+if(qqBusinessLineForSalesOrg_t == "PSD" OR VKORG == "1231"){
+	setZ300SoldTos = true;
+}
+
+VTWEG = ntDistributionChannel_t;
+
+bmVariables = dict("string"); //  This dictionary contains all values to be set for Commerce
+
+cmrcSep = "|";
+hdqtrs = "";
+soldTo = "";
+shipTo = "";
+
+agreementLevel = 0;
+agreementTypes = string[] {
+    "",
+    "Z012",
+    "Z001",
+    "Z002"
+};
+agreementNames = string[] {
+    "",
+    "Headquarters",
+    "Sold To",
+    "Ship To"
+};
+agreementHier = "";
+agreementName = "";
+
+//MOdified input for getCUSMASDetails lib to pass the Distribution channel as part of INC000012102739
+getCusmasDetail = json();
+jsonput(getCusmasDetail, "VKORG", VKORG);
+jsonput(getCusmasDetail, "VTWEG", VTWEG);
+
+//  Only if a Primary Ship To is selected
+if (qq_CD_selectedShipTo_t <> "") {
+  splitSelectedShipTo= split(qq_CD_selectedShipTo_t,"-");
+  primShipTo= splitSelectedShipTo[3];
+  if (not isnull(primShipTo)) {
+		jsonput(getCusmasDetail, "CustomerNumber", primShipTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z002");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		
+    primShipToJSON= json();
+    primShipToJSON= util.getCUSMASDetails(getCusmasDetail);
+    customerCount = jsonget(primShipToJSON, "customercount", "integer", 0);
+    if (customerCount == 0) {
+		jsonput(getCusmasDetail, "CustomerNumber", primShipTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z001");
+		jsonput(getCusmasDetail, "PARVW", "AG");
+		primShipToJSON= util.getCUSMASDetails(getCusmasDetail);
+    }
+    customerCount = jsonget(primShipToJSON, "customercount", "integer", 0);
+    //CPQ-3473:Enable Z300 Sold Tos
+	if (customerCount == 0 AND setZ300SoldTos) {
+		jsonput(getCusmasDetail, "CustomerNumber", primShipTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z300");
+		jsonput(getCusmasDetail, "PARVW", "AG");
+		primShipToJSON= util.getCUSMASDetails(getCusmasDetail);
+	}
+	customerCount = jsonget(primShipToJSON, "customercount", "integer", 0);
+    if (customerCount == 0) {
+		jsonput(getCusmasDetail, "CustomerNumber", primShipTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z012");
+		jsonput(getCusmasDetail, "PARVW", "");
+		primShipToJSON= util.getCUSMASDetails(getCusmasDetail);
+    }
+    
+    countryCode = jsonget(primShipToJSON, "LAND1", "string", "");
+    regionCode = jsonget(primShipToJSON, "REGIO", "string", "");
+    regionNamesRS = BMQL("Select Region From SAPRegions Where CountryCode = $countryCode And RegionCode = $regionCode");
+    regn = "";
+    for eachRegionName in regionNamesRS {
+        regn = get(eachRegionName, "Region");
+        break;
+    }
+    if (regn == "ES-EMEA"
+        OR regn == "CH-EMEA") {
+        regn = "";
+    }
+    
+    if(transactionType_t <> "DSP"){
+        put(bmVariables, "1~qq_customerReferenceShipTo~",primShipTo);
+        put(bmVariables, "1~_shipTo_t_city~", jsonget(primShipToJSON, "ORT01", "string", "MISSING") + " " + regn);
+        put(bmVariables, "1~_shipTo_t_address~", jsonget(primShipToJSON, "STRAS", "string", "MISSING"));
+        put(bmVariables, "1~_shipTo_t_address_2~", jsonget(primShipToJSON, "STRAS2", "string", ""));
+        put(bmVariables, "1~_shipTo_t_zip~", jsonget(primShipToJSON, "PSTLZ", "string", "MISSING"));
+        put(bmVariables, "1~_shipTo_t_state~", jsonget(primShipToJSON, "LAND1", "string", "MISSING"));
+        put(bmVariables, "1~qq_shipToName_t~", jsonget(primShipToJSON, "NAME1", "string", ""));
+        put(bmVariables, "1~qq_shipToName2_t~", jsonget(primShipToJSON, "NAME2", "string", ""));
+        put(bmVariables, "1~qq_shipToName3_t~", jsonget(primShipToJSON, "NAME3", "string", ""));
+        put(bmVariables, "1~_shipTo_t_country~", jsonget(primShipToJSON, "LAND1", "string", ""));
+    }else{
+        put(bmVariables, "1~qq_customerReferenceShipTo~","");
+        put(bmVariables, "1~_shipTo_t_city~", "");
+        put(bmVariables, "1~_shipTo_t_address~", "");
+        put(bmVariables, "1~_shipTo_t_address_2~", "");
+        put(bmVariables, "1~_shipTo_t_zip~", "");
+        put(bmVariables, "1~_shipTo_t_state~", "");
+        put(bmVariables, "1~qq_shipToName_t~", "");
+        put(bmVariables, "1~qq_shipToName2_t~", "");
+        put(bmVariables, "1~qq_shipToName3_t~", "");
+        put(bmVariables, "1~_shipTo_t_country~", "");
+    }
+    
+    
+  }
+}else{ //ALM-2629 Added to reset the field "qq_customerReferenceShipTo" when "qq_CD_selectedShipTo_t" is empty
+	put(bmVariables, "1~qq_customerReferenceShipTo~","");
+}
+
+// first check if the json is empty. this is to account for old transactions where the field might not be present
+print "agreementHierarchy_t:"+agreementHierarchy_t;
+if (agreementHierarchy_t <> "") {
+    // using the hierarchy json to find the HQ, sold to and ship to information and setting it
+	print "agreementHierarchy_t:"+agreementHierarchy_t;
+    agreementHierarchy = json(agreementHierarchy_t);
+    hdqtrs = jsonget(agreementHierarchy, "aLevel1");
+    soldTo = jsonget(agreementHierarchy, "aLevel2");
+    shipTo = jsonget(agreementHierarchy, "aLevel3");
+
+    if (shipTo <> "") {
+        agreementLevel = 3;
+    } elif (soldTo <> "") {
+        agreementLevel = 2;
+    } elif (hdqtrs <> "") {
+        agreementLevel = 1;
+    }
+    agreementName = agreementNames[agreementLevel];
+    agreementHier = agreementTypes[agreementLevel];
+	print "agreementName:"+agreementName;
+	print "agreementHier:"+agreementHier;
+}
+
+qqSelectedSalesOrg = ntSelectedSalesOrg_t;
+//Get Data from Dummy Customers table
+/*dummyCustomerName = "";
+dummyCustomerTableRecSet = BMQL("SELECT KUNNR from DummyCustomers where VKORG = $qqSelectedSalesOrg");
+for dummyRec in dummyCustomerTableRecSet {
+    dummyCustomerName = get(dummyRec,"KUNNR");
+}*/
+
+headQuartersName = "";
+hdqtrsJSON = JSON();
+if (hdqtrs <> "") {
+	jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+	jsonput(getCusmasDetail, "KTOKD", "Z012");
+	jsonput(getCusmasDetail, "PARVW", "");
+	hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);
+    customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+    if (customerCount == 0) {
+	jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+	jsonput(getCusmasDetail, "KTOKD", "Z001");
+	jsonput(getCusmasDetail, "PARVW", "AG");
+	hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);
+     
+        customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+        //CPQ-3473:Enable Z300 Sold Tos
+	if (customerCount == 0 AND setZ300SoldTos) {
+		jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+		jsonput(getCusmasDetail, "KTOKD", "Z300");
+		jsonput(getCusmasDetail, "PARVW", "AG");
+		hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);
+		customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+	}
+        if (customerCount == 0) {	// 2018/09/06 QQ-834 Need to check for RE (bill to as well)
+			jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+			jsonput(getCusmasDetail, "KTOKD", "Z001");
+			jsonput(getCusmasDetail, "PARVW", "RE");
+			hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);
+            customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+        }
+        //CPQ-3473:Enable Z300 Sold Tos
+	if (customerCount == 0 AND setZ300SoldTos) {
+		jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+		jsonput(getCusmasDetail, "KTOKD", "Z300");
+		jsonput(getCusmasDetail, "PARVW", "RE");
+		hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);
+		customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+	}
+        if (customerCount == 0) {
+			jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+			jsonput(getCusmasDetail, "KTOKD", "Z002");
+			jsonput(getCusmasDetail, "PARVW", "WE");
+			hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);   
+            customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+        }
+		
+		//Chandan - 49704 - Eagle Development - Added the below condition to fetch the data for One Time Customer - START
+		if (customerCount == 0) {
+			jsonput(getCusmasDetail, "CustomerNumber", hdqtrs);
+			jsonput(getCusmasDetail, "KTOKD", "ZCPD");
+			jsonput(getCusmasDetail, "PARVW", "WE");
+			hdqtrsJSON= util.getCUSMASDetails(getCusmasDetail);   
+            customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+        }
+		//Chandan - 49704 - Eagle Development - Added the above condition to fetch the data for One Time Customer - END
+    }
+    if (customerCount > 0) {
+        headQuartersName = jsonget(hdqtrsJSON, "NAME1", "string", "");
+    }
+    
+    //Inserting dummyCustomerName and qqSelectedSalesOrg in hdqtrsJSON when hdqtrs = dummy customer
+    /*if(hdqtrs == dummyCustomerName) {
+        jsonput(hdqtrsJSON,"NAME1",dummyCustomerName);
+        jsonput(hdqtrsJSON,"VKORG",qqSelectedSalesOrg);
+    }*/
+}
+
+soldToName = "";
+soldToJSON = json();
+
+if ((soldTo == hdqtrs) AND(soldTo <> "")) {
+    soldToJSON = hdqtrsJSON;
+    soldToName = jsonget(soldToJSON, "NAME1", "string", "");
+} elif (agreementlevel >= 2) {
+	print "agreementlevel:";
+	print agreementlevel;
+	jsonput(getCusmasDetail, "CustomerNumber", soldTo);
+	jsonput(getCusmasDetail, "KTOKD", "Z001");
+	jsonput(getCusmasDetail, "PARVW", "AG");
+	soldToJSON= util.getCUSMASDetails(getCusmasDetail); 
+	print soldToJSON;
+    customerCount = jsonget(soldToJSON, "customercount", "integer");
+    //CPQ-3473:Enable Z300 Sold Tos
+       if (customerCount == 0 AND setZ300SoldTos) {
+		jsonput(getCusmasDetail, "CustomerNumber", soldTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z300");
+		jsonput(getCusmasDetail, "PARVW", "AG");
+		soldToJSON= util.getCUSMASDetails(getCusmasDetail); 
+	        customerCount = jsonget(soldToJSON, "customercount", "integer");
+	}
+    if (customerCount == 0) {
+		jsonput(getCusmasDetail, "CustomerNumber", soldTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z001");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		soldToJSON= util.getCUSMASDetails(getCusmasDetail); 
+        //Commented below line of code as part of CPQ-1069 fix. Customer Count for the soldTo has to be taken from soldToJSON not from hdqtrsJSON
+		//customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+        customerCount = jsonget(soldToJSON, "customercount", "integer");
+    }
+    //CPQ-3473:Enable Z300 Sold Tos
+    if (customerCount == 0 AND setZ300SoldTos) {
+	jsonput(getCusmasDetail, "CustomerNumber", soldTo);
+	jsonput(getCusmasDetail, "KTOKD", "Z300");
+	jsonput(getCusmasDetail, "PARVW", "WE");
+	soldToJSON= util.getCUSMASDetails(getCusmasDetail); 
+        customerCount = jsonget(soldToJSON, "customercount", "integer");
+    }
+    if (customerCount == 0) {
+		jsonput(getCusmasDetail, "CustomerNumber", soldTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z002");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		soldToJSON= util.getCUSMASDetails(getCusmasDetail);
+		//Commented below line of code as part of CPQ-1069 fix. Customer Count for the soldTo has to be taken from soldToJSON not from hdqtrsJSON		
+        //customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+		customerCount = jsonget(soldToJSON, "customercount", "integer");
+    }
+	
+	//Chandan - 49704 - Eagle Development - Added the below condition to fetch the data for One Time Customer - START
+	 if (customerCount == 0) {
+		jsonput(getCusmasDetail, "CustomerNumber", soldTo);
+		jsonput(getCusmasDetail, "KTOKD", "ZCPD");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		soldToJSON= util.getCUSMASDetails(getCusmasDetail);
+		//Commented below line of code as part of CPQ-1069 fix. Customer Count for the soldTo has to be taken from soldToJSON not from hdqtrsJSON
+        //customerCount = jsonget(hdqtrsJSON, "customercount", "integer");
+		customerCount = jsonget(soldToJSON, "customercount", "integer");
+    }
+	//Chandan - 49704 - Eagle Development - Added the above condition to fetch the data for One Time Customer - END
+	
+    if (customerCount > 0) {
+        soldToName = jsonget(soldToJSON, "NAME1", "string", "");
+    }
+    /*if(soldToName == dummyCustomerName) {
+        jsonput(soldToJSON,"NAME1",dummyCustomerName);
+        jsonput(soldToJSON,"VKORG",qqSelectedSalesOrg);
+    }*/
+}
+print "soldToJSON";
+print soldToJSON;
+
+shipToName = "";
+shipToJSON = json();
+if ((shipTo == soldTo) AND(shipTo <> "")) {
+    shipToJSON = soldToJSON;
+    shipToName = jsonget(shipToJSON, "NAME1", "string", "");
+    soldToName = "";
+	//headQuartersName = "";
+} elif (agreementLevel == 3) {
+	jsonput(getCusmasDetail, "CustomerNumber", shipTo);
+	jsonput(getCusmasDetail, "KTOKD", "Z002");
+	jsonput(getCusmasDetail, "PARVW", "WE");
+	shipToJSON= util.getCUSMASDetails(getCusmasDetail); 
+    customerCount = jsonget(shipToJSON, "customercount", "integer");
+    if ((customerCount == 0) AND(shipTo <> "")) {
+		jsonput(getCusmasDetail, "CustomerNumber", shipTo);
+		jsonput(getCusmasDetail, "KTOKD", "Z001");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		shipToJSON= util.getCUSMASDetails(getCusmasDetail); 
+        
+        customerCount = jsonget(shipToJSON, "customercount", "integer");
+    }
+	//CPQ-3473:Enable Z300 Sold Tos
+    if ((customerCount == 0 AND setZ300SoldTos) AND(shipTo <> "")) {
+	jsonput(getCusmasDetail, "CustomerNumber", shipTo);
+	jsonput(getCusmasDetail, "KTOKD", "Z300");
+	jsonput(getCusmasDetail, "PARVW", "WE");
+	shipToJSON= util.getCUSMASDetails(getCusmasDetail); 
+        customerCount = jsonget(shipToJSON, "customercount", "integer");
+    }
+	//Chandan - 49704 - Eagle Development - Added the below condition to fetch the data for One Time Customer - START
+	if ((customerCount == 0) AND(shipTo <> "")) {
+		jsonput(getCusmasDetail, "CustomerNumber", shipTo);
+		jsonput(getCusmasDetail, "KTOKD", "ZCPD");
+		jsonput(getCusmasDetail, "PARVW", "WE");
+		shipToJSON= util.getCUSMASDetails(getCusmasDetail);         
+        customerCount = jsonget(shipToJSON, "customercount", "integer");
+    }
+	//Chandan - 49704 - Eagle Development - Added the above condition to fetch the data for One Time Customer - END
+	
+    if (customerCount > 0) {
+        shipToName = jsonget(shipToJSON, "NAME1", "string", "");
+    }
+    /*if(shipToName == dummyCustomerName) {
+        jsonput(shipToJSON,"NAME1",dummyCustomerName);
+        jsonput(shipToJSON,"VKORG",qqSelectedSalesOrg);
+    }*/
+}
+
+//only set if it exists
+//only the lowest level will be set if they're all equal 
+if (headQuartersName <> "") {
+    put(bmVariables, "1~headquartersNumber_t~", hdqtrs);
+    put(bmVariables, "1~headquarters_t~", headQuartersName);
+}
+if (soldToName <> "") {
+    put(bmVariables, "1~soldToNumber_t~", soldTo);
+    put(bmVariables, "1~customerSoldTo_t~", soldToName);
+}
+if (shipToName <> "") {
+    put(bmVariables, "1~shipToNumber_t~", shipTo);
+    put(bmVariables, "1~customerShipTo_t~", shipToName);
+}
+
+z012List = string[];
+cNumber = hdqtrs;
+nextZ012 = "";
+allZ012s = string[] {
+    cNumber
+};
+maxLevels = range(4);
+
+for eachLevel in maxLevels {
+
+    if (eachLevel == 0) {
+        z012List = string[] {
+            cNumber
+        };
+    } elif (nextZ012 == "") { //  There are no more so exit now
+        break;
+    } else {
+        z012List = split(nextZ012, ":-:");
+        nextZ012 = "";
+    }
+
+    for eachZ012 in z012List {
+        fromTable = "CUSMAS";
+        selectColumns = "KUNNR,HKUNNR,NAME1";
+	if( NOT isnull(eachZ012)){// Added null check for null pointer Defect 2165
+        custBMQL = bmql("SELECT $selectColumns FROM $fromTable WHERE KUNNR IN $z012List AND KTOKD = 'Z012' AND VKORG = $VKORG");
+        for eachCust in custBMQL {
+            KUNNR = get(eachCust, "KUNNR");
+            HKUNR = get(eachCust, "HKUNNR");
+            NAME1 = get(eachCust, "NAME1");
+
+            if (HKUNR <> "") {
+                if (nextZ012 <> "") {
+                    nextZ012 = nextZ012 + ":-:";
+                }
+                nextZ012 = nextZ012 + HKUNR;
+            }
+            if (eachLevel + 1 == 2) {
+                put(bmVariables, "1~hierarchy2_t~", NAME1);
+                put(bmVariables, "1~hierarchy2Number_t~", KUNNR);
+            } elif (eachLevel + 1 == 3) {
+                put(bmVariables, "1~hierarchy3_t~", NAME1);
+                put(bmVariables, "1~hierarchy3Number_t~", KUNNR);
+            } elif (eachLevel + 1 == 4) {
+                put(bmVariables, "1~hierarchy4_t~", NAME1);
+                put(bmVariables, "1~hierarchy4Number_t~", KUNNR);
+            }
+            cDetails = KUNNR + " / " + HKUNR + " / " + NAME1;
+        }
+        }
+    }
+}
+
+displayPrimaryShiptoCustomer = util.checkBizGroupCondition("displayPrimaryShiptoCustomer", transactionType_t, salesOrg_t);
+isPrimaryShipTo = false;
+customerParent = "";
+accountType = "";
+customerJSON = json();
+
+if (agreementLevel == 3) {
+    customerParent = jsonget(soldToJSON, "HKUNNR", "string", "");
+    if( displayPrimaryShiptoCustomer ) {
+        isPrimaryShipTo = true;
+        customerJSON = shipToJSON;
+    } else {
+        customerJSON = soldToJSON;
+    }
+} elif (agreementLevel == 2) {
+    customerJSON = soldToJSON;
+    customerParent = jsonget(customerJSON, "HKUNNR", "string", "");
+} else {
+    customerJSON = hdqtrsJSON;
+}
+
+accountType = jsonget(customerJSON, "KTOKD", "string", ""); // 01/08/2018 use actual customer's account type value 
+
+currency= currency_t;
+// QQ-455 - allow user to change currency for quotes if there is no line added to the quote yet
+hasLines = false;
+for line in transactionLine {
+    hasLines = true;
+    break;
+}
+canChangeCurrency = transactionType_t == "DS" or transactionType_t == "WQ" or transactionType_t == "RQ";
+if ((not hasLines) and canChangeCurrency and (_system_current_step_var <> "start_step")) {
+    currency = currency_t;
+}
+
+currencyFormattingDict = util.getCurrencyFormatting(currency);
+put(bmVariables, "1~currencySymbol_t~", get(currencyFormattingDict, "symbol"));
+put(bmVariables, "1~currencyThousandsSeparator_t~", get(currencyFormattingDict, "thousandsSep"));
+put(bmVariables, "1~currencyDecimalSeparator_t~", get(currencyFormattingDict, "decimalSep"));	
+
+// SET TERMS BASED ON CUSTOMER
+deliveryDefault = agreementDeliveryTerms_t;
+isDeliveryDefaultEmpty = false;
+if (deliveryDefault == "") {
+    isDeliveryDefaultEmpty = true;
+    mark = "Y";
+    table = bmql("SELECT UnityUnikey FROM DeliveryTerms WHERE SalesOrg=$VKORG and Default=$mark");
+    for row in table {
+
+        deliveryDefault = get(row, "UnityUnikey");
+    }
+}
+
+paymentDefault = agreementPaymentTerms_t;
+isPaymentDefaultEmpty = false;
+print "agrreeement";
+print paymentDefault;
+if (paymentDefault == "") {
+    isPaymentDefaultEmpty = true;
+    mark = "Y";
+    table = bmql("SELECT UnityUnikey FROM PaymentTerms WHERE SalesOrg=$VKORG and Default=$mark");
+    for row in table {
+
+        paymentDefault = get(row, "UnityUnikey");
+		
+    }
+}
+invoicingDefault = agreementPeriodOfInvoicing_t;
+isInvoicingDefaultEmpty = false;
+if (invoicingDefault == "") {
+    isInvoicingDefaultEmpty = true;
+    mark = "Y";
+    table = bmql("SELECT UnityUnikey FROM InvoicingTerms WHERE SalesOrg=$VKORG and Default=$mark");
+    for row in table {
+
+        invoicingDefault = get(row, "UnityUnikey");
+    }
+}
+
+// Added for QQ-438 - Start //
+salesOrg = salesOrg_t;
+if(salesOrg == "" OR isnull(salesOrg)) {
+	salesOrg = preparedBySalesOrg_t;
+}
+if(util.checkBizGroupCondition("paymentTermsDefaultedFromCUSMAS", transactionType_t, salesOrg) AND isPaymentDefaultEmpty) {
+    customerPaymentTerm = jsonget(customerJSON, "ZTERM_SALES", "string", "");
+	if( isPrimaryShipTo ) {
+        customerPaymentTerm = jsonget(soldToJSON, "ZTERM_SALES", "string", "");
+    }
+	//Chandan - 40974 - Eagle Development - Set default value for Payment Terms in case of PSD - STRAT
+	elif(qqBusinessLineForSalesOrg_t == "PSD"){
+		customerPaymentTerm = jsonget(soldToJSON, "ZTERM_SALES", "string", "");
+	}
+	//Chandan - 40974 - Eagle Development - Set default value for Payment Terms in case of PSD - END
+    if( customerPaymentTerm <> "" ) {
+        paymentDefault = customerPaymentTerm;
+    }
+} 
+
+if(util.checkBizGroupCondition("deliveryTermsDefaultedFromCUSMAS", transactionType_t, salesOrg) AND isDeliveryDefaultEmpty) {
+    customerDeliveryTerm = jsonget(customerJSON, "INCO1", "string", "");
+	if( isPrimaryShipTo ) {
+	    customerDeliveryTerm = jsonget(soldToJSON, "INCO1", "string", "");
+    }
+	//Chandan - 40974 - Eagle Development - Set default value for Payment Terms in case of PSD - STRAT
+	elif(qqBusinessLineForSalesOrg_t == "PSD"){
+		customerDeliveryTerm = jsonget(soldToJSON, "INCO1", "string", "");
+	}
+	//Chandan - 40974 - Eagle Development - Set default value for Payment Terms in case of PSD - END
+    if( customerDeliveryTerm <> "" ) {
+        deliveryDefault = customerDeliveryTerm;
+    }
+}
+
+
+if(util.checkBizGroupCondition("periodOfInvoivingDefaultedFromCUSMAS", transactionType_t, salesOrg)  AND isInvoicingDefaultEmpty ) {
+    customerInvoicingTerm = jsonget(customerJSON, "PERFK", "string", "");
+	print "customerInvoicingTerm:"+customerInvoicingTerm;
+	if( isPrimaryShipTo ) {
+    	customerInvoicingTerm = jsonget(soldToJSON, "PERFK", "string", "");
+		print "customerInvoicingTerm:"+customerInvoicingTerm;
+    }
+    if( customerInvoicingTerm <> "" ) {
+        invoicingDefault = customerInvoicingTerm;
+    }
+}
+print "invoicingDefault:"+invoicingDefault;
+if (invoicingDefault == "") {
+	invoicingDefault = "blank"; //Defaulting it do "Daily Invoicing" if it blank in CUSMAS.
+}
+// Added for QQ-438 - End //
+
+// Creating string for the customer details xml with data from SalesOrgSpecific data table
+salesOrgString = "";
+salesOrgData = bmql("select Name, CSM, Address from SalesOrgSpecific where SalesOrg =$salesOrg_t");
+for row in salesOrgData {
+    salesOrgString = salesOrgString + "name" + "$,$" + get(row, "Name") + "#@#";
+    salesOrgString = salesOrgString + "csm" + "$,$" + get(row, "CSM") + "#@#";
+    salesOrgString = salesOrgString + "address" + "$,$" + get(row, "Address") + "#@#";
+}
+
+if (len(salesOrgString) > 0) {
+    salesOrgString = trim(substring(salesOrgString, 0, len(salesOrgString) - 3));
+}
+
+customerNumber = jsonget(customerJSON, "KUNNR", "string", "");
+if(NOT isLegacyEaton_t)
+{
+	put(bmVariables, "1~customerNumber_t~", customerNumber);
+	put(bmVariables, "1~customerName_t~", jsonget(customerJSON, "NAME1", "string", ""));
+	put(bmVariables, "1~qqCustomerNameCopy_t~", jsonget(customerJSON, "NAME1", "string", ""));
+	//Chandan - 49704 - Eagle Development - Added below to populate Sold to Name in Output Tab for One Time Customers - START
+	customerType = jsonget(customerJSON, "KTOKD", "string", "");
+	if(_system_current_step_var == "start_step" AND customerType == "ZCPD"){
+		put(bmVariables, "1~soldToName_t~", jsonget(customerJSON, "NAME1", "string", ""));
+	}
+	//Chandan - 49704 - Eagle Development - Added above to populate Sold to Name in Output Tab for One Time Customers - END
+	// CUSTOMER NAME 2 and 3
+	put(bmVariables, "1~customerName2_t~", jsonget(customerJSON, "NAME2", "string", ""));
+	put(bmVariables, "1~qqCustomerName2Copy_t~", jsonget(customerJSON, "NAME2", "string", ""));
+	put(bmVariables, "1~customerName3_t~", jsonget(customerJSON, "NAME3", "string", ""));
+	put(bmVariables, "1~qqCustomerName3Copy_t~", jsonget(customerJSON, "NAME3", "string", ""));
+	put(bmVariables, "1~accountTypeKTOKD_t~", accountType);
+	put(bmVariables, "1~companyCode_t~", jsonget(customerJSON, "BUKRS", "string", ""));
+	put(bmVariables, "1~division_t~", jsonget(customerJSON, "SPART", "string", ""));
+	//Chandan - 49704 - Eagle Replacement - Added the below condition to update Sales Office only on first save
+	if(salesOffice_t == ""){
+		put(bmVariables, "1~salesOffice_t~", jsonget(customerJSON, "VKBUR", "string", ""));
+	}
+	if(salesGroup_t == ""){
+		put(bmVariables, "1~salesGroup_t~", jsonget(customerJSON, "VKGRP", "string", ""));
+	}
+}
+//Chandan - 49704 - Eagle Development - Added the below attribute to update Sales group in Customer Details Tab
+if(((salesGroup_Menu_t == ""  AND customerNumber <> oldCustomerNo_t) OR salesGroup_Menu_t == "") AND qqBusinessLineForSalesOrg_t == "PSD" AND _system_user_groups <> "legacyEatonPSD"){
+	put(bmVariables, "1~salesGroup_Menu_t~", jsonget(customerJSON, "VKGRP", "string", ""));
+	
+}
+
+if(accountType =="ZCPD" AND qqBusinessLineForSalesOrg_t == "PSD" AND salesGroup_Menu_t == "" AND ISNULL(salesGroup_Menu_t) ){
+	grpCde = string[] ;
+	salesDistrict = jsonget(customerJSON, "BZIRK", "string", "") ;
+    GroupCodes = bmql("select SalesGroupCode from OneTimeSTCSalesDet where SalesDistrictCode = $salesDistrict "); 
+    for GroupCode in GroupCodes 
+	{
+    	append(grpCde, get(GroupCode, "SalesGroupCode"));
+    }
+	put(bmVariables, "1~salesGroup_Menu_t~", join(grpCde, "~"));
+	
+	}
+// Tat 2018-07-12 - QQ-575
+//put(bmVariables, "1~salesDistrict_t~", jsonget(customerJSON, "BZIRK", "string", ""));  //INC000014407449, commented out
+//INC000014407449 change started
+if(salesDistrict_t == "") {
+put(bmVariables, "1~salesDistrict_t~", jsonget(customerJSON, "BZIRK", "string", ""));
+}  
+//put(bmVariables, "1~primaryCustomerCurrency_t~", jsonget(customerJSON, "WAERS", "string", "")); // 27Dec2019|Rahul|INC000012967119
+if(primaryCustomerCurrency_t == "") {
+put(bmVariables, "1~primaryCustomerCurrency_t~", jsonget(customerJSON, "WAERS", "string", ""));
+}
+//INC000014407449 end of change
+vendorLookupData = json();
+jsonput(vendorLookupData, "customerNumber", customerNumber);
+jsonput(vendorLookupData, "salesOrg", qqSelectedSalesOrg);
+jsonput(vendorLookupData, "distributionChannel", distributionChannel_t);
+// added for Project 51951
+jsonput(vendorLookupData, "userGroups", _system_user_groups);
+//Added to identify for Bline Business|INC000013160430
+jsonput(vendorLookupData, "businessLineSalesOrg", qqBusinessLineForSalesOrg_t);
+vendorList = util.getCustomerVendor(vendorLookupData); 
+//Fix for CPQ-2854: If the quote created by vendor we are storing the vendor number.
+//If the selected customer is one time customer (Account Type is ZCPD) 
+//then those customer will not have vendor numbers in CUSMAS data table. 
+//The below block of code will fix the quote access for repUser and repUserWithPremium group of users
+//added below if condition for Bline #INC000013593937 - Gunashree - 10/16/2020
+// Inactivated below code for PSD for INC000014415115 - Ankush - 6/14/2021
+/*if(qqBusinessLineForSalesOrg_t  == "PSD" AND startswith(_system_company_name,"V")){
+	append(vendorList,_system_company_name);
+}*/
+
+vendorListStr = join(vendorList, "$,$");
+//added below if condition for Bline #INC000013593937 - Shardul - 11/03/2020
+//updated below condition for PSD INC000014415115 - Ankush - 6/14/2021
+if((qqBusinessLineForSalesOrg_t  == "B-LINE" OR qqBusinessLineForSalesOrg_t  == "PSD") AND startswith(_system_company_name,"V")){
+	
+	put(bmVariables, "1~vendorNumber_t~",_system_company_name);
+}
+//else  //INC000014441400, commented out
+elif(vendorNumber_t == "")  //INC000014441400, only update while vendorNumber_t is null
+{
+	put(bmVariables, "1~vendorNumber_t~",vendorListStr);
+}
+
+// get ZW partner from customer master datatable
+parmsDict = dict("string");
+put(parmsDict, "KUNNR", customerNumber);
+put(parmsDict, "VKORG", qqSelectedSalesOrg);
+put(parmsDict, "VTWEG", distributionChannel_t);
+put(parmsDict, "PARVW", "ZW");
+salesReps = util.getCUSMAS(parmsDict);
+customerSalesRep = "";
+loopCNT = range(jsonarraysize(salesReps));
+for eachRep in loopCNT {
+    custJSON = jsonarrayget(salesReps, eachRep, "json");
+    if (jsonpathcheck(custJSON, "$..totalcustomers")) {
+        customerTotal = jsonget(custJSON, "totalcustomers", "integer", 0);
+    } else {
+        customerSalesRep = jsonget(custJSON, "KUNN2");
+    }
+}
+
+put(bmVariables, "1~customerRep_t~",customerSalesRep);
+if(NOT isLegacyEaton_t)
+{
+
+	put(bmVariables, "1~customerCity_t~", jsonget(customerJSON, "ORT01", "string", ""));
+	put(bmVariables, "1~customerStreet_t~", jsonget(customerJSON, "STRAS", "string", ""));
+	put(bmVariables, "1~customerPostalCodeZip_t~", jsonget(customerJSON, "PSTLZ", "string", ""));
+	put(bmVariables, "1~customerCountry_t~", jsonget(customerJSON, "LAND1", "string", ""));
+}
+
+if(qqCustomerGroup_t=="")
+{
+	put(bmVariables, "1~qqCustomerGroup_t~", jsonget(customerJSON, "KDGRP", "string", ""));
+}
+//Chandan - 49704 - Eagle Development - Added the below attribute to update Customer group in Customer Details Tab
+if(psd_customerGroup_t == "" AND qqBusinessLineForSalesOrg_t == "PSD" AND _system_user_groups <> "legacyEatonPSD"){
+	put(bmVariables, "1~psd_customerGroup_t~", jsonget(customerJSON, "KDGRP", "string", ""));
+}
+//Chandan - 49704 - Eagle Development - Added the below attribute to update price group in Customer Details Tab
+if(priceGroup_t=="")
+{
+	put(bmVariables, "1~priceGroup_t~", jsonget(customerJSON, "KONDA", "string", ""));
+}
+if(psd_priceGroup_t == "" AND _system_user_groups <> "legacyEatonPSD"){
+	//2020-05-21|Rahul |INC000013531503 - Setting price group if it exists in LOVs - Start
+	apiUrl = "https://"+_system_supplier_company_name +".bigmachines.com/rest/v3/commerceProcesses/oraclecpqo/documents/transaction/attributes/psd_priceGroup_t/menuItems";
+	apiResponse = urldatabyget(apiUrl, "", "Error", -5000, headers);
+	if(apiResponse <> "Error")
+	{
+		priceGroupLOVs = json(apiResponse);
+		custPriceGrp = jsonget(customerJSON, "KONDA", "string", "");
+		valToCheck = "$.items[?(@.value == '" + custPriceGrp + "')]";
+	
+		valueExistsInLOVs = jsonpathcheck(priceGroupLOVs, valToCheck);
+		if(valueExistsInLOVs){
+			put(bmVariables, "1~psd_priceGroup_t~", custPriceGrp);
+		}
+	}
+	//2020-05-21|Rahul |INC000013531503 - Setting price group if it exists in LOVs - End
+	//put(bmVariables, "1~psd_priceGroup_t~", jsonget(customerJSON, "KONDA", "string", ""));
+}
+put(bmVariables, "1~customerPriceList_t~", jsonget(customerJSON, "PLTYP", "string", ""));
+put(bmVariables, "1~customerRegion_t~", jsonget(customerJSON, "REGIO", "string", ""));
+countryCode = jsonget(customerJSON, "LAND1", "string", "");
+regionCode = jsonget(customerJSON, "REGIO", "string", "");
+regionNamesRS = BMQL("Select Region From SAPRegions Where CountryCode = $countryCode And RegionCode = $regionCode");
+regn = "";
+for eachRegionName in regionNamesRS {
+    regn = get(eachRegionName, "Region");
+    break;
+}
+if (regn == "ES-EMEA"
+    OR regn == "CH-EMEA") {
+    regn = "";
+}
+put(bmVariables, "1~customerRegion_t~", regn);
+
+put(bmVariables, "1~qqCityAndRegionCopy_t~", jsonget(customerJSON, "ORT01", "string", "") + "  " + regn);
+
+if (countryCode == "US"
+    OR countryCode == "CA") {
+    put(bmVariables, "1~customerState_t~", regn); //if country is US or CA, setting Region value to state field.
+}
+
+put(bmVariables, "1~customerContact_t~", jsonget(customerJSON, "SMTP_ADDR", "string", ""));
+put(bmVariables, "1~customerParent_t~", customerParent);
+wholeSaler = (jsonget(customerJSON, "KDGRP", "string", "") == "43");
+put(bmVariables, "1~wholesaler_t~", string(wholeSaler)); // Wholsaler boolean set to true if this value is a "02"
+put(bmVariables, "1~deliveryTermsShipTo_t~", deliveryDefault); 
+put(bmVariables, "1~paymentTermsShipTo_t~", paymentDefault); // Added for QQ-438
+put(bmVariables, "1~periodOfInvoicingShipTo_t~", invoicingDefault); // Added for QQ-438
+put(bmVariables, "1~customerCurrency_t~", currency);
+// SET THE TERM VARIABLES
+deliveryValidValues="";
+if( primaryCustomerDeliveryTerm_t == "") {
+    put(bmVariables, "1~agreementDeliveryTerms_t~", deliveryDefault);
+}
+//Added this condition by Ali as part of 1145
+deliveryValidValues="";
+if(qq_ntTransactionType_t == "DSP" AND qqBusinessLineForSalesOrg_t=="ES-EMEA" AND accountTypeKTOKD_t<>"Z002" AND _system_current_step_var=="start_step"){
+	deliveryVals = bmql("SELECT DISTINCT INCO1 from SalesOrgIncoTerms where VKORG=$salesOrg_t");
+	for row in deliveryVals {
+		deliveryValidValues = get(row, "INCO1");
+    		put(bmVariables, "1~agreementDeliveryTerms_t~", deliveryValidValues);
+		break;
+	}
+}
+
+put(bmVariables, "1~primaryCustomerDeliveryTerm_t~", deliveryDefault);
+if( primaryCustomerPaymentTerms_t == "") {
+    put(bmVariables, "1~agreementPaymentTerms_t~", paymentDefault);
+}
+put(bmVariables, "1~primaryCustomerPaymentTerms_t~", paymentDefault);
+
+//Project#49704 - Eagel Development | 21072020 | Setting CustomerDefaultPaymentTerms for approval
+//Added the condition for step so as not to take the value of agreement payment terms in other steps-CPQ-2327//
+//Removed "isPaymentDefaultEmpty" check - CPQ-3390
+if(qqBusinessLineForSalesOrg_t == "PSD" AND (_system_current_step_var == "start_step") ){
+	put(bmVariables, "1~customerDefaultPaymentTerms_t~", paymentDefault);
+	
+}
+
+put(bmVariables, "1~agreementPeriodOfInvoicing_t~", invoicingDefault); 
+// SET SALES ORG NAME FOR OUTPUT DOC
+// SET SALES ORG DATA STRING FOR OUTPUT DOC
+put(bmVariables, "1~outputDocSalesOrgSpecific_t~", salesOrgString);
+
+//check if this is the PRIMARY sales rep - customerJSON isn't the ZW record so need to re-check
+if (wholeSaler) {
+    primarySupport = "false";
+    primarySupportBMQL = BMQL("Select PARVW from CUSMAS where PARVW='ZW' AND KTOKD=$accountType AND KUNNR=$customerNumber AND KUNN2=$currentUserERecordID_t");
+    for primarySupportRec in primarySupportBMQL {
+        primarySupport = "true";
+    }
+    put(bmVariables, "1~cspWholesalerPrimarySupport_t~", primarySupport);
+}
+/*
+if (currency == "EUR") {
+    put(bmVariables, "1~currencySymbol_t~", util.getStringDict(currencyFormattingDict, "symbol", "€"));
+    put(bmVariables, "1~currencyThousandsSeparator_t~", util.getStringDict(currencyFormattingDict, "thousandsSep", "."));
+    put(bmVariables, "1~currencyDecimalSeparator_t~", util.getStringDict(currencyFormattingDict, "decimalSep", ","));
+} 
+//start of ALM # 2436 , fix for error message when NOK currency is selected
+elif (currency == "NOK" or currency == "SEK" ) {
+    put(bmVariables, "1~currencySymbol_t~", util.getStringDict(currencyFormattingDict, "symbol", "kr"));
+    put(bmVariables, "1~currencyThousandsSeparator_t~", util.getStringDict(currencyFormattingDict, "thousandsSep", " "));
+    put(bmVariables, "1~currencyDecimalSeparator_t~", util.getStringDict(currencyFormattingDict, "decimalSep", ","));
+}
+//end of ALM # 2436 , fix for error message when NOK currency is selected
+else {
+    put(bmVariables, "1~currencySymbol_t~", util.getStringDict(currencyFormattingDict, "symbol", "$"));
+    put(bmVariables, "1~currencyThousandsSeparator_t~", util.getStringDict(currencyFormattingDict, "thousandsSep", ","));
+    put(bmVariables, "1~currencyDecimalSeparator_t~", util.getStringDict(currencyFormattingDict, "decimalSep", "."));
+}
+*/
+//ALM-2305 To set Sales District,Sales Office,Sales Group,Customer Group based on ship to and only set when sales to when ship to is empty. 
+if (qqBusinessLineForSalesOrg_t=="B-LINE" and agreementLevel == 3){
+	customerJSON = shipToJSON;
+	put(bmVariables, "1~salesDistrict_t~", jsonget(customerJSON, "BZIRK", "string", ""));
+	//Chandan - 49704 - Eagle Replacement - Added the below condition to update Sales Office only on first save
+	if(salesOffice_t == ""){
+		put(bmVariables, "1~salesOffice_t~", jsonget(customerJSON, "VKBUR", "string", ""));
+	}
+	put(bmVariables, "1~salesGroup_t~", jsonget(customerJSON, "VKGRP", "string", ""));
+	//Chandan - 49704 - Eagle Development - Added the below attribute to update Sales group in Customer Details Tab
+	if(salesGroup_Menu_t == ""){
+		put(bmVariables, "1~salesGroup_Menu_t~", jsonget(customerJSON, "VKGRP", "string", ""));
+	}
+	put(bmVariables, "1~qqCustomerGroup_t~", jsonget(customerJSON, "KDGRP", "string", ""));
+	//Chandan - 49704 - Eagle Development - Added the below attribute to update Customer group in Customer Details Tab
+	if(psd_customerGroup_t == ""){
+		put(bmVariables, "1~psd_customerGroup_t~", jsonget(customerJSON, "KDGRP", "string", ""));
+	}
+	//Chandan - 49704 - Eagle Development - Added the below attribute to update price group in Customer Details Tab
+	put(bmVariables, "1~priceGroup_t~", jsonget(customerJSON, "KONDA", "string", ""));
+	if(psd_priceGroup_t == ""){
+		//2020-05-21|Rahul |INC000013531503 - Setting price group if it exists in LOVs - Start
+		apiUrl = "https://"+_system_supplier_company_name +".bigmachines.com/rest/v3/commerceProcesses/oraclecpqo/documents/transaction/attributes/psd_priceGroup_t/menuItems";
+		apiResponse = urldatabyget(apiUrl, "", "Error", -5000, headers);
+		if(apiResponse <> "Error")
+		{
+			priceGroupLOVs = json(apiResponse);
+			custPriceGrp = jsonget(customerJSON, "KONDA", "string", "");
+			valToCheck = "$.items[?(@.value == '" + custPriceGrp + "')]";
+	
+			valueExistsInLOVs = jsonpathcheck(priceGroupLOVs, valToCheck);
+			if(valueExistsInLOVs){
+				put(bmVariables, "1~psd_priceGroup_t~", custPriceGrp);
+			}
+		}
+		//2020-05-21|Rahul |INC000013531503 - Setting price group if it exists in LOVs - End
+		//put(bmVariables, "1~psd_priceGroup_t~", jsonget(customerJSON, "KONDA", "string", ""));
+	}
+}//ALM-2305
+
+allKeys = keys(bmVariables);
+for eachKey in allKeys {
+    retString = retString + eachKey + get(bmVariables, eachKey) + cmrcSep;
+}
+dummy = util.u_logString("COM_CUSTOMER", 4, retString, "setCustomerDetails retString");
+print "customer retstring is";
+print retString;
+return retString;

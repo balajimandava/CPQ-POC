@@ -1,0 +1,15 @@
+{
+  "name" : "Customer Hierarchy Lookup",
+  "variableName" : "customerHierarchyLookup",
+  "description" : "Looks up the Customers Hierarchy in the CUSMAS data table and returns the all hierarchy levels (i.e. Hierarchy.SoldTo.ShipTo)",
+  "libraryFunctions" : [ "util.getCUSMAS" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "customerNumber",
+    "type" : "String"
+  }, {
+    "name" : "customerSalesOrg",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,12 @@
+{
+  "name" : "Material Items Search For Transactions Upload",
+  "variableName" : "austriaMaterialItemsSearch",
+  "description" : "Project#52469-Austria Deployment|E9913664|Function to search material items in transnational data load",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.getActiveMaterialStatuses", "util.getStringDict" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "searchParams",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,14 @@
+{
+  "name" : "Process Agreement Response",
+  "variableName" : "processAgreementResponse",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "materialLineItem_l", "materialPricingGroup_l", "validTo_l", "validFrom_l", "vaKey_l" ],
+  "mainDocAttributes" : [ "transactionNumber_t", "qqSAPResult_t", "qqSAPAgreementStatusMessage_t", "qqSAPAgreementStatus_t", "agreementValidFrom_t", "agreementValidTo_t", "sendDSPAsVistex_t" ],
+  "systemAttributes" : [ "_system_user_time_zone" ]
+}

@@ -1,0 +1,99 @@
+//return test[];
+ret = false;
+debugMode = false;
+performerDict = dict("string");
+
+//siteInput = lower(siteID);
+soapURL = "https://"+_supplier_company_name+".bigmachines.com/v2_0/receiver/groups"; 
+soapResponse = "";
+users = bmql("SELECT FieldName, Value1, SiteID from Site_Specific");
+//print users;
+webserviceUser = "";
+webservicePassword = "";
+bussmanloginarray = string[];
+siemensloginarray = string[];
+
+siteInput = "eatontest2";
+for row in users {
+	site = get(row, "SiteID");
+	if (site == _supplier_company_name) {
+		webserviceUser = get(row, "FieldName");
+		webservicePassword = get(row, "Value1");
+	}
+}
+//print webserviceUser ;
+//print webservicePassword ;
+put(performerDict, "cpqWebApiUsername", webserviceUser );
+put(performerDict, "cpqWebApiPassword", webservicePassword );
+put(performerDict, "companyname", _supplier_company_name);
+put(performerDict, "groupvarname", "businessAdminBussmann");
+templateFileLocation = "$BASE_PATH$/WebServices/getGroup.xml";
+
+soapRequest = applytemplate(templateFileLocation, performerDict);
+if (debugMode) {
+print "isperformerexists";
+print soapRequest;
+}
+//print soapRequest;
+soapResponse = urldatabypost(soapURL, soapRequest, "ERROR"); 
+if (soapResponse <> "ERROR") {
+	
+	xpaths = string[1];
+	xpaths[0] = "//bm:groups/bm:group/bm:users/bm:user/bm:login";
+	output = readxmlmultiple(soapResponse, xpaths);
+	
+	for xpath in xpaths
+	{
+		 bussmanloginarray= get(output, xpath); 
+	}
+}
+
+
+put(performerDict, "cpqWebApiUsername", webserviceUser );
+put(performerDict, "cpqWebApiPassword", webservicePassword );
+put(performerDict, "companyname", _supplier_company_name);
+put(performerDict, "groupvarname", "siemensSuperUserNew"); // group name needs to be changed
+templateFileLocation = "$BASE_PATH$/WebServices/getGroup.xml";
+
+soapRequest = applytemplate(templateFileLocation, performerDict);
+if (debugMode) {
+print "isperformerexists";
+print soapRequest;
+}
+//print soapRequest;
+soapResponse = urldatabypost(soapURL, soapRequest, "ERROR"); 
+if (soapResponse <> "ERROR") {
+	xpaths = string[1];
+	xpaths[0] = "//bm:groups/bm:group/bm:users/bm:user/bm:login";
+	output = readxmlmultiple(soapResponse, xpaths);
+	
+	for xpath in xpaths
+	{ 
+		siemensloginarray= get(output, xpath); 
+	}	
+	
+}
+
+commonLoginArray = string[];
+
+for each1 in bussmanloginarray{
+	for each2 in siemensloginarray{
+		if( each1 == each2 )
+		{
+			append(commonLoginArray ,each1);
+		}		
+	}
+}
+
+for each3 in siemensloginarray{
+	for each4 in bussmanloginarray{
+		if( each3 == each4 )
+		{
+			if(findinarray(commonLoginArray , each3) == -1){
+			append(commonLoginArray ,each3);
+			}
+		}		
+	}
+}
+
+return commonLoginArray ;

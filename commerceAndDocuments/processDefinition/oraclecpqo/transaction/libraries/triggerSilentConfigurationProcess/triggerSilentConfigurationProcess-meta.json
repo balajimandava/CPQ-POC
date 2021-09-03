@@ -1,0 +1,14 @@
+{
+  "name" : "Trigger Silent Configuration Process",
+  "variableName" : "triggerSilentConfigurationProcess",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.identifyConfigurableItems", "util.getEnvironmentVariable", "util.getMAT01DetailsForMultipleItems", "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputData",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "salesOrg_t", "distributionChannel_t", "bs_id", "psd_customerGroup_t", "psd_priceGroup_t", "customerNumber_t", "endCustomerNo_t", "transactionType_t", "salesDistrict_t", "salesOffice_t", "salesGroup_Menu_t", "qqCountryRegion_t", "qqCountry_t", "qqApplication_t", "qqSubApplication_t", "transactionNumber_t", "qqSegment_t", "qqSubSegment_t" ],
+  "systemAttributes" : [ "_system_current_step_var" ]
+}

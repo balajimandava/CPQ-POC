@@ -1,0 +1,432 @@
+/**
+@name Customer Sales History
+@api customerSalesHistory
+@summary Makes a call to retrieve the previous year and year-to-date history.  Returns the data in a JSON formatted response.
+@param parmsDict StringDictionary
+@attribute _document_number
+@attribute _parent_doc_number
+@attribute _system_supplier_company_name
+@attribute _system_user_login
+@attribute _system_user_time_zone
+@attribute currency_t
+@attribute customDiscountType_l
+@attribute customerNumber_t
+@attribute distributionChannel_t
+@attribute materialLineItem_l
+@attribute salesOrg_t
+@function Float stringToFloat(String input)
+@function Integer stringToInteger(String input)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return String Dictionary
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017.07.20|dBo Haizlip(PW)      |Initial
+2017.08.30|dBo Haizlip          |Added real call to Eaton system
+2017.11.09|vhingorani           |Use Date input for Auto Renewal
+2017.11.10|vhingorani           |Parse Sales History response for Line item grid and JS table
+2018-01-04|Tat.Leung            |_system_supplier_company_name
+2018-04-12|Ani                  |Added new return data columns to historyTableJson
+2018-05-23|michael.yeung        |
+2018.06.11|dBo Haizlip		|Added calculation for Current Average Price and Previous Average Price
+2019.06.05|Smriti Chaturvedi	|Added Substring logic for precision
+2019.11-01|Komal Agrawal        |Intialised Previous Average Price
+2021.04.21|Harshit Mehta	|INC000014299822: Removing currency format while setting nvPY and add it into MPG.
+2021.04.27|Harshit Mehta	|INC000014299822: Updated code to get previous year net value sum at pricing group level in correct currency.
+2021-15-06|Gautam               |Changes for CPQ-4228, Display MPG 3 digits(all ES-EMEA countries)
+2021.06.30|Anita 				|CPQ-5173 Added code for new currency changes
+*/
+
+retDict = dict("string");
+/* ----- CPQ-5713 changes START ----- */
+// As we have different formats for different currencies, so to get the correct substring value with 2 decimal places for each currency we are using this index variable and setting the variable based on currency
+// if we do roundoff and then do format currency, it again gives 8 decimal place value, that's why we are using this approach
+index = 6;
+if(currency_t == "CZK" or currency_t == "HUF" or currency_t == "TRY" or currency_t == "PLN"){
+	index = 9;
+}elif(currency_t == "ILS" or currency_t == "RON"){
+	index = 10;
+}
+/* ----- CPQ-5713 changes END ----- */
+//  46888582 / ONLY CUSTOMER NUMBER w/data:  0000316557
+
+CPQ_INBOUND_CONTROL = util.getEnvironmentVariable("CPQ_INBOUND_CONTROL", "DISABLED");
+customerNumber = customerNumber_t;
+siteID = _system_supplier_company_name + "SOA";
+soaUserID = "";
+soaPassID = "";
+businessGrp =	qqBusinessLineForSalesOrg_t;
+siteBMQL = bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+for eachSite in siteBMQL {
+    soaUserID = get(eachSite, "FieldName");
+    soaPassID = get(eachSite, "Value1");
+}
+
+userDatePref = "yyyy/MM/dd HH:mm";
+userTimeZone = "Europe/Amsterdam";
+if (_system_user_time_zone <> "") {
+    userTimeZone = _system_user_time_zone;
+}
+
+dateTime = replace(datetostr(getdate(), userDatePref + " z", userTimeZone), "/", ".");
+YEARMMDD = datetostr(getdate(), "YYYYMMdd");
+if (containskey(parmsDict, "YYYYMMdd")) {
+    YEARMMDD = get(parmsDict, "YYYYMMdd"); // Used for Auto Renewal with fixed date 99991231
+}
+
+headers = dict("string");
+put(headers, "Content-Type", "text/xml");
+put(headers, "SOAPAction", "http://sap.com/xi/WebService/soap1.1");
+
+SOA_URL_HISTORY = util.getEnvironmentVariable("SOA_URL_HISTORY", "");
+updatePriceListSAP = "$BASE_PATH$/XMLSalesHistory/Customer_Sales_History_Request.xml";
+
+xmlTemplateD = dict("string");
+put(xmlTemplateD, "CPQSOASAP", soaUserID);
+put(xmlTemplateD, "CPQSOASAPPW", soaPassID);
+// if(find(siteID,"test") <>-1) { // Temporary IF,as we have data in D47 which is pointing to DEV SAP
+//   put(xmlTemplateD,"CPQSOASAPPW","cpq@DEV25");
+// }
+put(xmlTemplateD, "SALESORGANIZATION", salesOrg_t);
+put(xmlTemplateD, "DISTRIBUTIONCHANNEL", distributionChannel_t);
+put(xmlTemplateD, "SOLDTOPARTY", customerNumber_t);
+put(xmlTemplateD, "Division", "10");
+if (_system_user_login == "Vivek.Hingorani") {
+    put(xmlTemplateD, "SOLDTOPARTY", "0000019204");
+}
+put(xmlTemplateD, "PERIODTOANALYZE", YEARMMDD);
+
+getSalesHistory_payload = applytemplate(updatePriceListSAP, xmlTemplateD, "ERROR");
+
+//  Only run for me right now.
+responseD = dict("string");
+put(responseD, "Status-Code", "999-CPQ commerce.customerSalesHistory");
+put(responseD, "Error-Message", "CPQ_INBOUND_CONTROL set to " + upper(CPQ_INBOUND_CONTROL));
+put(responseD, "Message-Body", "");
+if ((_system_user_login == "Dave.Haizlip") OR(find(upper(CPQ_INBOUND_CONTROL), "ENABLE") <> -1)) {
+    responseD = urldata(SOA_URL_HISTORY, "POST", headers, getSalesHistory_payload);
+}
+historyFound = FALSE;
+matItemsJSON = json();
+
+xpaths = string[8];
+xpaths[0] = "//MessageType";
+xpaths[1] = "//MessageClass";
+xpaths[2] = "//MessageNumber";
+xpaths[3] = "//MessageText";
+xpaths[4] = "//MessageVariable1";
+xpaths[5] = "//MessageVariable2";
+xpaths[6] = "//MessageVariable3";
+xpaths[7] = "//LogicalSystem";
+
+statusCode = get(responseD, "Status-Code");
+messageBody = get(responseD, "Message-Body");
+errorMessage = get(responseD, "Error-Message");
+if (statusCode == "200") { //  Get the results of the call to the Sales History system
+    errorMessage = "";
+    output = readxmlsingle(messageBody, xpaths);
+    for xpath in xpaths {
+        xpathValue = "";
+        if (containskey(output, xpath)) {
+            xpathValue = get(output, xpath);
+        }
+        put(retDict, replace(xpath, "//", "history"), xpathValue);
+
+        if (xpath == xpaths[0]) {
+            historyFound = (xpathValue == "S");
+        }
+    }
+} else { // Set all the values to a blank because the POST failed
+    for xpath in xpaths {
+        xpathValue = "";
+        put(retDict, replace(xpath, "//", "history"), xpathValue);
+    }
+}
+
+highlightItemList = string[];
+historyTableJson = jsonarray(); // Initialized outside for blank array
+if (historyFound) {
+
+    //Loop line items to find materials with Amt discount
+    for line in transactionLine {
+        if (line.qqProductType_l <> "group"
+            AND line.customDiscountType_l == "amt") {
+            append(highlightItemList, line.materialLineItem_l);
+        }
+    }
+
+    xpathMatItemsMultiple = string[1];
+    xpathMatItemsMultiple[0] = "//SALES_HIST_DATA";
+    allMatItemsSalesD = readxmlmultiple(messageBody, xpathMatItemsMultiple);
+    allMatItemsSalesArray = get(allMatItemsSalesD, xpathMatItemsMultiple[0]);
+
+    salesXPATH = string[8];
+    salesXPATH[0] = "//ShipToParty";
+    salesXPATH[1] = "//MaterialNumber";
+    salesXPATH[2] = "//SalesUnit";
+    salesXPATH[3] = "//Currency";
+    salesXPATH[4] = "//Quantity_YTD";
+    salesXPATH[5] = "//NetValue_YTD";
+    salesXPATH[6] = "//Quantity_PreviousYear";
+    salesXPATH[7] = "//Net_Value_PreviousYear";
+
+    for eachMatItemXML in allMatItemsSalesArray {
+        eachItem = readxmlsingle(eachMatItemXML, salesXPATH);
+        ShipToParty = util.getStringDict(eachItem, salesXPATH[0], "");
+        materialNumber = util.getStringDict(eachItem, salesXPATH[1], "");
+        SalesUnit = util.getStringDict(eachItem, salesXPATH[2], "");
+        Currency = util.getStringDict(eachItem, salesXPATH[3], currency_t);
+        QuantityYTD = util.getStringDict(eachItem, salesXPATH[4], "");
+        NetValueYTD = util.getStringDict(eachItem, salesXPATH[5], "");
+        QuantityPreviousYear = util.getStringDict(eachItem, salesXPATH[6], "");
+        NetValuePreviousYear = util.getStringDict(eachItem, salesXPATH[7], "");
+
+        //  !IMPORTANT null causes a runtime error with JSONGET so be sure to set these to zero if they aren't there
+
+        //  If quantity is zero then assume Net value is also zero
+        if ((isnull(QuantityYTD)) OR(NOT isnumber(QuantityYTD))) {
+            QuantityYTD = "0";
+        }
+        if ((isnull(NetValueYTD)) OR(NOT isnumber(NetValueYTD))) {
+            NetValueYTD = "0.00";
+        }
+
+        //  !IMPORTANT null causes a runtime error with JSONGET so be sure to set these to zero if they aren't there
+
+        //  If quantity is zero then assume Net value is also zero
+        if ((isnull(QuantityPreviousYear)) OR(NOT isnumber(QuantityPreviousYear))) {
+            QuantityPreviousYear = "0";
+        }
+        if ((isnull(NetValuePreviousYear)) OR(NOT isnumber(NetValuePreviousYear))) {
+            NetValuePreviousYear = "0.00";
+        }
+
+        matItemqYTDFloat = atof(QuantityYTD);	
+        matItemqPYFloat = atof(QuantityPreviousYear);	
+        matItemnvYTDFloat = atof(NetValueYTD);
+        matItemnvPYFloat = atof(NetValuePreviousYear);
+        matItemqYTDCArray = split(string(matItemqYTDFloat), ".");
+        matItemqPYCArray = split(string(matItemqPYFloat), ".");
+        matItemqYTDC = matItemqYTDCArray[0];
+        matItemnvYTDC = substring(formatascurrency(round(matItemnvYTDFloat, 2), currency),0,-index);		
+        matItemqPYC = matItemqPYCArray[0];
+        matItemnvPYC = substring(formatascurrency(round(matItemnvPYFloat, 2), currency),0,-index);
+		
+        //Per piece value
+        YTDPP = 0;
+        PVPP = 0;
+        if (matItemqYTDFloat > 0) {
+            YTDPP = matItemnvYTDFloat / matItemqYTDFloat;
+        }
+        if (matItemqPYFloat > 0) {
+            PVPP = matItemnvPYFloat / matItemqPYFloat;
+        }
+
+        matItemnvYTDPPC = substring(formatascurrency(round(YTDPP, 2), currency),0,-index);
+        matItemnvPYPPC = substring(formatascurrency(round(PVPP, 2), currency),0,-index);
+		/* ----- CPQ-5713 changes START ----- */
+		// For some sales orgs we have currency symbol position at right. Added this code to append the currency symbol for these currencies because it is being truncated when doing substring
+		if(currency_t == "CZK" or currency_t == "HUF" or currency_t == "TRY" or currency_t == "PLN" or currency_t == "ILS" or currency_t == "RON"){
+			matItemnvYTDC = matItemnvYTDC + currencySymbol_t;
+			matItemnvPYC = matItemnvPYC + currencySymbol_t;
+			matItemnvYTDPPC = matItemnvYTDPPC + currencySymbol_t;
+			matItemnvPYPPC = matItemnvPYPPC + currencySymbol_t;
+		}
+		/* ----- CPQ-5713 changes END ----- */
+        matItemsDetails = json();
+        jsonput(matItemsDetails, "quantityYTD", QuantityYTD);
+        jsonput(matItemsDetails, "netValueYTD", NetValueYTD);
+        jsonput(matItemsDetails, "quantityPreviousYear", QuantityPreviousYear);
+        jsonput(matItemsDetails, "netValuePreviousYear", NetValuePreviousYear);
+        jsonput(matItemsDetails, "currency", Currency); // used for formating
+        jsonput(matItemsDetails, "materialNumber", materialNumber); // used for json
+        jsonput(matItemsDetails, "quantityYTDC", matItemqYTDC);
+        jsonput(matItemsDetails, "netValueYTDC", matItemnvYTDC);
+        jsonput(matItemsDetails, "quantityPreviousYearC", matItemqPYC);
+        jsonput(matItemsDetails, "netValuePreviousYearC", matItemnvPYC);
+        jsonput(matItemsDetails, "netValueYTDPPC", matItemnvYTDPPC);
+        jsonput(matItemsDetails, "netValuePreviousYearPPC", matItemnvPYPPC);
+        jsonput(matItemsJSON, materialNumber, matItemsDetails);
+    }
+}
+
+mpgALLTotals = json();
+mpgList = string[];
+allItems = jsonkeys(matItemsJSON);
+mat01BMQL = bmql("SELECT MATNR,MVGR5 FROM MAT01 WHERE MATNR in $allITEMS AND VKORG=$salesOrg_t");
+for eachMAT in mat01BMQL {
+    matNumber = get(eachMAT, "MATNR");
+    
+    //old code
+    //mpg = substring(get(eachMAT, "MVGR5"), 1);
+    //new code
+    //cpq 4228
+    mpg  = "";
+    if (businessGrp == "ES-EMEA"){
+  	mpg = get(eachMAT, "MVGR5");
+    }else{
+	mpg = substring(get(eachMAT, "MVGR5"), 1);
+    }
+    mpgTotals = json();
+    if (findinarray(mpgList, mpg) <> -1) {
+        mpgTotals = jsonget(mpgALLTotals, mpg, "json");
+    } else {
+        append(mpgList, mpg);
+    }
+
+    matItemsDetails = jsonget(matItemsJSON, matNumber, "json");
+    //  Just in case I need it, put the Material Pricing Group this material falls under in this JSON
+    jsonput(matItemsDetails, "MPG", mpg);
+    jsonput(matItemsJSON, matNumber, matItemsDetails);
+
+    //  Get the running totals for this MPG (1st time all are zeros)
+    qYTD = jsonget(mpgTotals, "qYTD", "float", 0.0);
+    nvYTD = jsonget(mpgTotals, "nvYTD", "float", 0.0);
+    qPY = jsonget(mpgTotals, "qPY", "float", 0.0);
+	nvPY = 0.0;
+	if(isnumber(jsonget(mpgTotals, "nvPY"))){
+		nvPY = jsonget(mpgTotals, "nvPY", "float", 0.0);
+	}
+
+    // Todo: Format as currency and restore in the line json
+
+    //  Get each Material Items totals
+    matItemqYTD = jsonget(matItemsDetails, "quantityYTD", "float", 0.0);
+    matItemnvYTD = jsonget(matItemsDetails, "netValueYTD", "float", 0.0);
+    matItemqPY = jsonget(matItemsDetails, "quantityPreviousYear", "float", 0.0);
+    matItemnvPY = jsonget(matItemsDetails, "netValuePreviousYear", "float", 0.0);
+
+    // Store duplicate with numbers and second one formatted as currency 
+    jsonput(mpgTotals, "qYTD", qYTD + matItemqYTD);
+    jsonput(mpgTotals, "nvYTD", nvYTD + matItemnvYTD);
+    jsonput(mpgTotals, "qPY", qPY + matItemqPY);
+	//Foemat currency is added for nvPY --> Fixed as part of 1479
+	//Harshit INC000014299822 : removing formatascurrency function to set nvPY. Due to this total at MPG level is not coming correctly.
+    //jsonput(mpgTotals, "nvPY", substring(formatascurrency(nvPY + matItemnvPY, currency_t),0,-6));
+	jsonput(mpgTotals,"nvPY", nvPY + matItemnvPY);
+	nvYTDC = substring(formatascurrency(round(nvYTD + matItemnvYTD, 2), currency_t),0,-index);
+	nvPYC = substring(formatascurrency(round(nvPY + matItemnvPY, 2), currency_t),0,-index);
+	/* ----- CPQ-5713 changes START ----- */
+		// For some sales orgs we have currency symbol position at right. Added this code to append the currency symbol for these currencies because it is being truncated when doing substring
+		if(currency_t == "CZK" or currency_t == "HUF" or currency_t == "TRY" or currency_t == "PLN" or currency_t == "ILS" or currency_t == "RON"){
+			nvYTDC = nvYTDC + currencySymbol_t;
+			nvPYC = nvPYC + currencySymbol_t;
+		}
+		/* ----- CPQ-5713 changes END ----- */
+	jsonput(mpgTotals, "nvYTDC", nvYTDC);
+    jsonput(mpgTotals, "nvPYC", nvPYC);
+    //jsonput(mpgTotals, "nvYTDC", substring(formatascurrency(round(nvYTD + matItemnvYTD, 2), currency_t),0,-6));
+    //jsonput(mpgTotals, "nvPYC", substring(formatascurrency(round(nvPY + matItemnvPY, 2), currency_t),0,-6));
+    jsonput(mpgALLTotals, mpg, mpgTotals);
+
+}
+//  THIS IS WHERE WE NEED TO DO SOMETHING WITH THESE TOTALS!!!!!
+//  THIS IS WHERE WE NEED TO DO SOMETHING WITH THESE TOTALS!!!!!
+//  THIS IS WHERE WE NEED TO DO SOMETHING WITH THESE TOTALS!!!!!
+
+//  matItemsDetails contains the totals for each Material item
+//
+//  mpgALLTotals contains the totals for the Material Pricing Groups
+
+//Create a json for data table 
+allMPGs = sort(jsonkeys(mpgALLTotals));
+
+for eachMPG in allMPGs {
+    // Get all items for this MPG
+    allMLIjsonArray = jsonpathgetmultiple(matItemsJSON, "$..[?(@.MPG== '" + eachMPG + "')]", FALSE);
+    totalRows = range(jsonarraysize(allMLIjsonArray));
+    groupJson = json(jsonget(mpgALLTotals, eachMPG));
+    mpgTotals = json();
+    if (findinarray(mpgList, eachMPG) <> -1) {
+        mpgTotals= jsonget(mpgALLTotals, eachMPG, "json");
+    }
+
+    rowJson = jsonarray();
+    jsonarrayappend(rowJson, "false");
+    jsonarrayappend(rowJson, eachMPG);
+    jsonarrayappend(rowJson, " "); // No Item
+    jsonarrayappend(rowJson, jsonget(groupJson, "qYTD"));
+    jsonarrayappend(rowJson, jsonget(groupJson, "nvYTDC"));
+    qYTD= jsonget(mpgTotals, "qYTD", "float",0.00);
+    nvYTD= jsonget(mpgTotals, "nvYTD", "float",0.00);
+    currentAveragePrice= 0.0;
+    if (qYTD > 0) {
+      currentAveragePrice= nvYTD / qYTD;
+    }
+	/* ----- CPQ-5713 changes START ----- */
+	currentAvrgPrc = substring(formatascurrency(round(currentAveragePrice,2), currency_t),0,-index);
+	// For some sales orgs we have currency symbol position at right. Added this code to append the currency symbol for these currencies because it is being truncated when doing substring
+	if(currency_t == "CZK" or currency_t == "HUF" or currency_t == "TRY" or currency_t == "PLN" or currency_t == "ILS" or currency_t == "RON"){
+		currentAvrgPrc = currentAvrgPrc + currencySymbol_t;
+	}
+	jsonarrayappend(rowJson, currentAvrgPrc);
+	/* ----- CPQ-5713 changes END ----- */
+
+	//jsonarrayappend(rowJson, substring(formatascurrency(round(currentAveragePrice,2), currency_t),0,-6));
+    jsonarrayappend(rowJson, jsonget(groupJson, "qPY"));
+	//Harshit Mehta : INC000014299822: All net value needs to show in currency format.
+    jsonarrayappend(rowJson, jsonget(groupJson, "nvPYC"));
+    qPY= jsonget(mpgTotals, "qPY", "float",0.00);
+	nvPY = 0.0;
+	if(isnumber(jsonget(mpgTotals, "nvPY"))){
+		nvPY = jsonget(mpgTotals, "nvPY", "float", 0.0);
+	}
+    previousAveragePrice= 0.0;
+    if (qPY > 0) {
+      previousAveragePrice= nvPY / qPY;
+    }
+	/* ----- CPQ-5713 changes START ----- */
+	previousAvrgPrc = substring(formatascurrency(round(previousAveragePrice,2), currency_t),0,-index);
+	// For some sales orgs we have currency symbol position at right. Added this code to append the currency symbol for these currencies because it is being truncated when doing substring
+	if(currency_t == "CZK" or currency_t == "HUF" or currency_t == "TRY" or currency_t == "PLN" or currency_t == "ILS" or currency_t == "RON"){
+		previousAvrgPrc = previousAvrgPrc  + currencySymbol_t;
+	}
+	jsonarrayappend(rowJson, previousAvrgPrc);
+	/* ----- CPQ-5713 changes END ----- */
+    //jsonarrayappend(rowJson, substring(formatascurrency(round(previousAveragePrice,2), currency_t),0,-6));
+	//Harshit Mehta INC000014299822: No need to store previous year net value at 10th position in array.
+    //jsonarrayappend(rowJson, jsonget(groupJson, "nvPYC"));
+    jsonarrayappend(historyTableJson, rowJson);
+    // Array data
+    // "false", // Highlight - > Logic to figure out highlight
+    //  "1", // MPG - > Logic to figure out 
+    //  "1", // Item
+    //  "Accessories Switchgear xEffect", // YTD Qty
+    //  "", // YTD amount
+    //  "", // Previous qty
+    //  "", // Previous amount
+
+    for eachRow in totalRows {
+        rowJson = jsonarray();
+        itemJson = json(jsonarrayget(allMLIjsonArray, eachRow));
+        item = jsonget(itemJson, "materialNumber");
+        higlight = "false";
+        if (findinarray(highlightItemList, item) <> -1) {
+            higlight = "true";
+        }
+
+        jsonarrayappend(rowJson, higlight);
+        jsonarrayappend(rowJson, " "); // No MPG
+        jsonarrayappend(rowJson, jsonget(itemJson, "materialNumber")); // Item
+        jsonarrayappend(rowJson, jsonget(itemJson, "quantityYTDC"));
+        jsonarrayappend(rowJson, jsonget(itemJson, "netValueYTDC"));
+        jsonarrayappend(rowJson, jsonget(itemJson, "netValueYTDPPC"));//Added by Ani on 4/12/2018
+        jsonarrayappend(rowJson, jsonget(itemJson, "quantityPreviousYearC")); 
+        jsonarrayappend(rowJson, jsonget(itemJson, "netValuePreviousYearC"));
+        jsonarrayappend(rowJson, jsonget(itemJson, "netValuePreviousYearPPC")); //Added by Ani on 4/12/2018
+        jsonarrayappend(historyTableJson, rowJson);
+    }
+}
+
+//  Return the HTTP POST call results
+put(retDict, "salesHistorySentDate", dateTime);
+put(retDict, "salesHistoryStatusCode", statusCode);
+put(retDict, "salesHistoryMessageBody", messageBody);
+put(retDict, "salesHistoryerrorMessage", errorMessage);
+put(retDict, "salesHistoryPayloadXML", getSalesHistory_payload);
+put(retDict, "matItemsJSON", jsontostr(matItemsJSON));
+put(retDict, "mpgALLTotals", jsontostr(mpgALLTotals));
+put(retDict, "historyTableJson", jsonarraytostr(historyTableJson));
+
+return retDict;

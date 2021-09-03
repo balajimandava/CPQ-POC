@@ -1,0 +1,49 @@
+/**
+@name removeDeletedLines
+@api removeDeletedLines
+@summary util function to remove lines with deleted flag set to true.  This is used in copy and version action
+@attribute _document_number
+@attribute _parent_doc_number
+@attribute bs_id
+@attribute lineItemDelete_l
+@function Json getSiteSpecificData(String siteID)
+@function String getSupplierCompanyName()
+@return Boolean
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-09-19|michael.yeung        |
+2018-09-20|michael.yeung        |
+2021-04-22|Neha			|CPQ-4595- Deletion Flag
+*/
+
+company = util.getSupplierCompanyName();
+
+removeURL = "https://" + company + ".bigmachines.com/rest/v6/commerceDocumentsOraclecpqoTransaction/" + bs_id + "/actions/_remove_transactionLine";
+
+// get system user
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+headers = dict("string");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+
+body = json();
+linesToDelete = jsonarray();
+
+for line in transactionLine {
+// Neha: added Status condition for CPQ-4595
+	if( line._parent_doc_number == "" AND (line.lineItemDelete_l OR line.lineItemStatus_l == "cancelled")) {// should not delete child line
+		jsonarrayappend(linesToDelete, "transactionLine/" + line._document_number);
+	}
+}
+if( jsonarraysize(linesToDelete)>0 ) {
+	jsonput( body, "selections", linesToDelete);
+	bodyStr = jsontostr(body);
+	print bodyStr;
+	results = urldatabypost(removeURL, bodyStr, "ERROR", headers, true);
+	print results;
+}
+
+return true;

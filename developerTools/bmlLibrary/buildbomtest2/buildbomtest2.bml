@@ -1,0 +1,198 @@
+/**
+@name Build Bid Manager Model BOM
+@api buildBidManagerModelBOM
+@param selectedDocNumber String
+@param configExtraInfo String
+@param modelPath String
+@param bsId String
+@function Boolean u_logJson(String category, Integer level, Json jsonObject, String label)
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@function Json enableDebugLog()
+@function Json getSiteSpecificData(String siteID)
+@function Json parseBidManBOM(String bom)
+@function String getSupplierCompanyName()
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-08|Tat.Leung            |
+2018-04-26|Michael.Yeung        |
+2018-06-26|michael.yeung        |   Adding child lines base on BOM data
+2018-07-18|Harshit Mehta	| Adding header in urldata function
+
+
+2018-10-04|michael.yeung        | Update external configurator save action to group child line items with the same material items as one commerce line item. 
+2020-03-24|Atul Jain			|Removed commented code, and added debug mode to print statements.
+*/
+// enable logging
+print util.enableDebugLog();
+logStatus = util.u_logString("CFG_EXTERNAL", 4, selectedDocNumber, "selectedDocNumber");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, configExtraInfo, "configExtraInfo");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, modelPath, "modelPath");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, bsId, "bsId");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, bsId, "sessionId");
+debugMode = false;
+company = util.getSupplierCompanyName();
+headers = dict("string");
+
+
+//GET API Username Password
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+
+// get latest external config data
+transactionRestUrl = "https://" + company + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction/" + bsId + "?fields=externalConfigData_t,externalConfigBOM_t,externalConfigVCData_t";
+quoteResponse = urldata(transactionRestUrl, "get",headers);
+status = get(quoteResponse, "Status-Code");
+if (atoi(status) >= 300) {
+    throwerror("Cannot find transaction with bs_id = " + bsId, false);
+}
+if(debugMode)
+{
+print "here";
+print bsId;
+}
+
+quoteData = json(get(quoteResponse, "Message-Body"));
+externalConfigBOM = jsonget(quoteData, "externalConfigBOM_t");
+externalConfigData = jsonget(quoteData, "externalConfigData_t");
+externalConfigVCData = jsonget(quoteData, "externalConfigVCData_t");
+
+result = json();
+jsonput(result, "status", "save");
+jsonput(result, "invocationAction", "Create Transaction");
+
+// Model Configuration
+jsonput(result, "invocationId", "36292358"); // action
+jsonput(result, "priceBookVarName", "_default_price_book");
+
+// build child lines
+childrenLines = JSONArray();
+
+xpathItems = string [];
+xpathItems[0] = "//BOM/BMTable_Neg.Items";
+
+bomXML = "";
+if( len(externalConfigBOM) >  0 ) {
+	bomXML  = replace(externalConfigBOM, "&lt;", "<");
+	bomXML = replace(bomXML, "&gt;", ">");
+}
+bomXML="<BOM><UI><Parent Designation=\"\" Description=\"M22-COMBINATION\" CatalogNumber=\"2010741\" Quantity=\"1\"><Child Designation=\"\" Description=\"M22-I1  Surface mounting enclosure\" CatalogNumber=\"216535\" Quantity=\"1\" /></Parent><Parent Designation=\"\" Description=\"M22-COMBINATION\" CatalogNumber=\"2010741\" Quantity=\"1\"><Child Designation=\"\" Description=\"M22-I1  Surface mounting enclosure\" CatalogNumber=\"216535\" Quantity=\"1\" /></Parent></UI><BMTable_Neg.Items Type=\"BaseTable\"><TakeoffDataAccess.TakeoffSaveItem Type=\"BaseRecord\" ExInfo=\"AltNumber,ItemID,NegNumber\" Row=\"0\"><NegNumber>External</NegNumber><AltNumber>External</AltNumber><ItemID>-1</ItemID><ItemNumber IsEmpty=\"true\"></ItemNumber><TakeoffCode>PUSHBUT</TakeoffCode><ProductLine>PUSHBUT</ProductLine><ProductID>M22-COMBINATION</ProductID><ProductCode IsEmpty=\"true\"></ProductCode><DiscountCode IsEmpty=\"true\"></DiscountCode><CatalogNumber IsEmpty=\"true\"></CatalogNumber><StyleNumber IsEmpty=\"true\"></StyleNumber><Quantity>1</Quantity><ConfigID>-1</ConfigID><ParentIndicator>P</ParentIndicator><ParentItemID>0</ParentItemID><ChildID IsEmpty=\"true\"></ChildID><BaseCurrency>USD</BaseCurrency><ExchangeRate IsEmpty=\"true\"></ExchangeRate><PriceIndicator>I</PriceIndicator><ListPrice>0</ListPrice><BookPrice>0</BookPrice><MaterialCost>0</MaterialCost><LaborCost IsEmpty=\"true\"></LaborCost><PPI>0</PPI><RPI>0</RPI><BookVariableCost IsEmpty=\"true\"></BookVariableCost><VariableCost>0</VariableCost><StandardCost>0</StandardCost><AuthorizedMultiplier>1</AuthorizedMultiplier><DesirabilityFactor>0</DesirabilityFactor><MarketMultiplier>1</MarketMultiplier><QuoteMultiplier IsEmpty=\"true\"></QuoteMultiplier><CustomerMultiplier>1</CustomerMultiplier><DivisionMultiplier IsEmpty=\"true\"></DivisionMultiplier><DivisionRFQApproveDate IsEmpty=\"true\"></DivisionRFQApproveDate><DivisionRFQApproveUser IsEmpty=\"true\"></DivisionRFQApproveUser><RFQDivisionLocation IsEmpty=\"true\"></RFQDivisionLocation><RFQExpirationDate IsEmpty=\"true\"></RFQExpirationDate><SalesRFQApprovedDate IsEmpty=\"true\"></SalesRFQApprovedDate><SalesRFQApprovedBy IsEmpty=\"true\"></SalesRFQApprovedBy><Designation></Designation><Suffix IsEmpty=\"true\"></Suffix><SalesLeadTime IsEmpty=\"true\"></SalesLeadTime><DivisionLeadTime IsEmpty=\"true\"></DivisionLeadTime><LeadTimeIndicator>QQ==</LeadTimeIndicator><ManagementLoadLine IsEmpty=\"true\"></ManagementLoadLine><PlantSpecsSentSep IsEmpty=\"true\"></PlantSpecsSentSep><StatusMask>0</StatusMask><ReasonCode IsEmpty=\"true\"></ReasonCode><EmergencyFlag>0</EmergencyFlag><StandardIndicator></StandardIndicator><OEQIndicator IsEmpty=\"true\"></OEQIndicator><ChangedFlag>1</ChangedFlag><COPStatus IsEmpty=\"true\"></COPStatus><ManufacturingNumber IsEmpty=\"true\"></ManufacturingNumber><BPCSNumber IsEmpty=\"true\"></BPCSNumber><CustomerNumber IsEmpty=\"true\"></CustomerNumber><VistaNegNumber IsEmpty=\"true\"></VistaNegNumber><SendIndicator IsEmpty=\"true\"></SendIndicator><VISTAAckDate IsEmpty=\"true\"></VISTAAckDate><VISTASendIndicator>1</VISTASendIndicator><VISTAAcknowledgement IsEmpty=\"true\"></VISTAAcknowledgement><VistaSendReturnCode IsEmpty=\"true\"></VistaSendReturnCode><AlternateAddress IsEmpty=\"true\"></AlternateAddress><AlternatePONumber IsEmpty=\"true\"></AlternatePONumber><NumberOfSections>0</NumberOfSections><GroupMode IsEmpty=\"true\"></GroupMode><SortGroup IsEmpty=\"true\"></SortGroup><LockID IsEmpty=\"true\"></LockID><CreatedByUser>CPQ0</CreatedByUser><CreatedByUserType IsEmpty=\"true\"></CreatedByUserType><BidManagerVersion>11.19.6.18.20</BidManagerVersion><TakeoffVersion>1.0.0.0</TakeoffVersion><ValidTakeoff IsEmpty=\"true\"></ValidTakeoff><CreatedDate FormatString=\"MM-dd-yyyy hh:mm:ss\">06-19-2019 08:44:43</CreatedDate><LastChangedDate FormatString=\"MM-dd-yyyy hh:mm:ss\">06-19-2019 08:44:43</LastChangedDate><LockType IsEmpty=\"true\"></LockType><TakeoffSeqNumber IsEmpty=\"true\"></TakeoffSeqNumber><LeadTimeOverride IsNull=\"true\"></LeadTimeOverride><IsSynergy IsEmpty=\"true\"></IsSynergy><NetAdderPrice IsEmpty=\"true\"></NetAdderPrice><ValidConfiguration IsEmpty=\"true\"></ValidConfiguration><CompleteConfiguration IsEmpty=\"true\"></CompleteConfiguration><SAPShipCustNum IsEmpty=\"true\"></SAPShipCustNum><PricePerQty>0</PricePerQty><StdPkgQty>0</StdPkgQty><LastYearAvgSellPrice IsEmpty=\"true\"></LastYearAvgSellPrice><YTDAvgSellPrice IsEmpty=\"true\"></YTDAvgSellPrice><CurNetPricePerUnit IsEmpty=\"true\"></CurNetPricePerUnit><CurrentCost>0</CurrentCost><CustTotalNetVariance IsEmpty=\"true\"></CustTotalNetVariance><SalesTotalNetVariance IsEmpty=\"true\"></SalesTotalNetVariance><PlantTotalNetVariance IsEmpty=\"true\"></PlantTotalNetVariance><QuoteTotalNetVariance IsEmpty=\"true\"></QuoteTotalNetVariance><SAPMinMult IsEmpty=\"true\"></SAPMinMult><ExternalID IsEmpty=\"true\"></ExternalID><SAPCatalogNumber>-</SAPCatalogNumber><ProductDescription IsEmpty=\"true\"></ProductDescription><PriceUnit IsEmpty=\"true\"></PriceUnit><PlantCode IsEmpty=\"true\"></PlantCode><ZPlantMinMultSave IsEmpty=\"true\"></ZPlantMinMultSave><ZAvgMarketMultSave IsEmpty=\"true\"></ZAvgMarketMultSave><ZCustTargetMultSave IsEmpty=\"true\"></ZCustTargetMultSave><GeogBasedPrice>False</GeogBasedPrice><IsPriceReadOnly>False</IsPriceReadOnly><SAPMaterialNumber IsEmpty=\"true\"></SAPMaterialNumber><SAPSendStatus IsEmpty=\"true\"></SAPSendStatus><SAPOrderStatus IsEmpty=\"true\"></SAPOrderStatus><SAPModifiedDate IsEmpty=\"true\"></SAPModifiedDate><ServiceYearOverFreq>1</ServiceYearOverFreq><GuidanceLockExpiration IsEmpty=\"true\"></GuidanceLockExpiration><PlantType IsEmpty=\"true\"></PlantType><QuickShipDays IsEmpty=\"true\"></QuickShipDays><ZDOEMinMultSave IsEmpty=\"true\"></ZDOEMinMultSave><LeadTimeDays IsEmpty=\"true\"></LeadTimeDays><SalesApproverName IsEmpty=\"true\"></SalesApproverName><DivisionApproverName IsEmpty=\"true\"></DivisionApproverName><CreatedByName IsEmpty=\"true\"></CreatedByName><ICSCost IsEmpty=\"true\"></ICSCost><DivisionRFQExpirationDate IsEmpty=\"true\"></DivisionRFQExpirationDate><SuffixDesc IsEmpty=\"true\"></SuffixDesc><SuffixCity IsEmpty=\"true\"></SuffixCity><SuffixState IsEmpty=\"true\"></SuffixState><PowerFlowSortSequence IsEmpty=\"true\"></PowerFlowSortSequence><HasValidConfig IsEmpty=\"true\"></HasValidConfig><OrderManagementResponse IsEmpty=\"true\"></OrderManagementResponse><ProductLineRules IsEmpty=\"true\"></ProductLineRules><SAPShipIsVendor IsEmpty=\"true\"></SAPShipIsVendor><SAPShipPartnerFunction IsEmpty=\"true\"></SAPShipPartnerFunction><ItemType IsEmpty=\"true\"></ItemType><CostField IsEmpty=\"true\"></CostField><IssuesMask1 IsEmpty=\"true\"></IssuesMask1><SentToMI IsEmpty=\"true\"></SentToMI><IsZOptimized IsEmpty=\"true\"></IsZOptimized></TakeoffDataAccess.TakeoffSaveItem><TakeoffDataAccess.TakeoffSaveItem Type=\"BaseRecord\" ExInfo=\"AltNumber,ItemID,NegNumber\" Row=\"1\"><NegNumber>External</NegNumber><AltNumber>External</AltNumber><ItemID>-2</ItemID><ItemNumber IsEmpty=\"true\"></ItemNumber><TakeoffCode>PUSHBUT</TakeoffCode><ProductLine>PUSHBUT</ProductLine><ProductID>Enclosures</ProductID><ProductCode IsEmpty=\"true\"></ProductCode><DiscountCode IsEmpty=\"true\"></DiscountCode><CatalogNumber>Y7-216535</CatalogNumber><StyleNumber IsEmpty=\"true\"></StyleNumber><Quantity>1</Quantity><ConfigID>-1</ConfigID><ParentIndicator>C</ParentIndicator><ParentItemID>-1</ParentItemID><ChildID>S-1</ChildID><BaseCurrency>USD</BaseCurrency><ExchangeRate IsEmpty=\"true\"></ExchangeRate><PriceIndicator>I</PriceIndicator><ListPrice>0</ListPrice><BookPrice>0</BookPrice><MaterialCost>0</MaterialCost><LaborCost IsEmpty=\"true\"></LaborCost><PPI>0</PPI><RPI>0</RPI><BookVariableCost IsEmpty=\"true\"></BookVariableCost><VariableCost>0</VariableCost><StandardCost>0</StandardCost><AuthorizedMultiplier>1</AuthorizedMultiplier><DesirabilityFactor>0</DesirabilityFactor><MarketMultiplier>1</MarketMultiplier><QuoteMultiplier IsEmpty=\"true\"></QuoteMultiplier><CustomerMultiplier>1</CustomerMultiplier><DivisionMultiplier IsEmpty=\"true\"></DivisionMultiplier><DivisionRFQApproveDate IsEmpty=\"true\"></DivisionRFQApproveDate><DivisionRFQApproveUser IsEmpty=\"true\"></DivisionRFQApproveUser><RFQDivisionLocation IsEmpty=\"true\"></RFQDivisionLocation><RFQExpirationDate IsEmpty=\"true\"></RFQExpirationDate><SalesRFQApprovedDate IsEmpty=\"true\"></SalesRFQApprovedDate><SalesRFQApprovedBy IsEmpty=\"true\"></SalesRFQApprovedBy><Designation></Designation><Suffix IsEmpty=\"true\"></Suffix><SalesLeadTime IsEmpty=\"true\"></SalesLeadTime><DivisionLeadTime IsEmpty=\"true\"></DivisionLeadTime><LeadTimeIndicator>QQ==</LeadTimeIndicator><ManagementLoadLine IsEmpty=\"true\"></ManagementLoadLine><PlantSpecsSentSep IsEmpty=\"true\"></PlantSpecsSentSep><StatusMask>0</StatusMask><ReasonCode IsEmpty=\"true\"></ReasonCode><EmergencyFlag>0</EmergencyFlag><StandardIndicator></StandardIndicator><OEQIndicator IsEmpty=\"true\"></OEQIndicator><ChangedFlag>1</ChangedFlag><COPStatus IsEmpty=\"true\"></COPStatus><ManufacturingNumber IsEmpty=\"true\"></ManufacturingNumber><BPCSNumber IsEmpty=\"true\"></BPCSNumber><CustomerNumber IsEmpty=\"true\"></CustomerNumber><VistaNegNumber IsEmpty=\"true\"></VistaNegNumber><SendIndicator IsEmpty=\"true\"></SendIndicator><VISTAAckDate IsEmpty=\"true\"></VISTAAckDate><VISTASendIndicator>1</VISTASendIndicator><VISTAAcknowledgement IsEmpty=\"true\"></VISTAAcknowledgement><VistaSendReturnCode IsEmpty=\"true\"></VistaSendReturnCode><AlternateAddress IsEmpty=\"true\"></AlternateAddress><AlternatePONumber IsEmpty=\"true\"></AlternatePONumber><NumberOfSections>0</NumberOfSections><GroupMode IsEmpty=\"true\"></GroupMode><SortGroup IsEmpty=\"true\"></SortGroup><LockID IsEmpty=\"true\"></LockID><CreatedByUser>CPQ0</CreatedByUser><CreatedByUserType IsEmpty=\"true\"></CreatedByUserType><BidManagerVersion>11.19.6.18.20</BidManagerVersion><TakeoffVersion>1.0.0.0</TakeoffVersion><ValidTakeoff IsEmpty=\"true\"></ValidTakeoff><CreatedDate FormatString=\"MM-dd-yyyy hh:mm:ss\">06-19-2019 08:44:43</CreatedDate><LastChangedDate FormatString=\"MM-dd-yyyy hh:mm:ss\">06-19-2019 08:44:43</LastChangedDate><LockType IsEmpty=\"true\"></LockType><TakeoffSeqNumber IsEmpty=\"true\"></TakeoffSeqNumber><LeadTimeOverride IsNull=\"true\"></LeadTimeOverride><IsSynergy IsEmpty=\"true\"></IsSynergy><NetAdderPrice IsEmpty=\"true\"></NetAdderPrice><ValidConfiguration IsEmpty=\"true\"></ValidConfiguration><CompleteConfiguration IsEmpty=\"true\"></CompleteConfiguration><SAPShipCustNum IsEmpty=\"true\"></SAPShipCustNum><PricePerQty>0</PricePerQty><StdPkgQty>0</StdPkgQty><LastYearAvgSellPrice IsEmpty=\"true\"></LastYearAvgSellPrice><YTDAvgSellPrice IsEmpty=\"true\"></YTDAvgSellPrice><CurNetPricePerUnit IsEmpty=\"true\"></CurNetPricePerUnit><CurrentCost>0</CurrentCost><CustTotalNetVariance IsEmpty=\"true\"></CustTotalNetVariance><SalesTotalNetVariance IsEmpty=\"true\"></SalesTotalNetVariance><PlantTotalNetVariance IsEmpty=\"true\"></PlantTotalNetVariance><QuoteTotalNetVariance IsEmpty=\"true\"></QuoteTotalNetVariance><SAPMinMult IsEmpty=\"true\"></SAPMinMult><ExternalID IsEmpty=\"true\"></ExternalID><SAPCatalogNumber>216535</SAPCatalogNumber><ProductDescription IsEmpty=\"true\"></ProductDescription><PriceUnit IsEmpty=\"true\"></PriceUnit><PlantCode IsEmpty=\"true\"></PlantCode><ZPlantMinMultSave IsEmpty=\"true\"></ZPlantMinMultSave><ZAvgMarketMultSave IsEmpty=\"true\"></ZAvgMarketMultSave><ZCustTargetMultSave IsEmpty=\"true\"></ZCustTargetMultSave><GeogBasedPrice>False</GeogBasedPrice><IsPriceReadOnly>False</IsPriceReadOnly><SAPMaterialNumber IsEmpty=\"true\"></SAPMaterialNumber><SAPSendStatus IsEmpty=\"true\"></SAPSendStatus><SAPOrderStatus IsEmpty=\"true\"></SAPOrderStatus><SAPModifiedDate IsEmpty=\"true\"></SAPModifiedDate><ServiceYearOverFreq>1</ServiceYearOverFreq><GuidanceLockExpiration IsEmpty=\"true\"></GuidanceLockExpiration><PlantType IsEmpty=\"true\"></PlantType><QuickShipDays IsEmpty=\"true\"></QuickShipDays><ZDOEMinMultSave IsEmpty=\"true\"></ZDOEMinMultSave><LeadTimeDays IsEmpty=\"true\"></LeadTimeDays><SalesApproverName IsEmpty=\"true\"></SalesApproverName><DivisionApproverName IsEmpty=\"true\"></DivisionApproverName><CreatedByName IsEmpty=\"true\"></CreatedByName><ICSCost IsEmpty=\"true\"></ICSCost><DivisionRFQExpirationDate IsEmpty=\"true\"></DivisionRFQExpirationDate><SuffixDesc IsEmpty=\"true\"></SuffixDesc><SuffixCity IsEmpty=\"true\"></SuffixCity><SuffixState IsEmpty=\"true\"></SuffixState><PowerFlowSortSequence IsEmpty=\"true\"></PowerFlowSortSequence><HasValidConfig IsEmpty=\"true\"></HasValidConfig><OrderManagementResponse IsEmpty=\"true\"></OrderManagementResponse><ProductLineRules IsEmpty=\"true\"></ProductLineRules><SAPShipIsVendor IsEmpty=\"true\"></SAPShipIsVendor><SAPShipPartnerFunction IsEmpty=\"true\"></SAPShipPartnerFunction><ItemType IsEmpty=\"true\"></ItemType><CostField IsEmpty=\"true\"></CostField><IssuesMask1 IsEmpty=\"true\"></IssuesMask1><SentToMI IsEmpty=\"true\"></SentToMI><IsZOptimized IsEmpty=\"true\"></IsZOptimized></TakeoffDataAccess.TakeoffSaveItem></BMTable_Neg.Items><BMTable_Neg.Items Type=\"BaseTable\"><TakeoffDataAccess.TakeoffSaveItem Type=\"BaseRecord\" ExInfo=\"AltNumber,ItemID,NegNumber\" Row=\"0\"><NegNumber>External</NegNumber><AltNumber>External</AltNumber><ItemID>-1</ItemID><ItemNumber IsEmpty=\"true\"></ItemNumber><TakeoffCode>PUSHBUT</TakeoffCode><ProductLine>PUSHBUT</ProductLine><ProductID>M22-COMBINATION</ProductID><ProductCode IsEmpty=\"true\"></ProductCode><DiscountCode IsEmpty=\"true\"></DiscountCode><CatalogNumber IsEmpty=\"true\"></CatalogNumber><StyleNumber IsEmpty=\"true\"></StyleNumber><Quantity>1</Quantity><ConfigID>-1</ConfigID><ParentIndicator>P</ParentIndicator><ParentItemID>0</ParentItemID><ChildID IsEmpty=\"true\"></ChildID><BaseCurrency>USD</BaseCurrency><ExchangeRate IsEmpty=\"true\"></ExchangeRate><PriceIndicator>I</PriceIndicator><ListPrice>0</ListPrice><BookPrice>0</BookPrice><MaterialCost>0</MaterialCost><LaborCost IsEmpty=\"true\"></LaborCost><PPI>0</PPI><RPI>0</RPI><BookVariableCost IsEmpty=\"true\"></BookVariableCost><VariableCost>0</VariableCost><StandardCost>0</StandardCost><AuthorizedMultiplier>1</AuthorizedMultiplier><DesirabilityFactor>0</DesirabilityFactor><MarketMultiplier>1</MarketMultiplier><QuoteMultiplier IsEmpty=\"true\"></QuoteMultiplier><CustomerMultiplier>1</CustomerMultiplier><DivisionMultiplier IsEmpty=\"true\"></DivisionMultiplier><DivisionRFQApproveDate IsEmpty=\"true\"></DivisionRFQApproveDate><DivisionRFQApproveUser IsEmpty=\"true\"></DivisionRFQApproveUser><RFQDivisionLocation IsEmpty=\"true\"></RFQDivisionLocation><RFQExpirationDate IsEmpty=\"true\"></RFQExpirationDate><SalesRFQApprovedDate IsEmpty=\"true\"></SalesRFQApprovedDate><SalesRFQApprovedBy IsEmpty=\"true\"></SalesRFQApprovedBy><Designation></Designation><Suffix IsEmpty=\"true\"></Suffix><SalesLeadTime IsEmpty=\"true\"></SalesLeadTime><DivisionLeadTime IsEmpty=\"true\"></DivisionLeadTime><LeadTimeIndicator>QQ==</LeadTimeIndicator><ManagementLoadLine IsEmpty=\"true\"></ManagementLoadLine><PlantSpecsSentSep IsEmpty=\"true\"></PlantSpecsSentSep><StatusMask>0</StatusMask><ReasonCode IsEmpty=\"true\"></ReasonCode><EmergencyFlag>0</EmergencyFlag><StandardIndicator></StandardIndicator><OEQIndicator IsEmpty=\"true\"></OEQIndicator><ChangedFlag>1</ChangedFlag><COPStatus IsEmpty=\"true\"></COPStatus><ManufacturingNumber IsEmpty=\"true\"></ManufacturingNumber><BPCSNumber IsEmpty=\"true\"></BPCSNumber><CustomerNumber IsEmpty=\"true\"></CustomerNumber><VistaNegNumber IsEmpty=\"true\"></VistaNegNumber><SendIndicator IsEmpty=\"true\"></SendIndicator><VISTAAckDate IsEmpty=\"true\"></VISTAAckDate><VISTASendIndicator>1</VISTASendIndicator><VISTAAcknowledgement IsEmpty=\"true\"></VISTAAcknowledgement><VistaSendReturnCode IsEmpty=\"true\"></VistaSendReturnCode><AlternateAddress IsEmpty=\"true\"></AlternateAddress><AlternatePONumber IsEmpty=\"true\"></AlternatePONumber><NumberOfSections>0</NumberOfSections><GroupMode IsEmpty=\"true\"></GroupMode><SortGroup IsEmpty=\"true\"></SortGroup><LockID IsEmpty=\"true\"></LockID><CreatedByUser>CPQ0</CreatedByUser><CreatedByUserType IsEmpty=\"true\"></CreatedByUserType><BidManagerVersion>11.19.6.18.20</BidManagerVersion><TakeoffVersion>1.0.0.0</TakeoffVersion><ValidTakeoff IsEmpty=\"true\"></ValidTakeoff><CreatedDate FormatString=\"MM-dd-yyyy hh:mm:ss\">06-19-2019 08:44:43</CreatedDate><LastChangedDate FormatString=\"MM-dd-yyyy hh:mm:ss\">06-19-2019 08:44:43</LastChangedDate><LockType IsEmpty=\"true\"></LockType><TakeoffSeqNumber IsEmpty=\"true\"></TakeoffSeqNumber><LeadTimeOverride IsNull=\"true\"></LeadTimeOverride><IsSynergy IsEmpty=\"true\"></IsSynergy><NetAdderPrice IsEmpty=\"true\"></NetAdderPrice><ValidConfiguration IsEmpty=\"true\"></ValidConfiguration><CompleteConfiguration IsEmpty=\"true\"></CompleteConfiguration><SAPShipCustNum IsEmpty=\"true\"></SAPShipCustNum><PricePerQty>0</PricePerQty><StdPkgQty>0</StdPkgQty><LastYearAvgSellPrice IsEmpty=\"true\"></LastYearAvgSellPrice><YTDAvgSellPrice IsEmpty=\"true\"></YTDAvgSellPrice><CurNetPricePerUnit IsEmpty=\"true\"></CurNetPricePerUnit><CurrentCost>0</CurrentCost><CustTotalNetVariance IsEmpty=\"true\"></CustTotalNetVariance><SalesTotalNetVariance IsEmpty=\"true\"></SalesTotalNetVariance><PlantTotalNetVariance IsEmpty=\"true\"></PlantTotalNetVariance><QuoteTotalNetVariance IsEmpty=\"true\"></QuoteTotalNetVariance><SAPMinMult IsEmpty=\"true\"></SAPMinMult><ExternalID IsEmpty=\"true\"></ExternalID><SAPCatalogNumber>-</SAPCatalogNumber><ProductDescription IsEmpty=\"true\"></ProductDescription><PriceUnit IsEmpty=\"true\"></PriceUnit><PlantCode IsEmpty=\"true\"></PlantCode><ZPlantMinMultSave IsEmpty=\"true\"></ZPlantMinMultSave><ZAvgMarketMultSave IsEmpty=\"true\"></ZAvgMarketMultSave><ZCustTargetMultSave IsEmpty=\"true\"></ZCustTargetMultSave><GeogBasedPrice>False</GeogBasedPrice><IsPriceReadOnly>False</IsPriceReadOnly><SAPMaterialNumber IsEmpty=\"true\"></SAPMaterialNumber><SAPSendStatus IsEmpty=\"true\"></SAPSendStatus><SAPOrderStatus IsEmpty=\"true\"></SAPOrderStatus><SAPModifiedDate IsEmpty=\"true\"></SAPModifiedDate><ServiceYearOverFreq>1</ServiceYearOverFreq><GuidanceLockExpiration IsEmpty=\"true\"></GuidanceLockExpiration><PlantType IsEmpty=\"true\"></PlantType><QuickShipDays IsEmpty=\"true\"></QuickShipDays><ZDOEMinMultSave IsEmpty=\"true\"></ZDOEMinMultSave><LeadTimeDays IsEmpty=\"true\"></LeadTimeDays><SalesApproverName IsEmpty=\"true\"></SalesApproverName><DivisionApproverName IsEmpty=\"true\"></DivisionApproverName><CreatedByName IsEmpty=\"true\"></CreatedByName><ICSCost IsEmpty=\"true\"></ICSCost><DivisionRFQExpirationDate IsEmpty=\"true\"></DivisionRFQExpirationDate><SuffixDesc IsEmpty=\"true\"></SuffixDesc><SuffixCity IsEmpty=\"true\"></SuffixCity><SuffixState IsEmpty=\"true\"></SuffixState><PowerFlowSortSequence IsEmpty=\"true\"></PowerFlowSortSequence><HasValidConfig IsEmpty=\"true\"></HasValidConfig><OrderManagementResponse IsEmpty=\"true\"></OrderManagementResponse><ProductLineRules IsEmpty=\"true\"></ProductLineRules><SAPShipIsVendor IsEmpty=\"true\"></SAPShipIsVendor><SAPShipPartnerFunction IsEmpty=\"true\"></SAPShipPartnerFunction><ItemType IsEmpty=\"true\"></ItemType><CostField IsEmpty=\"true\"></CostField><IssuesMask1 IsEmpty=\"true\"></IssuesMask1><SentToMI IsEmpty=\"true\"></SentToMI><IsZOptimized IsEmpty=\"true\"></IsZOptimized></TakeoffDataAccess.TakeoffSaveItem><TakeoffDataAccess.TakeoffSaveItem Type=\"BaseRecord\" ExInfo=\"AltNumber,ItemID,NegNumber\" Row=\"1\"><NegNumber>External</NegNumber><AltNumber>External</AltNumber><ItemID>-2</ItemID><ItemNumber IsEmpty=\"true\"></ItemNumber><TakeoffCode>PUSHBUT</TakeoffCode><ProductLine>PUSHBUT</ProductLine><ProductID>Enclosures</ProductID><ProductCode IsEmpty=\"true\"></ProductCode><DiscountCode IsEmpty=\"true\"></DiscountCode><CatalogNumber>Y7-216535</CatalogNumber><StyleNumber IsEmpty=\"true\"></StyleNumber><Quantity>1</Quantity><ConfigID>-1</ConfigID><ParentIndicator>C</ParentIndicator><ParentItemID>-1</ParentItemID><ChildID>S-1</ChildID><BaseCurrency>USD</BaseCurrency><ExchangeRate IsEmpty=\"true\"></ExchangeRate><PriceIndicator>I</PriceIndicator><ListPrice>0</ListPrice><BookPrice>0</BookPrice><MaterialCost>0</MaterialCost><LaborCost IsEmpty=\"true\"></LaborCost><PPI>0</PPI><RPI>0</RPI><BookVariableCost IsEmpty=\"true\"></BookVariableCost><VariableCost>0</VariableCost><StandardCost>0</StandardCost><AuthorizedMultiplier>1</AuthorizedMultiplier><DesirabilityFactor>0</DesirabilityFactor><MarketMultiplier>1</MarketMultiplier><QuoteMultiplier IsEmpty=\"true\"></QuoteMultiplier><CustomerMultiplier>1</CustomerMultiplier><DivisionMultiplier IsEmpty=\"true\"></DivisionMultiplier><DivisionRFQApproveDate IsEmpty=\"true\"></DivisionRFQApproveDate><DivisionRFQApproveUser IsEmpty=\"true\"></DivisionRFQApproveUser><RFQDivisionLocation IsEmpty=\"true\"></RFQDivisionLocation><RFQExpirationDate IsEmpty=\"true\"></RFQExpirationDate><SalesRFQApprovedDate IsEmpty=\"true\"></SalesRFQApprovedDate><SalesRFQApprovedBy IsEmpty=\"true\"></SalesRFQApprovedBy><Designation></Designation><Suffix IsEmpty=\"true\"></Suffix><SalesLeadTime IsEmpty=\"true\"></SalesLeadTime><DivisionLeadTime IsEmpty=\"true\"></DivisionLeadTime><LeadTimeIndicator>QQ==</LeadTimeIndicator><ManagementLoadLine IsEmpty=\"true\"></ManagementLoadLine><PlantSpecsSentSep IsEmpty=\"true\"></PlantSpecsSentSep><StatusMask>0</StatusMask><ReasonCode IsEmpty=\"true\"></ReasonCode><EmergencyFlag>0</EmergencyFlag><StandardIndicator></StandardIndicator><OEQIndicator IsEmpty=\"true\"></OEQIndicator><ChangedFlag>1</ChangedFlag><COPStatus IsEmpty=\"true\"></COPStatus><ManufacturingNumber IsEmpty=\"true\"></ManufacturingNumber><BPCSNumber IsEmpty=\"true\"></BPCSNumber><CustomerNumber IsEmpty=\"true\"></CustomerNumber><VistaNegNumber IsEmpty=\"true\"></VistaNegNumber><SendIndicator IsEmpty=\"true\"></SendIndicator><VISTAAckDate IsEmpty=\"true\"></VISTAAckDate><VISTASendIndicator>1</VISTASendIndicator><VISTAAcknowledgement IsEmpty=\"true\"></VISTAAcknowledgement><VistaSendReturnCode IsEmpty=\"true\"></VistaSendReturnCode><AlternateAddress IsEmpty=\"true\"></AlternateAddress><AlternatePONumber IsEmpty=\"true\"></AlternatePONumber><NumberOfSections>0</NumberOfSections><GroupMode IsEmpty=\"true\"></GroupMode><SortGroup IsEmpty=\"true\"></SortGroup><LockID IsEmpty=\"true\"></LockID><CreatedByUser>CPQ0</CreatedByUser><CreatedByUserType IsEmpty=\"true\"></CreatedByUserType><BidManagerVersion>11.19.6.18.20</BidManagerVersion><TakeoffVersion>1.0.0.0</TakeoffVersion><ValidTakeoff IsEmpty=\"true\"></ValidTakeoff><CreatedDate FormatString=\"MM-dd-yyyy hh:mm:ss\">06-19-2019 08:44:43</CreatedDate><LastChangedDate FormatString=\"MM-dd-yyyy hh:mm:ss\">06-19-2019 08:44:43</LastChangedDate><LockType IsEmpty=\"true\"></LockType><TakeoffSeqNumber IsEmpty=\"true\"></TakeoffSeqNumber><LeadTimeOverride IsNull=\"true\"></LeadTimeOverride><IsSynergy IsEmpty=\"true\"></IsSynergy><NetAdderPrice IsEmpty=\"true\"></NetAdderPrice><ValidConfiguration IsEmpty=\"true\"></ValidConfiguration><CompleteConfiguration IsEmpty=\"true\"></CompleteConfiguration><SAPShipCustNum IsEmpty=\"true\"></SAPShipCustNum><PricePerQty>0</PricePerQty><StdPkgQty>0</StdPkgQty><LastYearAvgSellPrice IsEmpty=\"true\"></LastYearAvgSellPrice><YTDAvgSellPrice IsEmpty=\"true\"></YTDAvgSellPrice><CurNetPricePerUnit IsEmpty=\"true\"></CurNetPricePerUnit><CurrentCost>0</CurrentCost><CustTotalNetVariance IsEmpty=\"true\"></CustTotalNetVariance><SalesTotalNetVariance IsEmpty=\"true\"></SalesTotalNetVariance><PlantTotalNetVariance IsEmpty=\"true\"></PlantTotalNetVariance><QuoteTotalNetVariance IsEmpty=\"true\"></QuoteTotalNetVariance><SAPMinMult IsEmpty=\"true\"></SAPMinMult><ExternalID IsEmpty=\"true\"></ExternalID><SAPCatalogNumber>216535</SAPCatalogNumber><ProductDescription IsEmpty=\"true\"></ProductDescription><PriceUnit IsEmpty=\"true\"></PriceUnit><PlantCode IsEmpty=\"true\"></PlantCode><ZPlantMinMultSave IsEmpty=\"true\"></ZPlantMinMultSave><ZAvgMarketMultSave IsEmpty=\"true\"></ZAvgMarketMultSave><ZCustTargetMultSave IsEmpty=\"true\"></ZCustTargetMultSave><GeogBasedPrice>False</GeogBasedPrice><IsPriceReadOnly>False</IsPriceReadOnly><SAPMaterialNumber IsEmpty=\"true\"></SAPMaterialNumber><SAPSendStatus IsEmpty=\"true\"></SAPSendStatus><SAPOrderStatus IsEmpty=\"true\"></SAPOrderStatus><SAPModifiedDate IsEmpty=\"true\"></SAPModifiedDate><ServiceYearOverFreq>1</ServiceYearOverFreq><GuidanceLockExpiration IsEmpty=\"true\"></GuidanceLockExpiration><PlantType IsEmpty=\"true\"></PlantType><QuickShipDays IsEmpty=\"true\"></QuickShipDays><ZDOEMinMultSave IsEmpty=\"true\"></ZDOEMinMultSave><LeadTimeDays IsEmpty=\"true\"></LeadTimeDays><SalesApproverName IsEmpty=\"true\"></SalesApproverName><DivisionApproverName IsEmpty=\"true\"></DivisionApproverName><CreatedByName IsEmpty=\"true\"></CreatedByName><ICSCost IsEmpty=\"true\"></ICSCost><DivisionRFQExpirationDate IsEmpty=\"true\"></DivisionRFQExpirationDate><SuffixDesc IsEmpty=\"true\"></SuffixDesc><SuffixCity IsEmpty=\"true\"></SuffixCity><SuffixState IsEmpty=\"true\"></SuffixState><PowerFlowSortSequence IsEmpty=\"true\"></PowerFlowSortSequence><HasValidConfig IsEmpty=\"true\"></HasValidConfig><OrderManagementResponse IsEmpty=\"true\"></OrderManagementResponse><ProductLineRules IsEmpty=\"true\"></ProductLineRules><SAPShipIsVendor IsEmpty=\"true\"></SAPShipIsVendor><SAPShipPartnerFunction IsEmpty=\"true\"></SAPShipPartnerFunction><ItemType IsEmpty=\"true\"></ItemType><CostField IsEmpty=\"true\"></CostField><IssuesMask1 IsEmpty=\"true\"></IssuesMask1><SentToMI IsEmpty=\"true\"></SentToMI><IsZOptimized IsEmpty=\"true\"></IsZOptimized></TakeoffDataAccess.TakeoffSaveItem></BMTable_Neg.Items></BOM>";
+allItems = readxmlmultiple(bomXML, xpathItems);
+
+allItemsArray = get(allItems, xpathItems[0]);
+serviceEndpoint= "https://eatontest2.bigmachines.com/v1_0/receiver";
+// Set headers for request message
+requestHeaders = dict("string");
+put(requestHeaders, "Content-Type", "text/xml");
+put(requestHeaders, "Referer", serviceEndpoint);
+bomJSON = json();
+
+for eachItemXML in allItemsArray {
+bomJSON = util.parseTestBOM(bomXML);
+bomJSONStr = jsontostr(bomJSON); 
+requestBody="<?xml version='1.0' encoding='UTF-8'?><soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/'><soapenv:Header><bm:userInfo xmlns:bm='urn:soap.bigmachines.com'><bm:sessionId>"+SessionId+"</bm:sessionId></bm:userInfo><bm:category xmlns:bm='urn:soap.bigmachines.com'>Configuration</bm:category><bm:xsdInfo xmlns:bm='urn:soap.bigmachines.com'><bm:schemaLocation>https://eatontest2.bigmachines.com/bmfsweb/eatontest2/schema/v1_0/config/eatonConfigTest/eatonProductLineTest_eatonModelTest.xsd</bm:schemaLocation></bm:xsdInfo></soapenv:Header><soapenv:Body><bm:configure xmlns:bm='urn:soap.bigmachines.com' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'><bm:item><bm:segment>eatonConfigTest</bm:segment><bm:product_line>eatonProductLineTest</bm:product_line><bm:model>eatonModelTest</bm:model></bm:item><bm:responseIncludes><bm:price>false</bm:price><bm:spare>true</bm:spare><bm:bom>true</bm:bom><bm:bomMapping>true</bm:bomMapping><bm:attributeLabel>false</bm:attributeLabel><bm:previousValue>false</bm:previousValue><bm:displayedValue>false</bm:displayedValue><bm:hideInTransactionAttributes>false</bm:hideInTransactionAttributes><bm:ruleDetails>true</bm:ruleDetails><bm:transaction><bm:process_var_name>oraclecpqo</bm:process_var_name><bm:document_var_name>transaction</bm:document_var_name><bm:id>"+bsId+"</bm:id><bm:_document_number>1</bm:_document_number><bm:hide_transaction_response/><bm:return_specific_attributes><bm:documents><bm:document><bm:var_name>modelAttribute</bm:var_name><bm:attributes>"+bomJSONStr +"</bm:attributes></bm:document></bm:documents></bm:return_specific_attributes></bm:transaction></bm:responseIncludes><bm:config_upgrade_name/><bm:attributes/></bm:configure></soapenv:Body></soapenv:Envelope>";
+response = urldatabypost(serviceEndpoint, requestBody, "ERROR occurred durring service call (Residential POC)", requestHeaders, true);
+if(debugMode)
+{
+	print "***********************";
+	print bomJSON ;
+	print "***********************";
+	print response;
+}
+}
+childrenJsonArray= jsonget(bomJSON,"children","jsonarray",jsonarray());
+numChildren = jsonarraysize(childrenJsonArray);
+
+if(debugMode)
+{
+	print numChildren;
+	print bomJSON;
+}
+
+materialNumberArr = string[];
+materialQtyDict = dict("integer");
+materialItemIdDict = dict("string");
+
+if (numChildren > 0 ) {
+    loopRange = range(numChildren);
+    for each in loopRange {
+        childBOM = jsonarrayget(childrenJsonArray, each, "json" );
+        curMaterialNumber = jsonget(childBOM, "catalogNumber");
+        curQty = jsonget(childBOM, "quantity");
+        curItemId = jsonget(childBOM, "itemID");
+        if( findinarray(materialNumberArr, curMaterialNumber) > -1) {
+            // add duplicate material item Number lines quantity together
+            if( not isnull(curQty) and isnumber(curQty)) {
+                qty = atoi(curQty);
+                existingQty = get(materialQtyDict, curMaterialNumber);
+                put(materialQtyDict, curMaterialNumber, qty + existingQty );
+            } else {
+                existingQty = get(materialQtyDict, curMaterialNumber);
+                put(materialQtyDict, curMaterialNumber, 1 + existingQty );
+            }
+        } else {
+            // material item number not exist yet, add to array
+            append(materialNumberArr, curMaterialNumber);
+            put(materialItemIdDict, curMaterialNumber, curItemId);
+            if( not isnull(curQty) and isnumber(curQty)) {
+                qty = atoi(curQty);
+                put(materialQtyDict, curMaterialNumber, qty );
+            } else {
+                put(materialQtyDict, curMaterialNumber, 1 );
+            }
+        }
+    }
+    for eachMaterialNum in materialNumberArr {
+        child = JSON();
+        jsonput(child,"id", get(materialItemIdDict, eachMaterialNum));
+        jsonput(child,"parentId", selectedDocNumber);
+        jsonput(child,"partNumber", "EatonMat1");
+        jsonput(child,"quantity", string(get(materialQtyDict, eachMaterialNum)) );
+        jsonarrayappend(childrenLines, child);
+    }
+
+}
+
+
+configDataXml = "";
+if( len(externalConfigData) >  0 ) {
+	configDataXml  = replace(externalConfigData, "&lt;", "<");
+	configDataXml = replace(configDataXml, "&gt;", ">");
+}
+
+takeOffCode = "";
+startTakeOffCodeAttr = find(configDataXml, "<Attr N=\"TakeoffCode\"");
+print startTakeOffCodeAttr ;
+if( startTakeOffCodeAttr > -1 ) {
+	startTakeOffCodeValue = find(configDataXml, "V=\"", startTakeOffCodeAttr);
+	endTakeOffCodeValue = find(configDataXml, "\"", startTakeOffCodeValue + 3);
+	takeOffCode = subString(configDataXml, startTakeOffCodeValue + 3, endTakeOffCodeValue);
+	if(debugMode)
+	{
+		print takeOffCode;
+	}	
+}
+cfgExtraInfo = json();
+jsonput( cfgExtraInfo, "configHeaderId", takeOffCode);
+
+
+
+// build model line
+modelLine = JSON();
+jsonput(modelLine, "configExtraInfo", cfgExtraInfo);
+jsonput(modelLine, "partNumber", "test");
+jsonput(modelLine, "quantity", 1);
+jsonput(modelLine, "id", selectedDocNumber);
+if( numChildren > 0) {
+    jsonput(modelLine, "children", childrenLines);
+}
+
+jsonput(result, "modelLine", modelLine);
+
+logStatus = util.u_logJson("CFG_EXTERNAL", 4, result, "result");
+return result;

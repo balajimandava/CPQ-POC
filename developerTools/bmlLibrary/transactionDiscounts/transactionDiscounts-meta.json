@@ -1,0 +1,12 @@
+{
+  "name" : "Transaction Discounts",
+  "variableName" : "transactionDiscounts",
+  "description" : "Returns a JSON object with the MPG discounts and Material Item discounts from a CPQ transaction...Added some header fields as well",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "CPQTransID",
+    "type" : "Integer"
+  } ],
+  "attributes" : [ ]
+}

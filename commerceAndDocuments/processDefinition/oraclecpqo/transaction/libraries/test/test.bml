@@ -1,0 +1,11 @@
+partObj = json();
+	partObj = json(); // part data is json object
+	jsonput(partObj , "partNumber", "EatonMat1");
+	jsonput(partObj , "quantity", 1);
+	
+	inputArray = jsonarray(); // parts to add should be added to json array
+	jsonarrayappend(inputArray , partObj );
+	
+	resultArray  = addpartstotransaction(inputArray);
+	
+	return "";

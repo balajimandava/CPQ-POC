@@ -1,0 +1,14 @@
+{
+  "name" : "Upload CSV",
+  "variableName" : "uploadCSV",
+  "description" : "Called by Upload CSV action to parse and upload MPGs and Material Items via a CSV.",
+  "libraryFunctions" : [ "commerce.addPartLines", "util.arrayPack", "util.checkBizGroupCondition", "util.getRemark", "util.getStringDict", "util.getTableValue", "util.parseCSV", "util.parseCSVMultiple", "util.searchMaterialItems", "util.stringToFloat", "util.stringToInteger" ],
+  "returnType" : "Dictionary of String Dictionaries",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ "_document_number", "_parent_doc_number", "materialPricingGroup_l", "materialLineItem_l", "discount_l", "customDiscountType_l", "qqProductType_l" ],
+  "mainDocAttributes" : [ "uploadCSV_t", "salesOrg_t", "bs_id", "currencySymbol_t", "currencyThousandsSeparator_t", "currencyDecimalSeparator_t", "userDecimalSeparator_t", "currency_t", "distributionChannel_t", "transactionType_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_current_user_language", "_system_user_session_id", "_system_user_number_format", "_system_user_groups" ]
+}

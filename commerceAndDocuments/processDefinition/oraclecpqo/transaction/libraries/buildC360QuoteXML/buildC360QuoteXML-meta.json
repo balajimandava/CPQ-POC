@@ -1,0 +1,14 @@
+{
+  "name" : "buildC360QuoteXML",
+  "variableName" : "buildC360QuoteXML",
+  "description" : "Build Quote XML for C360 SOAP call.",
+  "libraryFunctions" : [ "commerce.buildC360QuoteLineXML" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bs_id", "customerName_t", "customerName2_t", "opportunityAccountID_t", "customerStreet_t", "customerStreet2_t", "customerCity_t", "customerPostalCodeZip_t", "customerCountry_t", "customerState_t", "salesOrg_t", "division_t", "distributionChannel_t", "customerNumber_t", "agreementDeliveryTerms_t", "agreementPaymentTerms_t", "incoterm2_t", "minimumOrderVolume_t", "surchargeExemption_t", "silver_t", "silverValue_t", "copper_t", "copperValue_t", "aluminium_t", "aluminiumValue_t", "qqApplication_t", "qqSubApplication_t", "currency_t", "owner_t", "opportunityNumber_t", "opportunityName_t", "agreementValidFrom_t", "agreementValidTo_t", "submittedDate_t", "soldToNumber_t", "shipToNumber_t", "preparedByENumber_t", "transactionType_t", "transactionNumber_t", "pricingDate_t", "qqProjectName_t", "qqCity_t", "qqRegion_t", "qqCountry_t", "customerCurrency_t", "qqSegment_t", "qqSubSegment_t", "qq_MnlShpTo_Address1_t", "qq_MnlShpTo_Address2_t", "qq_MnlShpTo_City_t", "qq_MnlShpTo_Zip_t", "qq_MnlShpTo_Country_t", "qq_MnlShpTo_Region_t", "customerPhone_t", "qqExpectedDecisionDate_t", "qqTotalValue_t", "transactionName_t", "c360LastSentCustomerId_t" ],
+  "systemAttributes" : [ ]
+}

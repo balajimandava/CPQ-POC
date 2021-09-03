@@ -1,0 +1,36 @@
+newBidExpDate = "";
+retString = "";	
+
+	systemUserDatePref = replace(_system_user_date_pref,".","/");
+		systemUserDateArray = split(systemUserDatePref ,"/");
+		if(systemUserDateArray[0] == "dd"){
+			indx_0_val= systemUserDateArray[0];
+			indx_1_val= systemUserDateArray[1];
+			systemUserDateArray[0] = indx_1_val;
+			systemUserDateArray[1] = indx_0_val;
+		}
+		
+		systemUserDatePref = join(systemUserDateArray,"/");
+	
+	inputParamDict = dict("anytype");
+	put(inputParamDict,"salesDistrict",salesDistrict_t);
+	put(inputParamDict,"TransactionType",transactionType_t);
+	put(inputParamDict,"SalesOrg",salesOrg_t);
+	put(inputParamDict,"validFrom",getDate(false));
+	put(inputParamDict,"type","M");
+	print inputParamDict;
+	newBidDate = util.getDefaultValidToDate_psd(inputParamDict);
+	newBidDateString = substring(datetostr(newBidDate,systemUserDatePref,_system_user_time_zone),0,10);	
+	put(inputParamDict,"validFrom",newBidDate);
+	print inputParamDict;
+	newBidExpDate1 = util.getDefaultValidToDate_psd(inputParamDict);	
+	newBidExpDateString = substring(datetostr(newBidExpDate1,systemUserDatePref,_system_user_time_zone),0,10);
+	retString = retString + "1~bidDate_t~"+newBidDateString+"|";
+	retString = retString + "1~bidExpirationDate_t~"+newBidExpDateString+"|";
+	retString = retString + "1~agreementValidFrom_t~"+newBidExpDateString+"|";  
+	put(inputParamDict,"type","Y");
+	put(inputParamDict,"validFrom",newBidExpDate1);
+	validTo = substring(datetostr(util.getDefaultValidToDate_psd(inputParamDict),systemUserDatePref,_system_user_time_zone),0,10);
+	retString = retString + "1~agreementValidTo_t~"+newBidExpDate+"|";
+	print retString;
+	return "";

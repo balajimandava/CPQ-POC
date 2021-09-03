@@ -1,0 +1,215 @@
+/**
+@name Advanced Forwarding Rule
+@api advancedForwardingRule
+@summary Consolidated Advanced Forwarding Rule for step transition.
+@param data Json
+@function Boolean isPerformerExist(String performer, String company, String siteID)
+@function Json getBLineGroups(Json data)
+@function Json getBussmannGroups(Json data)
+@function Json getCHEMEAGroups(Json data)
+@function Json getESEMEAGroups(Json data)
+@function Json getTransactionData(String bsId, String[] xpaths)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-13|Tat.Leung            |Initial version based on code from "Draft" step. QQ-575
+2018-07-14|Tat.Leung            |
+2018-07-25|Vivek.Hingorani      |Added salesPerson to data json. Commented Manager logic and moved to getESEMEAGroups
+2018-07-26|michael.yeung        |Add business specific readonly group and business admin group.  update distributor vendor logic
+2018-07-26|Vivek.Hingorani      |Added Manger Profile to return string. Also, added isNull check for VendorNumber
+2018-07-27|michael.yeung        |Add isPerformerExist to make sure user or group/partner Org exist in CPQ
+2018-08-13|michael.yeung        |
+2019-03-22|Pooja Gupta			|ALM- 1872: Added code to assign Nation Account Read Only role conditionally to bussman user	
+2019-06-11|Mubarak Ali			|Remedy INC000012577070 - to provide transaction access to current user also (required in case of manual forwarding)
+2020-05-11|Dhananjay		|Adding repUserWithPremium group distribution user to Sales User PP.
+*/
+bsId = jsonget(data, "id", "string", "");
+// import data needed for forwarding rules, add more xpath expression here if additional fields are needed
+xpaths = string[] {
+    "//transaction/owner_t",
+    "//transaction/adminSales_eNumber_t",
+    "//transaction/isDistiQuote_t",
+    "//transaction/backupSalesENumber_t",
+    "//transaction/level2Delegate_t",
+    "//transaction/level3Delegate_t",
+    "//transaction/level4Delegate_t",
+    "//transaction/wholesaler_t",
+    "//transaction/isVendorQuote_t",
+    "//transaction/cSMDelegate_t",
+    "//transaction/accountTypeKTOKD_t",
+    "//transaction/customerNumber_t",
+    "//transaction/soldToNumber_t ",
+    "//transaction/qqBusinessLineForSalesOrg_t",
+    "//transaction/vendorNumber_t",
+	"//transaction/qq_ntTransactionType_t",
+	"//transaction/qq_nt_nationalAccount_t"
+};
+accessString = string[];
+headerData = util.getTransactionData(bsId, xpaths);
+
+salesPerson = jsonget(headerData, "owner_t", "string", "");
+//Below Variable added by Ali to provide transaction access to current user also (required in case of manual forwarding) as part of INC000012577070
+currentLoggedInUser = jsonget(data, "currentUser", "string", "");
+quoteSubmitter = jsonget(data, "quotesubmitter", "string", "");
+salesPersonENumber = jsonget(headerData, "owner_t", "string", "");
+adminSales_eNumber = jsonget(headerData, "adminSales_eNumber_t", "string", "");
+adminSalesLogin = jsonget(headerData, "adminSalesLogin_t", "string", "");
+isDistiQuote = jsonget(headerData, "isDistiQuote_t", "boolean", false);
+userCompanyName = jsonget(data, "_system_company_name", "string", "");
+supplierCompanyName = jsonget(data, "_system_supplier_company_name", "string", "");
+backupSalesENumber = jsonget(headerData, "backupSalesENumber_t", "string", "");
+userShipFirstName = jsonget(data, "_system_user_ship_first_name", "string", "");
+backupSalesENumber = jsonget(headerData, "backupSalesENumber_t", "string", "");
+level2Delegate = jsonget(headerData, "level2Delegate_t", "string", "");
+level3Delegate = jsonget(headerData, "level3Delegate_t", "string", "");
+level4Delegate = jsonget(headerData, "level4Delegate_t", "string", "");
+wholeSaler = jsonget(headerData, "wholesaler_t", "boolean", false);
+isVendorQuote = jsonget(headerData, "isVendorQuote_t", "boolean", false);
+cSMDelegate = jsonget(headerData, "cSMDelegate_t", "string", "");
+accountTypeKTOKD = jsonget(headerData, "accountTypeKTOKD_t", "string", "");
+customerNumber = jsonget(headerData, "customerNumber_t", "string", "");
+soldToCustomer = jsonget(headerData, "soldToNumber_t", "string", "");
+businessLine = jsonget(headerData, "qqBusinessLineForSalesOrg_t", "string", "");
+vendorNumber = jsonget(headerData, "vendorNumber_t", "string", "");
+transactionType = jsonget(headerData, "qq_ntTransactionType_t", "string", "");
+nationalAccount = jsonget(headerData, "qq_nt_nationalAccount_t", "string", "");
+if (adminSales_eNumber <> "" and adminSalesLogin <> "") {
+    salesPerson = adminSalesLogin;
+}
+
+backupSalesRet = "";
+ret = "";
+/*if (salesPerson <> "") {	
+	if( util.isPerformerExist(salesPerson, supplierCompanyName, supplierCompanyName) ) {
+		ret = salesPerson + "~" + supplierCompanyName + "~" + "Sales User";
+	}
+}*/
+
+//Below condition added by Ali to provide transaction access to current user also (required in case of manual forwarding) as part of INC000012577070
+/*if(currentLoggedInUser <> "" AND util.isPerformerExist(currentLoggedInUser, supplierCompanyName, supplierCompanyName)){
+	if(ret <> "" ) {
+		ret = ret + "|";
+	}
+	ret = ret + currentLoggedInUser + "~" + supplierCompanyName + "~" + "Sales User";
+}*/
+
+if(quoteSubmitter <> ""){
+	quoteSubmitterDetailsArr = split(quoteSubmitter, "@");
+	quoteSubmittedBy = quoteSubmitterDetailsArr[0];
+	
+	if(ret <> "" ) {
+		ret = ret + "|";
+	}
+	//if(util.isPerformerExist(quoteSubmittedBy, supplierCompanyName, supplierCompanyName)){
+	//ret = ret + quoteSubmittedBy + "~" + supplierCompanyName + "~" + "Sales User";
+	//}
+	
+}
+
+// TAT 2018-07-13 QQ-575
+// allow distributor to access the quote
+if( soldToCustomer <> "" ) {
+	customerNumber = soldToCustomer;
+}
+/*if( util.isPerformerExist("distributorUser", customerNumber, supplierCompanyName) ) {
+	if(ret <> "" ) {
+		ret = ret + "|";
+	}
+	ret = ret + "distributorUser~" + customerNumber + "~Sales User";	// if partner org is created after this adv fwd rule is run, the partner org user will not be able to see the transaction
+}*/
+
+// TAT 2018-07-13 QQ-575
+// allow vendor to access the quote
+// probably only one vendor per customer. Otherwise, there is potential vendor see each other's transactions
+/*
+if (vendorNumber<>"" AND NOT(isnull(vendorNumber))) {
+	vendorArr = split(vendorNumber, "$,$");
+	for curVendor in vendorArr {
+		if( util.isPerformerExist("repUser", "V" + curVendor , supplierCompanyName) ) {
+			if(ret <> "" ) {
+				ret = ret + "|";
+			}
+			//ret = ret + "repUser~V" + curVendor + "~Sales User";
+			ret = ret + "repUser~V" + curVendor + "~Sales User|";
+			ret = ret + "repUserWithPremium~V" + curVendor + "~Sales User";
+		}
+	}
+}
+*/
+jsonput(data,"salesPerson",salesPerson);
+
+// Tat 2018-07-13 QQ-575
+accessGroups = json();
+salesGroups = jsonarray();
+managerGroups = jsonarray();
+if (businessLine == "BUSSMANN") {
+    accessGroups = util.getBussmannGroups(data);
+    salesGroups = jsonget(accessGroups,"Sales User","jsonarray",jsonarray());
+    managerGroups = jsonget(accessGroups,"Manager","jsonarray",jsonarray());
+    //ALM- 1872: Added code to assign Nation Account Read Only role conditionally to bussman user
+	if(nationalAccount =="true"){
+	ret = ret + "|" + "nationalAccountReadOnly" + "~" + supplierCompanyName + "~" + "Read Only User";
+	}
+	else
+	{
+	ret = ret + "|" + "businessAdminBussmann" + "~" + supplierCompanyName + "~" + "Admin";
+	}
+} elif (businessLine == "B-LINE") {
+    accessGroups = util.getBLineGroups(data);
+    salesGroups = jsonget(accessGroups,"Sales User","jsonarray",jsonarray());
+    managerGroups = jsonget(accessGroups,"Manager","jsonarray",jsonarray());
+	//ALM- 1872: Added code to assign Nation Account Read Only role conditionally to bline user
+	if(nationalAccount =="true"){
+	ret = ret + "|" + "nationalAccountReadOnly" + "~" + supplierCompanyName + "~" + "Read Only User";
+	}
+	else
+	{
+	ret = ret + "|" + "businessAdminBline" + "~" + supplierCompanyName + "~" + "Admin";
+	}
+
+} elif (businessLine == "ES-EMEA") {
+    accessGroups = util.getESEMEAGroups(data);
+    salesGroups = jsonget(accessGroups,"Sales User","jsonarray",jsonarray());
+    managerGroups = jsonget(accessGroups,"Manager","jsonarray",jsonarray());
+
+
+	ret = ret + "|" + "businessAdminESEMEA" + "~" + supplierCompanyName + "~" + "Admin";
+	ret = ret + "|" + "readOnlyESEMEA" + "~" + supplierCompanyName + "~" + "Read Only User";
+    //json(jsonObj,Profile Name,Profile Array);
+} elif (businessLine == "CH-EMEA") {
+    accessGroups = util.getCHEMEAGroups(data);
+    salesGroups = jsonget(accessGroups,"Sales User","jsonarray",jsonarray());
+    managerGroups = jsonget(accessGroups,"Manager","jsonarray",jsonarray());
+
+	ret = ret + "|" + "businessAdminCHEMEA" + "~" + supplierCompanyName + "~" + "Admin";
+	ret = ret + "|" + "readOnlyCHEMEA" + "~" + supplierCompanyName + "~" + "Read Only User";
+}
+
+// ********** Append Json Arrays to return string
+salesGroupSize = jsonarraysize(salesGroups);
+	if (salesGroupSize > 0 ) {
+		loopRange = range(salesGroupSize);
+		for each in loopRange {
+			group = jsonarrayget(salesGroups, each, "string");
+			/*if( util.isPerformerExist(group, supplierCompanyName, supplierCompanyName) ) {
+				append(accessString, group + "~" + supplierCompanyName + "~Sales User");
+			}*/
+		}
+}
+
+managerGroupSize = jsonarraysize(managerGroups);
+	if (managerGroupSize > 0 ) {
+		loopRange = range(managerGroupSize);
+		for each in loopRange {
+			group = jsonarrayget(managerGroups, each, "string");
+			/*if( util.isPerformerExist(group, supplierCompanyName, supplierCompanyName) ) {
+				append(accessString, group + "~" + supplierCompanyName + "~Manager");
+			}*/
+
+		}
+}
+
+ret = ret + "|" + join(accessString, "|");
+
+return ret;

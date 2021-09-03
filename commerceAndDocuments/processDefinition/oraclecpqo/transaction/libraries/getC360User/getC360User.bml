@@ -1,0 +1,24 @@
+/**
+@name Get C360 User
+@api getC360User
+@summary Get the C360 user login based on the cpqLogin or _system_user_login (when cpqLogin is blank)
+@param cpqLogin String the CPQ user's login
+@attribute _system_user_login
+@function JsonArray u_getJsonDataForQuery(String query)
+@return String the C360 user's login
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-31|Tat.Leung            |
+*/
+cpqUser = cpqLogin;
+if (isnull(cpqUser) or trim(cpqUser) == "") {
+    cpqUser = _system_user_login;
+}
+
+c360Users = util.u_getJsonDataForQuery("select c360Login from C360Users where cpqLogin = '" + cpqUser + "'");
+c360User = json();
+if (jsonarraysize(c360Users) > 0) {
+    c360User = jsonarrayget(c360Users, 0, "json");
+}
+return jsonget(c360User, "c360Login", "string", "");

@@ -1,0 +1,19 @@
+/**
+@name Get Approver for Bussmann
+@api getApproverForBussmann
+@summary Get the approvers for a given list of PH4's.
+@param ph4List String[]
+@function JsonArray u_getJsonDataForQuery(String query)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-30|Tat.Leung            |Initial version
+*/
+approvers = json();
+
+query = "select PH4, PM_E_Num, PM_Name, PM_Email from SalesTeams_Bussmann where PH4 in ('" + join(ph4List, "', '") + "')";
+approverData = util.u_getJsonDataForQuery(query);
+jsonput(approvers, "approvers", approverData);
+
+return approvers;

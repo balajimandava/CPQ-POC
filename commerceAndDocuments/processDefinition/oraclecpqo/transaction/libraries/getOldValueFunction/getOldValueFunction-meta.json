@@ -1,0 +1,14 @@
+{
+  "name" : "GetOldValueFunction",
+  "variableName" : "getOldValueFunction",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "attributeName",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "agreementValidTo_t" ],
+  "systemAttributes" : [ ]
+}

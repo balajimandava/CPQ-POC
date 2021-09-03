@@ -1,0 +1,12 @@
+{
+  "name" : "Get Active Material Statuses",
+  "variableName" : "getActiveMaterialStatuses",
+  "description" : "Project#52469-France Deployment|E9913664|Function to get active material statuses for a sales org.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputParams",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,11 @@
+{
+  "name" : "Parse Material Master Response",
+  "variableName" : "parseMaterialMasterResponse",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.materialMasterBOMItemsLinkingProcess" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "qqCatalogNumber_l", "brand_l", "_document_number" ],
+  "mainDocAttributes" : [ "materialMasterResponse_t", "status_t" ],
+  "systemAttributes" : [ ]
+}

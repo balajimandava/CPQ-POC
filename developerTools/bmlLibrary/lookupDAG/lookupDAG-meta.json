@@ -1,0 +1,15 @@
+{
+  "name" : "Lookup DAG",
+  "variableName" : "lookupDAG",
+  "description" : "Resolve DAG for a sales org and sales group combination",
+  "libraryFunctions" : [ "util.u_getJsonDataForQuery" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "salesOrg",
+    "type" : "String"
+  }, {
+    "name" : "salesGroup",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

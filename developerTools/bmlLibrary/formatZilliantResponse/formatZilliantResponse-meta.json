@@ -1,0 +1,12 @@
+{
+  "name" : "Format Zilliant Response",
+  "variableName" : "formatZilliantResponse",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "Zilliant_Response",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

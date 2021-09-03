@@ -1,0 +1,11 @@
+{
+  "name" : "Primary Customer",
+  "variableName" : "primaryCustomer",
+  "description" : "49704 - Eagle Development | System should not allow user to delete Primary Customer in Customer Tab",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "selectedCustomerArraySet2_t" ],
+  "systemAttributes" : [ "_system_current_step_var" ]
+}

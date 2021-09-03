@@ -1,0 +1,14 @@
+{
+  "name" : "Active_Timer - Before Formulas",
+  "variableName" : "active_TimerBeforeFormulas",
+  "description" : "This UTIL runs in the Before Formulas for the CPQ action called Active_Timer",
+  "libraryFunctions" : [ "commerce.autoRenewAgreement", "commerce.nextTimer", "commerce.updateCustomerMaster", "commerce.updateLineAttributes_POC", "util.getEnvironmentVariable" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "parmsDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "active_Timer_t", "agreementValidFrom_t", "agreementValidTo_t", "uploadedAgreement_t", "days_To_ValidTo_t", "priceListExtensionCount_t", "priceListTo_t", "extendCurrentListPrices_t", "autoRenewalRegistryTEXT_t", "accountTypeKTOKD_t", "priceListFrom_t", "choosePricelist_t", "qqBusinessLineForSalesOrg_t", "agreementUploadDetails_t", "syncToSAP_t", "transactionType_t", "salesOrg_t" ],
+  "systemAttributes" : [ "_system_date" ]
+}

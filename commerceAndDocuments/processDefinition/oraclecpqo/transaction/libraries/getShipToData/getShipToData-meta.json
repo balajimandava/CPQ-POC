@@ -1,0 +1,11 @@
+{
+  "name" : "Get Ship To Data",
+  "variableName" : "getShipToData",
+  "description" : "",
+  "libraryFunctions" : [ "util.customerMasterInfo", "util.getRegionsForSalesOrg", "util.getStringDict" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qq_ntsalesOrg_t", "eRecordID_t", "isDistiQuote_t", "isVendorQuote_t", "ntSelectedSalesOrg_t", "ntDistributionChannel_t", "owner_t" ],
+  "systemAttributes" : [ "_system_company_name", "_system_user_login" ]
+}

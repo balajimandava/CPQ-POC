@@ -1,0 +1,39 @@
+//This code is to add the Prelims models to the Transaction
+
+supplierCompanyName = util.getSupplierCompanyName();
+//Current Date to include in the payload
+
+//preparing the payload externalConfigBOM_t.
+payload = dict("string");
+put(payload ,"TAKE_OFF_CODE","TERMBOX");
+put(payload ,"PRODUCT_LINE","Terminal Box");
+put(payload ,"PRODUCT_ID","GHG7124002C02NF");
+put(payload ,"CREATE_DATE","06-22-2020 08:23:25");
+put(payload ,"LASTCHANGED_DATE","06-22-2020 08:23:25");
+put(payload ,"CATALOG_NUMBER","GHG7_ALUMINUM");
+templateFileLocation = "$BASE_PATH$/ext_cfg/Dummy_ExternalConfigBOM_XML.xml";
+externalConfigBOM = applytemplate(templateFileLocation,payload);
+//print externalConfigBOM;
+//End point URL for update transaction 
+endpointUrl = "https://"+supplierCompanyName+".bigmachines.com/rest/v8/commerceDocumentsOraclecpqoTransaction/122946067";
+//Preparing the update transaction payload.
+transactionData = json();
+documents = json();
+jsonput(documents,"externalConfigBOM_t",externalConfigBOM);
+jsonput(documents,"externalConfigData_t","");
+jsonput(transactionData ,"documents",documents);
+//print transactionData;
+//action = "cleanSave_t";
+action = "uploadExternalConfiguration";
+//Invoking the update transaction
+updatedRes = util.updateTransactionREST(transactionData, action, endpointUrl);
+
+//preparing the input data to invoke the external configuration save API call.
+requestBodyPayload = json();
+jsonput(requestBodyPayload,"bsId",122944944);
+endpointParameter = dict("anytype");
+status = util.externalConfigurationSave(requestBodyPayload, endpointParameter);
+if(status == "save"){
+	return true;
+}
+return false;

@@ -1,0 +1,12 @@
+{
+  "name" : "Trigger Any Action using REST API",
+  "variableName" : "triggerAnyActionUsingRESTAPI",
+  "description" : "Util to trigger any action using Rest API",
+  "libraryFunctions" : [ "util.getSiteSpecificData" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ "_company_name" ]
+}

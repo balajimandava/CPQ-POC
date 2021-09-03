@@ -1,0 +1,196 @@
+//************************************************************************************************************
+	//** Function: To connect CPQ with BidMan via SOA.
+	//**
+	//** Description: Project#52469|Residential Configurator Development
+	//**
+	//** History:	Date          	Author			Comment 
+	//**          	------------- 	---------------	--------------------------------------------------------------
+	//**            05May2020	   	Shardul S		Created initial version
+	//************************************************************************************************************/
+
+    debugMode = true;
+	returnStr	= "";
+	url 		= "";
+	createQuoteXml 	= "";
+	inputJson 	= json();
+	inputJsonwrapper = json();
+	extIdjsonContenor = json();
+	jsonLPMContenor   = json();
+	isReadonly 	= false;
+	siteID 		= "SOABidmanUser";
+	soaUserID 	= "";
+	soaPassID 	= "";
+	headers 	= dict("string");
+	lineDocNum	= "";
+	takeOffCode 	= "";
+	lineData	= jsonarray();
+	selectedDocNumber = get(inParams, "selectedDocNumber");
+	configExtraInfo = get(inParams, "configExtraInfo");
+	modelPath 	= get(inParams, "modelPath");
+	bsId 		= get(inParams, "bsId");
+	searchResult 	= get(inParams, "searchResult");
+	bmProcess	= get(inParams, "bmProcess");
+	configId	= get(inParams, "configId");
+	
+	company = util.getSupplierCompanyName();
+	siteID = company + siteID;
+	envData = util.getSiteSpecificData(siteID);
+	soaUserID = jsonget(envData, "FieldName");
+	soaPassID = jsonget(envData, "Value1");
+	bidManagerUrlPrefix = jsonget(envData, "Value2");
+
+	//END POINT URL START - Below used Util library will fetch the End Point OAG URL for the web service call
+	envVariable = util.getEnvironmentVariable("SOA_OAG_BIDMAN_URL", "");
+	//END POINT URL END
+
+	// HEADERS START - Set headers for request message
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", "Basic " + encodebase64(soaUserID + ":" + soaPassID));
+	//HEADERS END
+
+	xpaths = string[] {
+		"//transaction/step_var_name",
+		"//transaction/qqBusinessLineForSalesOrg_t",
+		"//transaction/salesOrg_t",
+		"//transaction/distributionChannel_t",
+		"//transaction/qqCustomerGroup_t",
+		"//transaction/priceGroup_t",
+		"//transaction/customerNumber_t",
+		"//transaction/endCustomerNo_t",
+		"//transaction/transactionType_t",
+		"//transaction/salesDistrict_t",
+		"//transaction/salesGroup_t",
+		"//transaction/qqCountry_t",
+		"//transaction/qqCountryRegion_t",
+		"//transaction/qqApplication_t",
+		"//transaction/qqSubApplication_t"
+	};
+
+	headerData = util.getTransactionData(bsId, xpaths); // BML Util call
+	currentStep 	= jsonget(headerData, "step_var_name", "string", "");
+	businessGroup 	= jsonget(headerData, "qqBusinessLineForSalesOrg_t", "string", "");
+	sales_org	= jsonget(headerData, "salesOrg_t", "string", "");
+	dist_channel  	= jsonget(headerData, "distributionChannel_t", "string", "");
+	customer_group  = jsonget(headerData, "qqCustomerGroup_t", "string", "");
+	price_group 	= jsonget(headerData, "priceGroup_t", "string", "");
+	soldto_customer = jsonget(headerData, "customerNumber_t", "string", "");
+	end_user	= jsonget(headerData, "endCustomerNo_t", "string", "");
+	quote_type 	= jsonget(headerData, "transactionType_t", "string", "");
+	sales_district	= jsonget(headerData, "salesDistrict_t", "string", "");
+	sales_group	= jsonget(headerData, "salesGroup_t", "string", "");
+	project_country	= jsonget(headerData, "qqCountry_t", "string", "");
+	project_region	= jsonget(headerData, "qqCountryRegion_t", "string", "");
+	application	= jsonget(headerData, "qqApplication_t", "string", "");
+	sub_appln	= jsonget(headerData, "qqSubApplication_t", "string", "");
+	xPathDictionary = dict("string");
+	put(xPathDictionary, "item_id", "//transactionLine/_document_number");
+	put(xPathDictionary, "config_id", "//transactionLine/_document_number"); // to be updated
+	put(xPathDictionary, "read_only", "//transactionLine/_document_number");  // to be updated
+	put(xPathDictionary, "catalog_number", "//transactionLine/qqCatalogNumber_l");
+	put(xPathDictionary, "product_hierarchy", "//transactionLine/_document_number");  // to be updated
+	put(xPathDictionary, "quantity", "//transactionLine/quantity_l");
+	put(xPathDictionary, "design_status", "//transactionLine/engineeringDesignStatus_l");  // to be verified
+	put(xPathDictionary, "is_placeholder", "//transactionLine/isPlaceholder_l");//0 for normal case, 1 for prelim item
+
+	if(currentStep <> "draft"){
+		isReadonly = true;
+	}
+
+	if(bmProcess == "CPQ.OpenView")
+	{
+		if (not isnull(selectedDocNumber)) {		
+			lineDocNum = trim(selectedDocNumber);
+			if (lineDocNum == "-1") {			
+				takeOffCode="";
+				if (searchResult <> "" ) {
+					cfgExtraInfo = split(searchResult, "@");
+					takeOffCode = cfgExtraInfo[1];
+				}
+			}else{
+				takeOffCode="";
+				lineData = util.getTransactionLineLevelData(bsId, lineDocNum, xPathDictionary, "");
+				if (configExtraInfo <> "" ) {
+					cfgExtraInfo = json(configExtraInfo);
+					takeOffCode = jsonget(cfgExtraInfo, "configHeaderId");
+				}
+			}
+		}
+		jsonput(inputJson, "tocode", takeOffCode);
+		if(businessGroup == "BUSSMANN"){
+			jsonput(inputJson, "role", "CBM");
+		}elif(businessGroup == "PSD"){
+			jsonput(inputJson, "role", "PSD");
+		}else{
+			jsonput(inputJson, "role", "CPQ");
+		}
+	}elif(bmProcess == "CPQ.PSD.LPMGet"){
+		lineData = util.getTransactionLineLevelData(bsId, lineDocNum, xPathDictionary, "");
+	}
+
+	isloginemail = (upper(company) <> upper(_company_name));
+	jsonput(inputJson, "quote_id", bsId);
+	jsonput(inputJson, "items", lineData);
+	jsonput(inputJson, "model", modelPath);
+	if(isReadonly){
+		jsonput(inputJson, "ReadOnly", "true");
+	}
+
+	//Passed config Id as parameter, this will add all the child lines for same config id to json 
+	items = jsonarray();
+	lineData = util.getTransactionLineLevelData(bsId, "", xPathDictionary, configId); 
+	jsonarrayappend(items, lineData);
+	
+	jsonput(inputJson,"items",items);	
+		
+	jsonput(inputJson, "sales_org", sales_org);
+	jsonput(inputJson, "dist_channel", dist_channel);
+	jsonput(inputJson, "customer_group", customer_group);
+	jsonput(inputJson, "price_group", price_group);
+	jsonput(inputJson, "soldto_customer", soldto_customer);
+	jsonput(inputJson, "end_user", end_user);
+	jsonput(inputJson, "quote_type", quote_type);
+	jsonput(inputJson, "sales_district", sales_district);
+	jsonput(inputJson, "sales_group", sales_group);
+	jsonput(inputJson, "project_country", project_country);
+	jsonput(inputJson, "project_region", project_region);
+	jsonput(inputJson, "application", application);
+	jsonput(inputJson, "sub_application", sub_appln);
+	jsonput(inputJsonwrapper, "process", bmProcess);
+	jsonput(inputJsonwrapper, "payload", inputJson);
+
+	inputJsonString = jsontostr(inputJsonwrapper);
+	//Forming a JSON to pass a parameter to SOA - END
+
+	//SOAP WEB SERVICE CALL START
+	responseD = urldata(envVariable, "POST", headers, inputJsonString);
+	//SOAP WEB SERVICE CALL END
+
+	if(bmProcess == "CPQ.OpenView"){
+		extIdjsonContenor = json(get(responseD, "Message-Body"));
+		extId = jsonpathgetsingle(extIdjsonContenor, "$..['extid']", "string");
+		url = _site_url + "/bmfsweb/" + company + "/image/ext_cfg/bid_mgr_new.html" + "?isloginemail=" + string(isloginemail) + "&source=cpq" + "&extid=" + extId + "&cpqid=" + bsId;
+		url = url + "&bidManagerUrlPrefix=" + bidManagerUrlPrefix;
+		returnStr = url;
+	}elif(bmProcess == "CPQ.PSD.LPMGet"){
+		jsonLPMContenor = json(get(responseD, "Message-Body"));
+		jsonarr = jsonget(jsonLPMContenor, "payload", "json");
+		
+		if(debugMode)
+		{
+			print jsonLPMContenor ;
+			//print itemarr;
+		}
+		returnStr = jsontostr(jsonarr);
+	}
+
+    if(debugMode)
+    {
+	print "************ BM request payload ***********";
+	print inputJsonString;
+	print "************ BM response payload1 ***********";
+	print responseD;
+	print "************ NEW URL ****************";
+	print returnStr;
+    }
+	
+	return returnStr;

@@ -1,0 +1,180 @@
+/**
+@name Populate Net Price
+@api populateNetPrice
+@summary Call SAP to retrieve the net price for the lines in the quote.  If "_refresh" is set to "true", the net price for all lines will be updated.  Otherwise, only lines without net price will be updated.
+@param data Json
+@attribute _document_number
+@attribute _system_supplier_company_name
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute needNetPrice_l
+@attribute plant_l
+@attribute transactionNumber_t
+@function Float stringToFloat(String input)
+@function Json u_getLineFromJson(Json data, String docNum)
+@function Json u_setCommerceAttribute(Json data, String docNum, String attribute, String value)
+@function String buildNetPriceXML(Json data)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-22|Tat.Leung            |
+2018-04-05|michael.yeung        |
+2018-04-17|Dave.Haizlip		    | 89757326/90197152/91979913
+2018-05-10|michael.yeung        | Add disable logic
+2019-06-17|Pooja Gupta          | Added condition to stop refresh net call for Terminal and Pushbutton Pricing
+2020-07-01|Shardul 		| Added condition to refresh net call for Residential and flatpack
+2021-01-25|Shardul		| Performance impv changes.
+*/
+result = jsoncopy(data);
+
+NETPRICE_CONTROL = util.getEnvironmentVariable("SOA_SAP_NETPRICE_CONTROL", "DISABLED");
+if (find(NETPRICE_CONTROL, "DISABLED") <> -1) {
+    return result;
+}
+refreshFlag = jsonget(result, "fp_refreshNetPrice", "boolean", false);
+//print refreshFlag;
+// build net price request for all lines that need net pricing data
+itemsToUpdate = jsonarray();
+
+genericMAX= 8;
+sapLineNum= json();
+materialItemsJson = json();
+lineProductType= json();
+itemNumberDocNum= json();
+allDocNumJson= json();
+loop2= range(genericMAX);
+genericAttr= "discSurcharge8_l";
+
+for line in transactionLine {
+    	    //2250-Pooja Gupta - Added condition to stop refresh net call for Terminal and Pushbutton Pricing
+            currentline = util.u_getLineFromJson(result, line._document_number);
+            needNetPrice = jsonget(currentline, "needNetPrice_l", "boolean", line.needNetPrice_l);
+            materialLineItem = jsonget(currentline, "materialLineItem_l", "string", line.materialLineItem_l);
+            if (materialLineItem <> "" AND ((line.qqProductType_l <> "configuration" ) OR (line.takeOffModel_l=="PUSHBUT" OR line.takeOffModel_l=="ATDERESI")))//Updated by Shardul to call Net Price for Residential and PushButton
+               
+            {
+                if((line._parent_doc_number == "") OR (line.takeOffModel_l=="PUSHBUT" OR line.takeOffModel_l=="ATDERESI"))
+                {
+                    if (needNetPrice or refreshFlag) {
+						// build net price request line
+						// TODO
+						// keep track of which items we need to update
+						jsonarrayappend(itemsToUpdate, line._document_number);
+						
+						//Loop From SAP Conditions is moved in here for performance improvement
+						jsonput(lineProductType,line._document_number,line.qqProductType_l);
+					    
+						// Initialize each doc number with all attributes to be set to 0.00
+						conditionJson= json();
+						jsonput(conditionJson,"_document_number",line._document_number);
+						jsonput(conditionJson,"_document_number",line._document_number);
+						jsonput(conditionJson,"_parent_doc_number",line._parent_doc_number); 
+						//ALM# 2408 :: Set needNetPrice_l to false.
+						jsonput(conditionJson,"needNetPrice_l","false");
+				  
+						//CPQ-2139 :: Added by Shardul
+						jsonput(conditionJson,"takeOffModel_l",line.takeOffModel_l);
+						jsonput(conditionJson,"oldListPrice_l",line.oldListPrice_l);	
+
+						for idx2 in loop2 {
+							attrName= replace(genericAttr,string(genericMAX),string(idx2+1));
+							jsonput(conditionJson,attrName,"");
+						} 
+				  
+						docNumJson= json(); 
+						jsonput(docNumJson,"items",conditionJson);
+						//2019-05-07|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+						jsonput(allDocNumJson,line._document_number,docNumJson);  
+						//End : Changes to improve performance.
+                    }
+                }
+                else
+                {
+                     result = util.u_setCommerceAttribute(result, line._document_number, "needNetPrice_l", "false");
+                    
+                }
+            } 
+            else 
+            {
+                // set the needNetPrice_l flag to false for lines that do not have/need net price
+                 result = util.u_setCommerceAttribute(result, line._document_number, "needNetPrice_l", "false");
+                 
+            }
+}
+    
+    
+print itemsToUpdate;
+
+
+// build net price request header
+// TODO
+
+siteID = _system_supplier_company_name + "SOA";
+soaUserID = "";
+soaPassID = "";
+
+siteBMQL = bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+for eachSite in siteBMQL {
+    soaUserID = get(eachSite, "FieldName");
+    soaPassID = get(eachSite, "Value1");
+    jsonput(result,"CPQSOASAP",soaUserID);
+    jsonput(result,"CPQSOASAPPW",soaPassID);
+	jsonput(result,"itemsToUpdate",itemsToUpdate); //Added by Shardul to pass items for XML generation
+}
+
+//print soaUserID + " / " + soaPassID;
+
+netPriceXml= commerce.buildNetPriceXML(result);
+print netPriceXml;
+
+//  Temporary replace because we have limited data in T2
+//netPriceXml= replace(netPriceXml,"000000000001030505","Y7-137257");
+//netPriceXml= replace(netPriceXml,"Y7-137257","Y7-72736");
+//netPriceXml= replace(netPriceXml,"0000316557","0000316557");
+
+//print netPriceXml;
+
+envVariable = util.getEnvironmentVariable("SOA_SAP_NETPRICE_URL", "");
+if  (envVariable == "") {
+	throwerror("SOA_SAP_NETPRICE_URL is not configured for " + _system_supplier_company_name, false);
+}
+//print envVariable;
+
+// Set headers for request message
+headers = dict("string");
+put(headers, "Content-Type", "text/xml");
+put(headers, "SOAPAction", "process");
+
+//print envVariable;
+
+responseD= dict("string");
+
+responseD = urldata(envVariable , "POST", headers, netPriceXml);
+//print responseD;
+
+statusCode = get(responseD, "Status-Code");
+messageBody= get(responseD, "Message-Body");
+print messageBody;
+
+errorMessage = get(responseD, "Error-Message");
+if (statusCode == "200") { //  Get the results of the call to refresh Net Prices
+    errorMessage = "";
+} else { // Set all the values to a blank because the POST failed
+    throwerror("SOA_SAP_NETPRICE_URL failed " + _system_supplier_company_name + " Status-Code: " + statusCode + " Error-Message" + errorMessage, false);
+}
+
+dataNetPriceReturned=json();
+jsonput(dataNetPriceReturned,"successfulMessage",messageBody);
+//2250-Added below parameter
+jsonput(dataNetPriceReturned,"itemsToUpdate",itemsToUpdate);
+jsonput(dataNetPriceReturned,"fp_refreshNetPrice",true);
+jsonput(dataNetPriceReturned,"allDocNumJson",allDocNumJson);
+jsonput(dataNetPriceReturned,"lineProductType",lineProductType);
+jsonput(dataNetPriceReturned,"sapLineNum",sapLineNum);
+//print dataNetPriceReturned;
+result= commerce.sapConditions(dataNetPriceReturned);
+//print result;
+return result;

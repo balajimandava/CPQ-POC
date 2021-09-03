@@ -1,0 +1,14 @@
+{
+  "name" : "Transfer Agreement Ownership",
+  "variableName" : "transferAgreementOwnership",
+  "description" : "Finds agreements whose owner_t value matches the eNumber specified and replaces agreement ownership information (eNumber, Name, etc.) with that of the new sales rep",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "eNumberDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "owner_t", "bs_id" ],
+  "systemAttributes" : [ ]
+}

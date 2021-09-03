@@ -1,0 +1,11 @@
+{
+  "name" : "customerGridUpdate",
+  "variableName" : "customerGridUpdate",
+  "description" : "Mass update script to update Selected Customer Grid in Draft page/step",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number" ],
+  "mainDocAttributes" : [ "selectedCustomerArraySet2_t", "status_t", "selectedCustomerArraySet_t" ],
+  "systemAttributes" : [ ]
+}

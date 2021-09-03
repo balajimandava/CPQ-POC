@@ -1,0 +1,11 @@
+{
+  "name" : "Clear Attacment Type and Selected Check Box",
+  "variableName" : "clearAttacmentTypeAndSelectCheckBox",
+  "description" : "Clear Attachment Type and Selected Check Box for empty Attachments",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qqAttachment1_t", "qqAttachment2_t", "qqAttachment3_t", "qqAttachment4_t", "qqAttachment5_t", "qqattachment6_t", "qqAttachment7_t", "qqAttachment8_t", "qqAttachment9_t", "qqAttachment10_t", "qqAttachment11_t", "qqAttachment12_t", "qqAttachment13_t", "qqAttachment14_t", "qqAttachment15_t", "qqAttachment16_t", "addAttachment16_t" ],
+  "systemAttributes" : [ ]
+}

@@ -1,0 +1,20 @@
+debugMode = false;
+start = getcurrenttimeinmillis();
+rec = bmql("select distinct LAND1 from CUSMAS where VKORG in $salesOrgs");
+countries = string[];
+for r in rec {
+    append(countries, get(r, "LAND1"));
+}
+
+rec = bmql("select CountryCode, RegionCode, Region from SAPRegions where CountryCode in $countries");
+regionsDict = dict("string");
+for r in rec {
+    key = get(r, "CountryCode") + "_" + get(r, "RegionCode");
+    value = get(r, "Region");
+    put(regionsDict, key, value);
+}
+end = getcurrenttimeinmillis();
+if(debugMode){
+	print end - start;
+}
+return regionsDict;

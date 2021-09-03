@@ -1,0 +1,157 @@
+/**
+@name Auto Renewl Agreement
+@api autoRenewAgreement
+@summary This util checks the values that determines if an Agreement will Auto Renew.
+@param inputDict StringDictionary
+@attribute _parent_doc_number
+@attribute _system_supplier_company_name
+@attribute accountTypeKTOKD_t
+@attribute aluminium_t
+@attribute bs_id
+@attribute copper_t
+@attribute currency_t
+@attribute customDiscountType_l
+@attribute customerName_t
+@attribute customerNumber_t
+@attribute customerParent_t
+@attribute extendCurrentListPrices_t
+@attribute lineNumber_l
+@attribute materialLineItem_l
+@attribute salesOrg_t
+@attribute silver_t
+@attribute surchargeExemption_t
+@attribute transactionType_t
+@function Float stringToFloat(String input)
+@function String Dictionary customerSalesHistory(String Dictionary parmsDict)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return Boolean
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-04|Tat.Leung            |
+2018-05-23|michael.yeung        |
+*/
+retBoo = FALSE;
+
+//  55382066
+
+debugFlag = FALSE;
+
+// //  Use this string to 'fake' under 30k sales for testing
+// //  Valid customer number so be sure it isn't used if we're running in PROD...
+
+// logic for this process is outlined in JIRA 138
+if (debugFlag) {
+    print "Transaction Type: " + transactionType_t;
+    print "Account Type: " + accountTypeKTOKD_t;
+    print "Customer Parent: " + customerParent_t;
+    print "Surcharge Exemption: " + string(surchargeExemption_t);
+    print "Silver: " + silver_t;
+    print "Copper: " + copper_t;
+    print "Aluminum: " + aluminium_t;
+    print "Price List Extension: " + string(extendCurrentListPrices_t);
+}
+
+//Check AutoRenewal functionality is switched on
+autoRenew = true; //initialize autoRenew
+autoRenewalFlag = util.getEnvironmentVariable("AutoRenewalProcess" + salesOrg_t, "");
+if (autoRenewalFlag <> "ENABLED") {
+    autoRenew = false;
+    if (debugFlag) {
+        print "EnvironmentVariables Data Table missing AutoRenewalProcess" + salesOrg_t + " value!!!!";
+    }
+    return false; //Do not proceed with autorenewal logic...Exit util function.
+}
+
+//  DSP, Sold To and Not part of a hierarchy (not a parent)
+autoRenew = (transactionType_t == "DSP") AND(accountTypeKTOKD_t == "Z001") AND(customerParent_t == "");
+//  Not exempt for Surcharges
+autoRenew = autoRenew AND(NOT surchargeExemption_t);
+//  Standard Metal Surcharge conditions
+autoRenew = autoRenew AND(silver_t == "standard") AND(copper_t == "standard") and(aluminium_t == "standard");
+//  Current List Prices ONLY (i.e. No list price extension)
+autoRenew = autoRenew AND(NOT extendCurrentListPrices_t);
+
+//  If OK so far then we'll loop thru the lines and if even 1 Material has a % then NO auto-renewal
+if (autoRenew) {
+    //NO NET PRICING
+    for line in transactionLine {
+        if (line.qqProductType_l <> "group") {
+            if (line.customDiscountType_l <> "percent") {
+                autoRenew = false;
+                if (debugFlag) {
+                    print "Line #: " + line.lineNumber_l + " Material: " + line.materialLineItem_l;
+                }
+                break;
+            }
+        }
+    }
+}
+
+//  Only now will we make the call for sales history...Check the last rolling 12 months for sales
+if ((autoRenew)) { //AND (find(autoApproveUnderSalesCustomerNumbers,customerNumber_t) == -1) ) {
+
+    underSalesString = util.getEnvironmentVariable("AutoRenewal" + salesOrg_t, "");
+    //  If there is no Global_Value for this Sales Org then no Agreements auto renew...
+    if ((underSalesString == "") OR(isnull(underSalesString))) {
+        autoRenew = FALSE;
+        if (debugFlag) {
+            print "EnvironmentVariables Data Table missing AutoRenewal" + salesOrg_t + " value!!!!";
+        }
+    } else { // Auto Renewal Interface
+        autoRenew = false; //Default autoRenew to false. Jira 514
+        histParms = dict("string");
+        put(histParms, "YYYYMMdd", "99991231"); // Hardcoded for auto renewal
+        SalesHistoryResults = commerce.customerSalesHistory(histParms);
+        response = get(SalesHistoryResults, "salesHistoryMessageBody");
+        messageType = get(SalesHistoryResults, "historyMessageType");
+        messageNumber = get(SalesHistoryResults, "historyMessageNumber"); //Jira 514
+        messageClass = get(SalesHistoryResults, "historyMessageClass"); //Jira 514
+        //Jira 514
+        if (debugFlag) {
+            print "Message Number: " + messageNumber + "MessageClass: " + messageClass;
+        }
+
+        if (messageType == "S") {
+            //Read Sales Data
+            xpathMatItemsMultiple = string[1];
+            xpathMatItemsMultiple[0] = "//SALES_HIST_DATA";
+            allMatItemsSalesD = readxmlmultiple(response, xpathMatItemsMultiple);
+            allMatItemsSalesArray = get(allMatItemsSalesD, xpathMatItemsMultiple[0]);
+            xpaths = string[2];
+            xpaths[0] = "//NetValue_YTD";
+            xpaths[1] = "//Currency";
+
+            for eachMatItemXML in allMatItemsSalesArray {
+                eachItem = readxmlsingle(eachMatItemXML, xpaths);
+                NetValueYTD = util.getStringDict(eachItem, xpaths[0], "");
+                Currency = util.getStringDict(eachItem, xpaths[1], currency_t);
+                if (Currency == currency_t) {
+                    sales = util.stringToFloat(NetValueYTD);
+                    print "Sales = " + string(sales);
+                }
+            }
+            underSales = util.stringToFloat(underSalesString);
+            if (sales < underSales) {
+                autoRenew = true;
+            }
+        } elif ((messageType == "E") AND(messageNumber == "002") AND(messageClass == "ZQTC_CPQ")) {
+            autoRenew = true;
+        }
+
+        //Get 12 month rolling sales from Json and compare to Env variable value for Sales org
+        // if YTD sales < 30k then autorenew
+    }
+
+    //  Always false for now because we don't have the interface that provides rolling 12 months sales
+    //  									-- dBo Haizlip
+
+}
+
+if (autoRenew) {
+    print "AUTO-RENEWAL!!! -- " + bs_id + " / " + customerNumber_t + " / " + customerName_t;
+}
+retBoo = autoRenew;
+
+return retBoo;

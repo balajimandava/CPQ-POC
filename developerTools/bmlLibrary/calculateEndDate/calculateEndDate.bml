@@ -1,0 +1,83 @@
+isDebug = TRUE;
+numDaysInMonthArr = integer[]{31,28,31,30,31,30,31,31,30,31,30,31};
+
+dateFormat = "yyyy-MM-dd HH:mm:ss";
+startStr = datetostr(start, dateFormat);
+
+startSplitArr = split(startStr, " ");
+startPartsArr = split(startSplitArr[0], "-");
+
+strMonth = atoi(startPartsArr[1]);
+strDate = atoi(startPartsArr[2]);
+startYear = atoi(startPartsArr[0]);
+
+addType = upper(type);
+
+monthItrArray = integer[];
+if(addType == "MONTHS") {
+	monthItrArray = range(num);
+} elif(addType == "YEARS") {
+	monthItrArray = range(num * 12);
+} elif(addType == "DAYS" AND num == 365) {
+	monthItrArray = range(12);
+}
+
+if(addType == "MONTHS" OR addType == "YEARS" OR (addType == "DAYS" AND num == 365)){
+	totalNumDays = 0;
+	isLastDayInMonth = false;
+	if(isleap(startYear) AND strMonth == 2 AND strDate == 29) {
+		isLastDayInMonth = true;
+	}elif(NOT(isleap(startYear)) AND strMonth == 2 AND strDate == 28) {
+		isLastDayInMonth = true;
+	}elif(strMonth <> 2 AND strDate == numDaysInMonthArr[strMonth - 1]) {
+		isLastDayInMonth = true;
+	}
+
+	isFirstDayInMonth = false;
+	if(strDate == 1) {
+		isFirstDayInMonth = true;
+	}
+
+	currentYear = startYear;
+	for eachMonth in monthItrArray {
+
+		if(isFirstDayInMonth) {
+			currMonth = (strMonth + eachMonth) % 12;
+		} elif(isLastDayInMonth) {
+			currMonth = (strMonth + eachMonth + 1) % 12;
+		} else {
+			currMonth = (strMonth + eachMonth) % 12;
+		}
+		
+		if(currMonth == 0) {
+			currMonth = 12;	
+		}
+		
+		if(currMonth == 1 AND eachMonth > 0) {
+			currentYear = currentYear + 1;
+		}
+		
+		if(isDebug){
+			print "currMonth";
+			print currMonth;
+			
+			print "numDaysInMonthArr[currMonth - 1]";
+			print numDaysInMonthArr[currMonth - 1];
+		}
+		
+		if(currMonth == 2 AND isleap(currentYear)) {
+			totalNumDays = totalNumDays + 29;
+		} else {
+			totalNumDays = totalNumDays + numDaysInMonthArr[currMonth - 1];
+		}
+		
+		if(isDebug){
+			print "totalNumDays";
+			print totalNumDays;
+		}
+	}
+} elif(addType == "DAYS") {
+	totalNumDays = num;
+}
+
+return adddays(start, totalNumDays - 1);

@@ -1,0 +1,658 @@
+/** 
+@name Build Bid Manager Model BOM	
+@api buildBidManagerModelBOM	
+@param selectedDocNumber String	
+@param configExtraInfo String	
+@param modelPath String	
+@param bsId String	
+@function Boolean u_logJson(String category, Integer level, Json jsonObject, String label)	
+@function Boolean u_logString(String category, Integer level, String message, String label)	
+@function Json enableDebugLog()	
+@function Json getSiteSpecificData(String siteID)	
+@function Json parseBidManBOM(String bom)	
+@function String getSupplierCompanyName()	
+@return Json	
+@revision	
+Rev. Date |Developer            |Notes / Comments	
+----------|---------------------|-------------------------------------------------------------------------	
+2018-02-08|Tat.Leung            |	
+2018-04-26|Michael.Yeung        |	
+2018-06-26|michael.yeung        |   Adding child lines base on BOM data	
+2018-07-18|Harshit Mehta	| Adding header in urldata function	
+2018-10-04|michael.yeung        | Update external configurator save action to group child line items with the same material items as one commerce line item. 	
+2020-03-19|Atul Jain		|Removed commented code, and added debug mode to print statements.	
+2020-03-31|Dhananjay		|PSD User Story CPQ-496: Added logic to populate Lead Time.	
+2020-04-20|Dhananjay		|Setting List Price and Cost for PSD items.	
+2020-05-04|Dhananjay		|Setting isPlaceholder_l for PSD items.0 for normal case, 1 for prelim case	
+2020-05-22|Dhananjay		|Modified the logic for exchange rates logic to handle the old quotes	
+2020-05-22|Dhananjay		|Modified the to set the model level attributes.	
+2020-08-24|Shardul S            |Update for Bussmann project 51951	
+2020-10-28|Dhananjay		|CPQ-2468: PSD - populating  Rounding and MOQ for Configured Items	
+2021-01-04|Nithin               |CPQ-3617 : Added CPI mapping	
+2021-01-28|Praveen Sahu 	| Remove the logic to combine the same item and its quantity as one and removed one for loop and merge in other existing loop 	
+2021-03-04|Anita		|CPQ-4357 Added Price included check
+2021-04-14|Dhananjay		|CPQ-4923 : Identifier when API Call is for a Flat Pack Item
+2021-04-16|Ankit		|INC000014407621 - changes added to remove formula which was updating wrong line items on reconfig 
+2021-04-20|Anita		|CPQ-4938 Added rounding for multiplier
+2021-04-26|Praveen		|CPQ-4998 Adding code to set Configuration Type attribute for child items
+2021-06-09|Shardul		|CPQ-5678 Added PQSERV condition to get qty from BOM
+2021-06-28|Shardul		|CPQ-5778 Set config notes for ES-EMEA (PQSERV) configurator
+*/	
+// enable logging	
+debugMode = false;	
+if(debugMode){	
+	print util.enableDebugLog();	
+}	
+logStatus = util.u_logString("CFG_EXTERNAL", 4, selectedDocNumber, "selectedDocNumber");	
+logStatus = util.u_logString("CFG_EXTERNAL", 4, configExtraInfo, "configExtraInfo");	
+logStatus = util.u_logString("CFG_EXTERNAL", 4, modelPath, "modelPath");	
+logStatus = util.u_logString("CFG_EXTERNAL", 4, bsId, "bsId");	
+
+
+company = util.getSupplierCompanyName();	
+headers = dict("string");	
+//GET API Username Password	
+user = util.getSiteSpecificData(company);	
+login = jsonget(user, "FieldName", "string", "");	
+password = jsonget(user, "Value1", "string", "");	
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));	
+put(headers, "Content-Type", "application/json");	
+// get latest external config data	
+transactionRestUrl = "https://" + company + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction/" + bsId + "?fields=externalConfigData_t,externalConfigBOM_t,externalConfigVCData_t,qqBusinessLineForSalesOrg_t,newExchangeRate_t,currency_t,distributionChannel_t,salesOrg_t,transactionType_t,materialMasterPayload_t,materialMasterBOMPayload_t";	
+quoteData = json();
+if(modelPath == "faltpackBulkAPI"){	
+	quoteData = json(configExtraInfo);
+}else{
+	quoteResponse = urldata(transactionRestUrl, "get",headers);	
+	status = get(quoteResponse, "Status-Code");	
+	if (atoi(status) >= 300) {	
+	    throwerror("Cannot find transaction with bs_id = " + bsId, false);	
+	}	
+	quoteData = json(get(quoteResponse, "Message-Body"));
+}
+//print "Quote Data is";
+//print quoteData;
+externalConfigBOM = jsonget(quoteData, "externalConfigBOM_t");	
+externalConfigData = jsonget(quoteData, "externalConfigData_t");	
+externalConfigVCData = jsonget(quoteData, "externalConfigVCData_t");	
+businessLineForSalesOrg = jsonget(quoteData, "qqBusinessLineForSalesOrg_t");	
+distributionChannel = jsonget(quoteData, "distributionChannel_t");	
+salesOrg = jsonget(quoteData, "salesOrg_t");	
+transactionTypeJSON = jsonget(quoteData, "transactionType_t","json",json());	
+transactionType = jsonget(transactionTypeJSON, "value","string","");	
+materialMasterPayload = "";	
+materialMasterBOMPayload  = "";	
+if(NOT(isnull(jsonget(quoteData, "materialMasterPayload_t")))){	
+	materialMasterPayload = jsonget(quoteData, "materialMasterPayload_t");	
+}	
+if(NOT(isnull(jsonget(quoteData, "materialMasterBOMPayload_t")))){	
+	materialMasterBOMPayload = jsonget(quoteData, "materialMasterBOMPayload_t");	
+}
+/*if(modelPath == "faltpackBulkAPI"){	
+	externalConfigBOM = configExtraInfo;
+	materialMasterPayload = "";
+	materialMasterBOMPayload  = "";
+}*/
+quoteCurrency = jsonget(quoteData, "currency_t","json",json());	
+currency = jsonget(quoteCurrency, "value","string","USD");	
+exchangeRate = 1.0;	
+if(NOT(isnull(jsonget(quoteData, "newExchangeRate_t")))){	
+	exchangeRate = jsonget(quoteData, "newExchangeRate_t","float",1.0);	
+}else{	
+	inputData = dict("anytype");	
+	put(inputData, "baseCurrency","USD");	
+	put(inputData, "targetCurrency",currency);	
+	exchangeRate = util.getExchangeRate(inputData);	
+}	
+//exchangeRate = jsonget(quoteData, "newExchangeRate_t","float",1.0);	
+useUMREZ = util.checkBizGroupCondition("useUMREZ", transactionType, salesOrg);	
+result = json();	
+jsonput(result, "status", "save");	
+jsonput(result, "invocationAction", "Create Transaction");	
+// Model Configuration	
+jsonput(result, "invocationId", "36292358"); // action	
+jsonput(result, "priceBookVarName", "_default_price_book");	
+// build child lines	
+childrenLines = JSONArray();	
+bomXML = "";	
+if( len(externalConfigBOM) >  0 ) {	
+	bomXML  = replace(externalConfigBOM, "&lt;", "<");	
+	bomXML = replace(bomXML, "&gt;", ">");	
+}	
+if(bsId == "147203XXX")	
+{	
+bomXML = "<BOM> <ExternalSystem SubmittedBy=\"Krzysztof Tukaj\" Product=\"\" SaveDateUTC=\"6/30/2021 10:43:27 AM\"> <ProductDescription>Std Agreement Ops Training</ProductDescription> <CatalogNumber>STTRNINGSTD</CatalogNumber> <MaterialNumber>STTRNINGSTD</MaterialNumber> <Quantity>2</Quantity> <productCode>471</productCode> </ExternalSystem> <Notes><Note>SN_1</Note></Notes> <ConfigurationType>FlatPack</ConfigurationType> </BOM>";	
+}	
+bomJSON = json();	
+if(bomXML <> ""){	
+	bomJSON = util.parseBidManBOM(bomXML);	
+}	
+print "bomJSON  is";	
+print bomJSON;	
+//Getting the material/catalog Numbers from BOM XML	
+materialNumbers = jsonarray();	
+if(jsonpathcheck(bomJSON,"$.children[*].catalogNumber")){	
+	materialNumbers = jsonpathgetmultiple(bomJSON, "$.children[*].catalogNumber");	
+}else{	
+	materialNumber = jsonget(bomJSON,"catalogNumber","string","");	
+	jsonarrayappend(materialNumbers,materialNumber);	
+}	
+//Getting material details from MAT01 table for all the material/catalog Numbers in single 	
+inputJson = json();	
+//jsonarrayappend(materialNumbers, "PLE225MC05DP");	
+jsonput(inputJson,"materials",materialNumbers);	
+jsonput(inputJson,"salesOrg",salesOrg);	
+jsonput(inputJson,"distributionChannel",distributionChannel);	
+mat01Details = util.getMAT01DetailsForMultipleItems(inputJson);	
+childrenJsonArray= jsonget(bomJSON,"children","jsonarray",jsonarray());	
+numChildren = jsonarraysize(childrenJsonArray);	
+materialNumberArr = string[];	
+materialQtyDict = dict("integer");	
+materialItemIdDict = dict("string");	
+materialListPriceDict = dict("float");	
+materialCostDict = dict("float");	
+completeConfigDict = dict("string"); 	
+//Dhana: Added to capture the lead time calculation required data	
+brands_array = string[];	
+higherLevelProducts_array = string[];	
+leadTimeIndicators_array = string[];	
+keysToSetValues= dict("string");	
+modelLevelfields = json(); //This json is to set the line level attributes info with Bidman response data	
+leadTimeData = dict("string");//util.getLeadTime(inputData);	
+configurationType = jsonget(bomJSON, "configurationType","string","");
+if (numChildren > 0 ) {	
+    loopRange = range(numChildren);	
+		
+    for each in loopRange {	
+        childBOM = jsonarrayget(childrenJsonArray, each, "json" );	
+        curMaterialNumber = jsonget(childBOM, "catalogNumber");	
+		curQty = jsonget(childBOM, "quantity");	
+        curItemId = jsonget(childBOM, "itemID");	
+        takeoffCode = jsonget(childBOM, "takeoffCode","string","");	
+        completeConfig = jsonget(bomJSON, "completeConfig","string","Y");	
+		listPrice=0.0;	
+		cost=0.0;	
+        //As we are not getting enough data for the below field, hardcoded for testing.	
+        //Lead Time is applicable for PSD	
+        if(businessLineForSalesOrg == "PSD"){	
+	        productLine = jsonget(bomJSON, "productLine","string","");//"Transformers";	
+	        higherProductLine = "Transformers";	
+			brand = jsonget(bomJSON, "brandCode","string","");//"P10";	
+			leadTimeIndicator = jsonget(bomJSON, "leadTimeIndicator","string","");//"B";	
+			//put(keysToSetValues,curMaterialNumber,higherProductLine+brand+leadTimeIndicator);	
+			put(keysToSetValues,curMaterialNumber,brand+leadTimeIndicator);	
+			//append(higherLevelProducts_array,higherProductLine);	
+			append(brands_array,brand);	
+			append(leadTimeIndicators_array,leadTimeIndicator);	
+			
+			listPrice = jsonget(childBOM, "listPrice","float",0.0)*exchangeRate;	
+			cost = jsonget(childBOM, "cost","float",0.0)*exchangeRate;	
+				
+			put(materialListPriceDict,curMaterialNumber,listPrice);	
+			put(materialCostDict,curMaterialNumber,cost);	
+			
+		}	
+		if(takeoffCode == "BUSQSCP")	
+		{	
+			listPrice = jsonget(childBOM, "listPrice","float",0.0)*exchangeRate;	
+			cost = jsonget(childBOM, "cost","float",0.0)*exchangeRate;	
+				
+			put(materialListPriceDict,curMaterialNumber,listPrice);	
+			put(materialCostDict,curMaterialNumber,cost);	
+		}	
+		put(completeConfigDict,curMaterialNumber,completeConfig);	
+				
+		//Commented the below logic of combining the duplicate items as it is causing multiple issues in SAP	
+		/*if( findinarray(materialNumberArr, curMaterialNumber) > -1) {	
+            // add duplicate material item Number lines quantity together	
+            if( not isnull(curQty) and isnumber(curQty)) {	
+                qty = atoi(curQty);	
+                existingQty = get(materialQtyDict, curMaterialNumber);	
+                put(materialQtyDict, curMaterialNumber, qty + existingQty );	
+            } else {	
+                existingQty = get(materialQtyDict, curMaterialNumber);	
+                put(materialQtyDict, curMaterialNumber, 1 + existingQty );	
+            }	
+        } else {	
+            // material item number not exist yet, add to array	
+            append(materialNumberArr, curMaterialNumber);	
+            put(materialItemIdDict, curMaterialNumber, curItemId);	
+            if( not isnull(curQty) and isnumber(curQty)) {	
+                qty = atoi(curQty);	
+                put(materialQtyDict, curMaterialNumber, qty );	
+            } else {	
+                put(materialQtyDict, curMaterialNumber, 1 );	
+            }	
+        }*/	
+			
+		//Taken out the required piece of code from the above commented code to capture the quantity	
+		append(materialNumberArr, curMaterialNumber);			
+		put(materialItemIdDict, curMaterialNumber, curItemId);	
+			
+        if( not isnull(curQty) and isnumber(curQty)) {	
+            qty = atoi(curQty);	
+            put(materialQtyDict, curMaterialNumber, qty );	
+        } else {	
+                put(materialQtyDict, curMaterialNumber, 1 );	
+        }	
+			
+		child = JSON();	
+        jsonput(child,"id", curItemId);	
+        jsonput(child,"parentId", selectedDocNumber);	
+        jsonput(child,"partNumber", "EatonMat1");	
+		if( not isnull(curQty) and isnumber(curQty)) {	
+            qty = atoi(curQty);	
+			jsonput(child,"quantity", string(qty));	
+		}else{	
+			jsonput(child,"quantity", "1");	
+		}		
+     //  print materialListPriceDict;	
+	eachLinefields= json();//This json is to set the line level attributes info with Bidman response data	
+	if(containskey(materialListPriceDict,curMaterialNumber)){	
+		//listPrice = get(materialListPriceDict, curMaterialNumber);	
+		jsonput(eachLinefields, "oldListPrice_l", listPrice);	
+	}	
+		
+	if(containskey(materialCostDict,curMaterialNumber)){	
+		//cost = get(materialCostDict, curMaterialNumber);	
+		jsonput(eachLinefields, "cost_l", cost);	
+	}		
+		
+	//if(containskey(completeConfigDict,curMaterialNumber)){	
+		//completeConfig = get(completeConfigDict, curMaterialNumber);	
+		if(completeConfig == "Y"){	 	
+			jsonput(eachLinefields, "lineItemStatus_l", "completeConfiguration");	
+		}else{	
+			jsonput(eachLinefields, "lineItemStatus_l", "incompleteConfiguration");	
+		}	
+	//}	
+		
+	if(containskey(leadTimeData,curMaterialNumber)){	
+		leadTime = get(leadTimeData,curMaterialNumber);	
+		jsonput(eachLinefields, "qqLeadTime_l", leadTime);	
+	}	
+	// Start - Project 52469 - Resi - Setting child item as mandatory to avoid deleting child item separately	
+	jsonput(eachLinefields,"_is_line_item_mandatory",true);	
+	// End - Project 52469 - Resi - Setting child item as mandatory to avoid deleting child item separately		
+		
+	//Setting minimumOrderQuantity and roundingQuantity from MAT01 tabl	
+	mat01Values = jsonget(mat01Details,curMaterialNumber,"json",json());	
+	minOrderQty = jsonget(mat01Values,"AUMNG","float",0.0);	
+	roundingQty = jsonget(mat01Values,"SCMNG","float",0.0);	
+	roundingProfil = jsonget(mat01Values,"RDPRF","string","");	
+	if(useUMREZ){	
+		roundingQty = jsonget(mat01Values,"UMREZ","float",0.0);	
+	}	
+	jsonput(eachLinefields, "minimumOrderQuantity_l", integer(minOrderQty));	
+	jsonput(eachLinefields, "roundingQuantity_l", integer(roundingQty));	
+	jsonput(eachLinefields, "roundingProfile_l", roundingProfil);	
+	//Adding this code to set the Configuration Type for child items 
+	jsonput(eachLinefields, "configurationType_l", configurationType);
+		
+	jsonput(child,"fields", eachLinefields);	
+		
+    /*Testing to pass the line items values directly	
+	fields= json();	
+	jsonput( fields, "qqNotes_l", "This is From BOM Rule Bid Man Util");	
+    jsonput(child,"fields", fields);*/	
+    jsonarrayappend(childrenLines, child);	
+ 	
+    			
+}	
+	//Input Dict to get the Lead Time for all the items	
+	inputData = dict("anytype");	
+	put(inputData ,"brands",brands_array);	
+	//put(inputData ,"higherLevelProducts",higherLevelProducts_array);	
+	put(inputData ,"leadTimeIndicators",leadTimeIndicators_array);	
+	put(inputData ,"materialNumbers",materialNumberArr);	
+	put(inputData ,"keysToSetValues",keysToSetValues);	
+	//put(inputData ,"standardItems",false);	
+		
+	//Setting the lead time to each item	
+		
+		
+	// Merged this loop to the above for loop and set all the items there as part of remove the logic of combining the same items	
+    /*for eachMaterialNum in materialNumberArr {	
+			
+		child = JSON();	
+        jsonput(child,"id", get(materialItemIdDict, eachMaterialNum));	
+        jsonput(child,"parentId", selectedDocNumber);	
+        jsonput(child,"partNumber", "EatonMat1");	
+        jsonput(child,"quantity", string(get(materialQtyDict, eachMaterialNum)) );	
+     //  print materialListPriceDict;	
+		eachLinefields= json();//This json is to set the line level attributes info with Bidman response data	
+		if(containskey(materialListPriceDict,eachMaterialNum)){	
+			listPrice = get(materialListPriceDict, eachMaterialNum);	
+			jsonput(eachLinefields, "oldListPrice_l", listPrice);	
+		}	
+		
+		if(containskey(materialCostDict,eachMaterialNum)){	
+			cost = get(materialCostDict, eachMaterialNum);	
+			jsonput(eachLinefields, "cost_l", cost);	
+		}	
+		
+		
+		if(containskey(completeConfigDict,eachMaterialNum)){	
+			completeConfig = get(completeConfigDict, eachMaterialNum);	
+			if(completeConfig == "Y"){	 	
+			jsonput(eachLinefields, "lineItemStatus_l", "completeConfiguration");	
+			}else{	
+				jsonput(eachLinefields, "lineItemStatus_l", "incompleteConfiguration");	
+			}	
+		}	
+		
+		if(containskey(leadTimeData,eachMaterialNum)){	
+			leadTime = get(leadTimeData,eachMaterialNum);	
+			jsonput(eachLinefields, "qqLeadTime_l", leadTime);	
+		}	
+		// Start - Project 52469 - Resi - Setting child item as mandatory to avoid deleting child item separately	
+		jsonput(eachLinefields,"_is_line_item_mandatory",true);	
+		// End - Project 52469 - Resi - Setting child item as mandatory to avoid deleting child item separately		
+		
+		//Setting minimumOrderQuantity and roundingQuantity from MAT01 tabl	
+		mat01Values = jsonget(mat01Details,eachMaterialNum,"json",json());	
+		minOrderQty = jsonget(mat01Values,"AUMNG","float",0.0);	
+		roundingQty = jsonget(mat01Values,"SCMNG","float",0.0);	
+		if(useUMREZ){	
+			roundingQty = jsonget(mat01Values,"UMREZ","float",0.0);	
+		}	
+		jsonput(eachLinefields, "minimumOrderQuantity_l", integer(minOrderQty));	
+		jsonput(eachLinefields, "roundingQuantity_l", integer(roundingQty));	
+		
+		jsonput(child,"fields", eachLinefields);	
+		
+       		
+        jsonarrayappend(childrenLines, child);	
+ 	
+    }*/	
+}	
+//else{	
+	//Setting the Model Level Information	
+	takeoffCode = jsonget(bomJSON, "takeoffCode","string","");	
+	curMaterialNumber = jsonget(bomJSON, "catalogNumber","string","");	
+	listPrice = jsonget(bomJSON, "listPrice","float",0.0);	
+	cost = jsonget(bomJSON, "cost","float",0.0);	
+	isPlaceholder = jsonget(bomJSON, "isPlaceholder","string","0");	
+	completeConfig = jsonget(bomJSON, "completeConfig","string","");	
+	//itemDetails = jsonget(bomJSON, "itemDetails","string","");	
+	//productSpecific = jsonget(bomJSON, "productSpecific","string","");	
+	//specRFQInfo = jsonget(bomJSON, "specRFQInfo","string","");	
+	//performanceData = jsonget(bomJSON, "performanceData","string","");	
+	productHierarchy = jsonget(bomJSON, "productHierarchy","string","");	
+	leadTimeIndicator = jsonget(bomJSON, "leadTimeIndicator","string","");	
+	plantCode = jsonget(bomJSON, "plantCode","string","");	
+	CPIConfig = jsonget(bomJSON, "CPIConfig","string",""); //CPQ-3617	
+	PriceIncluded = jsonget(bomJSON, "PriceIncluded","string","false"); //CPQ-3669 	
+	PrintOnOutput = jsonget(bomJSON, "PrintOnOutput","string","true"); //CPQ-3669 	
+	catalogNumber = jsonget(bomJSON, "SAPCatalogNumber","string",""); 	
+	itemShortDescription = jsonget(bomJSON, "productID","string",""); 	
+	itemCategory = jsonget(bomJSON, "itemCategory","string",""); 
+	quantity = jsonget(bomJSON, "quantity","string","1");
+	
+	//notes = jsonget(bomJSON, "notes","string",""); 	
+	jsonput(modelLevelfields, "qqCatalogNumber_l", catalogNumber);	
+	jsonput(modelLevelfields, "materialLineItemShortDescription_l", itemShortDescription);
+	print bsId+""+selectedDocNumber+""+configurationType;
+        if((selectedDocNumber == "-1" AND configurationType == "Standard") OR takeoffCode == "PQSERV") //Added PQSERV condition by Shardul for CPQ-5678
+	{
+		jsonput(modelLevelfields, "quantity_l", quantity);
+	}
+	jsonput(modelLevelfields, "configurationType_l", configurationType);
+	//INC000014407621 - changes added to remove formula which was updating wrong line items on reconfig - START
+	if(externalConfigBOM <> ""){	
+			jsonput(modelLevelfields, "externalConfigBOM_l", externalConfigBOM);
+	}
+	if(externalConfigData<> ""){	
+			jsonput(modelLevelfields, "externalConfigData_l", externalConfigData);
+	}
+	if(externalConfigVCData<> ""){	
+			jsonput(modelLevelfields, "externalConfigVCData_l", externalConfigVCData);
+	}
+	//INC000014407621 - changes added to remove formula which was updating wrong line items on reconfig - END
+	//Setting minimumOrderQuantity and roundingQuantity from MAT01 table	
+	mat01Values = jsonget(mat01Details,curMaterialNumber,"json",json());	
+	minOrderQty = jsonget(mat01Values,"AUMNG","float",0.0);	
+	roundingQty = jsonget(mat01Values,"SCMNG","float",0.0);	
+	roundingProfil = jsonget(mat01Values,"RDPRF","string","");	
+	if(useUMREZ){	
+		roundingQty = jsonget(mat01Values,"UMREZ","float",0.0);	
+	}	
+	jsonput(modelLevelfields, "minimumOrderQuantity_l", integer(minOrderQty));	
+	jsonput(modelLevelfields, "roundingQuantity_l", integer(roundingQty));	
+	jsonput(modelLevelfields, "roundingProfile_l", roundingProfil);	
+		
+	inputValues = dict("anytype");	
+	put(inputValues ,"inputXML",bomXML);	
+	print bomXML;
+	bom_json_obj = util.xmlToJSONConverter(inputValues);	
+	itemDetails = jsonget(bom_json_obj, "ItemDetail_outputDocStr","string","");	
+	productSpecific = jsonget(bom_json_obj , "ProductSpecific_outputDocStr","string","");	
+	specRFQInfo = jsonget(bom_json_obj , "SpecRFQ_Info_outputDocStr","string","");	
+	performanceData = jsonget(bom_json_obj , "PerformanceData_outputDocStr","string","");	
+	notes = jsonget(bom_json_obj, "Notes_outputDocStr","string",""); 	
+	productSpecific_jsonstr = jsonget(bom_json_obj , "ProductSpecific","string","");	
+	notesCount = 0;	
+	if(productSpecific_jsonstr <> ""){	
+		productSpecific_json = json(productSpecific_jsonstr);	
+		engineeringDesignStatus = jsonget(productSpecific_json,"EngineeringDesignStatus","string","");	
+		jsonput(modelLevelfields, "engineeringDesignStatus_l", engineeringDesignStatus);	
+	}	
+	/*ProductSpecificArray = split(productSpecific,"@#@");	
+	for ProductSpec in ProductSpecificArray{	
+	    	ProductSpecArray = split(ProductSpec,"$,$");	
+			
+		if(sizeofarray(ProductSpecArray)>1 AND NOT(isnull(ProductSpecArray[1])) AND findinarray(ProductSpecArray,"EngineeringDesignStatus")<> -1){	
+			
+		jsonput(modelLevelfields, "engineeringDesignStatus_l", ProductSpecArray[1]);	
+		}	
+	}*/	
+	if(completeConfig == "Y"){	 	
+		jsonput(modelLevelfields, "lineItemStatus_l", "completeConfiguration");	
+	}else{	
+		jsonput(modelLevelfields, "lineItemStatus_l", "incompleteConfiguration");	
+	}	
+	// for QSCP Bussman Line Items	
+		
+	if(takeoffCode == "BUSQSCP")	
+	{	
+		listPriceQSCP = jsonget(bomJSON, "listPrice","float",0.0);	
+		costQSCP = jsonget(bomJSON, "cost","float",0.0);	
+		qtyQSCP = jsonget(bomJSON, "quantity");	
+		desigQSCP = jsonget(bomJSON, "designation");	
+		jsonput(modelLevelfields, "oldListPrice_l", listPriceQSCP*exchangeRate);	
+		jsonput(modelLevelfields, "cost_l", costQSCP*exchangeRate);	
+		if(selectedDocNumber == "-1" AND configurationType == "Standard")	
+	    	{
+			jsonput(modelLevelfields, "quantity_l", qtyQSCP );	
+		}
+		jsonput(modelLevelfields, "designation_l", desigQSCP);	
+		jsonput(modelLevelfields, "customerPartNumber_l", desigQSCP); //Added for 3230	
+	}	
+		
+		
+	//PSD models related Attributes	
+	if(businessLineForSalesOrg == "PSD"){	
+		productLine = jsonget(bomJSON, "productLine","string","");//"Transformers";	
+		higherProductLine = "Transformers";	
+		//productSpecific = jsonget(bomJSON, "productSpecific","string","");	
+		brand = jsonget(bomJSON, "brandCode","string","");//"P10";	
+		leadTimeIndicator = jsonget(bomJSON, "leadTimeIndicator","string","");//"B";	
+		//append(higherLevelProducts_array,higherProductLine);	
+		append(brands_array,brand);	
+		append(leadTimeIndicators_array,leadTimeIndicator);	
+		append(materialNumberArr, curMaterialNumber);	
+		//put(keysToSetValues,curMaterialNumber,higherProductLine+brand+leadTimeIndicator);	
+		put(keysToSetValues,curMaterialNumber,brand+leadTimeIndicator);	
+		jsonput(modelLevelfields, "oldListPrice_l", listPrice*exchangeRate);	
+		jsonput(modelLevelfields, "cost_l", cost*exchangeRate);	
+		jsonput(modelLevelfields, "isPlaceholder_l", isPlaceholder);	
+		jsonput(modelLevelfields, "itemDetails_l", itemDetails);	
+		jsonput(modelLevelfields, "productSpecificInfo_l", productSpecific);	
+		jsonput(modelLevelfields, "specRFQInformation_l", specRFQInfo);	
+		jsonput(modelLevelfields, "performanceData_l", performanceData);			
+		jsonput(modelLevelfields, "configNotes_l", notes);	
+		jsonput(modelLevelfields, "productHierarchy_l", productHierarchy);	
+		jsonput(modelLevelfields, "leadTimeIndicator_l", leadTimeIndicator);	
+		jsonput(modelLevelfields, "plant_l", plantCode);	
+		jsonput(modelLevelfields, "brand_l", brand);
+		jsonput(modelLevelfields, "itemCategory_l", itemCategory);
+		
+		if(materialMasterPayload <> ""){	
+			jsonput(modelLevelfields, "materialMasterPayload_l", materialMasterPayload);
+		}
+		if(materialMasterBOMPayload  <> ""){
+			jsonput(modelLevelfields, "materialMasterBOMPayload_l", materialMasterBOMPayload );
+		}
+		jsonput(modelLevelfields, "CPIConfig_l", CPIConfig);	
+		jsonput(modelLevelfields, "printOnOutput_l", lower(PrintOnOutput));	
+		jsonput(modelLevelfields, "priceIncluded_l", lower(PriceIncluded));	
+			
+			
+		if(brand <> "")	
+		{	
+			approvalDrawingLeadTime = "Consult Factory";	
+			recordSet = bmql("select DISTINCT DaysOrWeeks from APrlDrwLeadTime where Brand = $brand");	
+			for record in recordSet	
+			{	
+			 approvalDrawingLeadTime = get(record ,"DaysOrWeeks");	
+			 break;	
+			}	
+		jsonput( modelLevelfields, "approvalDrawingLeadTime_l", approvalDrawingLeadTime);		
+		}	
+		//populating the lead time for PSD Items	
+		inputData = dict("anytype");	
+		put(inputData ,"brands",brands_array);	
+		//put(inputData ,"higherLevelProducts",higherLevelProducts_array);	
+		put(inputData ,"leadTimeIndicators",leadTimeIndicators_array);	
+		put(inputData ,"materialNumbers",materialNumberArr);	
+		put(inputData ,"keysToSetValues",keysToSetValues);	
+		//put(inputData ,"standardItems",false);	
+		leadTimeData = util.getLeadTime(inputData);	
+		if(containskey(leadTimeData,curMaterialNumber)){	
+			leadTime = get(leadTimeData,curMaterialNumber);	
+			jsonput( modelLevelfields, "qqLeadTime_l", leadTime);	
+		}	
+		// Start --- Adding this code for Total Owning Cost -- to set field values from BOM 	
+		if(productSpecific_jsonstr <> ""){	
+			productSpecific_json = json(productSpecific_jsonstr);	
+			noLoadNum = jsonget(productSpecific_json,"NoLoadWatts","string","0.0");	
+			loadNum = jsonget(productSpecific_json,"LoadWatts","string","0.0");	
+			noLoadCur = jsonget(productSpecific_json,"NoLoadLossDollars","string","0.0");	
+			loadCur = jsonget(productSpecific_json,"LoadLossDollars","string","0.0");	
+			noLoadNum_int = 0;	
+			loadNum_int = 0;	
+			if(noLoadNum <> ""){	
+				noLoadNum_int = integer(atof(noLoadNum));	
+			}	
+			if(loadNum <> ""){	
+				loadNum_int = integer(atof(loadNum));	
+			}	
+			jsonput(modelLevelfields, "noLoadNum_l", noLoadNum_int);	
+			jsonput(modelLevelfields, "loadNum_l", loadNum_int);	
+			jsonput(modelLevelfields, "noLoadCur_l", noLoadCur);	
+			jsonput(modelLevelfields, "loadCur_l", loadCur);	
+		}	
+			
+		/*ProductSpecificArray = split(productSpecific,"@#@");	
+		for ProductSpec in ProductSpecificArray{	
+	    		ProductSpecArray = split(ProductSpec,"$,$");	
+			if(sizeofarray(ProductSpecArray)>1 AND NOT(isnull(ProductSpecArray[1])) AND findinarray(ProductSpecArray,"NoLoadWatts")<> -1){	
+				jsonput(modelLevelfields, "noLoadNum_l", ProductSpecArray[1]);	
+			}elif(sizeofarray(ProductSpecArray)>1 AND NOT(isnull(ProductSpecArray[1])) AND findinarray(ProductSpecArray,"LoadWatts")<> -1){	
+				jsonput(modelLevelfields, "loadNum_l", ProductSpecArray[1]);	
+			}elif(sizeofarray(ProductSpecArray)>1 AND NOT(isnull(ProductSpecArray[1])) AND findinarray(ProductSpecArray,"NoLoadLossDollars")<> -1){	
+				jsonput(modelLevelfields, "noLoadCur_l", ProductSpecArray[1]);	
+			}elif(sizeofarray(ProductSpecArray)>1 AND NOT(isnull(ProductSpecArray[1])) AND findinarray(ProductSpecArray,"LoadLossDollars")<> -1){	
+				jsonput(modelLevelfields, "loadCur_l", ProductSpecArray[1]);	
+			}	
+			// End --- Total Owning Cost -- to set field values from BOM	
+		}*/	
+			
+		//Multiplier, Division Minimum  and Sales Floor from LPM data	
+		lmp_jsonStr = jsonget(bom_json_obj,"LPM","string","");	
+		multiplier = "";
+		salesFloorMultiplier = "";
+		if(lmp_jsonStr <> ""){	
+			lmp_json = json(lmp_jsonStr);
+			if(lower(PriceIncluded) == "true"){					// CPQ-4357  Added Price included check to set Multiplier, Salesfloor and Override flag
+				multiplier = "1";
+				salesFloorMultiplier = "1";
+				jsonput(modelLevelfields, "overrideMultiplier_l", true);
+			}else{
+				multiplier = string(round(atof(jsonget(lmp_json,"Multiplier","string","0.0")),3));				//CPQ-4938 roundoff
+				salesFloorMultiplier = string(round(atof(jsonget(lmp_json,"Sales Floor","string","0.0")),3));	//CPQ-4938 roundoff
+			}	
+			divisionMinimum = string(round(atof(jsonget(lmp_json,"Division Minimum","string","0.0")),3));		//CPQ-4938 roundoff
+			jsonput(modelLevelfields, "multiplier_l", multiplier);	
+			jsonput(modelLevelfields, "disctrictMinimumMultiplier_l", divisionMinimum);	
+			jsonput(modelLevelfields, "salesFloorMultiplier_l", salesFloorMultiplier);	
+			DivMin = cost*exchangeRate*atof(divisionMinimum);	
+			if((listPrice*exchangeRate*atof(multiplier)*atof(salesFloorMultiplier)) < DivMin )	
+			{	
+			jsonput(modelLevelfields, "salesFloor_l", DivMin);	
+			}	
+			else{	
+            salesFloor = listPrice*exchangeRate*atof(multiplier)*atof(salesFloorMultiplier);	
+			jsonput(modelLevelfields, "salesFloor_l", salesFloor);	
+			}	
+			jsonput(modelLevelfields, "divisionMinimum_l", DivMin);	
+				
+				
+		}	
+			
+				
+	}	
+	//Added by Shardul for Bussmann project 51951	 //Added ES-EMEA as part of PQSERV 
+	if(businessLineForSalesOrg == "BUSSMANN" OR businessLineForSalesOrg == "ES-EMEA"){	
+		jsonput(modelLevelfields, "configNotes_l", notes);	
+	}	
+		
+//}	
+configDataXml = "";	
+if( len(externalConfigBOM) >  0 ) {	
+	configDataXml  = replace(externalConfigBOM, "&lt;", "<");	
+	configDataXml = replace(configDataXml, "&gt;", ">");	
+}	
+takeOffCode = "";	
+startTakeOffCodeAttr = find(configDataXml, "<TakeoffCode>");	
+if( startTakeOffCodeAttr > -1 ) {	
+	startTakeOffCodeValue = find(configDataXml, ">", startTakeOffCodeAttr);	
+	endTakeOffCodeValue = find(configDataXml, "<", startTakeOffCodeValue+3);	
+	takeOffCode = subString(configDataXml, startTakeOffCodeValue + 1, endTakeOffCodeValue);	
+}	
+cfgExtraInfo = json();	
+jsonput( cfgExtraInfo, "configHeaderId", takeOffCode);	
+// build model line	
+modelLine = JSON();	
+jsonput(modelLine, "configExtraInfo", cfgExtraInfo);	
+//jsonput(modelLine, "_config_extra_info ", cfgExtraInfo);	
+jsonput(modelLine, "partNumber", "test");	
+jsonput(modelLine, "quantity", 1);	
+jsonput(modelLine, "id", selectedDocNumber);	
+jsonput(modelLine,"fields", modelLevelfields);	
+if( numChildren > 0) {	
+    jsonput(modelLine, "children", childrenLines);	
+}/*else{	
+	jsonput(modelLine,"fields", fields);	
+	//print "111";	
+}*/	
+if(modelPath == "faltpackBulkAPI"){	
+	fieldsJson = json();	
+	jsonput(fieldsJson,"fields", modelLevelfields);	
+	//print "fieldsJson for flatpack is";
+	//print fieldsJson;
+	//print modelLevelfields;
+	return modelLevelfields;	
+}	
+jsonput(result, "modelLine", modelLine);	
+logStatus = util.u_logJson("CFG_EXTERNAL", 4, result, "result");	
+debugMode = true;	
+if(debugMode){	
+	print bsId;	
+	//print "Test:bsId";	
+	//print "BidMan Model Result";	
+	//print result;	
+}
+//print "BidMan Model Result";
+//print result;	
+return result;

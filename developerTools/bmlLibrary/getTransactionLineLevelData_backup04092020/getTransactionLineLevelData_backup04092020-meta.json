@@ -1,0 +1,21 @@
+{
+  "name" : "Get Transaction Line Level Data Backup 04092020",
+  "variableName" : "getTransactionLineLevelData_backup04092020",
+  "description" : "Get Transaction Line Data Project#49704-Eagle|RahulU|Created to get the line level attribute values.|Added configId as parameter\nBackup before optimizing the code",
+  "libraryFunctions" : [ ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "bsId",
+    "type" : "String"
+  }, {
+    "name" : "lineDocNum",
+    "type" : "String"
+  }, {
+    "name" : "xPathDictionary",
+    "type" : "String Dictionary"
+  }, {
+    "name" : "configId",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

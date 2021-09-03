@@ -1,0 +1,14 @@
+{
+  "name" : "EndCustomerGuidance",
+  "variableName" : "endCustomerGuidance",
+  "description" : "Check if Primary EndCustomer is changes and display a warning to user",
+  "libraryFunctions" : [ "util.getRemark" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputParamJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "nt_selectedEndCustomerArrayset_t", "_transaction_document_number", "endCustomerNo_t", "primaryEndCustomerCount_t", "endCustomerUpdatedWarningMessage_t" ],
+  "systemAttributes" : [ "_system_current_user_language" ]
+}

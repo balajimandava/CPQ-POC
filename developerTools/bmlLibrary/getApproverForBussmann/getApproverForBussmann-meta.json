@@ -1,0 +1,12 @@
+{
+  "name" : "Get Approver for Bussmann",
+  "variableName" : "getApproverForBussmann",
+  "description" : "Get the approvers for a given list of PH4's.",
+  "libraryFunctions" : [ "util.u_getJsonDataForQuery" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "ph4List",
+    "type" : "String[]"
+  } ],
+  "attributes" : [ ]
+}

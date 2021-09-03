@@ -1,0 +1,27 @@
+{
+  "name" : "Find CHEMEA PLM Condition Approver",
+  "variableName" : "find_CHEMEA_PLM_Condition_Approver",
+  "description" : "This function will check for approver condition and find approver for CH EMEA PLM",
+  "libraryFunctions" : [ "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "findDataFor",
+    "type" : "String"
+  }, {
+    "name" : "approverSequence",
+    "type" : "Integer"
+  }, {
+    "name" : "productApprovers",
+    "type" : "String"
+  }, {
+    "name" : "stringDict",
+    "type" : "String Dictionary"
+  }, {
+    "name" : "floatDict",
+    "type" : "Float Dictionary"
+  }, {
+    "name" : "intDict",
+    "type" : "Integer Dictionary"
+  } ],
+  "attributes" : [ ]
+}

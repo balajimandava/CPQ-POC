@@ -1,0 +1,284 @@
+/**
+@name Build Create Quote Line XML
+@api buildCreateQuoteLineXML
+@summary Build the quote line XML for the create quote SOAP call.
+@param data Json
+@attribute _document_number
+@attribute _sequence_number
+@attribute aluminumSurcharge_l
+@attribute coperSurcharge_l
+@attribute customDiscountType_l
+@attribute discountString_l
+@attribute discountType_l
+@attribute externalConfigVCData_l
+@attribute listPrice_l
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute newNetPrice_l
+@attribute overridePerUnit_l
+@attribute qqPerUOM_l
+@attribute qqPricePerEditable_l
+@attribute qqProductType_l
+@attribute quantity_l
+@attribute sAPDeletionFlag_l
+@attribute scaleFrom_l
+@attribute scaleTo_l
+@attribute scale_l
+@attribute silverSurcharge_l
+@attribute uOM_l
+@attribute alternates_l
+@function Json u_getLineFromJson(Json data, String docNum)
+@function String buildVCDataItemsXML(Json quoteLine)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-02-26|Tat.Leung            |
+2018-06-13|dBo Haizlip		    |Added the line to send amt when discountString_l is blank ("")
+2018-06-29|michael.yeung        |
+2018-07-31|Vivek.Hingorani      |Update Material group & Description sent for Bussman QQ:723
+2018-11-22|Harshit Mehta		|Defect# 1800 : Remove perPrice_l from request and pass editedPricePer information in overridePerUnit_l
+2018-11-23|Harshit Mehta		|Defect# 1213 : Adding description and designation
+2018-11-30|Harshit Mehta		|Defect# 1800 : Remove code to compare and set sendPricePer flag and put perPrice_l in payload without any condition. 
+2019-10-31|Komal Agrawal |Ticket# INC000012991630: Pricing on NEWITEM's isn't coming in to SAP
+2019-11-01|Komal Agrawal |Ticket# INC000012999377: The description of materials doesn't come through correctly
+2019-11-26|Nithin               |Defect# 2632 : Setting LineItemStatus flag in line item grid based on transaction status
+2020-01-22|Nithin               |Project#49074: LineItemGridChanges -Update this library to not include alternate materials during sending the details to SAP.
+2020-03-20|Nithin               | Project#49074 - CPQ53 It has been agreed to remove SAP Line #,parentSAPLineNumber_l from CPQ and its integrations 
+2020-04-27|Dhananjay		|PSD#49704:US:CPQ-520: included the qqLeadTime_l,customerPartNumber_l and _sequence_number in the payload.
+2020-05-07|Dhananjay		|PSD#49704:US:CPQ-520: included clarificationsandExceptions_l in the payload.
+2020-05-13|Dhananjay		|PSD#49704:US:CPQ-520: included premium_l in the payload.
+2020-06-18|Mubarak Ali		|sUPPORT#52096:INC000013598514 : Updated New Netprice value in discount string to avoid multiple seperator in SAP
+2020-06-26|Dhananjay		|CPQ-2101- fixed to handle the discount string value when the discountType_l is percent.
+2020-07-14|Dhananjay		|passing _parent_doc_number in customerPartNumber_l.
+2020-07-14|Dhananjay		|included cost_l in the payload.
+2020-07-30|Dhananjay		|updated the condition for cost_l and listPrice_l
+2020-08-03|Dhananjay		|PSD: sending  Requested Price when the premium or discount not empty
+2020-08-24|Shardul S        	|51951 Bussmann config changes
+2020-08-31|Subha		|For cancelled  line items the payload should not go -CPQ-2539
+2020-09-24|Ankit		|Commentting Gunashree's changes for the incident. PLEASE DO ADD BACK WITHOUT REVIEWING
+2020-10-01|Dhananjay		|CPQ-2946: Modified the PSD condition to always send the Requested Price to SAP as the discountType_l = "amt"
+2020-10-12|Shardul S            |Fix for INC000013693552
+2020-11-10|Nithin L D           |CPQ-2874 Need to send Cancelled Line Items sending to DSP,CSP,BA
+2021-01-04|Nithin L D           |CPQ-77 Need to ignore lines having comment on alternates on LIG.
+2021-01-11|Dhananjay		|CPQ-3702 Non-Awarded Items sent to SAP.
+2021-01-11|Dhananjay		|Included itemCategory_l in the payload.
+2021-03-16|Dhananjay		|CPQ-4657: Pricing Issues on Send To SAP
+2021-03-16|Praveen			|CPQ-3796: Restricting Parent's item price to send to Downstream
+2021-04-22|Neha			| CPQ-4595- Send deletion flag 
+2021-06-28|Shardul		|CPQ-5778 - Send config notes to SAP for ES-EMEA
+2021-07-12|Praveen		|INC000014593113 - Added default value for UOM
+*/
+quoteLines = string[];
+//Created the flag to identify the cancelled line items-CPQ-2539
+cancelledFlag=false;
+//********* Get data from Bussman_GroupDesc table QQ:723
+//********* CPQ-2874
+agreementsTypeArr= string[]{"DSP", "CSP" ,"BA"}; 
+isAgreement = (findinarray(agreementsTypeArr,transactionType_t) <> -1);
+ vpgToMPGJson = json();
+if(qqBusinessLineForSalesOrg_t == "BUSSMANN"){
+   
+    vpgToMPGResult = bmql("Select  MPG,VPG from Bussman_GroupDesc");
+    
+    for result in vpgToMPGResult{
+        vpg = get(result,"VPG");
+        mpg = get(result,"MPG");
+        jsonput(vpgToMPGJson,vpg,mpg);
+    }
+}
+
+for line in transactionLine {
+    currentLine = util.u_getLineFromJson(data, line._document_number);
+    
+    mpgNumber = jsonget(currentline, "materialPricingGroup_l", "string", line.materialPricingGroup_l);
+     if(qqBusinessLineForSalesOrg_t == "BUSSMANN"){
+        newMPG = jsonget(vpgToMPGJson,mpgNumber,"string",mpgNumber); // use mpgNumber as key.It is set to VPG on LIG
+        mpgNumber = newMPG;
+    }
+    //Fix for CPQ-3702
+    includeAwardedLine = true;//Default will be always true
+    //PSD: To send only Awared Lines to SAP.
+    if(qqBusinessLineForSalesOrg_t == "PSD" AND line.lineItemStatus_l <> "awarded"){
+    	includeAwardedLine = false;
+    }
+//Setting the flag for the cancelled line items-CPQ-2539
+    if(trim(line.lineItemStatus_l)=="cancelled"){
+    	cancelledFlag=false;
+    }else{
+    	cancelledFlag=true;
+    }
+    payload = dict("string");
+    	//Added the condition of cancelled flag below for the defect-CPQ-2539
+    if ((trim(line.lineItemStatus_l) <> "cancelled" AND cancelledFlag) OR isAgreement OR line.alternates_l == "")  {
+		put(payload, "_document_number", line._document_number);
+		put(payload, "materialLineItem_l", jsonget(currentline, "materialLineItem_l", "string", line.materialLineItem_l));
+		put(payload, "materialPricingGroup_l", mpgNumber);//jsonget(currentline, "materialPricingGroup_l", "string", line.materialPricingGroup_l));
+		put(payload, "quantity_l", jsonget(currentline, "quantity_l", "string", string(line.quantity_l)));
+		put(payload, "scaleFrom_l", jsonget(currentline, "scaleFrom_l", "string", line.scaleFrom_l));
+		put(payload, "scaleTo_l", jsonget(currentline, "scaleTo_l", "string", line.scaleTo_l));
+		//Komal |Ticket# INC000012991630 : Replace listPrice_l with oldListPrice_l
+		//put(payload, "listPrice_l", jsonget(currentline, "listPrice_l", "string", string(line.oldListPrice_l)));
+		//Added by Shardul S to fix INC000013693552+ CPQ - 3796
+		if((line.qqProductType_l=="configuration") AND (line.priceAtChildLine_l == true)){ 
+			put(payload, "listPrice_l", "");
+			put(payload, "coperSurcharge_l", "");
+			put(payload, "silverSurcharge_l", "");
+			put(payload, "aluminumSurcharge_l", "");
+			put(payload, "cost_l","");
+			put(payload, "discountString_l","");
+		}
+		else
+		{
+			put(payload, "listPrice_l", jsonget(currentline, "listPrice_l", "string", string(line.oldListPrice_l)));
+			if(line.needVCPricing_l){
+				put(payload, "listPrice_l", "");
+			}
+			put(payload, "coperSurcharge_l", jsonget(currentline, "coperSurcharge_l", "string", string(line.coperSurcharge_l)));
+			put(payload, "silverSurcharge_l", jsonget(currentline, "silverSurcharge_l", "string", string(line.silverSurcharge_l)));
+			put(payload, "aluminumSurcharge_l", jsonget(currentline, "aluminumSurcharge_l", "string", string(line.aluminumSurcharge_l)));
+			
+			//Send cost to SAP for non-VC configured items, that means we need to consider the SAP VC pricing flag for Cost also.
+			if((line.qqProductType_l == "new" OR line.qqProductType_l=="configuration") AND NOT(line.needVCPricing_l)){
+				put(payload, "cost_l", jsonget(currentline, "cost_l", "string", string(line.cost_l)));
+			}
+			
+			
+			//INC000013598514 - Updated New Netprice value in discount string to avoid multiple seperator in SAP
+			//put(payload, "discountString_l", jsonget(currentline, "discountString_l", "string", line.discountString_l));
+		
+			//CPQ-2101- fixed to handle discountString_l when discountType_l is percent.
+			if(line.netFixedAmountString_l <> ""){
+				put(payload, "discountString_l", jsonget(currentline, "newNetPrice_l", "string", string(line.newNetPrice_l)));
+				
+			}else{
+				put(payload, "discountString_l", jsonget(currentline, "discountString_l", "string", line.discountString_l));
+			}
+			
+			
+
+		}		
+		
+		//  Set to amount if discountString_l is blank
+		//if((line.qqProductType_l=="configuration") AND (line._parent_doc_number <> "")){
+		if (trim(line.discountString_l) <> "") {
+			put(payload, "discountType_l", jsonget(currentline, "discountType_l", "string", line.customDiscountType_l));
+		} 
+		else {
+			put(payload, "discountType_l", "");
+			put(payload, "newNetPrice_l", "");
+		}
+		//}
+		
+		put(payload, "customerPartNumber_l", line.customerPartNumber_l);
+		put(payload, "_sequence_number", line._group_sequence_number);
+		if(qqBusinessLineForSalesOrg_t == "PSD"){
+			put(payload, "qqLeadTime_l", line.qqLeadTime_l);
+			//put(payload, "_sequence_number", line._group_sequence_number);
+			put(payload, "premium_l", line.premium_l);
+		}elif(qqBusinessLineForSalesOrg_t == "BUSSMANN"){
+			put(payload, "customerPartNumber_l", line.designation_l);
+		}
+		//Added by Shardul for 51951 Busmann config project
+		if(qqBusinessLineForSalesOrg_t == "PSD" OR qqBusinessLineForSalesOrg_t == "BUSSMANN" OR qqBusinessLineForSalesOrg_t == "ES-EMEA"){
+			//Notes from BidMan Setting to clarificationsandExceptions_l
+			clarificationsandExceptions = stringbuilder();
+			configNotesArray = split(line.configNotes_l,"@#@");
+			notesCount = 0;
+			for configNote in configNotesArray{
+				notesAry = split(configNote,"$,$");
+				if(sizeofarray(notesAry)>1 AND NOT(isnull(notesAry[1]))){
+					if(notesCount > 0){
+						sbappend(clarificationsandExceptions,"#@#",notesAry[1]);
+					}else{
+						sbappend(clarificationsandExceptions,notesAry[1]);
+					}
+					notesCount = notesCount + 1;
+				}
+			}
+			put(payload, "clarificationsandExceptions_l", sbtostring(clarificationsandExceptions));	
+		}
+		
+		
+		//PSD: sending  Requested Price when the premium or discount not empty 
+		//if(qqBusinessLineForSalesOrg_t == "PSD" AND (line.premium_l <> "" OR line.discountString_l <> "")){
+		//CPQ-2946: Modified the PSD condition to always send the Requested Price to SAP as the discountType_l = "amt"
+		if(qqBusinessLineForSalesOrg_t == "PSD"){
+			newNetPrice = line.newNetPrice_l;
+			put(payload, "discountType_l", "amt");
+			if((line.qqProductType_l=="configuration") AND (line.priceAtChildLine_l == true)){
+				put(payload, "newNetPrice_l", "");		
+				put(payload, "discountString_l", "");			
+				put(payload, "listPrice_l", "");
+				put(payload, "cost_l", "");
+			}else{
+				put(payload, "newNetPrice_l", string(newNetPrice));		
+				put(payload, "discountString_l", jsonget(currentline, "newNetPrice_l", "string", string(newNetPrice)));
+				put(payload, "listPrice_l", jsonget(currentline, "listPrice_l", "string", string(line.oldListPrice_l)));
+				put(payload, "cost_l", jsonget(currentline, "cost_l", "string", string(line.cost_l)));
+			}	
+		}
+		
+		put(payload, "sAPDeletionFlag_l", jsonget(currentline, "sAPDeletionFlag_l", "string", string(line.sAPDeletionFlag_l)));
+		put(payload, "lineNumber_l", jsonget(currentline, "lineNumber_l", "string", string(line.SAPLineNumber_l)));		
+		if(line.uOM_l <> ""){
+			put(payload, "uOM_l", jsonget(currentline, "uOM_l", "string", line.uOM_l));
+		}else{
+			put(payload, "uOM_l", jsonget(currentline, "uOM_l", "string", "EA")); // INC000014593113 Sending the default value in case Unit of Measure value is empty to avoid any issue in SAP
+		}	
+		//Harshit : Defect# 1800 : Removing code to set overridePerUnit_l field, this field will set from editedPricePer in XML template itself.
+	   //put(payload, "parentSAPLineNumber_l", jsonget(currentline, "parentSAPLineNumber_l", "string", string(line.parentSAPLineNumber_l)));
+		put(payload, "parentSAPLineNumber_l", jsonget(currentline, "_parent_doc_number", "string", line._parent_doc_number));
+		//Harshit : Defect# 1213 : Add materialLineItemShortDescription_l, designation_l in payload
+		put(payload,"materialLineItemShortDescription_l",jsonget(currentline, "materialLineItemShortDescription_l", "string",line.materialLineItemShortDescription_l));
+		put(payload,"designation_l",jsonget(currentline, "designation_l", "string",line.designation_l));
+		//Harshit Defect# 1800 : Pass editablePricePerValue always irrespective of it matches or NOT with SAP Price Per Value
+		put(payload, "overridePerUnit_l", jsonget(currentline, "qqPricePerEditable_l", "string", string(line.qqPricePerEditable_l)));
+		
+		// Neha: 9 March 2021: added for CPQ-2588
+		
+		str = replace(line.netFixedAmountString_l, ",",".");
+		//print str;
+		if(isnumber(str)){netFixedAmount= atof(str);
+		if((line._parent_doc_number == "" and line.qqProductType_l == "normal" ) AND netFixedAmount == 0 AND qqBusinessLineForSalesOrg_t == "ES-EMEA"){
+			put(payload, "itemCategory_l", "ZGNN");
+		}}
+		else
+		{put(payload, "itemCategory_l", line.itemCategory_l);}
+		
+		// Neha : CPQ-4595- send delete flag 
+		put(payload, "lineItemDelete_l", jsonget(currentline, "lineItemDelete_l", "string", string(line.lineItemDelete_l)));
+	}
+	
+	//Harshit START Defect# 1800 : Commenting code to pass price per value if sap Price Per and editable Price per value is different.
+	//TO DO : Below Commented code can be removed after first QQ Go Live i.e. 3rd Dec 2018
+	//Harshit END Defect# 1800 : Commenting code to pass price per value if sap Price Per and editable Price per value is different.
+	//Line item changes start - Update this library to include newly created attribute during sending the details to SAP.
+	
+   if ( (line.externalConfigVCData_l <> "") AND (line.qqProductType_l == "configuration") ) {
+        jsonput(currentLine, "externalConfigVCData_l", line.externalConfigVCData_l);
+        jsonput(currentLine, "_sequence_number", line._sequence_number);
+        jsonput(currentLine, "materialLineItem_l", line.materialLineItem_l);
+        //jsonput(currentLine, "SAPLineNumber_l", line.SAPLineNumber_l);
+        jsonput(currentLine, "SAPLineNumber_l", line._group_sequence_number);
+
+       // print currentLine;
+        vcData = commerce.buildVCDataItemsXML(currentLine);
+        put(payload, "VC_DATA", vcData);
+       //print "vc data payload is";
+       // print payload;
+        
+    } 
+    //Added the condition of cancelled flag below so as to have the payload only for non-cancelled line items for the defect-CPQ-2539
+    //if(cancelledFlag){  
+    if(cancelledFlag AND includeAwardedLine){
+	    lineXml = applytemplate("$BASE_PATH$/WebServices/create_quote_line_template.xml", payload, "");
+	    lineXml = replace(lineXml, "&lt;", "<");
+	    lineXml = replace(lineXml, "&gt;", ">");
+	    //Komal |Ticket# INC000012999377 - Replace &quot and &amp with "" /&
+	    lineXml = replace(lineXml, "&quot;", "''");
+	    lineXml = replace(lineXml, "&amp;", "&");
+	    append(quoteLines, lineXml);
+    }
+}
+return join(quoteLines, "");

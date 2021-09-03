@@ -1,0 +1,731 @@
+/**
+@name Re-Price Lines
+@api rePriceLines
+@summary Iterates through the agreement's lines to retrieve the list prices.  The pricelist could've been changed which would invalidate the prices brought in from config.
+@param inputDict StringDictionary
+@attribute SAPLineNumber_l
+@attribute _parent_doc_number
+@attribute _sequence_number
+@attribute _system_current_step_var
+@attribute _system_current_user_language
+@attribute choosePricelist_t
+@attribute currency_t
+@attribute customerPriceList_t
+@attribute doc_number
+@attribute extendCurrentListPrices_t
+@attribute externalConfigBOM_l
+@attribute externalConfigVCData_l
+@attribute isBOMPricing_l
+@attribute lastUsedPricelist_t
+@attribute materialLineItem_l
+@attribute priceAtChildLine_l
+@attribute priceListHPL_t
+@attribute qqBusinessLineForSalesOrg_t
+@attribute qqProductType_l
+@attribute qqTnC_t
+@attribute quantity_l
+@attribute roundingProfile_l
+@attribute roundingQuantity_l
+@attribute salesOrg_t
+@attribute transactionType_t
+@attribute uOM_l
+@function Float stringToFloat(String input)
+@function Json parseBidManBOM(String bom)
+@function String getRemark(String rowIndex, String language)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+13/07/2017|shansen              |Initial Version
+31/07/2017|dBo Haizlip          |Added a check for NULL because before formulas Save was failing
+24/08/2017|dBo Haizlip          |Changed KWAEH -> KONWA for PRI01 and PRI02
+25/08/2017|dBo Haizlip          |Date format from SAP changed YYYY.MM.DD to YYYYMMDD
+07/09/2017|PKhanal              |Added UOM to be a part of the bmql query (445)   
+01/11/2017|shansen              |PRI02 had some YYYY.MM.DD values, adding support for both formats just as error prevention  
+01/22/2017|shibaji              |Added Code for populating Standard Terms and Conditions Document Name and Location attributes
+2018-01-27|Tat.Leung            |Added terms and discount re-evaluation flags
+2018-02-01|shibaji		|Added condition for not changing the oldListPrice_l value for NEWITEM
+2018-03-06|michael.yeung        |Add update to Read only quantity for CSP/DSP
+2018-04-20|dBo Haizlip		|Added code to support SAP Line Number (200,400,600,601,etc.)
+2018-05-01|dBo Haizlip		|Added check for Quantity to be a multiple of Rounding Quantity on Rebate/Drop Ship quotes
+2018-05-07|shibaji.ganguly	| QQ-503 Related changes.
+2018-05-11|michael.yeung        |
+2018-06-07|michael.yeung        | Update SAPLineNumber to sort by sequence Number.
+2018.06.07|dBo Haizlip		|Added support for PLTYP for all non-4942 in PRI01.  4942 remains the same...look 1st in PRI02...if none then use PRI01
+				|Note: We were already looking in two places for the list price.  So I've changed this to use a dynamic bmql call.
+				|      If it is not 4942 then both BMQL calls lookup in PRI01 (One for the PLTYP and One for a blank)
+				|      If it is 4942 then 1 looks in PRI02 and the other uses PRI01
+2018.06.10|dBo Haizlip		|Changed roundingQuantityWarningMessage_t to roundingQuantityWarningMessageArea_t (Text area)
+2018-06-11|michael.yeung        |
+2018-06-13|michael.yeung        | set to result latest price first and replace price with exact PLTYP match
+2018-06-15|michael.yeung        |
+2018-06-18|michael.yeung        |
+2018-07-05|michael.yeung        |
+2018-07-06|michael.yeung        |
+2018-08-13|dBo Haizlip		| Not setting oldListPrice_l if the lookup wasn't found or it's zero
+2018-08-22|Shibaji.Ganguly	| QQ-792 Related Changes.
+2018-08-24|Vivek.Hingorani	| QQ-799: Updatig Soft Message for Rounding to consider BUSSMANN 
+
+2018-10-30|michael.yeung        |
+2018-11-30|Harshit Mehta	|Defect# 1814 : Excluding configuration items to set list price from PRI01/02 table.
+2018-12-03|Gaurav Singh		|ALM-1799: Populate Price Per (SAP) from data table
+2019-05-03|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+2019-06-12|Smriti Chaturvedi	|ALM- 2227- For Rebate Quote no notification is needed for Rounding Qty
+2019-06-26|Ankit Vernekar	|ALM- 2190 Price extension not applicable for DSP
+2019-07-12|Ankit Vernekar	|ALM- 2190 List price logic change- Query change for ESEMEA
+2019-08-21|Balaji Konagalla	|ALM 2436 :Fix for List prices not coming for CH EMEA
+2019-08-28|Balaji Konagalla	|ALM 730 :to set book price date list prices if Book price price is available
+2019-11-11|Harshit Mehta	|Project# 45670 : Bussmann BidManager configurator project extract cost information from BidManager BOM XML.
+2020-03-09|Rahul Uttarwar	|ALM#2689 Added pipe symbol
+2020-09-15|Pooja Gupta		|Added date logic for ESEMEA
+2020-10-19|Gunashree		|Added logic for WD-1216
+2020-10-27|Pooja Gupta		|CPQ-2943 - Removed logic for PLTYP 
+2021-06-25|Praveen Sahu		|Changed the Sales org to 3208 due to WD sales org change earlier it was 3209
+*/
+print "rePriceLines called";
+print inputDict;
+retString = "";
+priceList= customerPriceList_t;
+exchangeRate = newExchangeRate_t;
+if(isnull(exchangeRate) OR exchangeRate<=0.0){
+	exchangeRate = 1.0;
+}
+// For ES-EMEA CSP DSP bring current prices always
+if (qqBusinessLineForSalesOrg_t == "ES-EMEA" AND (transactionType_t == "DSP" OR transactionType_t == "CSP")) {  
+	priceList = priceListHPL_t;
+}
+
+linesToPrice = true;
+//check to see if we should price
+if ((extendCurrentListPrices_t AND choosePricelist_t <> lastUsedPricelist_t) OR(NOT extendCurrentListPrices_t AND priceListHPL_t <> lastUsedPricelist_t)) {
+    linesToPrice = true;
+}
+
+if (NOT linesToPrice OR _system_current_step_var <> "draft") {
+    //don't bother pricing
+   
+    return "";
+}
+
+//determine applicable pricelist
+//Defect 2190 - price extension not applicable to DSP
+if (extendCurrentListPrices_t AND choosePricelist_t <> "" AND transactionType_t <> "DSP") {
+    priceList = choosePricelist_t;
+}
+
+
+//form dictionary of doc nums associated to each part and array for every part number
+partDocsDict = dict("string[]");
+partNumsArr = string[];
+partUomArr = string[];
+partLineNumsDict= dict("string");
+SAPLineNumbers= string[];
+SAPCounter= 200;
+SAPIncrementalNumber= 200;
+SAPLineDict= dict("integer");
+seqNumDict = dict("string");
+parentSAPLineDict= dict("integer");
+roundingQuantityWarningMessage= "";
+roundingWarningTypes= string[]{"DS","RQ"};
+modelDocPricingTypeDic = dict("string");
+childLevelPricingArr = string[];
+
+
+for line in transactionLine {
+    
+	lineItemStatus = "pendingApproval";
+    
+    //print string(line._sequence_number) + " / " + line.doc_number + " / " + line._parent_doc_number;
+
+    linesToPrice = true;
+    if (findinarray(partNumsArr, line.materialLineItem_l) == -1) {
+        append(partNumsArr, line.materialLineItem_l);
+    }
+
+    // UOM
+    if (findinarray(partUomArr, line.uOM_l) == -1) {
+        append(partUomArr, line.uOM_l);
+    }
+    partDocsArr = string[];
+    if (containskey(partDocsDict, line.materialLineItem_l)) {
+        partDocsArr = get(partDocsDict, line.materialLineItem_l);
+    }
+	//2019-05-03|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+    //append(partDocsArr, line.doc_number);
+	append(partDocsArr, line._document_number);
+    put(partDocsDict, line.materialLineItem_l, partDocsArr);
+    //retString = retString + line._document_number + "~lineItemStatus_l~" + lineItemStatus  + "|";
+    
+    //  Only a hard stop for Warehouse Quotes (WQ)
+    if ( (findinarray(roundingWarningTypes,transactionType_t) <> -1) AND (line.roundingQuantity_l > 0) AND (line.quantity_l > 0) ) {
+        
+        //fmod requires these to be floats
+        quantity= atof(string(line.quantity_l));
+        roundingQty= atof(string(line.roundingQuantity_l));
+
+		// Smriti - ALM - 2227 Modified the bussmann condition. Against Rebate quote no notification and no rounding logic is needed.
+       // if ((fmod(quantity,roundingQty) > 0 AND qqBusinessLineForSalesOrg_t<>"BUSSMANN") OR (fmod(quantity,roundingQty) > 0 AND qqBusinessLineForSalesOrg_t=="BUSSMANN" AND line.roundingProfile_l == "ZBU3" AND transactionType_t <> "RQ")) {
+        //Sharath - Changes added for ALM :2564 
+         if ((fmod(quantity,roundingQty) > 0 AND qqBusinessLineForSalesOrg_t<>"BUSSMANN" AND transactionType_t <> "CSP" AND transactionType_t <> "RQ") OR (fmod(quantity,roundingQty) > 0 AND qqBusinessLineForSalesOrg_t=="BUSSMANN" AND line.roundingProfile_l == "ZBU3" AND transactionType_t <> "RQ") OR (fmod(quantity,roundingQty) > 0 AND qqBusinessLineForSalesOrg_t<>"BUSSMANN" AND qqBusinessLineForSalesOrg_t<>"B-LINE" AND transactionType_t <> "CSP" AND transactionType_t <> "RQ") ) {
+            if (roundingQuantityWarningMessage <> "") {roundingQuantityWarningMessage=roundingQuantityWarningMessage+"/n";}
+            // roundingQuantityWarningMessage=roundingQuantityWarningMessage + "Warning -- Material Item: "+line.materialLineItem_l + " must have a quantity that is a multiple of the Rounding Quantity ("+string(line.roundingQuantity_l)+")"; // Commented for QQ-792 changes.
+            // Added for QQ-792 Changes - Start //
+
+                message = util.getRemark("LINE", _system_current_user_language)+" "+string(line._sequence_number)+" - ";
+                message = message + util.getRemark("LINE_MATERIAL_ITEM", _system_current_user_language)+": "+line.materialLineItem_l+" ";
+                message = message + util.getRemark("LINE_CONSTRAINT_2", _system_current_user_language) + " (" + string(line.roundingQuantity_l)+") "+util.getRemark("LINE_CONSTRAINT_2a", _system_current_user_language);
+                roundingQuantityWarningMessage = roundingQuantityWarningMessage + message;
+            // Added for QQ-792 Changes - End //
+        }
+    
+    }
+
+    if (line._parent_doc_number <> "") {
+        //  bidman configuration child
+		//2019-05-03|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+        //put(partLineNumsDict,line.doc_number,line.doc_number+"."+line._parent_doc_number);
+		put(partLineNumsDict,line._document_number,line._document_number +"."+line._parent_doc_number);
+    } else {
+        // new part, group or configuration model 
+		//2019-05-03|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+        //put( seqNumDict, string(line._sequence_number), line.doc_number );  // seqNumDict does not have any child line
+		put( seqNumDict, string(line._sequence_number), line._document_number );  // seqNumDict does not have any child line
+        /*
+        put(SAPLineDict,line.doc_number,SAPCounter);
+        put(parentSAPLineDict,line.doc_number,SAPCounter);
+        append(SAPLineNumbers,line.doc_number+"~SAPLineNumber_l~"+string(SAPCounter));
+        
+        SAPCounter=SAPCounter+SAPIncrementalNumber;
+        */
+
+        if( line.qqProductType_l == "configuration" ) {
+            // bidman VC pricing and bidman pricing will be getting either at default function (new configuration) or reconfigure inbound (reconfiguration)
+	
+            //Added if statement by Shardul to get prices from SAP VC for Preassembled Config
+            if( line.externalConfigVCData_l <> "" AND find(line.externalConfigData_l,"SAP_ConfigurationID") > -1) {
+		put( modelDocPricingTypeDic, line._document_number, "VC" );
+            }
+	    elif (line.externalConfigBOM_l <> "" AND line.isBOMPricing_l ) {
+		//2019-05-03|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+                //put( modelDocPricingTypeDic, line.doc_number, "BOM" );
+	    	put( modelDocPricingTypeDic, line._document_number, "BOM" );
+
+	            // if any BOM list price is not 0, pricing at by Bidman
+	            bomXML = "";
+	            foundBOMListPrice = false;
+	            if( len(line.externalConfigBOM_l) >  0 ) {
+	                bomXML  = replace(line.externalConfigBOM_l, "&lt;", "<");
+	                bomXML = replace(bomXML, "&gt;", ">");
+	            }
+	            bomJSON = json();
+	            bomJSON = util.parseBidManBOM(bomXML);
+	            parentListPrice = jsonget(bomJSON,"listPrice","float",0.0);
+				cost = jsonget(bomJSON,"MaterialCost","float",0.0);
+				//Added to fix the the null issue - Project 52469
+				parentListPrice = parentListPrice * exchangeRate;
+				cost = cost * exchangeRate;
+				/*if (isnull(parentListPrice)) {
+				parentListPrice = "0.00";
+				}		
+				if (isnull(cost)) {
+				cost = "0.00";
+				}*/			
+				if( NOT line.priceAtChildLine_l ) {
+					//2019-05-03|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+					//retString = retString + line.doc_number + "~oldListPrice_l~" + parentListPrice + "|";
+					retString = retString + line._document_number + "~oldListPrice_l~" + string(parentListPrice) + "|";
+					//print "==== " + parentListPrice + " ====";
+					//11/11/2019 : Harshit Mehta : Project# 45670: add cost information from Bid Manager to CPQ Cost variable.
+					retString = retString + line._document_number + "~cost_l~" + string(cost) + "|";
+					//print "==== BidManager Cost" + cost + " =====";
+					 
+				} else {
+					parentListPrice = jsonget(bomJSON,"listPrice","float",0.0);//jsonget(bomJSON,"listPrice");
+			/*
+			childrenJsonArray= jsonget(bomJSON,"children","jsonarray",jsonarray());
+			numChildren = jsonarraysize(childrenJsonArray);
+			if (numChildren > 0 ) {
+				loopRange = range(numChildren);
+				for each in loopRange {
+					childBOM = jsonarrayget(childrenJsonArray, each, "json" );
+					itemID = jsonget(childBOM, "itemID");
+					listPrice = jsonget(childBOM, "listPrice");
+					if( listPrice <> "0" AND listPrice <> "") { 
+						foundBOMListPrice  = true;
+						break;
+					}
+				}
+			}
+			*/
+	
+				}
+	                // TODO: get list price from Bidman BOM
+            } else {
+				//2019-05-03|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+                //put( modelDocPricingTypeDic, line.doc_number, "CPQ" );
+				put( modelDocPricingTypeDic, line._document_number, "CPQ" );
+            }
+	    //Harshit : Defect# 1814 Commenting below line to make sure above code to set modelDocPricingTypeDic Type works correctly.
+            // put( modelDocPricingTypeDic, line.doc_number, "CPQ" );  // TODO
+            if( line.priceAtChildLine_l == true ) {
+				//2019-05-03|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+                //append(childLevelPricingArr, line.doc_number );
+				append(childLevelPricingArr, line._document_number );
+            }
+        }
+
+    }
+}
+
+append(SAPLineNumbers,"1~roundingQuantityWarningMessageArea_t~"+roundingQuantityWarningMessage);
+
+seqNumSorted= sort(keys(seqNumDict),"asc","numeric");
+for eachSeqNum in seqNumSorted {
+        docNum = get(seqNumDict, eachSeqNum);
+        put(SAPLineDict, docNum, SAPCounter);
+        put(parentSAPLineDict, docNum, SAPCounter);
+        append(SAPLineNumbers,docNum+"~SAPLineNumber_l~"+string(SAPCounter));
+        SAPCounter=SAPCounter+SAPIncrementalNumber;
+}
+
+partLineNumsSorted= sort(keys(partLineNumsDict),"asc","numeric");
+//print partLineNumsSorted;
+for eachLineNum in partLineNumsSorted {
+  splitArr= split(get(partLineNumsDict,eachLineNum),".");
+  lineDocNum= splitArr[0];
+  parentDocNum= splitArr[1];
+  SAPNum= get(SAPLineDict,parentDocNum);
+  SAPNum= SAPNum+1;
+  put(SAPLineDict,parentDocNum,SAPNum);
+  append(SAPLineNumbers,lineDocNum+"~SAPLineNumber_l~"+string(SAPNum));
+  append(SAPLineNumbers,lineDocNum+"~parentSAPLineNumber_l~"+string(get(parentSAPLineDict,parentDocNum)));
+}
+
+if (NOT linesToPrice) {
+    //don't bother pricing
+    return "";
+}
+
+//Set Defaults
+currentPrice = "0.0";
+futurePrice = "0.0";
+finalQty = "1";
+count = 0;
+
+currentDate = getdate();
+// start of alm 730 :: to set book price date list prices if Book price price is available
+if (bookPriceDate_t<> "")
+{
+currentDate =strtojavadate(bookPriceDate_t,"yyyy-MM-dd");
+}
+// end of alm 730 :: to set book price date prices if Book price price is available
+//CPQ - 1 548 Pooja- Changed date logic for ES-EMEA
+if(qqBusinessLineForSalesOrg_t=="ES-EMEA" AND bookPriceDate_t== "")
+{
+		agreementValidFrom= substring(agreementValidFrom_t,0,10);
+		currentDate = strtojavadate(agreementValidFrom_t,"yyyy-MM-dd",_system_user_time_zone);
+}
+print "**Date***";
+print currentDate ;
+futurePartPricesDict = dict("string");
+currentPartPricesDict = dict("string");
+partLoopCount = dict("integer");
+partPRI02Result = dict("boolean");
+partLatestDateDict = dict("date");
+partQtyDict = dict("string");
+
+/*
+partLoopCountPLTYP = dict("integer");
+partPriceMatchPLTYPDict = dict("string");
+futurePriceMatchPLTYPDict = dict("string");
+partLatestDateMatchPLTYPDict = dict("date");
+partQtyMatchPLTYPDict = dict ("string");
+*/
+
+
+//  Dynamic call to use either PLTYP in PRI01 only (non ES-EMEA) or PRI02/PRI01 (ES-EMEA)
+table1= "PRI01";// defect 2190 - remove PRI02 dependency
+/*table1= "PRI02";
+if (salesOrg_t <> "4942") {
+  table1= "PRI01";
+}*/
+
+//** 1st Search (PRI01 or PRI02) depending on Germany (PRI02) or non-Germany (PRI01 w/PLTYP)
+results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN from $table1 Where MATNR in $partNumsArr AND VKORG = $salesOrg_t AND VTWEG = $distributionChannel_t  AND KONWA=$currency_t AND PLTYP LIKE $priceList AND KMEIN in $partUomArr");
+//start of ALM 2436 :Fix for List prices not coming for CH EMEA
+if (qqBusinessLineForSalesOrg_t == "CH-EMEA"){
+
+
+
+results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN from $table1 Where MATNR in $partNumsArr AND VKORG = $salesOrg_t AND VTWEG = $distributionChannel_t  AND KONWA=$currency_t AND KMEIN in $partUomArr");
+
+}
+//end of ALM 2436 :Fix for List prices not coming for CH EMEA
+// results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN, PLTYP from $table1 Where MATNR in $partNumsArr AND VKORG = $salesOrg_t AND KONWA=$currency_t AND KMEIN in $partUomArr");
+if (qqBusinessLineForSalesOrg_t == "ES-EMEA" OR qqBusinessLineForSalesOrg_t == "BUSSMANN") {
+	results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN,PLTYP from $table1 Where MATNR in $partNumsArr AND VKORG = $salesOrg_t  AND KONWA=$currency_t  AND (PLTYP=$priceList OR PLTYP is null) AND KMEIN in $partUomArr ORDER BY PLTYP");
+}
+
+//added below code for #1034 - Gunashree
+if(salesOrg_t == "1216" AND distributionChannel_t == "10")
+{
+	priceList = "01";
+	results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN from $table1 Where MATNR in $partNumsArr AND VKORG = $salesOrg_t AND KONWA=$currency_t AND PLTYP = $priceList AND KMEIN in $partUomArr");
+}
+if(salesOrg_t == "1216" AND distributionChannel_t == "20")
+{
+	results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN from $table1 Where MATNR in $partNumsArr AND VKORG = $salesOrg_t AND KONWA=$currency_t AND PLTYP is null AND KMEIN in $partUomArr");
+}
+// Changed the Sales org to 3208 due to WD sales org change earlier it was 3209
+if(salesOrg_t == "2500" OR salesOrg_t == "3208")
+{
+	results = bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN from $table1 Where MATNR in $partNumsArr AND VKORG = $salesOrg_t AND KONWA=$currency_t AND KMEIN in $partUomArr");
+}
+
+for r in results {
+    finalQty = "1";
+    latestDate = currentDate;
+    latestDateMatchPLTYP = currentDate;
+    count = 0;
+//    countPLTYP = 0;
+
+    dateAB = get(r, "DATAB");
+    dateFromString = dateAB;
+    dateABLen = len(dateAB);
+    if (dateABLen == 8) {
+        dateFromString = substring(dateAB, 0, 4) + "-" + substring(dateAB, 4, 6) + "-" + substring(dateAB, 6);
+    } elif (dateABLen == 10) {
+        //in case of 2017.11.31 format which SHOULDNT happen
+        dateFromString = substring(dateAB, 0, 4) + "-" + substring(dateAB, 5, 7) + "-" + substring(dateAB, 8);
+    }
+    dateBI = get(r, "DATBI");
+    dateToString = dateBI;
+    dateBILen = len(dateBI);
+    if (dateBILen == 8) {
+        dateToString = substring(dateBI, 0, 4) + "-" + substring(dateBI, 4, 6) + "-" + substring(dateBI, 6);
+    } elif (dateBILen == 10) {
+        //in case of 2017.11.31 format which SHOULDNT happen
+        dateToString = substring(dateBI, 0, 4) + "-" + substring(dateBI, 5, 7) + "-" + substring(dateBI, 8);
+    }
+
+    //dateFromString = replace(get(r,"DATAB"),".","-");
+    //dateToString = replace(get(r,"DATBI"),".","-");
+    price = get(r, "KBETR");
+    qty = get(r, "KPEIN");
+    matnr = get(r, "MATNR");
+    pltype = get(r, "PLTYP");
+
+    //get continuous values for the part
+    if (containskey(partLatestDateDict, matnr)) {
+        latestDate = get(partLatestDateDict, matnr);
+    }
+
+    if (containskey(partLoopCount, matnr)) {
+        count = get(partLoopCount, matnr);
+    }
+    if (containskey(partQtyDict, matnr)) {
+        finalQty = get(partQtyDict, matnr);
+    }
+
+    //Convert Date From to yyyy-MM-dd
+    if (dateFromString == "") {
+        dateFromString = "1900-01-01";
+    }
+    dateFrom = strtojavadate(dateFromString, "yyyy-MM-dd");
+
+    //Convert Date To to yyyy-MM-dd
+    if (dateToString == "") {
+        dateToString = "9999-01-01";
+    }
+    dateTo = strtojavadate(dateToString, "yyyy-MM-dd");
+    //print dateTo;
+	
+	// For ignoring From Date which are way out in the future. For QQ-503.
+	ignoreDateString = "3000-01-01";
+	ignoreDate = strtojavadate(ignoreDateString, "yyyy-MM-dd");		
+	if(comparedates(dateFrom, ignoreDate) == 1) {
+		continue;
+	}
+
+
+    // Get Current List Price
+	//Commenting below code for CPQ-2943 as part of Zilliant
+	/*if(qqBusinessLineForSalesOrg_t == "ES-EMEA" AND customerPriceList_t <> "" AND (transactionType_t <> "DSP" AND transactionType_t <> "CSP")){
+		if(pltype == customerPriceList_t){
+				put(partLatestDateDict, matnr, dateFrom);
+				put(currentPartPricesDict, matnr, price);
+				put(partQtyDict, matnr, qty);
+		}
+	}
+	else{*/
+		if (((qqBusinessLineForSalesOrg_t<>"ES-EMEA") AND (comparedates(dateFrom, currentDate) == -1 AND comparedates(dateTo, currentDate) == 1)) OR ((qqBusinessLineForSalesOrg_t == "ES-EMEA") AND ((comparedates(dateFrom, currentDate) == -1 OR comparedates(dateFrom, currentDate) == 0) AND (comparedates(dateTo, currentDate) == 1 OR comparedates(dateTo, currentDate) == 0)))) {
+			if (count == 0) {
+				put(partLatestDateDict, matnr, dateFrom);
+				put(currentPartPricesDict, matnr, price);
+				put(partQtyDict, matnr, qty);
+			} elif (comparedates(dateFrom, latestDate) == 1) { // check if new record start date is greater than old one
+				//print "New Greater than old";
+				put(partLatestDateDict, matnr, dateFrom);
+				put(currentPartPricesDict, matnr, price);
+				put(partQtyDict, matnr, qty);
+		   }
+
+			//print "Found current:" + price;
+			count = count + 1; // Set to true if record found
+			put(partPRI02Result, matnr, true);
+		}
+	//}
+
+    // Get Future List Price if available
+    if (comparedates(dateFrom, currentDate) == 1 AND comparedates(dateTo, currentDate) == 1) {
+        //print "Found future:" + get(r,"KBETR");
+        put(futurePartPricesDict, matnr, price);
+    }
+    put(partLoopCount, matnr, count);
+}
+
+
+
+//see which parts still need to be priced
+partNumsPRI01 = string[];
+for partNum in partNumsArr {
+    if (NOT containskey(partPRI02Result, partNum)) {
+        //only would contain if it's true
+        append(partNumsPRI01, partNum);
+    }
+}
+
+//** For Germany 4942 look in PRI02 1st PRI01 second
+//** For non-Germany look in PRI01 with Price List value or PRI01 with Price List null
+if (sizeofarray(partNumsPRI01) > 0 ) {
+    results= recordset();
+    if (qqBusinessLineForSalesOrg_t == "ES-EMEA" OR qqBusinessLineForSalesOrg_t == "BUSSMANN") {
+      results= bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN, PLTYP from PRI01 Where MATNR IN $partNumsPRI01 AND VKORG = $salesOrg_t AND KONWA=$currency_t AND KMEIN in $partUomArr"); 
+    } else {
+      results= bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN, PLTYP from PRI01 Where MATNR IN $partNumsPRI01 AND VKORG = $salesOrg_t AND VTWEG = $distributionChannel_t AND KONWA=$currency_t AND KMEIN in $partUomArr AND PLTYP is null");
+    }  
+    /*
+    if (salesOrg_t == "4942") {
+      results= bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN, PLTYP from PRI01 Where MATNR IN $partNumsPRI01 AND VKORG = $salesOrg_t AND KONWA=$currency_t AND KMEIN in $partUomArr");
+    } else {
+      results= bmql("Select MATNR, KBETR, VKORG, DATAB, DATBI,KPEIN, PLTYP from PRI01 Where MATNR IN $partNumsPRI01 AND VKORG = $salesOrg_t AND KONWA=$currency_t AND KMEIN in $partUomArr"); 
+    } 
+    */ 
+    for r in results {
+        finalQty = "1";
+        latestDate = currentDate;
+        count = 0;
+
+        dateAB = get(r, "DATAB");
+        dateFromString = dateAB;
+        dateABLen = len(dateAB);
+        if (dateABLen == 8) {
+            dateFromString = substring(dateAB, 0, 4) + "-" + substring(dateAB, 4, 6) + "-" + substring(dateAB, 6);
+        } elif (dateABLen == 10) {
+            //in case of 2017.11.31 format which SHOULDNT happen
+            dateFromString = substring(dateAB, 0, 4) + "-" + substring(dateAB, 5, 7) + "-" + substring(dateAB, 8);
+        }
+        dateBI = get(r, "DATBI");
+        dateToString = dateBI;
+        dateBILen = len(dateBI);
+        if (dateBILen == 8) {
+            dateToString = substring(dateBI, 0, 4) + "-" + substring(dateBI, 4, 6) + "-" + substring(dateBI, 6);
+        } elif (dateBILen == 10) {
+            //in case of 2017.11.31 format which SHOULDNT happen
+            dateToString = substring(dateBI, 0, 4) + "-" + substring(dateBI, 5, 7) + "-" + substring(dateBI, 8);
+        }
+
+        //dateFromString = replace(get(r,"DATAB"),".","-");
+        //dateToString = replace(get(r,"DATBI"),".","-");
+        price = get(r, "KBETR");
+        qty = get(r, "KPEIN");
+        matnr = get(r, "MATNR");
+        pltype = get(r, "PLTYP");
+
+        //get continuous values for the part
+        if (containskey(partLatestDateDict, matnr)) {
+            latestDate = get(partLatestDateDict, matnr);
+        }
+        if (containskey(partLoopCount, matnr)) {
+            count = get(partLoopCount, matnr);
+        }
+        if (containskey(partQtyDict, matnr)) {
+            finalQty = get(partQtyDict, matnr);
+        }
+
+        //Convert Date From to yyyy-MM-dd
+        if (dateFromString == "") {
+            dateFromString = "1900-01-01";
+        }
+        dateFrom = strtojavadate(dateFromString, "yyyy-MM-dd");
+
+        //Convert Date To to yyyy-MM-dd
+        if (dateToString == "") {
+            dateToString = "9999-01-01";
+        }
+        dateTo = strtojavadate(dateToString, "yyyy-MM-dd");
+        //print dateTo;
+		
+		// For ignoring From Date which are way out in the future. For QQ-503.
+		ignoreDateString = "3000-01-01";
+		ignoreDate = strtojavadate(ignoreDateString, "yyyy-MM-dd");		
+		if(comparedates(dateFrom, ignoreDate) == 1) {
+			continue;
+		}
+
+
+        // Get Current List Price
+		if(qqBusinessLineForSalesOrg_t <> "ES-EMEA" AND customerPriceList_t == ""){
+			if (comparedates(dateFrom, currentDate) == -1 AND comparedates(dateTo, currentDate) == 1 ) {
+				if (count == 0) {
+					put(partLatestDateDict, matnr, dateFrom);
+					put(currentPartPricesDict, matnr, price);
+					put(partQtyDict, matnr, qty);
+				} elif (comparedates(dateFrom, latestDate) == 1) { // check if new record start date is greater than old one
+					//print "New Greater than old";
+					put(partLatestDateDict, matnr, dateFrom);
+					put(currentPartPricesDict, matnr, price);
+					put(partQtyDict, matnr, qty);
+				}
+
+				//print "Found current:" + price;
+				count = count + 1; // Set to true if record found
+			}
+		}
+
+        /*
+       if( pltype == priceList ) {      // get matching pricelistType records in it's own dictionary
+            if (containskey(partLatestDateMatchPLTYPDict, matnr)) {
+                latestDateMatchPLTYP = get(partLatestDateMatchPLTYPDict, matnr);
+            }
+            if (containskey(partLoopCountPLTYP, matnr)) {
+                countPLTYP = get(partLoopCountPLTYP, matnr);
+            }
+            if (countPLTYP == 0) {
+                put(partLatestDateMatchPLTYPDict, matnr, dateFrom);
+                put(partPriceMatchPLTYPDict, matnr, price);
+                put(partQtyMatchPLTYPDict, matnr, qty);
+            } elif (comparedates(dateFrom, latestDateMatchPLTYP) == 1) { // check if new record start date is greater than old one
+                //print "New Greater than old";
+                put(partLatestDateMatchPLTYPDict, matnr, dateFrom);
+                put(partPriceMatchPLTYPDict, matnr, price);
+                put(partQtyMatchPLTYPDict, matnr, qty);
+            }
+            countPLTYP = countPLTYP + 1; // Set to true if record found
+            put(partLoopCountPLTYP, matnr, count);
+        }
+        */
+
+
+        // Get Future List Price if available
+        if (comparedates(dateFrom, currentDate) == 1 AND comparedates(dateTo, currentDate) == 1) {
+            //print "Found future:" + get(r,"KBETR");
+            put(futurePartPricesDict, matnr, price);
+        }
+        put(partLoopCount, matnr, count);
+    }
+
+/*
+matchingMatnr = keys (partPriceMatchPLTYPDict);
+for curMatnr in matchingMatnr {
+    // replace price with exact PLTYP match, leave price where PLTYP is not found
+    put( partLatestDateDict, curMatnr, get(partLatestDateMatchPLTYPDict, curMatnr));
+    put( currentPartPricesDict, curMatnr, get(partPriceMatchPLTYPDict, curMatnr));
+    put( partQtyDict, curMatnr, get(partQtyMatchPLTYPDict, curMatnr));
+}
+*/
+}
+
+//iterate through parts, apply their info to each line associated with it (might not be necessary as they only hvae one line per MPG atm)
+allPartNums = keys(partDocsDict);
+modelDocArr = keys (modelDocPricingTypeDic);
+childDocArr = keys (partLineNumsDict);
+for partNum in allPartNums {
+    partQty = get(partQtyDict, partNum);
+    if (isnull(partQty)) {
+        partQty = "1";
+    }
+    currentPrice = get(currentPartPricesDict, partNum);
+    if (isnull(currentPrice)) {
+        currentPrice = "0.00";
+    }
+
+    //no guarantee future price has been set, default to 0 if not
+    futurePrice = util.getStringDict(futurePartPricesDict, partNum, "0.0");
+    partNumDocs = get(partDocsDict, partNum);
+    for partNumDoc in partNumDocs {		
+	// For not changing the oldListPrice_l value for the NEWITEM
+	// retString = retString + partNumDoc + "~oldListPrice_l~" + currentPrice + "|" +
+        //    partNumDoc + "~newListPrice_l~" + futurePrice + "|";
+
+        if (transactionType_t == "CSP"
+            OR transactionType_t == "DSP") {
+            retString = retString + partNumDoc + "~quantity_l~" + partQty + "|";
+            retString = retString + partNumDoc + "~readOnlyQuantity_l~" + partQty + "|";
+        }
+
+        modelPricingAtChildLevel = false;
+        if( findinarray(modelDocArr, partNumDoc) > -1 ) {
+            // doc is a model
+            modelPricingType = get(modelDocPricingTypeDic, partNumDoc);
+            if (findinarray( childLevelPricingArr, partNumDoc) > -1 ) {
+                continue;   // current line is a model, pricing is at child level (skip setting list price)
+            }
+            if( modelPricingType <>"CPQ" OR findinarray( childLevelPricingArr, partNumDoc) > -1 ) {
+				
+				print partNumDoc;
+				print 569;
+                continue;   // VC/BOM
+            }
+        }
+        if( findinarray( childDocArr, partNumDoc) > -1 ) {
+            // child line
+            splitArr= split(get(partLineNumsDict,partNumDoc),".");
+            lineDocNum= splitArr[0];
+            parentDocNum= splitArr[1];
+
+            modelPricingType = get(modelDocPricingTypeDic, parentDocNum);
+            if(findinarray( childLevelPricingArr, parentDocNum) == -1 ) {continue;} // current line is child line, pricing is not child level 
+            if( modelPricingType <>"CPQ" ) { continue; }
+        }
+        currentPriceNum= util.stringToFloat(currentPrice);
+        if(partNum <> "NEWITEM" AND partNum <> "ETO01" AND (NOT find(agreementUploadDetails_t,"Bussmann") >= 0)) {
+			if (currentPriceNum > 0 AND NOT(isnull(currentPrice))) {
+			print "partNumDoc  is";
+			print partNumDoc + "" + currentPrice  ;
+				retString = retString + partNumDoc + "~oldListPrice_l~" + currentPrice + "|";
+			}
+			elif(isnull(currentPrice))
+			{
+				retString = retString + partNumDoc + "~oldListPrice_l~ 0.0"+ "|";	
+			}
+			//Gaurav: Adding logic to populate Price Per from data table (ALM-1799)
+			if(isnumber(partQty)){
+				retString = retString + partNumDoc + "~qqPerUOM_l~" + partQty + "|";
+			}
+			retSTring = retString + partNumDoc + "~newListPrice_l~" + futurePrice + "|";
+        }
+    }
+}
+retstring = retString + "1~lastUsedPricelist_t~" + priceList + "|";
+
+// For Standard Terms and Conditions Document Name and Document Location.
+tnc = qqTnC_t;
+salesOrg = salesOrg_t;
+tncDocName = "";
+tncDocLoctn = "";
+if (qqTnC_t == "standard") {
+    dbResults = BMQL("Select TnCDocName, TnCDocLocation From StandardTnC Where SalesOrg = $salesOrg");
+    for result in dbResults {
+        tncDocName = get(result, "TnCDocName");
+        tncDocLoctn = get(result, "TnCDocLocation");
+    }
+}
+
+retString = retString + "1~qqSelectedStandardTnCDocsNames_t~" + tncDocName + "|" +
+    "1~qqSelectedStandardTnCDocsLocation_t~" + tncDocLoctn + "|";
+    
+retString= retString + join(SAPLineNumbers,"|") + "|"; // ALM#2689 Added pipe symbol
+
+return retString;

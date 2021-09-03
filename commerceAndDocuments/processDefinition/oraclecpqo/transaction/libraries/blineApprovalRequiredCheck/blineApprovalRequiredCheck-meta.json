@@ -1,0 +1,14 @@
+{
+  "name" : "BLINE Approval Required Check",
+  "variableName" : "blineApprovalRequiredCheck",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "inputData",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionLineApprovalInformation_t", "superUserEmail_t" ],
+  "systemAttributes" : [ ]
+}

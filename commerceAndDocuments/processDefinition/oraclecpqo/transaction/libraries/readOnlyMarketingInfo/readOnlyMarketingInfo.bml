@@ -1,0 +1,143 @@
+retStr = "";
+message  = "";
+marketingInfoJson = json();
+userLanguage = _system_current_user_language;
+notificationMessage = "";
+notificationsArray = string[];
+WARNING_MESSAGE_GUIDANCEVALUESINVALID = util.getRemark("WARNING_MESSAGE_20", userLanguage);
+WARNING_MESSAGE_GUIDANCEVALUESEMPTY = util.getRemark("WARNING_MESSAGE_20", userLanguage);
+//response= "{'2':{'Start':'10.5','Target':'20.0','Sales_Floor':'5.0','Div_Min':'3','Cost':'100.5'}}";
+
+//zilliantRespJSON = util.parseZilliantResponse(response);
+//accountType = jsonget(zilliantRespJSON,"Account_Type","json");
+//subAccountType = jsonget(zilliantRespJSON,"Sub_Account_Type","json");
+
+accountType =  "Consultant"; //Consultant,Contractor
+subAccountType = "Planner";//Planner,Architect
+
+//check for invalid values
+//First Method to find if AccountType is valid
+
+if((accountType <> "" AND subAccountType <> "") OR (accountType <> "" AND subAccountType == ""))
+{
+	isAccountTypeValid  = false;
+	subAccountTypes = BMQL("Select SubAccountType From AllwdSubAccntTypVals Where AccountType = $accountType");
+
+	for subAccountTypeRec in subAccountTypes {
+		isAccountTypeValid = true;
+		break;
+	}
+   
+
+        //print "In here";
+
+	//check for only AccountType recieved and SubAccountType is blank and viceversa
+	if(isAccountTypeValid)
+	{
+	  //print "again  in here";
+	  jsonput(marketingInfoJson ,"AccountType",accountType);
+	  jsonput(marketingInfoJson ,"SubAccountType",subAccountType);
+	  jsonput(marketingInfoJson ,"InformationReceived",TRUE);
+	  
+	  //set the values to attributes
+	
+	  //retStr + "1~qqAccountType_t~"+ accountType + "|";
+	  //retStr + "1~qqSubAccountType_t~"+ subAccountType+ "|";
+	}else
+	{
+	  //fetch the value from Database based on UserLanguage
+      message = WARNING_MESSAGE_GUIDANCEVALUESINVALID;//guidance values are invalid
+      append(notificationsArray, "<p>" + message + "</p>");
+	  jsonput(marketingInfoJson ,"InformationReceived",FALSE);
+	}
+
+}else
+{
+   jsonput(marketingInfoJson ,"InformationReceived",FALSE);
+}
+
+
+//retStr = retStr + "1~marketingInformationValue_t~"+ jsontostr(marketingInfoJson) + "|";
+//print retStr ;
+
+//constraint rule advance condition
+//marketingInfo = marketingInformationValue_t;
+marketingInfo  = jsontostr(marketingInfoJson);
+checkFlag = jsonget(json(marketingInfo),"InformationReceived","boolean");
+accountType = jsonget(json(marketingInfo),"AccountType","string");
+subAccountType  = jsonget(json(marketingInfo),"SubAccountType","string");
+isCondition = FALSE;
+
+   print checkFlag;
+   print accountType ;
+   print subAccountType  ;
+   
+   if(checkFlag AND ((subAccountType <> "" AND accountType <> "") OR (accountType <> "" AND subAccountType == "")))
+   {    
+      //print "Yes I am true";
+       isCondition = TRUE;
+	  
+   }
+   else
+   {
+        isCondition = TRUE;
+   }
+   
+//Advance
+outerDict = dict("dict<string>"); 
+innerDict = dict("string"); 
+//marketingInfo = marketingInformationValue_t;
+marketingInfo  = jsontostr(marketingInfoJson);
+accountType = jsonget(json(marketingInfo),"AccountType","string");
+subAccountType  = jsonget(json(marketingInfo),"SubAccountType","string");
+
+if(accountType <> "" AND (accountType <> qqAccountType_t))
+{
+   //print "hello account";
+   message = util.getRemark("MARKETINGINFOR", userLanguage);
+   put(innerDict, BM_CM_RULES_MESSAGE, message);
+   put(innerDict, BM_CM_RULES_LOCATION, "top");  
+   put(outerDict, "qqAccountType_t", innerDict); 
+}  
+if(subAccountType <> ""  AND (subAccountType <> qqSubAccountType_t))
+{
+   //print "Hello SUbAccount";
+   message = util.getRemark("MARKETINGINFOR", userLanguage);
+   put(innerDict, BM_CM_RULES_MESSAGE, message);
+   put(innerDict, BM_CM_RULES_LOCATION, "top");  
+   put(outerDict, "qqSubAccountType_t", innerDict); 
+}
+
+//return outerDict;
+//Error Section
+response = "{'2':{'Start':'10.5','Target':'20.0','Sales_Floor':'5.0','Div_Min':'3','Cost':'100.5'}}";
+zilliantRespJSON = response;
+//check for entire value or individual items null
+//is currency float??
+for line in transactionLine{
+  docNum = line._document_number;
+  eachLineJSON = jsonget(json(zilliantRespJSON),docNum,"json");
+  //check if not null
+  if(NOT(ISNULL(eachLineJSON)))
+  {
+	  startGuidance = jsonget(eachLineJSON, "Start", "float");
+	  targetGuidance = jsonget(eachLineJSON, "Target", "float");
+	  salesFloorGuidance = jsonget(eachLineJSON, "Sales_Floor", "float");
+	  divMinGuidance = jsonget(eachLineJSON, "Div_Min", "float");
+	  cost = jsonget(eachLineJSON, "Cost", "float");
+	  retStr = retStr + docNum + "~guidance_start_l~" + string(startGuidance) + "|"
+                    + docNum + "~guidance_target_l~" + string(targetGuidance) + "|"
+                    + docNum + "~guidance_salesfloor_l~" + string(salesFloorGuidance) + "|"
+                    + docNum + "~guidance_div_min_l~" + string(divMinGuidance) + "|"
+                    + docNum + "~cost_l~" + string(cost) + "|";
+  }else
+  {
+	  print "null";
+  }
+}  
+
+if(sizeofarray(notificationsArray) > 0){
+      notificationMessage = join(notificationsArray, "/n");
+ }
+ retStr = retStr + _transaction_document_number  + "~priceGuidanceInvalidmessageDisplay_t~" + message + "|";
+ return retStr;

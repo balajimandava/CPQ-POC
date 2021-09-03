@@ -1,0 +1,21 @@
+{
+  "name" : "Log Json Array",
+  "variableName" : "u_logJsonArray",
+  "description" : "Print a JSON array object to the log.",
+  "libraryFunctions" : [ "util.u_logString" ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "category",
+    "type" : "String"
+  }, {
+    "name" : "level",
+    "type" : "Integer"
+  }, {
+    "name" : "jsonArr",
+    "type" : "JsonArray"
+  }, {
+    "name" : "label",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

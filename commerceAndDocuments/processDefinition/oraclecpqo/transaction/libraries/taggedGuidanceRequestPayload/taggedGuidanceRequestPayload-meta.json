@@ -1,0 +1,14 @@
+{
+  "name" : "Tagged Guidance Request Payload",
+  "variableName" : "taggedGuidanceRequestPayload",
+  "description" : "",
+  "libraryFunctions" : [ "util.getApprovalThresholds", "util.stringToFloat" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "listPrice_l", "materialLineItem_l", "netPrice_l", "materialPricingGroup_l", "oldListPrice_l", "currentNetPricePerUOM_l", "qqProductType_l", "scaleFrom_l", "scaleTo_l", "oldDiscountString_l", "discountOffList_l", "guidance_start_l", "guidance_target_l", "uOM_l", "guidance_salesfloor_l", "guidance_div_min_l", "metalSurcharges_l", "bonusGroup_l", "roundingQuantity_l", "listPriceDifference_l", "agreementNetPrice_l", "agreementNetDiscount_l", "bonusGroupDiscount_t", "segmentId_t", "qqGroup_l", "qqRequestedDiscountPrcnt_l", "newNetPrice_l", "cost_l", "netFixedAmountString_l", "discountPercentString_l" ],
+  "mainDocAttributes" : [ "customerCountry_t", "customerNumber_t", "currency_t", "selectedCustomerArraySet_t", "endCustomerNo_t", "qqAccountType_t", "qqSubAccountType_t", "transactionType_t", "salesOrg_t", "qqCustomerGroup_t", "distributionChannel_t", "division_t", "salesOrgMPGPrefix_t", "revisionNumber_t", "approvalDate_t", "parent_transaction_id_createRenewal", "expireandrenew_t", "parent_transaction_id_qqCreateNewVersion_t", "qqTotalValue_t", "expectedVolume_t", "transactionNumber_t", "transactionName_t", "agreementValidFrom_t", "agreementValidTo_t", "isQuote_t", "transactionOwner_t", "creatorQuote_t", "createdBy_t", "createdDate_t", "submittedDate_t", "status_t", "priceListHPL_t", "priceListFrom_t", "priceListTo_t", "lastUpdatedDate_t", "qqSAPCompleteDate_t", "feedbackProvidedDate_t", "qqSAPQuoteNumber_t", "vistexAgreement_t", "headerDiscountAmount_t", "transactionOwnerName_t", "approvalCommentsText_t", "headquartersNumber_t", "currencySymbol_t", "currencyDecimalSeparator_t", "selectedCustomerArraySet2_t", "eRecordID_t", "accountTypeKTOKD_t", "shipToNumber_t", "soldToNumber_t", "salesContactNumber_t", "customerSupportNumber_t" ],
+  "systemAttributes" : [ ]
+}

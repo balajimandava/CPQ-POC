@@ -1,0 +1,12 @@
+{
+  "name" : "Common call to BM",
+  "variableName" : "commonCallToBM",
+  "description" : "Created this library to make call to SOA to connect with BidMan",
+  "libraryFunctions" : [ "util.getEnvironmentVariable", "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.getTransactionData", "util.getTransactionLineLevelData" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inParams",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ "_company_name", "_site_url", "_user_name", "_user_login" ]
+}

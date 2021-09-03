@@ -1,0 +1,18 @@
+{
+  "name" : "Update Transaction (REST)",
+  "variableName" : "updateTransactionREST",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "newTransactionData",
+    "type" : "Json"
+  }, {
+    "name" : "action",
+    "type" : "String"
+  }, {
+    "name" : "link",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

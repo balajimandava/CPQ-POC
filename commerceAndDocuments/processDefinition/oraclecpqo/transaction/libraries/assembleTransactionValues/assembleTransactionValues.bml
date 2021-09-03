@@ -1,0 +1,126 @@
+/**
+@name Assemble Transaction Values
+@api assembleTransactionValues
+@summary Extract Transaction values for the provided bs id
+@function Json getSiteSpecificData(String siteID)
+@function String getSupplierCompanyName()
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-09-20|Gaurav Singh         |ALM-1107
+2019-07-23|Harshit Mehta	|ALM-2339 : Changes to get lineURL data from jsonpath $.links[?(@.name =='transactionLine')].href
+*/
+
+// -----------------------
+// get header level fields
+// -----------------------
+headerFields = string[] {
+    // approval main vars
+    "whatLevelOfDiscountApprovalRequired_t",
+    "overallTermsApprovalLevel_t",
+    "bs_id",
+    // validityPeriodApproval
+    "agreementValidFrom_t",
+    "agreementValidTo_t",
+    // minimumOrderApproval
+    "minimumOrderVolume_t",
+    // metalApproval
+    "silver_t",
+    "silverValue_t",
+    "copper_t",
+    "copperValue_t",
+    "aluminium_t",
+    "aluminiumValue_t",
+    "surchargeExemption_t",
+    // extensionApproval
+    "extendCurrentListPrices_t",
+    "choosePricelist_t",
+    // expectedVolumeApproval
+    "expectedVolume_t",
+    // invoiceApproval
+    "agreementPeriodOfInvoicing_t",
+    "periodOfInvoicingShipTo_t",
+    // termLevelApproval
+    "agreementPaymentTerms_t",
+    "paymentTermsShipTo_t",
+    // deliveryApproval
+    "agreementDeliveryTerms_t",
+	"previousApprovedValues_t"
+};
+company = util.getSupplierCompanyName();
+bsId = jsonget(INPUT, "bsid");
+quoteJson = json();
+if(NOT ISNULL(bsId) AND bsId <> ""){
+	url = "https://" + company + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction/" + bsId;
+	parameters = join(headerFields, ",");
+
+	// get system user
+	user = util.getSiteSpecificData(company);
+	login = jsonget(user, "FieldName", "string", "");
+	password = jsonget(user, "Value1", "string", "");
+	headers = dict("string");
+	put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+	put(headers, "Content-Type", "application/json");
+
+	quoteHeaderResp = urldata(url + "?fields=" + parameters, "get", headers);
+	statusCode = get(quoteHeaderResp, "Status-Code");
+	if (not isnumber(statusCode) and atoi(statusCode) >= 400){
+		throwerror("Unable to get quote header data for quote.", true);
+	}
+	quoteHeader = get(quoteHeaderResp, "Message-Body");
+	quoteJson = json(quoteHeader);
+
+	//print quoteJson;
+
+	// Save line link
+	/* Harshit Mehta : ALM#2339  : change JSON path from $.links[0].href to $.links[?(@.name =='transactionLine')].href due to change in JSON structure for arraysets. 
+	   At 0 position arrayset is available.
+	*/
+	lineUrl = jsonpathgetsingle(quoteJson, "$.links[?(@.name =='transactionLine')].href", "string", "");
+
+	jsonremove(quoteJson, "links");
+
+	// ---------------------
+	// get line level fields
+	// ---------------------
+	lineFields = string[] {
+		"_document_number",
+		"qqProductType_l",
+		"materialPricingGroup_l",
+		"materialLineItem_l",
+		"agreementNetDiscountRequested_l",
+		"discountString_l",
+		"customDiscountType_l",
+		"scaleFrom_l",
+		"oldListPrice_l",
+		"scaleTo_l"
+	};
+
+	parameters = join(lineFields, ",");
+	/*
+	Harshit Mehta START ALM 2339 :  changing function from urlData to urlDataByGet.
+	After enabling "Collaboration Editing" urlData function was giving error like : Reserved HTTP header was found: X-SAME-SITE-REQ
+	But if we use urldataByGet then no error.
+	TO DO : Identify why at header level urldata function is working correctly.
+	*/
+	//quoteLineResp = urlData(lineUrl + "?fields=" + parameters, "get", headers);
+	print "Assemble Transaction Values Library:::::";print lineUrl+"fields="+parameters;
+	quoteLineResp = urldatabyget(lineUrl,"fields="+parameters,"ERROR");
+	
+	if (quoteLineResp == "ERROR") {
+    		throwerror("Unable to get line data for quote.", true);
+	}
+	//Harshit Mehta END ALM 2339:: Changing function from urlData to urlDataByGet
+	
+	lineDataJson = json(quoteLineResp);	
+	jsonpathremove(lineDataJson, "$..links");
+	lineJsonArray = jsonget(lineDataJson, "items", "jsonarray");
+
+	// -------------------------
+	// assemble return json data
+	// -------------------------
+	jsonput(quoteJson, "items", lineJsonArray);
+}
+
+return quoteJson;

@@ -1,0 +1,19 @@
+/**
+@name Resolve PH4 for MPG
+@api resolvePH4ForMPG
+@summary Resolve the PH4 values for a given list of MPG's
+@param mpgList String[]
+@function JsonArray u_getJsonDataForQuery(String query)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-30|Tat.Leung            |Initial version
+*/
+ph4Result = json();
+
+query = "select MPG, PH4 from MPG_PH4_Conversion where MPG in ('" + join(mpgList, "', '") + "')"; 
+ph4Data = util.u_getJsonDataForQuery(query);
+jsonput(ph4Result, "ph4Data", ph4Data);
+
+return ph4Result;

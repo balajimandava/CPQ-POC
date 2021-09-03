@@ -1,0 +1,37 @@
+sepChar= "!";
+
+noDuplicateNames= customerName_t;
+
+//  We have a limited number of characters so don't put in the same name more than once
+if (find(noDuplicateNames,headquarters_t) == -1) {
+  noDuplicateNames= noDuplicateNames+sepChar+headquarters_t;
+}
+if (find(noDuplicateNames,customerSoldTo_t) == -1) {
+  noDuplicateNames= noDuplicateNames+sepChar+customerSoldTo_t;
+}
+if (find(noDuplicateNames,customerShipTo_t) == -1) {
+  noDuplicateNames= noDuplicateNames+sepChar+customerShipTo_t;
+}
+
+noDuplicateNumbers= customerNumber_t;
+
+//  We have a limited number of characters so don't put in the same name more than once
+if (find(noDuplicateNumbers,headquartersNumber_t) == -1) {
+  noDuplicateNumbers= noDuplicateNumbers+sepChar+headquartersNumber_t;
+}
+if (find(noDuplicateNumbers,soldToNumber_t) == -1) {
+  noDuplicateNumbers= noDuplicateNumbers+sepChar+soldToNumber_t;
+}
+if (find(noDuplicateNumbers,shipToNumber_t) == -1) {
+  noDuplicateNumbers= noDuplicateNumbers+sepChar+shipToNumber_t;
+}
+
+
+
+return noDuplicateNumbers + sepChar +
+       bs_id + sepChar +
+       status_t + sepChar +
+       customerPostalCodeZip_t + sepChar +
+       customerCity_t + sepChar +
+       noDuplicateNames + sepChar +
+       transactionName_t;

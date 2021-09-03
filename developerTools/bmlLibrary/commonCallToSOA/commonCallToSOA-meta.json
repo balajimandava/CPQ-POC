@@ -1,0 +1,24 @@
+{
+  "name" : "Common call to SOA",
+  "variableName" : "commonCallToSOA",
+  "description" : "Created this library to make call to SOA to connect with BidMan",
+  "libraryFunctions" : [ "util.getEnvironmentVariable", "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.getTransactionData", "util.getTransactionLineData" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "selectedDocNumber",
+    "type" : "String"
+  }, {
+    "name" : "configExtraInfo",
+    "type" : "String"
+  }, {
+    "name" : "modelPath",
+    "type" : "String"
+  }, {
+    "name" : "bsId",
+    "type" : "String"
+  }, {
+    "name" : "searchResult",
+    "type" : "String"
+  } ],
+  "attributes" : [ "_company_name", "_site_url" ]
+}

@@ -1,0 +1,39 @@
+print "************ test1 Commerce Library Function - Start ************";
+/*for line in transactionLine {
+	print "Document Number: " + line.doc_number;
+	print "Sequence Number: " + string(line._sequence_number);
+		print "SAP Line Number: " + string(line.SAPLineNumber_l);
+	print "-----------------";
+}*/
+
+
+docNumsToSendArr = string[];
+
+lastSentLineItemsJson = jsonarray();
+lastSentJson = json();
+
+lastSentDocNumArr = string[];
+lastSentCustomDiscDict = dict("string");
+lastSentScaleFromDict = dict("string");
+lastSentScaleToDict = dict("string");
+
+if(lastSentLineDetails_t <> "" AND NOT(isnull(lastSentLineDetails_t))) {
+    lastSentJson = json(lastSentLineDetails_t);
+}
+print lastSentJson; print "===========";
+if(jsonpathcheck(lastSentJson, "$.items")) {
+    lastSentLineItemsJson = jsonget(lastSentJson, "items", "jsonarray");
+}
+print lastSentLineItemsJson; print "===========";
+
+fullVal = range(jsonarraysize(lastSentLineItemsJson));
+for eachVal in fullVal {
+	eleJson = jsonarrayget(lastSentLineItemsJson, eachVal, "json");
+	append(lastSentDocNumArr, jsonget(eleJson, "_document_number", "string"));
+	
+}
+
+
+print "************ test1 Commerce Library Function - End ************";
+
+return "";

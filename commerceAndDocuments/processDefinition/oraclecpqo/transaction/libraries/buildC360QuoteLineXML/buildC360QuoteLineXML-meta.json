@@ -1,0 +1,14 @@
+{
+  "name" : "buildC360QuoteLineXML",
+  "variableName" : "buildC360QuoteLineXML",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.buildVCDataItemsXML", "util.u_getLineFromJson" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_document_number", "materialLineItem_l", "materialPricingGroup_l", "quantity_l", "scaleFrom_l", "scaleTo_l", "listPrice_l", "newNetPrice_l", "discountType_l", "discountString_l", "sAPDeletionFlag_l", "lineNumber_l", "coperSurcharge_l", "silverSurcharge_l", "aluminumSurcharge_l", "uOM_l", "externalConfigVCData_l", "qqTotal_l", "qqPricePerEditable_l", "productHierarchy_l" ],
+  "mainDocAttributes" : [ "salesOrg_t", "distributionChannel_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ ]
+}

@@ -1,0 +1,196 @@
+/*******************************************
+@name Parsing Date
+@api parsingDate
+@param inputDateJSON JSON Object
+@function 
+	None
+@return 
+	JSON Object
+	
+@Parameter
+	date1 : String format of date. 
+	date2 : String format of date.
+	dateFormat : dd-MM-yyyy HH:mm:ss
+	timezone : timezone i.e. GMT-6
+	operationType : REPORT  based upon operationType other date calculation could happen without affecting existig code.
+	
+@revision
+Rev. Date 	    |Developer            |Notes / Comments
+----------------|---------------------|-------------------------------------------------------------------------
+2018-09-06	    |Harshit Mehta        |Initial Version
+2019-09-06      |Sharath A            | ALM #1915  
+2020-24-03      |Atul Jain            | Added debug mode to print statements.
+
+********************************************/
+result = json();
+debugMode = false;
+//Getting data from inputDateJSON parameter
+dateFormat = jsonget(inputDateJSON,"dateFormat","String","dd-MM-yyyy HH:mm:ss"); //default format yyyy-MM-dd HH:mm:ss
+
+date1 = strtojavadate(jsonget(inputDateJSON,"date1","String",datetostr(getdate(),dateFormat)),dateFormat);
+date2 = strtojavadate(jsonget(inputDateJSON,"date2","String",datetostr(getdate(),dateFormat)),dateFormat);
+
+tempDate = date1;
+//Checking if the second date before the first date then interchanging the value.
+if(comparedates(date1, date2) == 1)
+{
+	date1 = date2;
+	date2  = tempDate;
+}
+if(debugMode)
+{
+    print date1;
+    print date2;
+}
+
+timeZone = jsonget(inputDateJSON,"timezone","String","GMT-6"); //default is CST
+operation = jsonget(inputDateJSON,"operationType","String","REPORT"); //default is REPORT calculation
+
+if(operation == "REPORT")
+{
+	daysDiff = "";
+	hoursDiff = "";
+	minsDiff = "";
+
+	if(comparedates(date1, date2) == 0)
+	{
+	  
+	   jsonput(result,"minsDiff","0");
+	   jsonput(result,"daysDiff","0");
+	   jsonput(result,"hoursDiff","0");  
+	   return result;
+	}
+	
+	//Convert date1 and date2 in string format to enable string function calculation.
+	date1StringFormat = datetostr(date1,dateFormat,timeZone);
+	date2StringFormat = datetostr(date2,dateFormat,timeZone);
+
+	
+	date1startPositionForMin = find(date1StringFormat ,":"); //To find Minutes
+	date1startPositionForHour = find(date1StringFormat ," "); // To find Hours
+
+	
+	date2startPositionForMin = find(date2StringFormat ,":"); //To find Minutes
+	date2startPositionForHour = find(date2StringFormat ," "); // To find Hours
+	
+	date1Min = substring(date1StringFormat ,date1startPositionForMin +1, date1startPositionForMin + 3 );
+	date1Hour = substring(date1StringFormat ,date1startPositionForHour + 1,date1startPositionForHour + 3);
+	
+	date2Min = substring(date2StringFormat ,date2startPositionForMin +1, date2startPositionForMin + 3 );
+	date2Hour = substring(date2StringFormat ,date2startPositionForHour +1, date2startPositionForHour + 3 );
+	
+
+	
+	//Minute flag set if the date2min is greater than date1min
+	minflag = false; 
+    if(debugMode)
+    {
+	print date1StringFormat ;
+	print date2StringFormat ;
+	print "----------------------";
+	print "date1Min:"+date1Min; 
+	print "date2Min:"+date2Min;
+	print "date1Hour:"+date1Hour;
+	print "date2Hour:"+date2Hour;
+	print "-----------------------";
+    print minsDiff ;
+    print minflag;
+    }
+	if(isNumber(date1Min) AND isNumber(date2Min))
+	{
+		//mins = atoi(date1Min) - atoi(date2Min);
+		if(atoi(date1Min) >= atoi(date2Min))
+	        { 
+		       mins = atoi(date1Min) - atoi(date2Min);
+		}else{
+		       mins = atoi(date2Min) - atoi(date1Min);
+		       minflag = true;   
+		       minsDiff = string(mins);
+		       jsonput(result,"minsDiff",minsDiff);    
+		       
+		}
+
+	}
+
+	//Hour flag set if the date2hour is greater than date1hour
+	hourFlag = false;
+	if(isNumber(date1Hour) AND isNumber(date2Hour))
+	{
+	       //if the hours of the date1 and date2 are equal
+	       if(atoi(date1Hour) == atoi(date2Hour)){
+	               
+	               //if the minute flag set to false
+	               if(NOT minflag)
+		       {  
+		            minsDiff = string(60 - mins);  
+		            jsonput(result,"minsDiff",minsDiff);
+		            daysDiff = string(getdiffindays (date1,date2) - 1);
+		            hours = 23;
+		       }
+		       else
+		       {
+		             hours = 0;
+		             daysDiff = string(getdiffindays (date1,date2));
+		       } 		
+		}//if the date1hour is greater than date2hour then substracting hours - 1
+		elif(atoi(date1Hour) > atoi(date2Hour))
+	        { 	              
+	                hours = atoi(date1Hour) - atoi(date2Hour);
+	                hours = 24 - hours; 
+	             
+	               //if the minute flag set to false
+	               if(NOT minflag)
+		       {  
+		            hours = hours - 1;
+		            minsDiff = string(60 - mins);   
+		            jsonput(result,"minsDiff",minsDiff);
+		            daysDiff = string(getdiffindays (date1,date2));
+		               
+		            if(atoi(daysDiff) > 0)
+		            {
+		               daysDiff = string(getdiffindays (date1,date2)-1); 
+		            }		           
+		               
+		       }
+		       else
+		       {	              
+		               daysDiff = string(getdiffindays (date1,date2) - 1);
+		       }
+		}else{  
+		        hours = atoi(date2Hour) - atoi(date1Hour);
+
+                if(debugMode)
+                {
+		            print hours ;
+                }
+
+                //if the minute flag set to false
+                if(NOT minflag)
+		       {  
+		            hours = hours - 1;
+		            minsDiff = string(60 - mins);   
+		            jsonput(result,"minsDiff",minsDiff);
+		            daysDiff = string(getdiffindays (date1,date2));		              
+		            if(atoi(daysDiff) > 0) {		           
+		                  daysDiff = string(getdiffindays (date1,date2) - 1);
+		            }  
+		               
+		       }
+		       else
+		       {   
+		              daysDiff = string(getdiffindays (date1,date2));		              
+		              if(atoi(daysDiff) > 0) {		           
+		                  daysDiff = string(getdiffindays (date1,date2) - 1);
+		              }  
+		              
+		       }
+		       hourFlag = true;
+		}
+				
+		hoursDiff = string(hours);
+		jsonput(result,"hoursDiff",hoursDiff);
+	}		
+	jsonput(result,"daysDiff",daysDiff);
+}
+
+return result;

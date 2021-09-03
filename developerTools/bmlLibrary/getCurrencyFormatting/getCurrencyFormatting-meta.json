@@ -1,0 +1,12 @@
+{
+  "name" : "Get Currency Formatting",
+  "variableName" : "getCurrencyFormatting",
+  "description" : "Determines the currency separators and symbol for a given currency.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "currency",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

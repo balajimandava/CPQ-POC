@@ -1,0 +1,39 @@
+/**
+@name Build Product Manager Approval Data
+@api buildProductManagerApprovalData
+@summary Assemble a list of product manager need to approve the quote
+@attribute _document_number
+@attribute approver_l
+@attribute requirePMApproval_l
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-31|Tat.Leung            |Initial Version
+2020-09-25|Praveen              |Added Logic for Project 51951
+2020-09-30|Anita		|CPQ-2802 defect solution
+2020-10-19|Ankit		|CPQ-3093 defect solution avoid add pricing group
+2020-11-03|Johnnny Lin		|INC000013962983 - duplicate approval e-mail notification
+       
+*/
+pmApprovers = string[];
+for line in transactionLine {
+	
+    if (not line.requirePMApproval_l) {
+        continue;
+    }
+    //if(line.takeOffModel_l== "BUSQSCP"){
+    //Start - Project 51951 - CPQ 618 changes
+    if(isBussmannDistributor_t){
+	    if (findinarray(pmApprovers, line.approver_l) == -1) {
+	        append(pmApprovers, line.approver_l);
+	    } //End - Project 51951 - CPQ 618 changes   
+    }else{
+    	//if (findinarray(pmApprovers, line.approverName_l) == -1 AND find (line.approverName_l, "Pricing Group")<0) {
+    	if (findinarray(pmApprovers, line.approver_l) == -1 AND find (line.approverName_l, "Pricing Group")<0) {
+	//INC000013962983 - duplicate approval e-mail notification
+	        append(pmApprovers, line.approver_l);  
+	}  
+    }
+}
+return join(pmApprovers, ",");

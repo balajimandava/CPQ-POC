@@ -1,0 +1,14 @@
+{
+  "name" : "Get C360 User",
+  "variableName" : "getC360User",
+  "description" : "Get the C360 user login based on the cpqLogin or _system_user_login (when cpqLogin is blank)",
+  "libraryFunctions" : [ "util.u_getJsonDataForQuery" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "cpqLogin",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ "_system_user_login" ]
+}

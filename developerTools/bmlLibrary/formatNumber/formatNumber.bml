@@ -1,0 +1,37 @@
+/************************************
+@formatNumber
+Util BML Library Format Number 
+Date(YYYY/MM/DD)	Name 			Comments
+2021/04/22		Johnny Lin		INC000014429975, remove the thousands separator of USD and CHF
+
+*************************************/
+
+currencyVal = jsonget(inputJson,"transactionCurrency","string");
+actualNumber = jsonget(inputJson,"actualValue","string");
+returnVal = "";
+
+if((currencyVal == "EUR" OR currencyVal == "RON" OR currencyVal == "TRY") AND find(actualNumber,",")<>-1){
+	actualNumber = replace(actualNumber, ".", "");
+	actualNumber = replace(actualNumber, ",", ".");
+	if(isnumber(actualNumber)){
+		returnVal = string(round(atof(actualNumber),2));
+	}
+}elif(currencyVal == "CHF" AND find(actualNumber,"'")<>-1){	//added per INC000014429975
+	actualNumber = replace(actualNumber, "'", "");
+	if(isnumber(actualNumber)){
+		returnVal = string(round(atof(actualNumber),2));
+	}
+}elif((currencyVal == "CZK" OR currencyVal == "HUF" OR currencyVal == "PLN") AND find(actualNumber,",")<>-1){  
+    actualNumber = replace(actualNumber, ",", ".");
+    actualNumber = replace(actualNumber, " ", "");
+	if(isnumber(actualNumber)){
+		returnVal = string(round(atof(actualNumber),2));
+	}
+}else{
+	actualNumber = replace(actualNumber, ",", "");	//added per INC000014429975
+	if(isnumber(actualNumber)){
+		returnVal = string(round(atof(actualNumber),2));
+	}
+}
+//INC000014429975 end of change
+return returnVal;

@@ -1,0 +1,11 @@
+{
+  "name" : "Austria Deployment Transactional Data load",
+  "variableName" : "austriaDeploymentTransactionalDataLoad",
+  "description" : "Project#52469-Austria Deployment|E9913664|In Progress|Function to load transnational data|DO NOT MIGRATE",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ "_system_company_name" ]
+}

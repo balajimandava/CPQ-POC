@@ -1,0 +1,11 @@
+retString= "";
+
+//  Brand codes and descriptions
+setTime1= getcurrenttimeinmillis();
+
+brandRS= bmql("SELECT DISTINCT MVGR1,MPG_TEXT FROM MAT01 WHERE MVGR1 IS NOT NULL AND VKORG = '1231' AND VTWEG = '10'");
+productHierarchyRS= bmql("SELECT DISTINCT PH5,PH5_TEXT FROM MAT01 WHERE PH5 IS NOT NULL AND VKORG = '1231' AND VTWEG = '10'");
+catalogNumberRS= bmql("SELECT DISTINCT ZZCATNO,MAKTXEN FROM MAT01 WHERE ZZCATNO IS NOT NULL AND VKORG = '1231' AND VTWEG = '10'");
+
+setTime2= getcurrenttimeinmillis();
+return retString;

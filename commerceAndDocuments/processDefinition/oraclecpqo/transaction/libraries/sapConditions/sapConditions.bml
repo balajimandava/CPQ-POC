@@ -1,0 +1,751 @@
+/**
+@name SAPConditions
+@api sapConditions
+@summary Processes all the pricing conditions returned from SAP and updates the attributes.
+@param data Json
+@attribute SAPLineNumber_l
+@attribute _document_number
+@attribute _parent_doc_number
+@attribute currency_t
+@attribute doc_number
+@attribute documentNumbersBeforeNewAdd_t
+@attribute externalConfigVCData_l
+@attribute materialLineItem_l
+@attribute qqBusinessLineForSalesOrg_t
+@attribute qqProductType_l
+@attribute transactionNumber_t
+@function Float stringToFloat(String input)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+31/07/2017|dBo Haizlip          |Initial Version -- 91506140
+2018.06.12|dBo Haizlip		|Added support for cost values and special handling for B-LINE costs
+2018-06-22|michael.yeung        |
+2018-06-25|michael.yeung        |
+2018-06-26|michael.yeung        |
+2018-06-27|michael.yeung        | check for null docNum, QQ-665
+2018-06-27|Michael.Yeung        |
+2018-07-04|Vivek.Hingorani      |Updated Generic form for QQ-542
+2018-07-04|Vivek.HIngorani	|Added Net Price calculation logic for QQ:680
+2018-07-11|Shibaji.Ganguly  	|Added code for QQ-683 for populating Cost (cost_l) line attribute.
+2018-07-27|dBo Haizlip		|Removed the setting of all attributes to zero...only attributes coming in will be set
+2018-07-30|shibaji.ganguly  	|QQ-717 Fix due to QQ-714.
+2018-08-09|dBo Haizlip		|Skipping/Not showing surcharge/discount conditions for ZVA0(s)  QQ-747
+2018-08-09|dBo Haizlip		|Add all ZVA0 and use the total for list price if no list price is provided.
+2018-10-05|michael.yeung        | Match SAP result by material item number for VC pricing call
+2018-11-02|michael.yeung        |
+2018-11-20|Harshit Mehta		|Defect# 1403 : Modified conditions to use //cpq:ITM_NUMBER instead of //cpq:_document_number for VCPrice call.
+2018-11-30|Gaurav Singh			|ALM-1582: Adedd logic to show ZWEE condition type in the Net Price Details Line Levele Attribute
+2019-03-25|Pooja Gupta			|ALM - 1315 Added logic to populate condition type column according to SAP Conditions
+2019-04-09|Harshit Mehta		|ALM - 1931 Added logic to rollup prices at model level for Bidmanager configuration model.
+2019-04-24|Harshit Mehta	| ALM - 1099 Added logic to consider BLine cost correctly.
+2019-05-03|Harshit Mehta	| ALM - 1099 Added code to convert ZPCC value from negative to positive.
+2019-05-07|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+2019-06-2019|Pooja Gupta        |ALM 2250-Added code to stop Net price update for VC line items on net price call
+2019-06-25|Ankit Vernekar	|ALM-2190-Avoid list price updation on net refresh
+2019-07-31|Ankit Vernekar	|ALM-2331-Update list price from SAP for VC config call
+2019-08-30|Harshit Mehta	|ALM#2408 : Added Logic to Reset needNetPrice_l
+2021-01-25|Shardul Shirke	|Performance impv changes.
+*/
+
+retJson= json();
+sapLineNum= jsonget(data,"sapLineNum","json",json());
+materialItemsJson = jsonget(data, "materialItemsJson","json",json());
+genericAttr= "discSurcharge8_l";
+//genericForm= "CONDSEQ#-CONDTYPE-CONDVALUE-CONDTEXT";
+genericForm= "CONDTYPE CONDTEXT CONDVALUE VALUETYPE";
+genericCNTJson= json();
+genericMAX= 8;
+alternateListPriceCond= "ZVA0";  //  Total these to get list price if not provided
+listPriceName= "oldListPrice_l";  // string to look for in the CPQField for in the SAPConditionTypes data table
+zva0CondJson= json();   //  Running total for ZVA0 conditions
+listPriceJson= json();  //  List Price (If we got one)
+
+VCPricingCall= jsonget(data,"VCPricingCall","boolean",false);
+////print VCPricingCall;
+////print "SAP CONDITIONS.....";
+
+//  If nothing passed then we bail
+successfulMessage= jsonget(data,"successfulMessage","string","");
+
+//successfulMessage = "<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:wsa=\"http://www.w3.org/2005/08/addressing\"><env:Header><wsa:MessageID>urn:c3bcb383-7c25-11eb-9b71-005056a21a76</wsa:MessageID><wsa:ReplyTo><wsa:Address>http://www.w3.org/2005/08/addressing/anonymous</wsa:Address><wsa:ReferenceParameters><instra:tracking.ecid xmlns:instra=\"http://xmlns.oracle.com/sca/tracking/1.0\">005jA7r47pR7m3iOX6n3Dr0004rO000J94</instra:tracking.ecid><instra:tracking.FlowEventId xmlns:instra=\"http://xmlns.oracle.com/sca/tracking/1.0\">124140392</instra:tracking.FlowEventId><instra:tracking.FlowId xmlns:instra=\"http://xmlns.oracle.com/sca/tracking/1.0\">6709974</instra:tracking.FlowId><instra:tracking.CorrelationFlowId xmlns:instra=\"http://xmlns.oracle.com/sca/tracking/1.0\">0000NVsJu8^7u1iOX6f9Dr1W1LQH0009kb</instra:tracking.CorrelationFlowId><instra:tracking.quiescing.SCAEntityId xmlns:instra=\"http://xmlns.oracle.com/sca/tracking/1.0\">670314</instra:tracking.quiescing.SCAEntityId></wsa:ReferenceParameters></wsa:ReplyTo><wsa:FaultTo><wsa:Address>http://www.w3.org/2005/08/addressing/anonymous</wsa:Address></wsa:FaultTo></env:Header><env:Body><VCNetPriceResponse xmlns:oracle-xsl-mapper=\"http://www.oracle.com/xsl/mapper/schemas\" xmlns:cpq=\"http://eaton.bigmachines.com/eaton/cpq/transaction\" xmlns=\"http://eaton.bigmachines.com/eaton/cpq/transaction\"><cpq:status><cpq:statusCode>Success</cpq:statusCode><cpq:statusMessage>Success</cpq:statusMessage></cpq:status><cpq:transaction><cpq:sub_documents><cpq:transactionLine><cpq:materialLineItem_l>Y7-2010741</cpq:materialLineItem_l><cpq:ITM_NUMBER>1.0</cpq:ITM_NUMBER></cpq:transactionLine><cpq:transactionLine><cpq:materialLineItem_l>Y7-216535</cpq:materialLineItem_l><cpq:ITM_NUMBER>1.1</cpq:ITM_NUMBER></cpq:transactionLine><cpq:transactionLine><cpq:materialLineItem_l>Y7-216712</cpq:materialLineItem_l><cpq:ITM_NUMBER>1.2</cpq:ITM_NUMBER></cpq:transactionLine><cpq:transactionLine><cpq:materialLineItem_l>Y7-216382</cpq:materialLineItem_l><cpq:ITM_NUMBER>1.3</cpq:ITM_NUMBER></cpq:transactionLine><cpq:transactionLine><cpq:materialLineItem_l>Y7-216382</cpq:materialLineItem_l><cpq:ITM_NUMBER>1.4</cpq:ITM_NUMBER></cpq:transactionLine><cpq:transactionLine><cpq:materialLineItem_l>Y7-216382</cpq:materialLineItem_l><cpq:ITM_NUMBER>1.5</cpq:ITM_NUMBER></cpq:transactionLine><cpq:transactionLine><cpq:materialLineItem_l>Y7-2010763</cpq:materialLineItem_l><cpq:ITM_NUMBER>2.0</cpq:ITM_NUMBER></cpq:transactionLine><cpq:transactionLine><cpq:materialLineItem_l>Y7-95540</cpq:materialLineItem_l><cpq:ITM_NUMBER>2.1</cpq:ITM_NUMBER></cpq:transactionLine><cpq:transactionLine><cpq:materialLineItem_l>Y7-229753</cpq:materialLineItem_l><cpq:ITM_NUMBER>2.2</cpq:ITM_NUMBER></cpq:transactionLine><cpq:transactionLine><cpq:materialLineItem_l>Y7-216380</cpq:materialLineItem_l><cpq:ITM_NUMBER>2.3</cpq:ITM_NUMBER></cpq:transactionLine><cpq:transactionLine><cpq:materialLineItem_l>Y7-216380</cpq:materialLineItem_l><cpq:ITM_NUMBER>2.4</cpq:ITM_NUMBER></cpq:transactionLine><cpq:Conditions><cpq:Condition><cpq:ITM_NUMBER>1.0</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.0</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.0</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.0</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.0</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.1</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>11.000000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.1</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.1</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>5.100000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.1</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.1</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.2</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>10.300000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.2</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.2</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>4.780000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.2</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.2</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.3</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>55.000000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.3</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.3</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>25.520000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.3</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.3</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.4</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>55.000000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.4</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.4</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>25.520000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.4</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.4</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.5</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>55.000000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.5</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.5</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>25.520000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.5</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>1.5</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.0</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.0</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.0</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.0</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>7.990000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.0</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.1</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>120.000000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.1</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.1</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>55.680000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.1</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.1</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.2</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>14.600000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.2</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.2</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>6.770000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.2</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.2</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.3</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>12.000000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.3</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.3</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>5.570000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.3</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.3</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.4</cpq:ITM_NUMBER><cpq:COND_TYPE>ZPR0</cpq:COND_TYPE><cpq:COND_VALUE>12.000000000</cpq:COND_VALUE><cpq:COND_TEXT>BASE PRICE</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>010</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.4</cpq:ITM_NUMBER><cpq:COND_TYPE>ZK35</cpq:COND_TYPE><cpq:COND_VALUE>-53.600000000</cpq:COND_VALUE><cpq:COND_TEXT>Base Discount %</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>090</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.4</cpq:ITM_NUMBER><cpq:COND_TYPE>PNTP</cpq:COND_TYPE><cpq:COND_VALUE>5.570000000</cpq:COND_VALUE><cpq:COND_TEXT>Net Price</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>289</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.4</cpq:ITM_NUMBER><cpq:COND_TYPE>ZD05</cpq:COND_TYPE><cpq:COND_VALUE>0.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Freight Charge</cpq:COND_TEXT><cpq:VALUE_TYPE>EUR</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>375</cpq:DiscSurchargeSeq></cpq:Condition><cpq:Condition><cpq:ITM_NUMBER>2.4</cpq:ITM_NUMBER><cpq:COND_TYPE>MWST</cpq:COND_TYPE><cpq:COND_VALUE>19.000000000</cpq:COND_VALUE><cpq:COND_TEXT>Output Tax</cpq:COND_TEXT><cpq:VALUE_TYPE>%</cpq:VALUE_TYPE><cpq:DiscSurchargeSeq>520</cpq:DiscSurchargeSeq></cpq:Condition></cpq:Conditions></cpq:sub_documents></cpq:transaction></VCNetPriceResponse></env:Body></env:Envelope>";
+
+
+if (successfulMessage == "") {
+  return retJson;
+}
+////print successfulMessage;
+
+existingDocNumbers = string[];
+refreshFlag = jsonget(data, "fp_refreshNetPrice", "boolean", false);
+refreshVCFlag = jsonget(data, "fp_refreshVCPrice", "boolean", false);
+if( NOT refreshFlag AND NOT refreshVCFlag) {
+    jsonget(data, "documentNumbersBeforeNewAdd_t", "string", documentNumbersBeforeNewAdd_t);
+    existingDocNumbers = split(documentNumbersBeforeNewAdd_t,"$,$");
+}
+	
+condTypesJson= json();
+
+//  Get all the condition types and the CPQ attribute they populate
+//  Note:  If not in this list then it goes in the generic ones
+rs= bmql("SELECT CondType,CPQField,Description FROM SAPConditionTypes");
+for eachCond in rs {
+  jsonput(condTypesJson,get(eachCond,"CondType"),get(eachCond,"CPQField"));
+}
+////print condTypesJson;
+
+allAttributeFields= jsonpathgetmultiple(condTypesJson,"$.*");
+////print allAttributeFields;
+
+lineProductType= jsonget(data,"lineProductType","json",json());
+itemNumberDocNum= jsonget(data, "itemNumberDocNum","json",json());
+
+loop1= range(jsonarraysize(allAttributeFields));
+loop2= range(genericMAX);
+
+//allDocNumJson= json();
+
+allDocNumJson= jsonget(data, "allDocNumJson","json",json());
+nonVCModels = string[]; 
+//2250-Get Line items to update
+    itemsToUpdate= jsonget(data,"itemsToUpdate","jsonarray",jsonarray());
+ 	itemsToUpdateStr = jsonarraytostr(itemsToUpdate);
+ 	itemsToUpdateStr = replace(itemsToUpdateStr ,"\"","");
+	itemsToUpdateStr = substring(itemsToUpdateStr , 1, len(itemsToUpdateStr )-1);
+ 	itemsToUpdateArr=split(itemsToUpdateStr,",");
+     ////print "itemsToUpdateArr";
+ 	////print itemsToUpdateArr;
+//  Get the Doc Numbers and store them by SAPLineNumber_l
+/*for line in transactionLine {
+//2250-Check Line Items to update
+    if(findinarray(itemsToUpdateArr,line._document_number) <> -1)
+    {
+    if( refreshVCFlag ) {
+      if( line._parent_doc_number == "" ) {
+        if ( (line.qqProductType_l <> "configuration") ) {
+            continue;
+        } elif (line.externalConfigVCData_l == "")  {
+            append( nonVCModels, line._document_number );
+            continue;   // exclude configuration with no vc data
+        }
+      } else {
+        if( findinarray(nonVCModels, line._parent_doc_number) > -1) {
+            continue;   // exclude configuration child lines  with no vc data   
+        }
+      }
+    }
+    
+	 //2019-05-07|Harshit Maheshwari|ALM-1853: Replaced attribute doc_number with _document_number
+    //if( NOT refreshFlag AND findInArray(existingDocNumbers, line.doc_number)>-1 ) {
+	if( NOT refreshFlag AND findInArray(existingDocNumbers, line._document_number)>-1 ){
+		// only reset newly added lines 
+		continue;
+    } 
+    
+  ////print string(line.SAPLineNumber_l) + " / " + line.doc_number;
+  
+  //2019-05-07|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+  //jsonput(sapLineNum,string(line.SAPLineNumber_l),line.doc_number);
+ // jsonput(sapLineNum,string(line.SAPLineNumber_l),line._document_number);
+  jsonput(sapLineNum,line._group_sequence_number,line._document_number);
+  
+  ////print "sapLineNumsapLineNumsapLineNum";
+  ////print sapLineNum;
+  
+  if( refreshVCFlag AND line._parent_doc_number <> "") {
+    // add all the child material item to material Item Json
+	
+	//2019-05-07|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+    //jsonput(materialItemsJson, line.materialLineItem_l, line.doc_number);
+	jsonput(materialItemsJson, line.materialLineItem_l, line._document_number);
+  }
+  
+  //2019-05-07|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+  //jsonput(lineProductType,line.doc_number,line.qqProductType_l);
+  jsonput(lineProductType,line._document_number,line.qqProductType_l);
+  jsonput(itemNumberDocNum,line._document_number,line._document_number);
+  ////print "itemNumberDocNumitemNumberDocNumitemNumberDocNum";
+  ////print itemNumberDocNum;
+  // Initialize each doc number with all attributes to be set to 0.00
+  conditionJson= json();
+  
+  //2019-05-07|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+  //jsonput(conditionJson,"_document_number",line.doc_number);
+  jsonput(conditionJson,"_document_number",line._document_number);
+  
+  //Defect# 1931 ::: add parent doc number in conditionJson
+  jsonput(conditionJson,"_parent_doc_number",line._parent_doc_number); 
+  
+  //ALM# 2408 :: Set needNetPrice_l to false.
+  jsonput(conditionJson,"needNetPrice_l","false");
+  
+  //CPQ-2139 :: Added by Shardul
+  if(refreshFlag)
+  {
+	jsonput(conditionJson,"takeOffModel_l",line.takeOffModel_l);
+	jsonput(conditionJson,"oldListPrice_l",line.oldListPrice_l);	
+  }
+  
+  //for idx1 in loop1 {
+  //  jsonput(conditionJson,jsonarrayget(allAttributeFields,idx1),"0.00");
+  //}
+  
+  for idx2 in loop2 {
+    attrName= replace(genericAttr,string(genericMAX),string(idx2+1));
+    jsonput(conditionJson,attrName,"");
+  }
+  
+  
+  docNumJson= json(); 
+  jsonput(docNumJson,"items",conditionJson);
+
+   //2019-05-07|Harshit Maheshwari	|ALM-1853: Replaced attribute doc_number with _document_number
+  //jsonput(allDocNumJson,line.doc_number,docNumJson);
+  jsonput(allDocNumJson,line._document_number,docNumJson);
+  
+}
+}*/
+//print "Alll Doc";
+//print allDocNumJson;
+
+// transaction Line tags
+xpathLines= string[];
+if(refreshFlag){
+	append(xpathLines,"//cpq:_document_number");
+}else{
+	append(xpathLines,"//cpq:ITM_NUMBER");
+}
+//append(xpathLines,"//cpq:_document_number");
+append(xpathLines,"//cpq:materialLineItem_l");
+append(xpathLines,"//cpq:newNetPrice_l");
+//append(xpathLines,"//cpq:ITM_NUMBER");
+
+////print sapLineNum;
+
+jaItems= jsonarray();
+
+xpathtransactionLine= string[];
+append(xpathtransactionLine,"//cpq:transactionLine");
+alltransactionLinesDict= readxmlmultiple(successfulMessage, xpathtransactionLine);
+////print "alltransactionLinesDict";
+////print alltransactionLinesDict;
+
+transactionLinesArray= string[];
+
+if (containskey(alltransactionLinesDict,xpathtransactionLine[0])) {
+    
+  transactionLinesArray= get(alltransactionLinesDict,xpathtransactionLine[0]);
+   
+}
+
+///print "Transactionnnnnnn";
+///print transactionLinesArray;
+
+//  Check to see if we got the tag but no items
+if (sizeofarray(transactionLinesArray) > 0) {
+  if (isnull(transactionLinesArray[0])) {
+    return retJson;
+  }
+}
+//  We bail if no cpq:transactionLine are returned from SAP...
+//if (NOT isnull(transactionLinesArray)) {
+
+sapMaterialItemLookupJson = json();
+docNumJson= json();
+
+for eachTransactionLine in TransactionLinesArray {
+  linesDict= readxmlsingle(eachTransactionLine,xpathLines);  
+  docNum= util.getStringDict(linesDict, xpathLines[0], "");
+  materialLineItem=util.getStringDict(linesDict,xpathLines[1], "");
+  
+ 
+  if (VCPricingCall) { // _document_number is actually the SAPLineNumber so lookup the doc number
+    jsonput(sapMaterialItemLookupJson, docNum, docNum);// Ankit - chnaged doc num instead of materialLineItem
+	docNum= jsonget(itemNumberDocNum,docNum);
+	if( docNum == "") { // lookup docNum by material Item #
+	  docNum= jsonget(materialItemsJson,materialLineItem);
+    }
+  }  
+  //  If no docNum then I can't do anything with it...
+    if (docNum == "" OR isNull (docNum)) {
+      ////print "NO _document_number for:  " + materialLineItem;
+      continue;
+    }
+	
+  docNumJson= jsonget(allDocNumJson,docNum,"json",json());
+  conditionJson= jsonget(docNumJson,"items","json",json());
+  
+  newNetPrice=trim(util.getStringDict(linesDict,xpathLines[2],"0.00"));
+  conditions=trim(util.getStringDict(linesDict,xpathLines[3],""));
+
+  jsonput(conditionJson,"_document_number",docNum);
+  //2250-Check Line Items to update
+  if(findinarray(itemsToUpdateArr,docNum)<>-1){
+    jsonput(conditionJson,"currentNetPrice_l",newNetPrice);
+  }
+  jsonput(docNumJson,"items",conditionJson);  
+  jsonput(allDocNumJson,docNum,docNumJson);
+   
+}
+//}
+
+////print allDocNumJson;
+
+// Conditions tags (under each line above)
+xpathConds= string[];
+
+//Harshit Start : Defect# 1403 : Consider cpq:ITM_NUMBER for VC Pricing Call
+if(VCPricingCall)
+{
+	//append(xpathConds,"//cpq:_document_number");	
+	append(xpathConds,"//cpq:ITM_NUMBER");	
+}
+else
+{
+	append(xpathConds,"//cpq:_document_number");
+	//append(xpathConds,"//cpq:ITM_NUMBER");	
+}
+//Harshit End : Defect# 1403 : Consider cpq:ITM_NUMBER for VC Pricing Call
+
+append(xpathConds,"//cpq:COND_TYPE");
+append(xpathConds,"//cpq:COND_VALUE");
+append(xpathConds,"//cpq:COND_TEXT");
+append(xpathConds,"//cpq:VALUE_TYPE");
+append(xpathConds,"//cpq:DiscSurchargeSeq");
+
+xpathConditions= string[];
+append(xpathConditions,"//cpq:Conditions");
+allConditionsDict= readxmlsingle(successfulMessage, xpathConditions);
+conditionsXML= get(allConditionsDict,xpathConditions[0]);
+//print conditionsXML;
+
+//  If no cpq:Conditions record then none to process...
+if (NOT isnull(conditionsXML)) {
+  xpathAllConditions= string[];
+  append(xpathAllConditions,"//cpq:Condition");
+  conditionsDict= readxmlmultiple(conditionsXML,xpathAllConditions);
+  //condTypeArray=string[];
+  allConditionsArray= get(conditionsDict,xpathAllConditions[0]);
+  ////print allConditionsArray;
+
+  //  If no cpq:condition are present then there are none to process
+  if (NOT isnull(allConditionsArray)) {    
+    for eachCond in allConditionsArray {
+      eachCondDict= readxmlsingle(eachCond,xpathConds);
+    //  count=count+1;
+      docNum= util.getStringDict(eachCondDict, xpathConds[0], "");
+	  if (VCPricingCall) { // _document_number is actually the SAPLineNumber so lookup the doc number
+	   //Harshit Start : Defect# 1403 , get document number from SAP Number. If no SAP Number in sapMaterialItemLookupJson/conditionMaterial then get document number from sapLineNum Json.
+	    if(jsonpathcheck(sapMaterialItemLookupJson, docNum))
+		{
+			conditionMaterial = jsonget(sapMaterialItemLookupJson,docNum);
+        	docNum= jsonget(materialItemsJson,conditionMaterial);
+        }
+        else
+        {
+			docNum = jsonget(sapLineNum,docNum);
+        }
+		//Harshit End : Defect# 1403 , get document number from SAP Number. If no SAP Number in sapMaterialItemLookupJson/conditionMaterial then get document number from sapLineNum Json.
+        //docNum= jsonget(itemNumberDocNum,docNum);
+      }
+      if (docNum == "" OR isNull (docNum) ) {
+        //Can't do anything with this so we skip it
+        continue;
+      }
+      
+      condType= util.getStringDict(eachCondDict, xpathConds[1], "");
+      //append(condTypeArray,condType);
+      condValue= trim(util.getStringDict(eachCondDict, xpathConds[2], ""));
+      //  Move the "-" to the front
+      if (endswith(condValue,"-")) {
+        condValue= "-"+substring(condValue,0,find(condValue,"-"));
+      }
+      
+      //  If this is an alternate list price condition then add it to the running total
+      if (condType == alternateListPriceCond) {
+        currentZVA0Total= jsonget(zva0CondJson,docNum,"float",0.0);
+        condAmount= currentZVA0Total + util.stringToFloat(condValue);
+        jsonput(zva0CondJson,docNum,condAmount);
+      }
+      
+      condText= util.getStringDict(eachCondDict, xpathConds[3], "");
+      valueType= util.getStringDict(eachCondDict, xpathConds[4], "");
+      discSurchargeSeq= util.getStringDict(eachCondDict, xpathConds[5], "");
+    
+      //print docNum + " / " + condType + " / " + condValue + " / " + condText + " / " + valueType + " / " + discSurchargeSeq;
+      docNumJson= jsonget(allDocNumJson,docNum,"json",json());
+      conditionJson= jsonget(docNumJson,"items","json",json());
+        //ALM - 1825 Added logic to populate condition type column according to SAP Conditions
+      if(condType=="ZK35")
+      {
+          typeinserted=jsonget(docNumJson,"conditionType");
+		   jsonput(docNumJson,"conditionValue",condValue); // Smriti ALM - 2043- Added a condition to round off
+        //  //print typeinserted;
+          if(typeinserted<>"fix")
+          {
+             jsonput(docNumJson,"conditionType","%");
+          }
+      }
+      if(condType=="ZPR5")
+      {
+           jsonput(docNumJson,"conditionType","fix");
+		  
+      }          
+      //  Check and see if it is a dedicated attribute
+      path= "$.." + condType;
+      if (jsonpathcheck(condTypesJson, path)) {
+        cpqAttribute= jsonget(condTypesJson,condType);
+        if (cpqAttribute == "SKIP") {
+          //print "Skipping " + condType;
+          continue;
+        }
+        //Only fetch prices from SAP for configured items
+        if (find(cpqAttribute,listPriceName) <> -1 AND VCPricingCall) {
+          jsonput(listPriceJson,docNum,condValue);
+        }
+
+        //print "listPriceJsonlistPriceJsonlistPriceJson";
+        //print listPriceJson;
+        productType= jsonget(lineProductType,docNum,"string","");
+        
+        //  Special handling for Costs on B-LINE JIRA QQ-552
+        
+        /*
+         Harshit Mehta : ALM - 1099 : Cost specific changes for BLine 
+         Below information received specific to Cost for 1099
+         Standard products for B-Line	 			ZPCC	Current Cost â€“ Non-Configured
+		 Standard products for Bussmann, ES-EMEA, CH-EMEA	VPRS	Standard Cost â€“ Non-Configured
+	     Configured Products for B-Line				ZPCZ	Current Cost â€“ Configured
+	     Configured Products for Bussmann, ES-EMEA, CH-EMEA	EK02	Standard Cost â€“ Configured
+        */
+        skipCost= FALSE;
+        if ( (qqBusinessLineForSalesOrg_t == "B-LINE") AND (productType == "configuration") ) {
+          //For BLine configured products skip non configured cost and Non BLine Cost..
+          skipCost = (condType  == "EK02" OR condType == "ZPCC");
+        } elif ( (qqBusinessLineForSalesOrg_t == "B-LINE") AND (productType <> "configuration") ){
+        //For BLine configured products skip non configured cost and Non BLine Cost..
+          skipCost = (condType == "VPRS" OR condType == "ZPCZ");
+        }
+        if (NOT skipCost) {
+		  //Harshit Mehta CHANGE START : ALM# 1099 ZPCC(Cost) value is coming as negative from SAP so need to convert it as positive.
+		  if(condType == "ZPCC" AND isNumber(condValue))
+		  {
+			  condValue = string(atof(condValue) * -1);
+		  }
+		  //Harshit Mehta CHANGE END : ALM# 1099 ZPCC(Cost) value is coming as negative from SAP so need to convert it as positive.
+		  //2250-Check Line Items to update
+          if(cpqAttribute=="currentNetPrice_l" or (cpqAttribute=="oldListPrice_l" AND VCPricingCall) ) //
+          {
+              if(findinarray(itemsToUpdateArr,docNum)<>-1 )// Avoid List price updation in Net Price call
+              {//print cpqAttribute;
+                 jsonput(conditionJson,cpqAttribute,condValue);  
+              }
+          }
+          else
+          {
+          	if(cpqAttribute<>"oldListPrice_l"){
+          		jsonput(conditionJson,cpqAttribute,condValue);
+          	}
+          }
+       
+        }
+
+		//Gaurav: Added below extra logic for ZWEE (wasteDisposalFee_l) since it needs to be shown like other surcharge attributes in else condition (ALM-1582)
+		if(condType == "ZWEE"){
+			discSurcharge = replace(genericForm, "CONDTYPE", condType);
+			discSurcharge = replace(discSurcharge, "CONDVALUE", condValue);
+			discSurcharge = replace(discSurcharge, "CONDTEXT", condText);
+			discSurcharge = replace(discSurcharge, "VALUETYPE", valueType);
+			genericJson = json();
+			discSurchargeCNT = jsonget(docNumJson, "discSurchargeCNT", "integer", 1);
+			jsonput(genericJson, discSurchargeSeq + "." + string(discSurchargeCNT), discSurcharge);			
+			genericItemsJsonArray = jsonget(docNumJson,"discsurchargeitems", "jsonarray", jsonarray());
+			jsonarrayappend(genericItemsJsonArray, genericJson);
+			jsonput(docNumJson, "discsurchargeitems", genericItemsJsonArray);
+			jsonput(docNumJson,"discSurchargeCNT", discSurchargeCNT + 1);
+		}
+		//Gaurav: Changes for ALM-1582 end
+      } else {
+        
+        discSurchargeCNT= jsonget(docNumJson,"discSurchargeCNT","integer",1);
+        ////print "\t"+string(discSurchargeCNT);
+        
+        //  At the initial build there are only 8 attributes setup for storing these
+        if (discSurchargeCNT > genericMAX) {
+          continue;
+        }
+        
+        //discSurcharge= replace(genericForm,"CONDSEQ#",discSurchargeSeq);
+        discSurcharge= replace(genericForm,"CONDTYPE",condType);
+        discSurcharge= replace(discSurcharge,"CONDVALUE",condValue);
+        discSurcharge= replace(discSurcharge,"CONDTEXT",condText);
+        discSurcharge= replace(discSurcharge,"VALUETYPE",valueType);
+        //genAttr= replace(genericAttr,string(genericMAX),discSurchargeSeq);
+                
+        genericJson= json();
+        jsonput(genericJson,discSurchargeSeq+"."+string(discSurchargeCNT),discSurcharge);
+        
+        genericItemsJsonArray= jsonget(docNumJson,"discsurchargeitems","jsonarray",jsonarray());
+        jsonarrayappend(genericItemsJsonArray,genericJson);
+        
+        jsonput(docNumJson,"discsurchargeitems",genericItemsJsonArray);
+        jsonput(docNumJson,"discSurchargeCNT",discSurchargeCNT+1);
+                
+      }
+      
+      jsonput(allDocNumJson,docNum,docNumJson);
+      //print "allDocNumJsonallDocNumJson";
+      //print allDocNumJson;
+    }
+  } else {
+  print "No //cpq:Conditions record(s) returned...";
+  }
+} else {
+  print "No //cpq:Condition record returned...";
+}
+
+
+zva0Keys= jsonkeys(zva0CondJson);
+//print "zva0Keyszva0Keyszva0Keys";
+//print zva0Keys;
+for eachKey in zva0Keys {
+
+  listPrice= jsonget(listPriceJson,eachKey,"float",0.0);
+  zva0Total= jsonget(zva0CondJson,eachKey,"float",0.0);//print zva0Total;
+  if ( (listPrice == 0) and (zva0Total > 0) ) {
+    listPrice= zva0Total;
+    
+    docNumJson= jsonget(allDocNumJson,eachKey,"json",json());
+    conditionJson= jsonget(docNumJson,"items","json",json());
+    if(VCPricingCall){
+    jsonput(conditionJson,listPriceName,listPrice);
+    }
+    
+    discSurchargeCNT= jsonget(docNumJson,"discSurchargeCNT","integer",1);
+    ////print "\t"+string(discSurchargeCNT);
+        
+    //  At the initial build there are only 8 attributes setup for storing these
+    if (discSurchargeCNT <= genericMAX) {
+    
+      //discSurcharge= replace(genericForm,"CONDSEQ#",discSurchargeSeq);
+      discSurcharge= replace(genericForm,"CONDTYPE",alternateListPriceCond);
+      discSurcharge= replace(discSurcharge,"CONDVALUE",string(listPrice));
+      discSurcharge= replace(discSurcharge,"CONDTEXT","Sum of all ZVA0 conditions");
+      discSurcharge= replace(discSurcharge,"VALUETYPE",currency_t);
+    
+      genericJson= json();
+      jsonput(genericJson,"999"+"."+string(discSurchargeCNT),discSurcharge);
+        
+      genericItemsJsonArray= jsonget(docNumJson,"discsurchargeitems","jsonarray",jsonarray());
+      jsonarrayappend(genericItemsJsonArray,genericJson);
+        
+      jsonput(docNumJson,"discsurchargeitems",genericItemsJsonArray);
+      jsonput(docNumJson,"discSurchargeCNT",discSurchargeCNT+1);
+    }
+       jsonput(allDocNumJson,eachKey,docNumJson);
+
+  }
+
+}
+
+costSourcejson=jsonget(data, "costSource","json",json());
+//print costSourcejson;
+//Defect# 1931 : Rename allItemsJson -> allItemsJsonArray, create new json object allItemJson
+allItemsJsonArray = jsonarray();
+allItemJson = json(); 
+allDocNums= jsonkeys(allDocNumJson);
+//print "allDocNumsallDocNumsallDocNumsallDocNums";
+//print allDocNums;
+for eachDocNum in allDocNums {
+    ////print "eachDocNumeachDocNumeachDocNumeachDocNumeachDocNum";
+    ////print eachDocNum;
+    
+  docNumJson= jsonget(allDocNumJson,eachDocNum,"json",json());
+  conditionJson= jsonget(docNumJson,"items","json",json());
+  //print "conditionJsonconditionJsonconditionJson";
+ //print conditionJson;
+  conditionType=jsonget(docNumJson,"conditionType");
+  conditionValue = jsonget(docNumJson,"conditionValue"); // Smriti ALM - 2043- Added a condition to round off
+  ////print conditionValue;
+  //Defect# 1931 : create new local variables parentDocNumJson, parentConditionJson, parentDocNum
+  parentDocNumJson = json();
+  parentConditionJson = json(); 
+  parentDocNum = ""; 
+  
+  //  Check and see if it is a dedicated attribute
+  path= "discsurchargeitems";
+  //Pooja CPQ-3224 - Added below code to default Customer Condition with blank value.
+  jsonput(conditionJson, "customerConditionInPer_l", "");
+  if(jsonpathcheck(docNumJson,"conditionType"))
+  {
+  	jsonput(conditionJson, "conditionType_l", conditionType);
+  	/*if(conditionType == "fix")
+	{
+           jsonput(conditionJson, "customerConditionIn_l", "");
+     }*/
+	 // Smriti ALM - 2043- Added a condition to round off
+	if(conditionType == "%")
+	{
+		if(isnumber(conditionValue))
+		{
+			customerConditionIn = replace((conditionValue), "-", "");
+			customerConditionRounded = round(atof(customerConditionIn),2);		
+			jsonput(conditionJson, "customerConditionInPer_l", customerConditionRounded);			 
+		}
+	}
+  }
+  if (jsonpathcheck(docNumJson, path)) {
+    discSurchargeJsonArray= jsonget(docNumJson,path,"jsonarray",jsonarray());
+    
+    discSurchargeJson= json();
+    loopROWS= range(jsonarraysize(discSurchargeJsonArray));
+    for eachRow in loopRows {
+      discSurcharge= jsonarrayget(discSurchargeJsonArray,eachRow,"json");
+      discSurchargeKey= jsonkeys(discSurcharge);
+      jsonput(discSurchargeJson,discSurchargeKey[0],jsonget(discSurcharge,discSurchargeKey[0]));
+    }
+    
+    allDiscSurchargeKeys= sort(jsonkeys(discSurchargeJson),"asc","numeric");
+    for eachDiscSurchargeKey in allDiscSurchargeKeys {
+      splitKey= split(eachDiscSurchargeKey ,".");
+      sapSeqNumber= splitKey[0];
+      sapSeqCNT= splitKey[1];
+      
+      jsonput(conditionJson,replace(genericAttr,string(genericMAX),sapSeqCNT),jsonget(discSurchargeJson,eachDiscSurchargeKey));
+      
+    }
+    
+  }
+  
+  //Set Net_Price = Net_Price - Copper - Aluminum - Silver
+  if(jsonpathcheck(docNumJson, "items")){
+	  itemJson = jsonget(docNumJson,"items","json",json());
+
+	  //Start changes 1931 :: Get & Set parent doc number
+	  if(jsonpathcheck(itemJson,"_parent_doc_number")) 
+	  {
+		parentDocNum = jsonget(itemJson,"_parent_doc_number","string",""); 
+		if(parentDocNum <> "0" AND parentDocNum <> "")
+		{
+			parentDocNumJson    = jsonget(allDocNumJson,parentDocNum,"json",json()); 
+			parentConditionJson = jsonget(parentDocNumJson,"items","json",json()); 
+		}
+	  }
+	  //END changes 1931 :: Get & Set parent doc number
+	  	//#3Added by Shardul 
+		takeOffModel = "";
+		if(jsonpathcheck(itemJson,"takeOffModel_l"))
+		{
+			takeOffModel = jsonget(itemJson,"takeOffModel_l","string","");
+		}
+		listprice = 0.0;
+		if (jsonpathcheck(itemJson, "oldListPrice_l")) {
+			listprice = atof(jsonget(itemJson,"oldListPrice_l","string","0.00"));
+		}
+		//#3End 
+		if (jsonpathcheck(itemJson, "currentNetPrice_l")) {
+
+			//currentNet = 0.0;//atof(jsonget(itemJson,"currentNetPrice_l","string","0.00"));
+			currentNet = atof(jsonget(itemJson,"currentNetPrice_l","string","0.00"));
+			aluminum = atof(jsonget(itemJson,"aluminumSurcharge_l","string","0.00"));
+			copper = atof(jsonget(itemJson,"coperSurcharge_l","string","0.00"));
+			silver = atof(jsonget(itemJson,"silverSurcharge_l","string","0.00")); 
+			currentNet = currentNet - silver - aluminum - copper;
+		/*print "silver 447";
+		print silver;
+		print aluminum;
+		print copper;
+		print "currentNet 447";
+		print currentNet;*/
+        //2250-Check Line Items to update
+         if(findinarray(itemsToUpdateArr,eachDocNum)<>-1){
+			 
+            if(currentNet == 0.0 AND (takeOffModel == "PUSHBUT" OR takeOffModel == "ATDERESI"  OR takeOffModel == "PQSERV")) //Added by Shardul to get net price as list price if 0
+			{
+				currentNet = listprice;
+			}
+			jsonput(conditionJson,"currentNetPrice_l",string(currentNet));
+         }
+		
+        //2250-Check Line Items to update
+		 if(findinarray(itemsToUpdateArr,eachDocNum)<>-1){
+		
+		jsonput(itemJson,"currentNetPrice_l",string(currentNet));
+         }
+		jsonput(docNumJson,"items",itemJson);
+		}
+       
+   }
+   
+   // For setting the Cost (cost_l) attribute.
+   
+   // Added for QQ-717 - Start //
+   costNotSet = true;
+    //Pooja - By pass line items that have cost updated from Zilliant
+   costSource = jsonget(costSourcejson,eachDocNum);
+   //print costSource ;
+   if(findinarray(itemsToUpdateArr,eachDocNum)<>-1 AND costSource<>"Price Scope"){
+   //print eachDocNum;
+   if (jsonpathcheck(conditionJson, "currentCost_l")) {
+        currCost = jsonget(conditionJson, "currentCost_l", "float", 0.00);
+        if(currCost > 0.00) {
+            jsonput(conditionJson, "cost_l", string(currCost));
+            costNotSet = false;
+        }
+   } elif((costNotSet) AND (jsonpathcheck(conditionJson, "standardCost_l"))) {
+        stdCost = jsonget(conditionJson, "standardCost_l", "float", 0.00);
+        if(stdCost > 0.00) {
+            jsonput(conditionJson, "cost_l", string(stdCost));
+            costNotSet = false;
+        }
+   } elif(costNotSet) {
+        jsonput(conditionJson, "cost_l", "0.00");
+   }
+   }
+   // Added for QQ-717 - End //
+     //Get Customer Condtion
+
+   //START: Defect#1931 Harshit Mehta :: Rollup prices at BidManager model level.
+   if(parentDocNum <> "")
+   {
+		//print "Inside Parent doc number ";
+		//Get Cost
+		cost = jsonget(conditionJson,"cost_l","float",0.00);
+		parentCost = jsonget(parentConditionJson,"cost_l","float",0.00);
+		cost = cost + parentCost;
+		jsonput(parentConditionJson,"cost_l",string(cost));
+		
+		//Avoid list price updation on net refresh
+		//Get List Price
+
+		oldListPrice = jsonget(conditionJson,"oldListPrice_l","float",0.00);
+		parentListPrice = jsonget(parentConditionJson,"oldListPrice_l","float",0.00);
+		oldListPrice = oldListPrice + parentListPrice;
+		if(VCPricingCall){		
+			//print "VC Pricing called to set ListPrice value";
+			jsonput(parentConditionJson,"oldListPrice_l",string(oldListPrice ));
+		}
+		
+		//Get Current Net Price
+		currentNetPrice = jsonget(conditionJson,"currentNetPrice_l","float",0.00);
+		parentCurrentNetPrice = jsonget(parentConditionJson,"currentNetPrice_l","float",0.00);
+		currentNetPrice = currentNetPrice + parentCurrentNetPrice;
+		//print "Setting net price for child items ";
+		jsonput(parentConditionJson,"currentNetPrice_l",string(currentNetPrice));
+			
+		//Set parentConditions in allItemJson
+		jsonput(allItemJson,parentDocNum,parentConditionJson);
+   } //End of parentDocNum condition
+   
+   jsonput(allItemJson,eachDocNum,conditionJson);
+   //END: Defect#1931 Harshit Mehta :: Rollup prices at BidManager model level.
+}
+
+
+allItemsJsonArray = jsonpathgetmultiple(allItemJson,"$.*"); 
+jsonput(retJson,"fp_transactionNumber_t",transactionNumber_t);
+jsonput(retJson,"items",allItemsJsonArray);
+
+return retJson;

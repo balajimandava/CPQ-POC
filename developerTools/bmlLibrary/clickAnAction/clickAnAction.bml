@@ -1,0 +1,57 @@
+/*******************************************************
+@attribute
+	_system_supplier_company_name
+	
+@revision
+
+Date(yyyy/MM/DD) 	Name				Comments
+2018/07/18		Harshit Mehta			adding authorization header
+2021/04/08		Harshit Mehta		        JIRA# CPQ-4853:Only for action _update_line_items need to call REST API with V10
+********************************************************/
+
+ret = json();
+
+//Input Parameters
+siteID = jsonget(inputJson,"siteID","string","");
+id = jsonget(inputJson,"id","string","");
+actionName = jsonget(inputJson,"actionName","string","");
+document = jsonget(inputJson,"document","json",json());
+
+//Get API Username and Password.
+user = util.getSiteSpecificData(siteID);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+
+
+if(siteID<>"" AND id<>"" AND actionName<>""){
+	actionURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/"+actionName;
+
+	/*
+	  Harshit : JIRA# CPQ-4853.
+	  For PSD _update_line_items action is required but it is not valid in v1 so with v10 this action is triggered.
+	  Can not make generic change as v10, otherwise API will break.
+	*/
+	if(actionName == "_update_line_items") 
+	{
+	   actionURL = "https://"+siteID+".bigmachines.com/rest/v10/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/"+actionName;
+	}
+
+	// Rest parameters
+	jsonParams = json();
+	jsonput(jsonParams,"documents",document);
+	params = jsontostr(jsonParams);
+	print 43;
+	print params;
+	print 45;
+	// Rest Header  
+	headers = dict("string");
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+	print "clickAnAction document is";
+	print document;
+	
+	
+	results = urldatabypost(actionURL, params, "ERROR", headers, true);
+}
+
+return ret;

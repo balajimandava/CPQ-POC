@@ -1,0 +1,135 @@
+/**
+@name Set Approval Required
+@api setApprovalRequired
+@summary Determine if approval is required based on the discounts, bonus groups and terms.
+@attribute _document_number
+@attribute _part_number
+@attribute _system_current_user_language
+@attribute _transaction_document_number
+@attribute accountTypeKTOKD_t
+@attribute agreementDeliveryTerms_t
+@attribute agreementNetDiscountRequested_l
+@attribute agreementNetDiscount_l
+@attribute agreementPaymentTerms_t
+@attribute agreementPeriodOfInvoicing_t
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute aluminiumApproval_t
+@attribute aluminium_t
+@attribute approvalRequired_l
+@attribute approver_l
+@attribute bonusApprovalRequired_t
+@attribute bonusGroupDiscount_t
+@attribute bonusTableDataString_t
+@attribute cPROFeedbackApprovedEmailSubject_t
+@attribute cSMEmail_t
+@attribute choosePricelist_t
+@attribute copperApproval_t
+@attribute copper_t
+@attribute currencyDecimalSeparator_t
+@attribute currencySymbol_t
+@attribute customDiscountType_l
+@attribute customerNumber_t
+@attribute discountApprovalRequired_t
+@attribute discountPercentNetRequested_l
+@attribute discount_l
+@attribute expectedVolumeApprovalRequired_t
+@attribute expectedVolume_t
+@attribute extendCurrentListPrices_t
+@attribute hPLAppliedDiscount_l
+@attribute hPLApplied_t
+@attribute level2Email_t
+@attribute level3Email_t
+@attribute level4Email_t
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute metalSurchargesApprovalRequired_t
+@attribute minimumOrderValueApprovalRequired_t
+@attribute minimumOrderVolume_t
+@attribute newExpectedVolume_l
+@attribute oldCustomerNo_t
+@attribute oldDiscountString_l
+@attribute overallTermsApprovalLevel_t
+@attribute owner_t
+@attribute paymentTermsShipTo_t
+@attribute periodOfInvoicingShipTo_t
+@attribute preparedByENumber_t
+@attribute priceListExtensionApprovalRequired_t
+@attribute priceListFrom_t
+@attribute priceListTo_t
+@attribute salesOrg_t
+@attribute silverApproval_t
+@attribute silver_t
+@attribute statusBeforeCopy_t
+@attribute surchargeExemption_t
+@attribute termsApprovalRequired_t
+@attribute termsStandardApprovalRequired_t
+@attribute transactionType_t
+@attribute validityPeriodApprovalRequired_t
+@attribute whatLevelOfDeliveryTermsApprovalRequired_t
+@attribute whatLevelOfDiscountApprovalRequired_t
+@attribute whatLevelOfInvoicingTermsApprovalRequired_t
+@attribute whatLevelOfTermsApprovalRequired_t
+@attribute wholesaler_t
+@function Float stringToFloat(String input)
+@function Integer stringToInteger(String input)
+@function Json getApprovalThresholds(Json approvalInputs)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@function String getRemark(String rowIndex, String language)
+@function String setApprovalRequired_ESEMEA()
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-05|Tat.Leung            |
+2018-01-27|Tat.Leung            |
+2018-01-31|shibaji		| Added code for setting approvals for BUSSMANN and B-LINE.
+2018-04-13|Harshit		| Calling function BLine Set Approval Required instead of setApprovalRequired_BLINE 
+2020-04-09|Rahul Uttarwar	| Project#49074 | Calling function for PSD approvals.
+2020-27-08|Subha		| Added code for setting the feedback flag for PSD -CPQ-2520
+2020-29-10|Vijetha		| CPQ-3237 - PSD approvals not triggered on Save and Review action. Fix is to use Status "review" also.
+*/
+returnString = "";
+transactionBizUnit = "";
+bizGrpsRS = BMQL("Select SalesOrg, BusinessGroup From BusinessGroup where SalesOrg = $salesOrg_t");
+for eachBizGrp in bizGrpsRS {
+    if (get(eachBizGrp, "BusinessGroup") <> "") {
+        transactionBizUnit = get(eachBizGrp, "BusinessGroup");
+        break;
+    }
+}
+
+//check if the discount approval level is a number or if there is a term level approval at all
+if ("ES-EMEA" == transactionBizUnit) {
+    returnString = commerce.setApprovalRequired_ESEMEA();
+} elif ("B-LINE" == transactionBizUnit ) {
+	if(status_t == "draft"){
+		returnString = commerce.blineApprovals(json());
+	}
+	
+	//returnString = commerce.BLine_SetApprovalRequired();
+} elif ("BUSSMANN" == transactionBizUnit ) {
+    returnString = commerce.setApprovalRequired_BUSSMANN();
+} elif ("CH-EMEA" == transactionBizUnit ) {
+	returnString = commerce.setApprovalRequired_CHEMEA();
+} elif ("PSD" == transactionBizUnit ) { // Project#49074 | Calling function for PSD approvals.
+	//returnString = commerce.setApprovalRequired_PSD();
+	if(status_t == "draft" OR status_t == "review"){//CPQ-3237 As we are setting status as Review on SAVE and REVIEW action, need to validate review as status.
+		returnString = commerce.pSDApprovals();
+	}
+	//Added the condition to set Feedback for PSD Org-Subha for the defect CPQ-2520
+	else{
+		feedbackflag=false;
+		for line in transactionLine{
+			if((line.approvedNetFixedAmount_l <> line.netFixedAmountString_l) OR (line.approvedDiscount_l <> line.discountPercentString_l) OR (line.premium_l <> line.approvedPremium_l)){
+				feedbackflag=true; // TO identify if feedback is applied.
+			}
+		}
+		returnString = returnString + "1~feedbackApplied_t~" + string(feedbackflag) + "|";
+	}
+}
+ elif ("WD" == transactionBizUnit ) {
+	returnString = commerce.setApprovalRequired_WD();
+}
+
+return returnString;

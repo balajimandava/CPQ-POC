@@ -1,0 +1,46 @@
+//************************************************************************************************************
+//** Function:    Update Update Description
+//** Type:        Commerce Library Function   
+//**
+//** Description: Utility to update updateDescription CPQ data table with transaction data to track if mass update
+//**		  is completed successfully.
+//**		 
+//** 
+//** Return type: String Dictionary 
+//**
+//** History:     Date          Author             Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              4-Jan-2018	Harshit Mehta	    Initial Version
+//**  			  3-Apr-2019	Harshit Maheshwari	populating value of key "IDENTIFIER" with json param. Incident INC000012347935 
+
+//************************************************************************************************************
+  updateDescriptionWebServicesUrl = util.getEnvironmentVariable("UpdateDescription", "");
+
+  apiUserID= "";
+  apiPassID= "";
+
+  siteID= _system_supplier_company_name;
+  siteBMQL= bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+  for eachSite in siteBMQL {
+    apiUserID= get(eachSite,"FieldName");
+    apiPassID= get(eachSite,"Value1");
+  }
+  
+  agreementNumber= bs_id;
+  headers= dict("string");
+  soapTemplateURL= "$BASE_PATH$/WebServices/descriptionUpdate.xml";
+  updateDescriptionTags= dict("string");
+  put(updateDescriptionTags,"USERNAME",apiUserID);
+  put(updateDescriptionTags,"PASSWORD",apiPassID);
+  put(updateDescriptionTags,"TRANSACTION_NO",transactionNumber_t);
+  put(updateDescriptionTags,"BS_ID",bs_id);
+  put(updateDescriptionTags,"STATUS",jsonget(jsonParam,"STATUS","String",""));
+  put(updateDescriptionTags,"ERROR_MESSAGE",jsonget(jsonParam,"ERROR_MESSAGE","String",""));
+ 
+ //3-Apr-2019	Harshit Maheshwari	populating value of key "IDENTIFIER" with json param . Incident INC000012347935 
+  put(updateDescriptionTags,"IDENTIFIER",jsonget(jsonParam,"IDENTIFIER","String",""));
+  loadedXML= applytemplate(soapTemplateURL, updateDescriptionTags, "ERROR");
+  postResultD= urldata(updateDescriptionWebServicesUrl , "POST", headers, loadedXML);
+  statusCode = get(postResultD,"Status-Code");
+  
+return "";

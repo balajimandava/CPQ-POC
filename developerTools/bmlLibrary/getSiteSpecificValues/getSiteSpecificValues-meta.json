@@ -1,0 +1,15 @@
+{
+  "name" : "Get Site Specific Values",
+  "variableName" : "getSiteSpecificValues",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "site_ID",
+    "type" : "String"
+  }, {
+    "name" : "field_Name",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

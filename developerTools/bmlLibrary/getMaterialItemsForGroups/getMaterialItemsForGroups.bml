@@ -1,0 +1,116 @@
+//************************************************************************************************************
+//** Function:    Get Material Items For Groups
+//** Type:        Utility function
+//**
+//** Description: 
+//**              
+//** Param:       See above for main document and sub-document fields used by this function
+//**
+//** Return type: delimited string
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              ??????????    ??????????      Initial version
+//**              07/09/2017    PKhanal         Refactor description lookup to use MAT01 instead of MAT02 (443)
+//**              01/05/2018    MYeung          Get Material Pricing Group and PH5 and do not prefix them
+//**		 	  16/03/2020	Atul Jain	Deleted commented code and added print statements under debug
+//**              23/11/2020    Malli		CPQ-2225: Modified the logic to fetch the material description for 
+//**										languages other than english i.e, MAKTXDE
+//**              2021-15-06|Gautam               |Changes for CPQ-4228, Display MPG 3 digits(all ES-EMEA countries)
+//************************************************************************************************************
+
+ret = "";
+valueDelim = "$,$";
+rowDelim = "#@#";
+allMLIs= FALSE;
+maskSearchCharacter= "%";
+debugMode = false;
+
+results= recordset();
+
+selectedGroups= get(inputDict,"selectedMPGs");
+materialItemsSearch= get(inputDict,"materialItemsSearch");
+
+//if (debugMode) {
+//print materialItemsSearch;
+//}
+salesOrgPrefix= get(inputDict,"salesOrgPrefix");
+salesOrg= get(inputDict,"salesOrg");
+lang = upper(util.getStringDict(inputDict,"language","en"));
+if(lang <> "EN"){ // This is added as part of CPQ-2225
+	lang = "DE"; // for language oter than english, Description to be fetched from column MAKTXDE
+}
+transactionType =get(inputDict,"transactionType");
+
+searchMPG = util.checkBizGroupCondition("materialGroupMPG", transactionType, salesOrg);
+searchPH5 = util.checkBizGroupCondition("materialGroupPH5", transactionType, salesOrg);
+searchMG5 = util.checkBizGroupCondition("materialGroupMG5", transactionType, salesOrg);
+
+
+if (materialItemsSearch <> "") {
+  materialItemsSearch= maskSearchCharacter + materialItemsSearch + maskSearchCharacter;
+  if (lang == "EN") {
+    results = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM from MAT01 where (MVGR5 IS NOT NULL AND VKORG=$salesOrg AND VMSTA='Z2' AND (MATNR LIKE $materialItemsSearch OR MAKTXEN LIKE $materialItemsSearch))");
+  } else {
+    results = bmql("SELECT MATNR, MVGR5, MPG, PH5, LVORM from MAT01 where (MVGR5 IS NOT NULL AND VKORG=$salesOrg AND VMSTA='Z2' AND (MATNR LIKE $materialItemsSearch OR MAKTXDE LIKE $materialItemsSearch))");
+  }
+} else {
+  splitGroups= split(selectedGroups,",");
+  addSOPrefix2Groups= string[];
+  for eachGroup in splitGroups {
+    append(addSOPrefix2Groups,salesOrgPrefix+eachGroup);
+  }
+  results = bmql("Select MATNR, MVGR5, MPG, PH5, LVORM from MAT01 where (VKORG = $salesOrg AND MVGR5 IN $addSOPrefix2Groups AND VMSTA='Z2')");
+}
+
+//if (debugMode) {
+//print results;
+//}
+
+// Get parts and store their Group names
+groupDict = dict("string");
+
+for r in results{
+	lvorm = trim(get(r,"LVORM"));
+	if(lvorm=="" OR lvorm=="null"){
+	        //old code
+		//put(groupDict,get(r,"MATNR"), substring(get(r,"MVGR5"), 1));
+		//new code for CPQ 4248
+		put(groupDict,get(r,"MATNR"),get(r,"MVGR5"));
+		put(groupDict,get(r,"MATNR"), get(r,"MPG"));
+	} elif ( searchPH5 ) {
+		put(groupDict,get(r,"MATNR"), get(r,"PH5"));
+	}
+}
+
+//Get Desc from MAT01
+partNoArr = keys(groupDict);print partNoArr;
+
+
+// the column for the language that the description should be in
+descLanguage = "MAKTX"+ lang;
+// Query for both English and German descriptions
+descRecords = bmql("select MATNR, MAKTXEN, MAKTXDE from MAT01 where MATNR in $partNoArr");
+
+descDict = dict("string");
+
+
+for rec in descRecords{
+  // check if the specified language description is present
+  // otherwise default to English
+  if (get(rec, descLanguage) == "") {
+    put(descDict,get(rec,"MATNR"),get(rec,"MAKTXEN"));
+  }
+  else{
+    put(descDict,get(rec,"MATNR"),get(rec,descLanguage));
+  }
+  
+} 
+
+//create return
+for parts in partNoArr{
+      ret = ret + parts + valueDelim + get(descDict,parts) + valueDelim + get(groupDict,parts) + rowDelim; 
+
+}
+
+return ret;

@@ -1,0 +1,12 @@
+{
+  "name" : "Get User Details",
+  "variableName" : "getUserDetails",
+  "description" : "Retrieve the User details based on login from CPQ via SOAP call. This is used to get the  details of the approvers",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "userList",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

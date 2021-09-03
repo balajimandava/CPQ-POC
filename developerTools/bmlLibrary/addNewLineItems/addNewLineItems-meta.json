@@ -1,0 +1,12 @@
+{
+  "name" : "Add New Line Items",
+  "variableName" : "addNewLineItems",
+  "description" : "Add a list of parts (items) to a given quote.  The following attributes are expected in the \"data\" parameters:\n# BS_ID - bs id of transaction to add the parts\n# ITEMS - jsonarray of {partNumber, quantity}\n# SESSION_ID - current user's session id.  _user_session_id is used if it is not in data",
+  "libraryFunctions" : [ "util.getSupplierCompanyName" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ "_user_session_id" ]
+}

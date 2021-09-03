@@ -1,0 +1,11 @@
+{
+  "name" : "Keep Opportunity Info",
+  "variableName" : "keepOpportunityInfo",
+  "description" : "Used for returning blank values for the opportunity info attributes when transaction is copied and Keep Opportunity Info attribute is not checked.",
+  "libraryFunctions" : [ "commerce.generateBidGroupNo" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qqComingFromCopyAction_t", "qqKeepOpportunityInformation_t", "opportunityNumber_t", "qqApplication_t", "qqSubApplication_t", "opportunitySyncHistory_t", "keepBidNumber_t" ],
+  "systemAttributes" : [ ]
+}

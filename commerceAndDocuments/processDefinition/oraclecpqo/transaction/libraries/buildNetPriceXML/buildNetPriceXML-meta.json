@@ -1,0 +1,14 @@
+{
+  "name" : "Build Net Price XML",
+  "variableName" : "buildNetPriceXML",
+  "description" : "Build the net price quote SOAP xml for calling SOA.",
+  "libraryFunctions" : [ "commerce.buildNetPriceLineXML", "util.checkBizGroupCondition" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bs_id", "customerName_t", "customerName2_t", "opportunityAccountID_t", "qq_MnlShpTo_Address1_t", "qq_MnlShpTo_Address2_t", "qq_MnlShpTo_City_t", "qq_MnlShpTo_Zip_t", "qq_MnlShpTo_Country_t", "qq_MnlShpTo_Region_t", "salesOrg_t", "division_t", "distributionChannel_t", "customerNumber_t", "agreementDeliveryTerms_t", "agreementPaymentTerms_t", "incoterm2_t", "minimumOrderVolume_t", "surchargeExemption_t", "silver_t", "silverValue_t", "copper_t", "copperValue_t", "aluminium_t", "aluminiumValue_t", "qqApplication_t", "qqSubApplication_t", "currency_t", "owner_t", "opportunityNumber_t", "opportunityName_t", "agreementValidFrom_t", "agreementValidTo_t", "submittedDate_t", "soldToNumber_t", "shipToNumber_t", "preparedByENumber_t", "transactionType_t", "transactionNumber_t", "pricingDate_t", "qqProjectName_t", "qqCity_t", "qqRegion_t", "qqCountry_t", "customerStreet_t", "customerStreet2_t", "customerCity_t", "customerCountry_t", "customerState_t", "customerPostalCodeZip_t", "customerPhone_t", "customerCurrency_t", "qqTotalValue_t", "qqSegment_t", "qqSubSegment_t", "bookPriceDate_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ ]
+}

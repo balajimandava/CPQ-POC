@@ -1,0 +1,14 @@
+{
+  "name" : "Auto Renewl Agreement",
+  "variableName" : "autoRenewAgreement",
+  "description" : "This util checks the values that determines if an Agreement will Auto Renew.",
+  "libraryFunctions" : [ "commerce.customerSalesHistory", "util.getEnvironmentVariable", "util.getStringDict", "util.stringToFloat" ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ "customDiscountType_l", "lineNumber_l", "materialLineItem_l", "qqProductType_l" ],
+  "mainDocAttributes" : [ "surchargeExemption_t", "silver_t", "copper_t", "aluminium_t", "accountTypeKTOKD_t", "customerParent_t", "salesOrg_t", "customerNumber_t", "extendCurrentListPrices_t", "transactionType_t", "bs_id", "customerName_t", "currency_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

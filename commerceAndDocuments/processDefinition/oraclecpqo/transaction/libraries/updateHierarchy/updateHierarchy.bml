@@ -1,0 +1,69 @@
+retJson = json();
+retstr = "";
+
+if(salesOrg_t == "4946" AND transactionType_t == "DSP"){
+search_CusTab = customerNumber_t;
+customerData = commerce.massUpdateCustomerSearch(search_CusTab);
+
+print customerData;
+
+splitheaders = split(customerData, "#@#");
+valArr = string[];
+for each in splitheaders{
+selectedCustJ = json();
+selectedCustomerDataJson = json();
+selectedcust = split(each, "$,$");
+	if(selectedcust[1] == customerNumber_t){
+		selectedcust = split(each, "$,$");
+		
+		jsonput(selectedCustJ, "customerNo", selectedcust[1]);
+		jsonput(selectedCustJ, "associated", selectedcust[9]);
+		jsonput(selectedCustJ, "hierarchy", selectedcust[15]);
+		jsonput(selectedCustJ, "type", selectedcust[0]);
+
+		jsonput(selectedCustomerDataJson, (selectedcust[1]) + "$$" + (selectedcust[9]), selectedCustJ);
+		retstr = retstr + "1~selectedCustomerData_t~" + jsontostr(selectedCustomerDataJson) + "|"; 
+		
+			print "line 15";
+			print selectedCustJ;
+			print "line 21";
+			print selectedCustomerDataJson;
+
+//agreementHierarchy_t
+		if(jsontostr(selectedCustomerDataJson) <> ""){
+			hierarchyNum = "";
+			soldToNum = "";
+			shipToNum = "";
+			
+			primaryCustJ = jsonget(selectedCustomerDataJson, (selectedcust[1]) + "$$" + (selectedcust[9]), "json");
+			print primaryCustJ ;
+			
+			if(NOT ISNULL(primaryCustJ)){
+				type = jsonget(primaryCustJ, "type");
+				if(type == "Hierarchy"){	
+					hierarchyNum = jsonget(primaryCustJ, "customerNo");	
+				}
+				if(type == "Sold to"){
+					hierarchyNum = jsonget(primaryCustJ, "hierarchy");	
+					soldToNum = jsonget(primaryCustJ, "customerNo");		
+					shipToNum = jsonget(primaryCustJ, "associated");	
+				}
+				if(type == "Ship to"){
+					hierarchyNum = jsonget(primaryCustJ, "hierarchy");		
+					soldToNum = jsonget(primaryCustJ, "associated");	
+					shipToNum = jsonget(primaryCustJ, "customerNo");			
+				}
+				retJ = json();
+				jsonput(retJ, "aLevel1", hierarchyNum);
+				jsonput(retJ, "aLevel2", soldToNum);
+				jsonput(retJ, "aLevel3", shipToNum);
+				retstr = retstr + "1~agreementHierarchy_t~" + jsontostr(retJ) + "|";
+				//append(valArr, "1~agreementHierarchy_t~" + jsontostr(retJ) + "|");
+			}
+		}
+	}
+}
+
+//jsonput(retJson, "data", join(valArr, ""));
+}
+return retstr;

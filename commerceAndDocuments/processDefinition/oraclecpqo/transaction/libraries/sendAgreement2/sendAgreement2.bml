@@ -1,0 +1,120 @@
+/**
+@name Send Agreement
+@api sendAgreement
+@summary Sends CPQ data to an external source (SOA)
+@param data Json
+@attribute _parent_doc_number
+@attribute _system_supplier_company_name
+@attribute _system_user_login
+@attribute _system_user_time_zone
+@attribute accountTypeKTOKD_t
+@attribute agreementDeliveryTerms_t
+@attribute agreementPaymentTerms_t
+@attribute agreementPeriodOfInvoicing_t
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute aluminiumValue_t
+@attribute aluminium_t
+@attribute bs_id
+@attribute companyCode_t
+@attribute copperValue_t
+@attribute copper_t
+@attribute currency_t
+@attribute customerName_t
+@attribute customerNumber_t
+@attribute discountString_l
+@attribute discount_l
+@attribute distributionChannel_t
+@attribute division_t
+@attribute eRecordID_t
+@attribute initialLineItems_t
+@attribute materialLineItem_l
+@attribute materialPricingGroup_l
+@attribute minimumOrderVolume_t
+@attribute newNetPrice_l
+@attribute owner_t
+@attribute quantity_l
+@attribute salesGroup_t
+@attribute salesOffice_t
+@attribute salesOrg_t
+@attribute scaleFrom_l
+@attribute scale_l
+@attribute silverValue_t
+@attribute silver_t
+@attribute soldToNumber_t
+@attribute surchargeExemption_t
+@attribute transactionDescription_t
+@attribute transactionName_t
+@attribute transactionType_t
+@attribute uOM_l
+@function Float stringToFloat(String input)
+@function String getEnvironmentVariable(String key, String defaultValue)
+@function String getTableValue(String inputCol, String inputTable, String inputFieldValue, String language, String outputField)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017.07.25|dBo Haizlip          |Initial version (46888582)Z012 (47015470)Z001 (47015980) Z002 (47017656) CSP
+2017.08.30|dBo Haizlip	        |Removed sending Delivery, Payment or Period of Invoicing terms to SAP for Hierarchy (Z012) agreements
+2017.09.26|dBo Haizlip	        |Added division to VAKEY for Hierarchy and Sold To metal surcharge conditions
+2017.10.01|dBo Haizlip	        |Added check for zero (0) on MPG, Material Items and scales 
+2017.10.30|vhingorani           |Update Scale to NOT need a base line
+2017.10.30|vhingorani           |Added new condition for Minimum order value EATON-506
+2017.10.30|vhingorani           |Send Term value as '/'' ALM - 258
+2018-01-04|Tat.Leung            |_system_supplier_company_name
+2018-02-23|Tat.Leung            |
+2018-05-04|dBo Haizlip		|Added support for Rebate Quote (RQ) to be sent as a Vistex/CSP -- 90243599
+2018-05-10|dBo Haizlip		|Added support for Bussmann DSP's sent to SAP as Vistex based on Sales Org sendDSPAsVistex_t -- 90649984
+2018.05.15|dBo Haizlip		|Added multiple Sold Tos -- 90697815
+*/
+result = data;
+
+//  Switch to turn off the POST command...it will execute in the debugger.
+processPOST = FALSE;
+debugMode = FALSE;
+userDatePref = "yyyy/MM/dd HH:mm";
+userTimeZone = "Europe/Amsterdam";
+if (_system_user_time_zone <> "") {
+    userTimeZone = _system_user_time_zone;
+}
+
+dateTime = replace(datetostr(getdate(), userDatePref + " z", userTimeZone), "/", ".");
+CPQ_OUTBOUND_CONTROL = util.getEnvironmentVariable("CPQ_OUTBOUND_CONTROL", "DISABLE");
+
+//  If we are set to Disabled then return the date and time and status code
+if (find(CPQ_OUTBOUND_CONTROL, "DISABLE") <> -1) {
+    jsonput(result, "condaLastSentDate_t", dateTime);
+    jsonput(result, "condaStatusCode_t", "202");
+    jsonput(result, "condaMessageBody_t", "");
+    jsonput(result, "agreementErrorMessages_t", "");
+    jsonput(result, "condaHeader_t", "");
+    jsonput(result, "condaXML_t", "");
+    return result;
+}
+
+siteID = _system_supplier_company_name + "SOA";
+soaUserID = "";
+soaPassID = "";
+
+//  Get the Prefix for the Material Pricing Groups (if needed)
+siteBMQL = bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+for eachSite in siteBMQL {
+    soaUserID = get(eachSite, "FieldName");
+    soaPassID = get(eachSite, "Value1");
+}
+
+salesOrg = salesOrg_t;
+mpgPrefix = util.getTableValue("VKORG", "MPG_Prefix", salesOrg, "", "Prefix");
+
+accountType = accountTypeKTOKD_t;
+transactionType = transactionType_t;
+cancelTransaction = jsonget(data, "fp_CancelTransaction", "boolean", false);
+// TAT
+
+validFromDateString = replace(substring(agreementValidFrom_t, 0, 10), "-", "");
+validToDateString = replace(substring(agreementValidTo_t, 0, 10), "-", "");
+if (cancelTransaction) {
+    validToDateString = datetostr(getdate(), "yyyyMMdd");
+}
+
+return result;

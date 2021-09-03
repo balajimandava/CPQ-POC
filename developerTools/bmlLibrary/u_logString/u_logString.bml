@@ -1,0 +1,59 @@
+/**
+@name Log String
+@api u_logString
+@summary Print a string to the log file.  If the message is longer than 4000 characters (CPQ limit),
+it will be printed in multiple lines.  The continuation lines are indicated by "(C)".
+@param category String The logging category that the log message is labeled
+@param level Integer The logging level as defined in [Set Log Level](u_setLogLevel)
+@param message String The message to be logged
+@param label String The label to for the message
+@return Boolean ```true``` if log message is printed; ```false``` if log message is not printed
+@package utils/Logging
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-10|tleung               |Initial version
+19-03-2020|Atul Jain		|Added print statements to debugMode
+*/
+PW_LOGGING_SETTINGS = "PW_LOGGING_SETTINGS";
+MAX_MSG_LENGTH = 4000;
+debugMode = false;
+logSettings = usersessionget(PW_LOGGING_SETTINGS, "json");
+if (isnull(logSettings)) {
+    return false;
+}
+currentLevel = jsonget(logSettings, category, "integer", 0);
+
+messagePrinted = false;
+if (level > 0 and level <= currentLevel) {
+    msgLen = len(message);
+    prefix = category + " : " + string(level) + " : ";
+    if (msgLen > MAX_MSG_LENGTH) {
+        loopCtrl = range((msgLen / MAX_MSG_LENGTH) + 1);
+        for i in loopCtrl {
+            start = i * MAX_MSG_LENGTH;
+            end = (i + 1) * MAX_MSG_LENGTH;
+            if (end > msgLen) {
+                end = msgLen;
+            }
+            currentMsg = substring(message, start, end);
+            if (i == 0) {
+            	if(debugMode){
+                	print prefix + label + " : " + currentMsg;
+                }
+            } else {
+            	if(debugMode){
+                	print prefix + label + " (C) : " + currentMsg;
+                }
+            }
+            
+        }
+    } else {
+    	if(debugMode){
+        	print prefix + label + " : " + message;
+        }        
+    }
+    messagePrinted = true;
+}
+
+return messagePrinted;

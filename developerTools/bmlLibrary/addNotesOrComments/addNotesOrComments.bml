@@ -1,0 +1,43 @@
+/**
+Author:
+	Priyanka Kumari
+Date:
+	06-Feb-2020
+Description:
+	Add Notes or Comments will append the comments added by user with date and userName
+	String Builder is used for Concatenation of result more efficiently.
+	ReturnType is String in format:<date> <firstName lastName>: <Comment>.
+	
+Input Params:
+	addNotesInputDict is anytype of dict
+	the key value of existingNotes will hold existing Comments/Notes
+	the key value of newNote will hold new Comments/Notes
+
+**/
+// 2020-03-24|Atul Jain			|Removed commented code.
+
+res="";
+todaysDateString= substring(getstrdate(),0,10);
+existingNotes="";
+newNote = "";
+retValStrBuilder = stringbuilder();
+
+if(containskey(addNotesInputDict,"existingNotes")){
+	existingNotes = get(addNotesInputDict,"existingNotes","string");
+}
+
+if(containskey(addNotesInputDict,"newNote")){
+	newNote=get(addNotesInputDict,"newNote","string");
+}
+
+
+if(NOT isnull(existingNotes) AND existingNotes <> "")
+{
+	sbappend(retValStrBuilder,todaysDateString ," ",_user_first_name," ", _user_last_name ,": ",newNote, "\n" , existingNotes);
+}
+else
+{
+	sbappend(retValStrBuilder,todaysDateString ," ",_user_first_name," ", _user_last_name ,": ",newNote);
+}
+res = sbtostring(retValStrBuilder);
+return res;

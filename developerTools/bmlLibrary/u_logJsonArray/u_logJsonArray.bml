@@ -1,0 +1,30 @@
+/**
+@name Log Json Array
+@api u_logJsonArray
+@summary Print a JSON array object to the log.
+@param category String The logging category that the log message is labeled
+@param level Integer The logging level as defined in [Set Log Level](u_setLogLevel)
+@param jsonArr JsonArray
+@param label String The label to for the JSON object
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@return Boolean ```true``` if log message is printed; ```false``` if log message is not printed
+@package utils/Logging
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-11|tleung               |Initial version
+*/
+PW_LOGGING_SETTINGS = "PW_LOGGING_SETTINGS";
+
+logSettings = usersessionget(PW_LOGGING_SETTINGS, "json");
+if (isnull(logSettings)) {
+    return false;
+}
+currentLevel = jsonget(logSettings, category, "integer", 0);
+
+messagePrinted = false;
+if (level > 0 and level <= currentLevel) {
+    messagePrinted = util.u_logString(category, level, jsonarraytostr(jsonArr), label);
+}
+
+return messagePrinted;

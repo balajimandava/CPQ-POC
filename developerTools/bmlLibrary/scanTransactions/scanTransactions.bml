@@ -1,0 +1,248 @@
+/**
+@name Scan Transactions
+@api scanTransactions
+@summary Scans transactions that contain various values and return the bs_id and status
+
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018.08.20|dBo Haizlip			| Initial 
+2020.03.19|Atul Jain			|Deleted commented code and added debugMode to print statements
+*/
+retJson= json();
+debugMode = false;
+// 1st node of the site we're going after...
+siteID= "eatontest2";
+
+params= "";
+
+// URL portion of the REST call CPQ v17.2 GA
+restURL= "https://"+siteID+".bigmachines.com/rest/v6/commerceDocumentsOraclecpqoTransaction";
+
+//  This call requires a LOGIN with access to the resulting transactions
+headers= dict("string");
+auth_val = "Basic " + encodebase64("dave.haizlip" + ":" + "");
+
+//  Build the Headers dictionary
+put(headers, "Authorization", auth_val);
+
+//  Search to list all CPQ transactions with "poc" in the transactionName, Options I is Case Insensitive
+//  Decoded:  ?q={"transactionName_t":{$like: "%poc%",$options:"I"}}
+cpqAttribute= "transactionName_t";
+searchString= "Test DHx";
+
+tranQuery1= "{'"+ cpqAttribute +"':{$like: '%"+ searchString +"%',$options:'I'}}";
+
+//  Replace the single tick used above with the double quotes character...it's just easier to read then with the excape character
+tranQuery1= replace(tranQuery1,"'","\"");
+
+//  MAX returned is 1000, show me how many results were found
+optn1= "&limit=1000";
+optn2= "&totalresults=true";
+
+//  This is not used for the GET call
+payLoad= "";
+
+encodeTranURL= tranQuery1;
+encodeTranURL= "?q=" + util.u_EncodeURIComponent(encodeTranURL)+optn1+optn2;
+
+//  This will limit the selections to the current range...we have a CPQ REST limitation of 1000 at a time for transactions with more than 1000 lines
+//  LINENUMBERSTART gets replaced for each loop to 1, 1001, 2001, 3001, etc.  Until hasmore=FALSE in the REST response
+encodeLineURL= "{_sequence_number:{$gte:'LINENUMBERSTART'}}";
+
+//  Replace the single tick used above with the double quotes character...it's just easier to read then with the excape character
+encodeLineURL= replace(encodeLineURL,"'","\"");
+encodeLineURL= "?q=" + util.u_EncodeURIComponent(encodeLineURL);
+
+if (debugMode) {
+print encodeLineURL;
+print encodeTranURL;
+print restURL+ "?q=" + encodeTranURL+optn1+optn2;
+print tranQuery1;
+print auth_val;
+print restURL;
+}
+
+
+responseD= urldata(restURL+encodeTranURL, "GET", headers, payLoad);
+
+statusCode= util.getStringDict(responseD, "Status-Code", "");
+if (statusCode <> "200") {
+	if (debugMode) {
+		print "Status-Code:" + statusCode;
+	}
+  return retJson;
+}
+
+//  Used to speed up testing by skipping looping thru each line item in each transaction...
+processLineItems= FALSE;
+
+//  Nothing to do if there is not Message-Body
+if (containskey(responseD,"Message-Body")) {
+
+	//  Get the JSON data returned
+	messageBody= get(responseD,"Message-Body");
+	
+	//  Create a JSON object to contain the data
+	transactionJSON= json(messageBody);
+	
+	//  Get all the items returned
+	items= jsonget(transactionJSON,"items");
+	
+	//  The items JSON is a string JSON array
+	itemsJSONArray= jsonarray(items);
+	if (debugMode) {
+		print itemsJSONArray;
+		print items;
+		print messageBody;
+	}
+	
+	if (jsonarraysize(itemsJSONArray) == 0) {
+	  return retJson;
+	}
+	
+	//  Let's loop thru each CPQ transaction in the JSONARRAY
+	loopCNT=range(jsonarraysize(itemsJSONArray));
+	
+	//  hasmore=true if we didn't get all the hits (i.e. Results > 1000)
+	hasmore= jsonget(transactionJSON,"hasMore","boolean",FALSE);
+	
+	//  How many results did we get
+	count= jsonget(transactionJSON,"count","integer",-1);
+	
+	if (debugMode) {
+	print "Transactions found: " + "\n";
+	print "Has More: " + string(hasmore);
+	print "Count: " + string(count);
+	print "";
+	}
+	
+	//  Get Transaction Lines has a maximum of 1000 lines, so we need to pull them in batchs of 1000
+	maxPerCall= 1000;
+	currentCNT= 1;
+	
+	for row in loopCNT {
+	
+	  //  Create a JSON object for the current row in the loop
+	  itemJSON= json(jsonarrayget(itemsJSONArray,row));
+	  
+	  //  Get the main information needed:  buyside_id, Transaction Name and Customer Number
+	  BSID= jsonget(itemJSON,"bs_id","string","NOT_FOUND");
+	  transName= jsonget(itemJSON,"transactionName_t","string","NOT_FOUND");
+	  transType= jsonget(itemJSON,"transactionType_t","string","NOT_FOUND");
+	  tranStatus= jsonget(itemJSON,"status_t","string","NOT_FOUND");
+	  
+	  //  This is a menu item so let's pick the value or display value
+	  if (transType <> "NOT_FOUND") {
+	    transTypeJSON= json(transType);
+	    transType= jsonget(transTypeJSON,"displayValue","string","UNKNOWN");
+	  }
+	  
+	  //  This is a menu item so let's pick the value or display value
+	  if (tranStatus <> "NOT_FOUND") {
+	    tranStatusJSON= json(tranStatus);
+	    tranStatus= jsonget(tranStatusJSON,"displayValue","string","UNKNOWN");
+	  }
+	  
+	  customerNumber= jsonget(itemJSON,"customerNumber_t","string","NOT_FOUND");
+	  
+	  //  Print the data found
+	  if (debugMode) {
+	  print BSID + " / " + transName + " / " + transType + " / " + tranStatus + " / " + customerNumber;
+	  print gettransaction(atoi(BSID));
+	  }
+	  
+	  //  Here we use a BML function to get the XML
+	  
+	  hasMore= TRUE;
+	  
+	  loopForever= range(1000);
+	  
+	  for eachNeverEnding in loopForever {
+	  
+	    //  Here we use a REST call to get the transaction in JSON format
+	    //  It goes REST URL/buyside_id/transactionLine?q=xxxxxx&options&options
+	    
+	    lineRestURL= restURL+"/"+BSID+"/transactionLine"+replace(encodeLineURL,"LINENUMBERSTART",string(currentCNT))+optn1+optn2;
+	    
+	    transactionLines= urldata(lineRestURL, "GET", headers, payLoad);
+	    if (debugMode) {
+		print lineRestURL;
+	    print transactionLines;
+		}
+	  
+	    //  Nothing to do if there is not a Message-Body
+	    if (containskey(transactionLines,"Message-Body")) {
+
+	      //  Get the JSON data returned
+	      messageBodyl= get(transactionLines,"Message-Body");
+		  if (debugMode) {
+	      print messageBodyl;
+		  }
+	
+	      //  Create a JSON object to contain the data
+	      transactionLinesJSON= json(messageBodyl);
+	    
+	      //  How many results did we get
+	      count= jsonget(transactionLinesJSON,"count","integer",-1);
+	    
+	      if ( (count > 0) AND (processLineItems) ) {
+	        //  Get all the line items returned
+	        lineItemGridArray= jsonarray(jsonget(transactionLinesJSON,"items"));
+			if (debugMode) {
+	        print lineItemGridArray;
+			}
+	      
+	        lineItemGridCNT= range(jsonarraysize(lineItemGridArray));
+	        for eachLineItem in lineItemGridCNT {
+	          lineItemJSON= json(jsonarrayget(lineItemGridArray,eachLineItem));
+	          sequenceNumber= jsonget(lineItemJSON,"_sequence_number","integer",0);
+	          
+	          parentDocNumber= jsonget(lineItemJSON,"_parent_doc_number","string");
+	          
+	          materialPricingGroup= jsonget(lineItemJSON,"materialPricingGroup_l","string","NOT_FOUND");
+	          materialPricingGroupShortDescription= jsonget(lineItemJSON,"materialPricingGroupShortDescription_l","string","NOT_FOUND");
+	          
+	          materialLineItem= jsonget(lineItemJSON,"materialLineItem_l","string","NOT_FOUND");
+	          if (debugMode) {
+			  print "mmm - " + materialPricingGroup;
+	          print "ppp - " + materialLineItem;
+			  }
+	          materialLineItemShortDescription= jsonget(lineItemJSON,"materialLineItemShortDescription_l","string","Model_Line");	          
+	        }
+	      }
+	    
+	      //  hasmore=true if we didn't get all the hits (i.e. Results > 1000)
+	      hasMore= jsonget(transactionLinesJSON,"hasMore","boolean",FALSE);
+	  	
+	      if (currentCNT <= 1) {
+			  if (debugMode) {
+	        print "\tHas More Lines: " + string(hasmore);
+			  }
+	      }
+	      
+	      if (count > 0) {
+			  if (debugMode) {
+	        print "\tRange: " + string(currentCNT) + " thru " + string(currentCNT+count);
+			  }
+	      } else {
+			  if (debugMode) {
+	        print "\tRange: " + string(count);
+			  }
+	      }
+	    
+	    } else {
+	      hasMore= FALSE;
+	    }
+	  
+	    //  If no more lines then we break out of the loop
+	    if (NOT hasMore) {
+	      currentCNT= 1;
+	      break;
+	    }
+	    currentCNT=currentCNT+maxPerCall;
+	  
+	  }
+	}
+}
+
+return retJson;

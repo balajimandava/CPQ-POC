@@ -1,0 +1,14 @@
+{
+  "name" : "Populate End Customer Number Attribute",
+  "variableName" : "populateEndCustomerNumberAttribute",
+  "description" : "Project#49704|Eagle Development|E9913664|15thApril20 - New function to update End Customer numbers for B-Line business group. It will be used to determine whether End Customers for a Transaction are updated on Revise, Copy or Version based on that approval will be triggered.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputDictionary",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "endCustomerArraySet2_t" ],
+  "systemAttributes" : [ ]
+}

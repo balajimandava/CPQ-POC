@@ -1,0 +1,40 @@
+//************************************************************************************************************
+//** Function:    Get Bonus
+//** Type:        Util Library Function   
+//**
+//** Description: Return the bonus group and bonus discount for a MPG or part
+//** 
+//** Return type: Json  
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------------
+//**              15/06/2017    PKhanal         Initial version of the function (218)
+//**              13/07/2017    PKhanal         Function updated to take into account the default values if no mpg present
+//**		  	  13/07/2017    Shansen         Changed use of util.getBonusGroups some and moved this functionality to be 
+//**											present in update line items and the bonusGroup attribute default
+//******************************************************************************************************************
+partMPG="";
+itemBonus = json();
+if(jsonpathcheck(customerInput, "mpg")){
+	partMPG = jsonget(customerInput, "mpg");
+}
+if(partMPG==""){
+	jsonput(itemBonus, "BonusGroup", "");
+	jsonput(itemBonus, "BonusDiscount", 0.0);
+	return itemBonus;
+}
+bonusGroups=json();
+if(jsonpathcheck(customerInput, "bonusGroups")){
+	bonusGroups=json(jsonget(customerInput, "bonusGroups"));
+}
+print bonusGroups;
+if(jsonpathcheck(bonusGroups, partMPG)){
+	mpgJson = json(jsonget(bonusGroups, partMPG));
+	jsonput(itemBonus, "BonusGroup", jsonget(mpgJSON, "BonusGroup", "string", ""));
+	jsonput(itemBonus, "BonusDiscount", jsonget(mpgJSON, "Discount", "float", 0.0));
+}
+else {
+	jsonput(itemBonus, "BonusGroup", "");
+	jsonput(itemBonus, "BonusDiscount", 0.0);
+}
+return itemBonus;

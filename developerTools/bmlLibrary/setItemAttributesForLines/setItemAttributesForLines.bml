@@ -1,0 +1,123 @@
+/**
+@name Set Item Attributes for Lines
+@api setItemAttributesForLines
+@summary 
+@param data Json
+@function JsonArray u_getJsonDataForQuery(String query)
+@function String[] u_convertJsonArrayToStringArray(JsonArray jsonArr)
+@return JsonArray
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-16|Tat.Leung            |
+2018-04-04|michael.yeung        |
+*/
+docNums = jsonget(data, "DOC_NUMS", "jsonarray");
+lines = jsonget(data, "LINES", "jsonarray");
+bsId = jsonget(data, "BS_ID", "string", "");
+salesOrg = jsonget(data, "SALES_ORG", "string", "");
+language = jsonget(data, "LANGUAGE", "string", "en");
+debugMode = false;
+// get part dat from MAT01
+materialNums = jsonpathgetmultiple(data, "$..line", false);
+materialNumbers = util.u_convertJsonArrayToStringArray(materialNums);
+matColumns = string[] {
+    "MATNR",
+    "MAKTXEN",
+    "MAKTXDE",
+    "VTWEG",
+    "BONUS",
+    "MVGR5",
+    "MEINS",
+    "RBNRM",
+    "MSTAE",
+    "VMSTA",
+    "LVORM",
+    "MPG",
+    "UPPER_MAKTXEN",
+    "UPPER_MAKTXDE",
+    "SALESTEXT",
+    "SALESTEXT2",
+    "SALESTEXT3",
+    "SALESTEXT4",
+    "SALESTEXT5",
+    "DISCOUNTABLE",
+    "MTART",
+    "MVGR1",
+    "PRODH",
+    "KONDM",
+    "PRODUCTLINE",
+    "AltItemNumber",
+    "ZZCATNO",
+    "MPG_TEXT",
+    "PH5_TEXT",
+    "AUMNG",
+    "RDPRF",
+    "MSTAV",
+    "PH4_TEXT",
+    "EAN11",
+    "NUMTP",
+    "GROES",
+    "BRGEW",
+    "GEWEI",
+    "NTGEW",
+    "MATGRP5_TEXTEN",
+    "MATGRP5_TEXTDE"
+};
+query = "SELECT " + join(matColumns, ", ") + " FROM MAT01 WHERE MATNR IN ('" + join(materialNumbers, "', '") + "') AND VKORG = '" + salesOrg + "'";
+materialDetails = util.u_getJsonDataForQuery(query);
+
+// get pricing group data from MPG01
+mpgColumns = string[] {
+    "MPG", 
+    "Description", 
+    "SPRAS",
+    "WholesalerOnly",
+    "BonusGroup",
+    "type"
+};
+query = "SELECT " + join(mpgColumns, ", ") + " FROM MPG01 WHERE MPG IN ('" + join(materialNumbers, "', '") + "') AND SalesOrg = '" + salesOrg + "'";
+mpgDetails = util.u_getJsonDataForQuery(query);
+
+materialData = json();
+jsonput(materialData, "materialDetails", materialDetails);
+jsonput(materialData, "mpgDetails", mpgDetails);
+
+if(debugMode){
+	print materialData;
+}
+
+// build updateTransaction XML for line
+numOfLines = jsonarraysize(docNums);
+loop = range(numOfLines);
+for i in loop {
+    docNum = jsonget(jsonarrayget(docNums, i, "json"), "_document_number", "string", "");
+    item = jsonget(jsonarrayget(lines, i, "json"), "line", "string", "");
+    materialPath = "$..materialDetails[?(@.MATNR=='" + item + "')]";
+    matDet = jsonpathgetsingle(materialData, materialPath, "json", json());
+    matNumber = jsonget(matDet, "MATNR");
+    if (not isnull(matNumber)) {
+        // line type = "ITEM"
+        if(debugMode){
+	        print "found material";
+	        print matDet;
+        }
+    } else {
+        // line type = "MPG"
+        mpgPath = "$..mpgDetails[?(@.MPG=='" + item + "' @.SPRAS=='" + language + "')]";
+        mpgDet = jsonpathgetsingle(materialData, mpgPath, "json", json());
+        if(debugMode){
+         print mpgDet;
+        }
+        mpg = jsonget(mpgDet, "MPG");
+        if (not isnull(mpg)) {
+            if(debugMode){
+	            print "found mpg";
+	            print mpgDet;
+            }
+        }
+    }
+}
+
+result = jsonarray();
+return result;

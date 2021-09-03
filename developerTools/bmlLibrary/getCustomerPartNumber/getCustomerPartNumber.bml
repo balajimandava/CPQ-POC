@@ -1,0 +1,23 @@
+//2020-03-17|	Atul Jain|	Added print statements to debug.
+
+customer = customerNumber;
+debugMode = false;
+if (startswith(customer, "0000")) {
+	customer =  substring(customer, -6);
+}
+
+if (startswith(customer, "00000")) {
+	customer =  substring(customer, -5);
+}
+
+if (debugMode) {
+print customer;
+}
+db = bmql("select KUNNR, MATNR,KDMAT from CMI01 where KUNNR = $customer");
+allData = json();
+
+for row in db {
+  jsonput(allData, get(row, "MATNR"), get(row, "KDMAT"));
+}
+
+return allData;

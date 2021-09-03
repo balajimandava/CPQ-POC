@@ -1,0 +1,11 @@
+{
+  "name" : "renewalVersion",
+  "variableName" : "renewalVersion",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Integer",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "version_number_createRenewal" ],
+  "systemAttributes" : [ ]
+}

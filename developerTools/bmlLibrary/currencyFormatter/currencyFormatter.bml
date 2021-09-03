@@ -1,0 +1,43 @@
+retString= "";
+
+myNumber= numberToFormat;
+myCurrencyIn= CurrencyIn;
+if (myCurrencyIn == "") {
+  myCurrencyIn= "EUR";
+}
+myCurrencyOut= CurrencyOut;
+if (myCurrencyOut == "") {
+  myCurrencyOut= "EUR";
+}
+
+badChar= ".";
+
+  currencyType= "EUR";
+  thousandsSep= ".";
+  placesSep= ",";
+  if (myCurrencyIn == "USD") {
+    currencyType= "USD";
+    thousandsSep= ",";
+    placesSep= ".";
+  }
+  
+  thousandsSepCNT= 0;
+  placeSepCNT= 0;
+  splitNumber= split(numberToFormat,"");
+  for eachChar in splitNumber {
+    if (eachChar == thousandsSep) {
+      thousandsSepCNT=thousandsSepCNT+1;
+    } elif (eachChar == placesSep) {
+      placeSepCNT=placeSepCNT+1;
+    }
+  }
+  
+  //  If there is more than one of either of these characters in the number we would get a runtime error from getcurrencyvalue
+  if ( (placeSepCNT <= 1) AND (thousandsSepCNT <= 1) ) {
+    myNumberFloat= getcurrencyvalue(myNumber,myCurrencyIn);
+    retString= formatascurrency(myNumberFloat,myCurrencyOut);
+  } else {
+    retString= myNumber;
+  }
+  
+return retString;

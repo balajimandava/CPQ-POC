@@ -1,0 +1,5 @@
+retStr = "";
+if(NOT(isnull(inputStr))){
+	retStr = inputStr;
+}
+return retStr;

@@ -1,0 +1,540 @@
+/* 13/05/2019 : Vasundhara Pentakota. Jet UI changes. Added logic to populate Array sets For Existing Transactions. START*/
+valArr = string[];
+retString = "";
+delimetedString = "";
+bonusFlag = false;
+
+notesFlag = util.checkBizGroupCondition("hideNotesInOutputTab", transactionType_t, salesOrg_t);
+
+//if(find(_system_user_groups, "jETUITest") <> -1){
+	//Bonus Table Array Set - bonusTableDataString_t
+	
+COL_DELIM = "$;$";
+ROW_DELIM = "$@$";
+if(bonusTableDataString_t <> "" AND find(bonusTableDataString_t,ROW_DELIM) <> -1 AND notesFlag == false){
+	bonusTableRowArray = split(bonusTableDataString_t,ROW_DELIM);
+	retArray = jsonarray();
+	for eachRow in bonusTableRowArray{
+		bonusTableColumnArray =  split(eachRow,COL_DELIM);
+		if(sizeofarray(bonusTableColumnArray) == 4){
+			bonusVolume = bonusTableColumnArray[0];
+			bonusDiscount = bonusTableColumnArray[1];
+			bonusValidFrom = bonusTableColumnArray[2];
+			bonusValidTo = bonusTableColumnArray[3];
+			
+			newRow = json();
+			jsonput(newRow, "volume_bonusArraySet", bonusVolume);
+			jsonput(newRow, "bonusDiscount_bonusArraySet", bonusDiscount);
+			jsonput(newRow, "validFrom_bonusArraySet", bonusValidFrom);
+			jsonput(newRow, "validTo_bonusArraySet", bonusValidTo);
+			jsonarrayappend(retArray, newRow);
+		}
+	}
+	
+	append(valArr, "1~bonusArraySet_t~" + jsonarrayrefid(retArray) + "|");
+}
+//Notes Table Array Set - qqCustomTnCNotesJSON_t
+if(qqCustomTnCNotesJSON_t <> "" AND qqCustomTnCNotesJSON_t <> "{}"){
+	retArray = jsonarray();
+	jsonObj = json(qqCustomTnCNotesJSON_t);
+	key = "$."+ ntSelectedSalesOrg_t ;
+	customStr = jsonpathgetsingle(jsonObj,key); 
+	if(NOT isnull(customStr) ){
+		customArr = jsonarray(customStr);
+		indexArr = range(jsonarraysize(customArr));
+		notesNameIndex = 1;
+		notesDescIndex = 3;
+		for index in indexArr{
+			rowStr= jsonarrayget(customArr,index,"string");
+			retColArr = jsonarray(rowStr);
+			notesNameStr = jsonarrayget(retColArr,notesNameIndex,"string");
+			notesDescStr = jsonarray(jsonarrayget(retColArr,notesDescIndex));
+			
+			newRow = json();
+			jsonput(newRow, "noteName_notesArraySet", notesNameStr);
+			jsonput(newRow, "noteDescription_notesArraySet", notesDescStr);
+			jsonarrayappend(retArray, newRow);
+		}
+		print retArray;
+		append(valArr, "1~noteArraySet_t~" + jsonarrayrefid(retArray) + "|");
+	}
+}
+
+//Selected Customers - qq_selectedCustomerData_t
+if(qq_selectedCustomerData_t <> ""){
+	retArray = jsonarray();
+	ROW_DELIM = "#@#";
+	COL_DELIM = "$,$";
+	selectedCustomerRowArray = split(qq_selectedCustomerData_t,ROW_DELIM);
+	for eachRow in selectedCustomerRowArray{
+		selectedCustomerColumnArray =  split(eachRow,COL_DELIM);
+		if(sizeofarray(selectedCustomerColumnArray) > 8){
+			type = selectedCustomerColumnArray[0];
+			customer = selectedCustomerColumnArray[1];
+			name = selectedCustomerColumnArray[2];
+			postalCode = selectedCustomerColumnArray[3];
+			city = selectedCustomerColumnArray[4];
+			region = selectedCustomerColumnArray[5];
+			country = selectedCustomerColumnArray[6];
+			shipToCustomer = selectedCustomerColumnArray[7];
+			isPrimary = selectedCustomerColumnArray[8];
+			isPrimaryFlag = false;
+			if(isPrimary == "checked"){
+				isPrimaryFlag = true;
+			}
+			
+			newRow = json();
+			jsonput(newRow, "type_selctdCust2_t", type);
+			jsonput(newRow, "customer_selctdCust2_t", customer);
+			jsonput(newRow, "name_selctdCust2_t", name);
+			jsonput(newRow, "postalCode_selctdCust2_t", postalCode);
+			jsonput(newRow, "city_selctdCust2_t", city);
+			jsonput(newRow, "region_selctdCust2_t", region);
+			jsonput(newRow, "country_selctdCust2_t", country);
+			jsonput(newRow, "shipToCustomer_selctdCust2_t", shipToCustomer);
+			jsonput(newRow, "primary_selctdCust2_t", isPrimaryFlag);
+			jsonarrayappend(retArray, newRow);
+		}
+	}
+	print retArray;
+
+	append(valArr, "1~selectedCustomerArraySet2_t~" + jsonarrayrefid(retArray) + "|");
+}
+//End Customers - qq_nt_EndCust_DataString_t
+if(qq_nt_EndCust_DataString_t <> ""){
+	retArray = jsonarray();
+	ROW_DELIM = "$@$";
+	COL_DELIM = "$;$";
+	endCustomerRowArray = split(qq_nt_EndCust_DataString_t,ROW_DELIM);
+	for eachRow in endCustomerRowArray{
+		selectedCustomerColumnArray =  split(eachRow,COL_DELIM);
+		//print sizeofarray(selectedCustomerColumnArray);
+		if(sizeofarray(selectedCustomerColumnArray) > 3){
+			name = selectedCustomerColumnArray[0];
+			country = selectedCustomerColumnArray[1];
+			region = selectedCustomerColumnArray[2];
+			city = selectedCustomerColumnArray[3];
+			
+			newRow = json();
+			jsonput(newRow, "name_endCust2_t", name);
+			jsonput(newRow, "country_endCust2_t", country);
+			jsonput(newRow, "region_endCust2_t", region);
+			jsonput(newRow, "city_endCust2_t", city);
+			jsonarrayappend(retArray, newRow);
+		}
+	}
+	
+	append(valArr, "1~endCustomerArraySet2_t~" + jsonarrayrefid(retArray) + "|");
+}
+
+//Pricing Table
+if(delimetedString == ""){
+	retArray = jsonarray();
+	str =string[];
+	lineItemsJson=jsonarray();
+	for line in transactionLine{
+		lineJson=jsonarray();
+		if(line.qqProductType_l=="group"){
+			//parent lines won't show the same data
+			tempStr=jsonarrayappend(lineJson, string(line.approvalRequired_l));//Changed sequence for Defect 1573
+			tempStr=jsonarrayappend(lineJson, string(line._sequence_number));
+			tempStr=jsonarrayappend(lineJson,""); //Changed sequence for Defect 1573
+			tempStr=jsonarrayappend(lineJson,""); //Changed sequence for Defect 1573
+			tempStr=jsonarrayappend(lineJson,""); //Changed sequence for Defect 1573
+			tempStr=jsonarrayappend(lineJson, line.materialPricingGroup_l);
+			tempStr=jsonarrayappend(lineJson, line.materialPricingGroupShortDescription_l);
+			tempStr=jsonarrayappend(lineJson,""); 
+			tempStr=jsonarrayappend(lineJson,"");
+			tempStr=jsonarrayappend(lineJson,"");
+			tempStr=jsonarrayappend(lineJson,string(line.currentNetPricePerUOM_l));
+			tempStr=jsonarrayappend(lineJson,"");  
+			tempNum=jsonarrayappend(lineJson,line.discountPercentString_l); 
+			tempStr=jsonarrayappend(lineJson,""); 
+			tempStr=jsonarrayappend(lineJson,""); 		
+			tempStr=jsonarrayappend(lineJson,"");
+			tempStr=jsonarrayappend(lineJson, line.bonusGroup_l);
+			tempStr=jsonarrayappend(lineJson, util.convertDecimal(string(line.bonusGroupDiscount_t), currencyDecimalSeparator_t)); // Added for QQ-769.
+			tempStr=jsonarrayappend(lineJson, util.convertDecimal(string(line.agreementNetDiscountRequested_l), currencyDecimalSeparator_t)); // Added for QQ-769.
+			tempStr=jsonarrayappend(lineJson, formatascurrency(line.agreementNetPriceRequested_l,currency_t));
+			tempStr=jsonarrayappend(lineJson, util.convertDecimal(string(line.agreementNetDiscount_l), currencyDecimalSeparator_t)); // Added for QQ-769.
+			tempStr=jsonarrayappend(lineJson, formatascurrency(line.agreementNetPrice_l,currency_t));
+			
+		}
+		else{
+			tempStr=jsonarrayappend(lineJson, string(line.approvalRequired_l));//Changed sequence for Defect 1573
+			tempStr=jsonarrayappend(lineJson, string(line._sequence_number));	
+			tempStr=jsonarrayappend(lineJson, line.materialLineItem_l);
+			tempStr=jsonarrayappend(lineJson, line.materialLineItemShortDescription_l);
+			tempStr=jsonarrayappend(lineJson, line.customerPartNumber_l);
+			tempStr=jsonarrayappend(lineJson, "");//Changed sequence for Defect 1573
+			tempStr=jsonarrayappend(lineJson, "");//Changed sequence for Defect 1573
+			tempStr=jsonarrayappend(lineJson, util.convertDecimal(string(line.quantity_l), currencyDecimalSeparator_t)); // Added for QQ-769.Changed sequence for Defect 1573
+			tempStr=jsonarrayappend(lineJson, formatascurrency(line.oldListPrice_l, currency_t));
+			//Gaurav Singh: commented and modified below line for ALM #: 1646 (Updated Net Price as currentNetPrice_l rather than _price_net_price which always send 0)
+			tempStr=jsonarrayappend(lineJson, line.uOM_l);//Changed sequence for Defect 1573
+			
+			tempStr=jsonarrayappend(lineJson,formatascurrency(line.currentNetPricePerUOM_l, currency_t));
+			tempStr=jsonarrayappend(lineJson,line.netFixedAmountString_l);
+			tempStr=jsonarrayappend(lineJson, "");
+			
+			tempStr=jsonarrayappend(lineJson, formatascurrency(line.newNetPrice_l,currency_t));
+				if(line.currentNetPricePerUOM_l > 0){
+					netPriceDiff = round((line.currentNetPricePerUOM_l - line.newNetPrice_l)*100/line.currentNetPricePerUOM_l,2);
+					tempStr=jsonarrayappend(lineJson, string(netPriceDiff) + "%");
+					
+				}else{
+					netPriceDiff =0;
+					tempStr=jsonarrayappend(lineJson, string(netPriceDiff));
+				}
+				if(line.oldListPrice_l > 0){
+					disOfflist = round((line.oldListPrice_l - line.newNetPrice_l)*100/line.oldListPrice_l,2);
+					tempStr=jsonarrayappend(lineJson, string(disOfflist) + "%");
+					
+				}else{
+					disOfflist =0;
+					tempStr=jsonarrayappend(lineJson, string(disOfflist));
+				}
+			
+			tempStr=jsonarrayappend(lineJson, line.bonusGroup_l);
+			tempStr=jsonarrayappend(lineJson, util.convertDecimal(string(line.bonusGroupDiscount_t), currencyDecimalSeparator_t)); // Added for QQ-769.
+			tempStr=jsonarrayappend(lineJson, util.convertDecimal(string(line.agreementNetDiscountRequested_l), currencyDecimalSeparator_t)); // Added for QQ-769.
+			tempStr=jsonarrayappend(lineJson, formatascurrency(line.agreementNetPriceRequested_l,currency_t));
+			tempStr=jsonarrayappend(lineJson, util.convertDecimal(string(line.agreementNetDiscount_l), currencyDecimalSeparator_t)); // Added for QQ-769.
+			tempStr=jsonarrayappend(lineJson, formatascurrency(line.agreementNetPrice_l,currency_t));
+
+		}
+		
+		jsonarrayappend(lineItemsJson, lineJson);
+		
+	}
+	//Below code is written for sorting of parts as per LIG INC000012085601	
+	x = jsonarraytostr(lineItemsJson);
+	if(substring(x,1,len(x)-1) <> ""){
+		str2="";
+		str2 = jsonarraytostr(lineItemsJson);
+		str3= string[];
+		str4= string[];
+		str2 = substring(str2, 2, len(str2)-2); //print str2;
+		str = split(str2,"],[");
+		str5="[[";
+		size = sizeofarray(str);
+
+		for each in str{
+			str3 = split(each,","); //print str3[1];
+			
+			sequenceNumber = atoi(replace(str3[1], "\"","")); 
+			str4[sequenceNumber-1] = each;
+		}
+		for each1 in str4{
+		str5= str5 + each1 + "],["; 
+		} 
+		str5 = substring(str5, 0, len(str5)-3);
+		str5 = str5 + "]]";
+		x = str5;
+	}
+	
+	if(x <> "[]"){
+		pricingArr = jsonarray(x);
+		//Prepare array to loop over
+		indexArr = range(jsonarraysize(pricingArr));
+		
+		//Variable name of array attributes to populate 
+		varNameArr = string[]{"line_pricingArr_t", "material_pricingArr_t", "description_pricingArr_t", "custPart_pricingArr_t", "pricingGrp_pricingArr_t","pricingGrpDesc_pricingArr_t", "qty_pricingArr_t", "listPrice_pricingArr_t", "uOM_pricingArr_t", "currNetPrice_pricingArr_t", "fixedNetAmt_pricingArr_t","discoPercent_pricingArr_t", "newNetPrice_pricingArr_t", "netPriceDiff_pricingArr_t", "discoOffList_pricingArr_t", "bonusPriceGrp_pricingArr_t", "bPGDisco_pricingArr_t", "finalDiscoRequested_pricingArr_t", "finalPriceRequested_pricingArr_t", "finalDiscotApproved_pricingArr_t", "finalPriceApproved_pricingArr_t"};
+			
+		//Index Descriptions (i)
+		//1: Line #, 2: Material #, 3: Description, 4: Customer Part #, 5: Pricing Group, 6: Pricing Group Description, 7: Qty, 8: List Price, 9: UOM, 10: Current Net Price, 11: Fixed Net Amount, 12: Discount Percent, 13: New Net Price, 14: Net Price Diff %, 15: Discount Off List, 16: Bonus Price Group, 17: BPG Discount %, 18: Final Discount (Requested), 19: Final Price( Requested), 20: Final Discount (Approved), 21: Final Price (Approved), 
+		
+		//Loop over results and populate array attributes
+		for index in indexArr{
+			eachRowDataArr = jsonarrayget(pricingArr, index, "jsonarray");
+			newRow = json();
+			i =1;
+			for each in varNameArr{
+				jsonput(newRow, each, jsonarrayget(eachRowDataArr, i, "string"));
+				i = i +1;
+			}
+			jsonarrayappend(retArray, newRow);
+			//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+			if(jsonarraysize(retArray) == 500){
+				break;
+			}
+		}
+	
+		append(valArr, "1~pricingArraySet_t~" + jsonarrayrefid(retArray) + "|");
+	}
+}
+
+//Populate Sales History - salesHistoryData_t
+if(salesHistoryData_t <> "" AND salesHistoryData_t <> "{}"){
+	retArray = jsonarray();
+	salesHistArr = jsonarray(salesHistoryData_t);
+
+	upFiltetSearch = UPPER(filter_salesHistory_t);
+	indexArr = range(jsonarraysize(salesHistArr));
+	eachRowDataArr = jsonarray();
+	for index in indexArr{
+		eachRowDataArr = jsonarrayget(salesHistArr, index, "jsonarray");
+		selectedCustJ = json();
+		
+		//Index Descriptions
+		// 1: Pricing Group, 2: Item #, 3: Current Year To Date Qty, 4: Current Year To Date Amount, 5: Current Average Price, 6: Previous Year Quantity, 7: Previous Year Amount, 8: Previous Average Price
+		
+		//Populate ArraySet with filtered records
+		if(upFiltetSearch <> ""){
+			if((find(UPPER(jsonarrayget(eachRowDataArr, 1, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 2, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 3, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 4, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 5, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 6, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 7, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 8, "string")), UPPER(filter_salesHistory_t)) <> -1)){
+				jsonput(selectedCustJ, "pricingGroup_SalesHist_t", jsonarrayget(eachRowDataArr, 1, "string"));
+				jsonput(selectedCustJ, "item_SalesHist_t", jsonarrayget(eachRowDataArr, 2, "string"));
+				jsonput(selectedCustJ, "currYearToDateQty_SalesHist_t", jsonarrayget(eachRowDataArr, 3, "string"));
+				jsonput(selectedCustJ, "currYearToDateAmt_SalesHist_t", jsonarrayget(eachRowDataArr, 4, "string"));
+				jsonput(selectedCustJ, "currAvgPrice_SalesHist_t", jsonarrayget(eachRowDataArr, 5, "string"));
+				jsonput(selectedCustJ, "previousYearQty_SalesHist_t", jsonarrayget(eachRowDataArr, 6, "string"));
+				jsonput(selectedCustJ, "previousYearAmt_SalesHist_t", jsonarrayget(eachRowDataArr, 7, "string"));
+				jsonput(selectedCustJ, "previousAvgPrice_SalesHist_t", jsonarrayget(eachRowDataArr, 8, "string"));
+				
+				jsonarrayappend(retArray, selectedCustJ);
+				//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+				if(jsonarraysize(retArray) == 500){
+					break;
+				}
+			}
+		}
+		
+		//Populate ArraySet with all records
+		else{
+			jsonput(selectedCustJ, "pricingGroup_SalesHist_t", jsonarrayget(eachRowDataArr, 1, "string"));
+			jsonput(selectedCustJ, "item_SalesHist_t", jsonarrayget(eachRowDataArr, 2, "string"));
+			jsonput(selectedCustJ, "currYearToDateQty_SalesHist_t", jsonarrayget(eachRowDataArr, 3, "string"));
+			jsonput(selectedCustJ, "currYearToDateAmt_SalesHist_t", jsonarrayget(eachRowDataArr, 4, "string"));
+			jsonput(selectedCustJ, "currAvgPrice_SalesHist_t", jsonarrayget(eachRowDataArr, 5, "string"));
+			jsonput(selectedCustJ, "previousYearQty_SalesHist_t", jsonarrayget(eachRowDataArr, 6, "string"));
+			jsonput(selectedCustJ, "previousYearAmt_SalesHist_t", jsonarrayget(eachRowDataArr, 7, "string"));
+			jsonput(selectedCustJ, "previousAvgPrice_SalesHist_t", jsonarrayget(eachRowDataArr, 8, "string"));
+			
+			jsonarrayappend(retArray, selectedCustJ);
+			//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+			if(jsonarraysize(retArray) == 500){
+				break;
+			}
+		}
+	}
+	append(valArr, "1~salesHistoryAraySet_t~" + jsonarrayrefid(retArray) + "|");
+}
+
+//Populate Related Transactions
+if(delimetedString == ""){
+	actionId = openActionId_t;
+	processId = processId_t;
+	documentId = documentId_t;
+	siteID = _system_supplier_company_name;	
+
+	//URL to fetch Quotes matching Opportunity no of current Quote
+	url = "https://" + siteID + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction?q={\"opportunityNumber_t\":\"" + opportunityNumber_t + "\"}&fields=bs_id,transactionNumber_t,transactionName_t,status_t,qqIsPrimary_t";
+
+	//url = "https://eatontest2.bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction?q={\"transactionName_t\":\"test\"}&fields=bs_id,transactionNumber_t,transactionName_t,status_t,qqIsPrimary_t";
+
+	quoteDataDict =  urldata(url,"get");
+	quoteJson = json(get(quoteDataDict,"Message-Body"));
+
+	//Get Transaction Nos from Quote details JSON
+	transactionNoArr = jsonpathgetmultiple(quoteJson, "$..items[*].transactionNumber_t");
+
+	//Get BSID from Quote details JSON
+	bsidArr = jsonpathgetmultiple(quoteJson, "$..items[*].bs_id");
+
+	//Get Quote Primary status from Quote details JSON
+	isPrimaryArr = jsonpathgetmultiple(quoteJson, "$..items[*].qqIsPrimary_t");
+
+	//Get Transaction Name from Quote details JSON
+	transactionNameArr = jsonpathgetmultiple(quoteJson, "$..items[*].transactionName_t");
+
+	//Get Quote Status from Quote details JSON
+	statusArr = jsonpathgetmultiple(quoteJson, "$..items[*].status_t.displayValue");
+
+	//Create HTML Header
+	retStr = "<sty"+"le>table.class1, th.class1, td.class1 { border: 1px solid black; border-collapse: collapse;}</sty"+"le>";
+	retStr = retStr + "<table class=\"class1\" style=\"width:79%\"><tr><th class=\"class1\" style=\"background-color:#0067CC;color:white;\">Transaction Number</th><th class=\"class1\" style=\"background-color:#0067CC;color:white;\">Status</th><th class=\"class1\" style=\"background-color:#0067CC;color:white;\">Is Primary?</th><th class=\"class1\" style=\"background-color:#0067CC;color:white;\">Transaction Name</th></tr>";
+
+	//Intialize array of transactionNoArr array size
+	indexArr = range(jsonarraysize(transactionNoArr));
+	rows = "";
+	for index in indexArr{
+		transactionNo = jsonarrayget(transactionNoArr, index);
+		bsID = jsonarrayget(bsidArr, index);
+		transactionName = jsonarrayget(transactionNameArr, index);
+		status = jsonarrayget(statusArr, index);
+		//quoteUrl = https://eatontest4.bigmachines.com//commerce/buyside/document.jsp?formaction=performAction&action_id=36244076&bs_id=180632190&bm_cm_process_id=36244034&document_id=36244074
+		
+		//Quote URL for open transaction
+		quoteUrl = "https://" + siteID + ".bigmachines.com/commerce/buyside/document.jsp?formaction=performAction&action_id=" + actionId + "&bs_id=" + bsID + "&bm_cm_process_id=" + processId + "&document_id=" + documentId;
+		isPrimary = "Yes";
+		if(jsonarrayget(isPrimaryArr, index) == "false"){
+			isPrimary = "No";
+		}
+			
+		rows = rows + "<tr><td class=\"class1\" align=\"center\"><a href=" + quoteUrl + ">" + transactionNo + "</a></td><td class=\"class1\" align=\"center\">" + status + "</td><td class=\"class1\" align=\"center\">" + isPrimary + "</td><td class=\"class1\" align=\"center\">" + transactionName + "</td></tr>";
+	}
+
+	retStr = retStr + rows;
+	retStr = retStr + "</table>";
+	
+	append(valArr, "1~relatedTransactionText_t~" + retStr + "|");
+}
+/*
+soldToFormat = "";
+existingSelectedCustRecordsJson = json();
+jsonput(existingSelectedCustRecordsJson, "records", selectedCustomerArraySet_t);
+existingCustRecordsJsonArray = jsonpathgetmultiple(existingSelectedCustRecordsJson, "$.records[?(@.primary_selctdCust_t==false)]");
+if(jsonarraysize(existingCustRecordsJsonArray) > 0){
+	indexsize = range(jsonarraysize(existingCustRecordsJsonArray));
+	for indexVal in indexsize{
+		uncheckedCustRecords = json();
+		custJ = jsonarrayget(existingCustRecordsJsonArray, indexVal, "json");
+		customerNo = jsonget(jsonarrayget(existingCustRecordsJsonArray, indexVal, "json"), "customer_selctdCust_t", "string", "");
+		shipToCustomerNo = jsonget(jsonarrayget(existingCustRecordsJsonArray, indexVal, "json"), "shipToCustomer_selctdCust_t", "string", "NoKey");
+		keyValue = customerNo + "$$" + shipToCustomerNo;					
+		selectedCustJ = json(selectedCustomerData_t);
+		primaryCustJ = jsonget(selectedCustJ, keyValue, "json");	
+		type = jsonget(primaryCustJ , "type", "string", "");
+		customer = jsonget(primaryCustJ , "customerNo", "string", "");
+		hierarchy = jsonget(primaryCustJ , "hierarchy", "string", "");				
+		if(type == "Hierarchy"){
+			if(soldToFormat <> ""){
+				soldToFormat = soldToFormat +"#@#"+ ntSelectedSalesOrg_t + "-" +customer + "-"+customer;
+			}else{
+				soldToFormat = ntSelectedSalesOrg_t + "-" +customer + "-"+customer;
+			}
+		}
+		elif(type == "Sold to"){				
+			if(soldToFormat <> ""){						
+				if(hierarchy <> ""){
+					soldToFormat = soldToFormat +"#@#"+ ntSelectedSalesOrg_t + "-" +hierarchy + "-"+customer;
+				}else{
+					soldToFormat = soldToFormat +"#@#"+ ntSelectedSalesOrg_t + "-" +customer + "-"+customer;
+				}
+			}else{
+				if(hierarchy <> ""){
+					soldToFormat = ntSelectedSalesOrg_t + "-" +hierarchy + "-"+customer;
+				}
+				else{
+					soldToFormat = ntSelectedSalesOrg_t + "-" +customer + "-"+customer;
+				}
+			}
+		}
+		elif(type == "Ship to"){
+			if(soldToFormat <> ""){
+				if(hierarchy <> ""){
+					soldToFormat = soldToFormat +"#@#"+ntSelectedSalesOrg_t + "-" +hierarchy + "-"+customer;
+				}else{
+					soldToFormat = soldToFormat +"#@#"+ntSelectedSalesOrg_t + "-" +customer + "-"+customer;
+				}
+			}else{
+				if(hierarchy <> ""){
+					soldToFormat = ntSelectedSalesOrg_t + "-" +hierarchy + "-"+customer;
+				}else{
+					soldToFormat =ntSelectedSalesOrg_t + "-" +customer + "-"+customer;	
+				}
+			}
+		}
+	}
+	append(valArr, "1~qq_ntSelectedAddtnlSoldTo_t~" + soldToFormat + "|");
+}
+//Shipto
+
+selectedShipToCD = qq_CD_selectedShipTo_t;
+selectedSoldToCD = qq_CD_SelectedSoldTo_t;
+oldSelectedSoldToCD = getoldvalue("qq_CD_SelectedSoldTo_t");
+selectedShipToNT = qq_ntSelectedShipTo_t;
+salesOrg = salesOrg_t;
+type = transactionType_t;
+shipToList = qqDevOptShipTo_t;
+condition = "defaultShipToWithSoldTo";
+rowSep = "#@#";
+colSep = "$,$";
+colSep1 = "-";
+flagCheck = false;
+retVal = selectedShipToCD;
+
+if(util.checkBizGroupCondition(condition, type, salesOrg)) {
+	if((selectedShipToCD == "" OR isnull(selectedShipToCD)) AND (selectedSoldToCD <> oldSelectedSoldToCD)) {
+		allShipToRows = split(shipToList, rowSep);
+		soldToDetails = split(selectedSoldToCD, colSep1);
+		for eachShipToRow in allShipToRows{
+			column = split(eachShipToRow, colSep);
+			if(column[0] == soldToDetails[0]) { // Comparing Sales Org
+				if(column[1] == soldToDetails[1]) { // Comparing Hierarchy
+					if(column[2] == soldToDetails[2]) { // Comparing Sold To #
+						if(column[3] == soldToDetails[2]) { // Comparing Sold To # with Ship To #
+							retVal = column[0] + colSep1 + column[1] + colSep1 +  column[2] + colSep1 +  column[3];
+							flagCheck = true;
+						}					
+					}				
+				} 
+			}
+		}
+	}
+}
+
+//Sold to
+selectedSalesOrg = ntSelectedSalesOrg_t;
+
+//Fetch primary selected customer record
+selectedCustRecordsJsonArray = jsonpathgetmultiple(existingSelectedCustRecordsJson, "$.records[?(@.primary_selctdCust_t==true)]");
+
+//Customer #
+soldToFormat = qq_CD_SelectedSoldTo_t;
+if(jsonarraysize(selectedCustRecordsJsonArray) > 0){
+	customerNo = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "customer_selctdCust_t", "string", "");
+	shiptoNo = jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "shipToCustomer_selctdCust_t", "string", "NoKey");
+	key=customerNo+ "$$" +shiptoNo;
+	selectedCustJ = json(selectedCustomerData_t);
+	primaryCustJ = jsonget(selectedCustJ, key, "json");
+	//22-07-2019 Vasundhara - Added the If number condition to avoid null Error. - ALM-2328
+	if(NOT ISNULL(primaryCustJ)){
+		type = jsonget(primaryCustJ, "type", "string", "");
+		customer = jsonget(primaryCustJ, "customerNo", "string", "");
+		hierarchy = jsonget(primaryCustJ, "hierarchy", "string", "");
+		soldToFormat = qq_CD_SelectedSoldTo_t;
+	
+		if(type == "Hierarchy"){
+			soldToFormat = selectedSalesOrg + "-" +customer + "-"+customer;
+		}
+		elif(type == "Sold to"){
+			soldToFormat = selectedSalesOrg + "-" +customer + "-"+customer;
+			if(hierarchy <> ""){
+				soldToFormat = selectedSalesOrg + "-" +hierarchy + "-"+customer;
+			}
+		}
+		elif(type == "Ship to"){
+			soldToFormat = selectedSalesOrg + "-" +customer + "-"+customer;
+			if(hierarchy <> ""){
+				soldToFormat = selectedSalesOrg + "-" +hierarchy + "-"+customer;
+			} 
+		}
+		else{
+			soldToFormat =selectedSalesOrg + "-" +customer + "-"+customer;
+		}
+		
+		//ship to
+		if(flagCheck == false){
+			associateCustomer = jsonget(primaryCustJ, "associated", "string", "");
+			shipToFormat = qq_CD_selectedShipTo_t;
+			if(type == "Sold to"){
+				if(associateCustomer <> ""){
+					shipToFormat =selectedSalesOrg + "-" + hierarchy + "-" +customer + "-" +associateCustomer;
+				}
+			}
+			elif(type == "Ship to"){
+				shipToFormat =selectedSalesOrg + "-"+ hierarchy +"-" +associateCustomer + "-"+customer;
+			}
+			retVal =  shipToFormat;
+		}
+	}
+}
+append(valArr, "1~qq_CD_SelectedSoldTo_t~" + soldToFormat + "|");
+append(valArr, "1~qq_CD_selectedShipTo_t~" + retVal + "|");
+//}
+*/
+retString = join(valArr, "");
+
+/* 13/05/2019 : Vasundhara Pentakota. Jet UI changes. Added logic to populate Array sets For Existing Transactions. END*/
+return retString;

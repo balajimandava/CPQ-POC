@@ -1,0 +1,15 @@
+{
+  "name" : "Array Pack",
+  "variableName" : "arrayPack",
+  "description" : "Packs inputArray with each element separated by a delimiter.  Note:  Delimiter could be a space.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputArray",
+    "type" : "String[]"
+  }, {
+    "name" : "delimiter",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

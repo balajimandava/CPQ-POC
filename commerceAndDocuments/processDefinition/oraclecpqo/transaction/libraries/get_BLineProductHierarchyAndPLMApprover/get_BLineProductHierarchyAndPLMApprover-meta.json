@@ -1,0 +1,20 @@
+{
+  "name" : "Get BLine Product Hierarchy and PLM Approverx",
+  "variableName" : "get_BLineProductHierarchyAndPLMApprover",
+  "description" : "Determine BLine Product hierarchy and PLM Approver",
+  "libraryFunctions" : [ "util.getBLineThreshold", "util.getMAT01MultipleDetails", "util.getRemark", "util.stringToFloat" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "agencyAssignment",
+    "type" : "String"
+  }, {
+    "name" : "stringDict",
+    "type" : "String Dictionary"
+  }, {
+    "name" : "intDict",
+    "type" : "Integer Dictionary"
+  } ],
+  "subDocAttributes" : [ "materialLineItem_l", "agreementNetDiscountRequested_l", "_document_number", "oldListPrice_l", "materialPricingGroup_l", "materialPricingGroupFullText_l", "pricingManagerThreshold_l", "level2ThresholdVal", "quoteManagerThreshold_l", "discountPercent_l", "feedbackDiscountPercent_l", "discountPercentNetApprovedString_l", "currencyflag_l", "qqProductType_l", "discountString_l", "customDiscountType_l", "_sequence_number", "netFixedAmountString_l", "approvedNetFixedAmount_l", "requirePMApproval_l", "priceIncluded_l" ],
+  "mainDocAttributes" : [ "salesOrg_t", "transactionType_t", "distributionChannel_t", "status_t", "agreementDeliveryTerms_t", "currencyDecimalSeparator_t", "currencyThousandsSeparator_t", "quoteSubmitter_t", "emailSubjectStatus_t", "previousAction_t", "previousApprovedValues_t", "currencySymbol_t", "qqBusinessLineForSalesOrg_t", "qqTotalValue_t", "overallTermsApprovalLevel_t", "totalValueApprovalRequired_t", "qqTnC_t", "qqNonStandardTnCAttachment_t", "superUserEmail_t", "bookPriceDate_t", "createdDate_t", "agreementValidFrom_t", "agreementValidTo_t", "endCustomerNumbers_t", "endCustomerArraySet2_t", "nt_selectedEndCustomerArrayset_t", "evaluateDiscountApproval_t", "productApprovers_t" ],
+  "systemAttributes" : [ "_system_current_user_language", "_system_current_step_var" ]
+}

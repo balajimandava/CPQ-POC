@@ -1,0 +1,198 @@
+/*@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2021-07-19|Shardul S            | Initial Creation
+*/
+
+returnJson = json();
+custJson = json();
+retString = "";
+customerNumber = jsonget(inputJson,"customerNumber");
+salesOrg = jsonget(inputJson,"salesOrg");
+distChannel = jsonget(inputJson,"distChannel");
+
+retArray = jsonarray();
+
+//Fetch Customer Records
+inputCustJson = json();
+
+customerData = commerce.ntCustomerSearch();
+print "***SearchAndAddPrimaryCustomerstart";
+print inputJson;
+print customerData;
+selectedCustomerDataJson = json();
+rowSep = "#@#";
+colSep = "$,$";
+ifcustfound = false;
+if(customerData=="")
+{
+	ifcustfound = false;
+}
+else
+{
+	ifcustfound = true;
+}
+sendautomatically ="true";
+
+if(NOT ifcustfound)
+{
+	sendautomatically = "false";
+	customerNum = "";
+	dummyCustBMQL = bmql("SELECT CUSMAS.KUNNR FROM DummyCustomers INNER JOIN CUSMAS ON CUSMAS.KUNNR = DummyCustomers.KUNNR WHERE CUSMAS.VKORG = $salesOrg AND CUSMAS.VTWEG = $distChannel AND DummyCustomers.VKORG = CUSMAS.VKORG AND DummyCustomers.VTWEG = CUSMAS.VTWEG");
+print 42;
+print dummyCustBMQL ;	
+	for eachSite in dummyCustBMQL {
+		customerNum = get(eachSite,"KUNNR");
+	}
+	if(customerNum <> "")
+	{
+		customerNumber = customerNum;
+		print "customerNumber in searchandaddprimcust:"+customerNumber;
+		
+		setattributevalue("customerNumber_t",customerNumber);
+		setattributevalue("qq_customerSearchField_t",customerNumber);		
+		
+		customerData = commerce.ntCustomerSearch();
+		print "customer data for default customer:";
+		print customerData;
+		selectedCustomerDataJson = json();
+		rowSep = "#@#";
+		colSep = "$,$";
+		ifcustfound = false;		
+		setattributevalue("qqSendAutomatically_t",false);
+	}
+	else
+	{
+		customerNumber = "";
+	}
+}
+
+if(customerData <> ""){
+	rowsArr = string[];
+	if(find(customerData,"#@#")<>-1)
+	{
+		rowsArr = split(customerData, rowSep);
+	}
+	else
+	{
+		append(rowsArr,customerData);
+	}
+
+	for records in rowsArr{
+		retArray = jsonarray();
+		colArr = split(records, colSep);
+		newRow = json();
+		
+		//Variable name of array attributes to populate 
+		varNameArr = string[]{"type_selctdCust_t", "customer_selctdCust_t", "name_selctdCust_t", "postalCode_selctdCust_t","city_selctdCust_t", "region_selctdCust_t", "country_selctdCust_t", "associated_selctdCust_t", "shipToCustomer_selctdCust_t","primary_selctdCust_t"};
+			
+		//Index Descriptions
+		//0: Customer Type, 1: Type, 2: Customer #, 3: Customer Name, 4: Postal Code, 5: City, 6: Region, 7: Country, 8: Associated, 9: Associated Customer, 10: Associated Name, 11: Associated Postal Code, 12: Associated City, 13: Associated Region, 14: Associated Country, 15: Hierarchy , 17: Sales District 
+		//Values to populate. 
+		valueArr = string[]{colArr[0], colArr[1], colArr[2],colArr[4],colArr[5],colArr[6],colArr[7],colArr[8],colArr[9],"true"};
+		
+		//Check if Customer is present in Selected List then ignore
+		indexArr = range(sizeofarray(varNameArr));
+		if(colArr[9] == "" AND colArr[0] == "Sold to")
+		{
+			//Populate filtered records
+			print "If Associated Customer is blank 123";
+			for index in indexArr{
+				jsonput(newRow, varNameArr[index], valueArr[index]);
+			}
+			jsonarrayappend(retArray, newRow);
+			ifcustfound = true;
+			customerNumber = colArr[1];
+			qqCustomerNameCopy = colArr[2];
+			customerPostalCodeZip = colArr[4];
+			qqCityAndRegionCopy = colArr[5];
+			customerCountry = colArr[7];
+			hierarchy = colArr[15];
+			
+			childJ = json();
+			jsonput(childJ, "customerNo", customerNumber);
+			jsonput(childJ, "associated", "");
+			jsonput(childJ, "hierarchy", hierarchy);
+			jsonput(childJ, "type", "Sold to");
+			jsonput(selectedCustomerDataJson, customerNumber + "$$" + colArr[9], childJ);
+			break;
+		}
+		elif(colArr[1] == colArr[9] AND colArr[0] == "Sold to")
+		{
+			//Populate filtered records
+			print "If Associated Customer = Customer";
+			for index in indexArr{
+				jsonput(newRow, varNameArr[index], valueArr[index]);
+			}
+			jsonarrayappend(retArray, newRow);
+			ifcustfound = true;
+			customerNumber = colArr[1];
+			qqCustomerNameCopy = colArr[2];
+			customerPostalCodeZip = colArr[4];
+			qqCityAndRegionCopy = colArr[5];
+			customerCountry = colArr[7];
+			hierarchy = colArr[15];
+			childJ = json();
+			jsonput(childJ, "customerNo", customerNumber);
+			jsonput(childJ, "associated", colArr[9]);
+			jsonput(childJ, "hierarchy", hierarchy);
+			jsonput(childJ, "type", "Sold to");
+			jsonput(selectedCustomerDataJson, customerNumber + "$$" + colArr[9], childJ);		
+			break;
+		}
+	}		
+	itemjson = json();
+	jsonput(itemjson,"items",retArray);	
+	jsonput(returnJson,"selectedCustomerData_t",jsontostr(selectedCustomerDataJson));	
+	jsonput(returnJson,"selectedCustomerArraySet_t",itemjson);
+	setattributevalue("selectedCustomerData_t",jsontostr(selectedCustomerDataJson));
+	setattributevalue("selectedCustomerArraySet_t",jsonarrayrefid(retArray));
+	setattributevalue("customerNumber_t",customerNumber);
+}
+else
+{
+	customerNumber = "";
+}
+
+//End Customer Logic
+if(nt_endCustomerNo_t <> "")
+{
+	retArray = jsonarray();
+	//Get the results based on params
+	searchParams = dict("string");
+	put(searchParams, "Customer", nt_endCustomerNo_t);
+	put(searchParams, "EndCustomerType", "Z340");
+	resultsJsonArray = commerce.searchEndCustomers(searchParams);
+	//Prepare array to loop over
+	indexArr = range(jsonarraysize(resultsJsonArray));
+	
+	//Loop over results and populate array attributes
+	for index in indexArr{
+		eachRowDataArr = jsonarrayget(resultsJsonArray, index, "jsonarray");
+		selectedContactJ = json();
+		jsonput(selectedContactJ, "nt_selectedEndCustomer_t", jsonarrayget(eachRowDataArr, 1, "string"));
+		jsonput(selectedContactJ, "nt_selectedEndCustomerName_t", jsonarrayget(eachRowDataArr, 2, "string"));
+		jsonput(selectedContactJ, "nt_selectedEndCustomerAddress_t", jsonarrayget(eachRowDataArr, 3, "string"));
+		jsonput(selectedContactJ, "nt_selectedEndCustomerPostalCode_t", jsonarrayget(eachRowDataArr, 4, "string"));
+		jsonput(selectedContactJ, "nt_selectedEndCustomerCountry_t", jsonarrayget(eachRowDataArr, 5, "string"));
+		jsonput(selectedContactJ, "nt_selecteEndCustomerRegion_t", jsonarrayget(eachRowDataArr, 6, "string"));
+		jsonput(selectedContactJ, "nt_selectedEndCustomerCity_t", jsonarrayget(eachRowDataArr, 7, "string"));
+		jsonput(selectedContactJ, "nt_endCustomerType_t", jsonarrayget(eachRowDataArr, 8, "string"));
+		jsonput(selectedContactJ, "nt_primaryEndCustomer_t", string(true));
+		jsonarrayappend(retArray, selectedContactJ);
+		break;
+	}
+	if(jsonarraysize(retArray)>0)
+	{
+		itemjson = json();
+		jsonput(itemjson,"items",retArray);
+		jsonput(returnJson,"nt_selectedEndCustomerArrayset_t",itemjson);
+		setattributevalue("nt_selectedEndCustomerArrayset_t",jsonarrayrefid(retArray));
+	}
+}
+jsonput(returnJson,"qqSendAutomatically_t",sendautomatically);
+jsonput(returnJson,"customerNumber",customerNumber);
+jsonput(returnJson,"retString",retString);
+print "***SearchAndAddPrimaryCustomerend";
+
+return returnJson;

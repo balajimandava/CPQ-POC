@@ -1,0 +1,14 @@
+{
+  "name" : "Transaction Lines Save - JSON",
+  "variableName" : "transactionLinesSaveJSON",
+  "description" : "Returns all of a transactions line data in a JSON Array",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ "_document_number", "_parent_doc_number", "lineNumber_l", "materialPricingGroup_l", "materialPricingGroupShortDescription_l", "materialLineItem_l", "materialLineItemShortDescription_l", "oldListPrice_l", "newListPrice_l", "discount_l", "quantity_l", "scale_l", "scaleFrom_l", "scaleTo_l", "discountString_l", "customDiscountType_l", "qqProductType_l" ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

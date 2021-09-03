@@ -1,0 +1,14 @@
+{
+  "name" : "Testdefault",
+  "variableName" : "testdefault",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "attributeJson1",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "coperSurcharge_l", "aluminumSurcharge_l", "silverSurcharge_l", "currentNetPrice_l" ],
+  "mainDocAttributes" : [ "transactionType_t", "userDecimalSeparator_t", "searchAggreement_t", "headerDiscountOrPercentOff_t", "totalPriceOutputDoc_t" ],
+  "systemAttributes" : [ "_system_user_number_format" ]
+}

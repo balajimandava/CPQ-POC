@@ -1,0 +1,12 @@
+{
+  "name" : "Get ES-EMEA Groups",
+  "variableName" : "getESEMEAGroups",
+  "description" : "Return the ES-EMEA groups that should have access to the quote",
+  "libraryFunctions" : [ "util.getTransactionData" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

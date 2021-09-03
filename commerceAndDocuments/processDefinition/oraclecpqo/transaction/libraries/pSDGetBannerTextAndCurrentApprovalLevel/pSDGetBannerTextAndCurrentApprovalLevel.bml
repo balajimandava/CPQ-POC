@@ -1,0 +1,130 @@
+//*******************************************************************
+//** Description: Get Approval banner text and current approval level
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	15-July-2020 	Rahul Uttarwar 	Initial version
+//**		09-Sep-2020		Subha	Added the condition for approval status to only  show the banner for pending approvals.
+//*******************************************************************
+
+returnStr = "";
+finalMessageArray = string[];
+headerMessageText = "";
+approvalLevelArray = integer[];
+
+maxLevelOfApproval = jsonget(JsonLineObject, "MaxLevelOfApproval", "integer");
+approalsList = jsonget(JsonLineObject, "ApproalsList", "string");
+
+approvalConditionArrObj = split(approalsList, "$$");
+approvalConditions = range(sizeofarray(approvalConditionArrObj));
+
+for eachApprovalCondition in approvalConditions{
+	eachApprovalConditionArray = jsonpathgetmultiple(JsonLineObject, "$..['"+approvalConditionArrObj[eachApprovalCondition]+"']");
+	rangeVar = range(jsonarraysize(eachApprovalConditionArray));
+
+	level2ApproverArray = string[];
+	level3ApproverArray = string[];
+	level4ApproverArray = string[];
+	level5ApproverArray = string[];
+	level6ApproverArray = string[];
+	
+	messageTextArr = string[];
+	
+	for eachElement in rangeVar{ // loop through each line - for all the approvals one after another.
+		approvalObj = jsonarrayget(eachApprovalConditionArray, eachElement, "json");
+		lvl2Approver = jsonget(approvalObj, "level2Approver");
+		lvl3Approver = jsonget(approvalObj, "level3Approver");
+		lvl4Approver = jsonget(approvalObj, "level4Approver");
+		lvl5Approver = jsonget(approvalObj, "level5Approver");
+		lvl6Approver = jsonget(approvalObj, "level6Approver");
+		//Fetching the approval status 
+		lvl2ApprovalStatus = jsonget(approvalObj, "level2ApprovalStatus");
+		lvl3ApprovalStatus = jsonget(approvalObj, "level3ApprovalStatus");
+		lvl4ApprovalStatus = jsonget(approvalObj, "level4ApprovalStatus");
+		lvl5ApprovalStatus = jsonget(approvalObj, "level5ApprovalStatus");
+		lvl6ApprovalStatus = jsonget(approvalObj, "level6ApprovalStatus");
+
+		approverName = "";
+		//Added the approval status condition below 
+		if(NOT ISNULL(lvl2Approver) AND lvl2Approver <> "" AND lvl2ApprovalStatus <> "Approved"){
+			approverName = get(commerce.pSDGetApproverDetails(lvl2Approver),"approverCaption");
+			//print lvl2Approver;
+			if(findinarray(level2ApproverArray, approverName+"(Level2)") == -1){
+				append(level2ApproverArray, approverName+"(Level2)");
+			}
+			if(findinarray(approvalLevelArray, 2) == -1){
+				append(approvalLevelArray, 2);
+			}
+		}
+		if(NOT ISNULL(lvl3Approver) AND lvl3Approver <> "" AND lvl3ApprovalStatus <> "Approved"){
+			approverName = get(commerce.pSDGetApproverDetails(lvl3Approver),"approverCaption");
+			if(findinarray(level3ApproverArray, approverName+"(Level3)") == -1){
+				append(level3ApproverArray, approverName+"(Level3)");
+			}
+			if(findinarray(approvalLevelArray, 3) == -1){
+				append(approvalLevelArray, 3);
+			}
+		}
+		if(NOT ISNULL(lvl4Approver) AND lvl4Approver <> "" AND lvl4ApprovalStatus <> "Approved"){
+			approverName = get(commerce.pSDGetApproverDetails(lvl4Approver),"approverCaption");
+			if(findinarray(level3ApproverArray, approverName+"(Level4)") == -1){
+				append(level3ApproverArray, approverName+"(Level4)");
+			}
+			if(findinarray(approvalLevelArray, 4) == -1){
+				append(approvalLevelArray, 4);
+			}
+		}
+		if(NOT ISNULL(lvl5Approver) AND lvl5Approver <> "" AND lvl5ApprovalStatus <> "Approved"){
+			approverName = get(commerce.pSDGetApproverDetails(lvl5Approver),"approverCaption");
+			if(findinarray(level5ApproverArray, approverName+"(Level5)") == -1){
+				append(level5ApproverArray, approverName+"(Level5)");
+			}
+			if(findinarray(approvalLevelArray, 5) == -1){
+				append(approvalLevelArray, 5);
+			}
+		}
+		if(NOT ISNULL(lvl6Approver) AND lvl6Approver <> "" AND lvl6ApprovalStatus <> "Approved"){
+			approverName = get(commerce.pSDGetApproverDetails(lvl6Approver),"approverCaption");
+			if(findinarray(level6ApproverArray, approverName+"(Level6)") == -1){
+				append(level6ApproverArray, approverName+"(Level6)");
+			}
+			if(findinarray(approvalLevelArray, 6) == -1){
+				append(approvalLevelArray, 6);
+			}
+		}
+	}
+	
+	if(sizeofarray(level2ApproverArray)>0){
+		append(messageTextArr, join(level2ApproverArray, ","));
+	}
+	if(sizeofarray(level3ApproverArray)>0){
+		append(messageTextArr, join(level3ApproverArray, ","));
+	}
+	if(sizeofarray(level4ApproverArray)>0){
+		append(messageTextArr, join(level4ApproverArray, ","));
+	}
+	if(sizeofarray(level5ApproverArray)>0){
+		append(messageTextArr, join(level5ApproverArray, ","));
+	}
+	if(sizeofarray(level6ApproverArray)>0){
+		append(messageTextArr, join(level6ApproverArray, ","));
+	}
+	
+	if(sizeofarray(messageTextArr)>0){
+		messageText = "<b>" + approvalConditionArrObj[eachApprovalCondition] + "&nbsp;</b> approval required by " + join(messageTextArr, ",");
+		append(finalMessageArray, messageText);
+	}
+}
+headerMessageText = join(finalMessageArray, "/n");
+returnStr = returnStr + "1~agreementWarningMessages_t~" + headerMessageText + "|";
+//print headerMessageText;
+
+if(sizeofarray(approvalLevelArray) > 0){
+	approvalLevelArray  = sort(approvalLevelArray, "asc");
+	currentLevel = approvalLevelArray[0];
+
+	returnStr = returnStr + "1~pSDCurrentApprovalLevel_t~" + string(currentLevel) + "|";
+}
+
+return returnStr;

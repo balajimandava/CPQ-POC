@@ -1,0 +1,14 @@
+{
+  "name" : "Update Child Transaction",
+  "variableName" : "updateChildTransaction",
+  "description" : "",
+  "libraryFunctions" : [ "util.clickAnAction", "util.getListPrice", "util.getSiteSpecificData", "util.u_addToDate" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "jsonChild",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "materialLineItem_l", "uOM_l", "_document_number" ],
+  "mainDocAttributes" : [ "agreementValidFrom_t", "agreementValidTo_t", "previousUser_t", "salesOrg_t", "distributionChannel_t", "currency_t", "transactionType_t", "qqBusinessLineForSalesOrg_t", "oldPriceListDate_t", "bookPriceDate_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_user_session_id", "_system_date", "_system_user_time_zone", "_system_user_login", "_system_user_name", "_system_user_phone", "_system_user_email" ]
+}

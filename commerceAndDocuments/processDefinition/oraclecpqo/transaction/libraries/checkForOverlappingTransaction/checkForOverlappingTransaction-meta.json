@@ -1,0 +1,11 @@
+{
+  "name" : "checkForOverlappingTransactionWarning",
+  "variableName" : "checkForOverlappingTransaction",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.getCustomerOverlappingTransactions", "util.checkBizGroupCondition", "util.getRemark" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionType_t", "salesOrg_t" ],
+  "systemAttributes" : [ "_system_current_user_language" ]
+}

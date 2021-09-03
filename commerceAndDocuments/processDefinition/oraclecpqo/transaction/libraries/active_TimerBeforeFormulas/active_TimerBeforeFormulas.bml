@@ -1,0 +1,277 @@
+//************************************************************************************************************
+//** Function:    Active_Timer - Before Formulas
+//** Type:        Commerce Library Function   
+//**
+//** Description: Function runs in before formulas of Active_Timer action
+//** 
+//** Return type: String  
+//**
+//** History:     Date          Author          Comment 
+//**			  YYYY.MM.DD
+//**              ------------- --------------- --------------------------------------------------------------
+//**              ?????????    dBo Haizlip     Initial version (
+//**              2017.11.01   shansen         Only send pricelist value when pricelist is valid (from/to) - ALM 310/jira 501
+//**		 	  2017.11.22   vhingorani      Set a new attribute on return for Auto Renewal Reporting
+//**			  2019.01.09   Harshit Mehta   Adding condition to check when SAP synch will happen for uploaded agreement.
+//**			  2020.10.07   Vasundhara      CPQ-1412 Added If block for all quotes excepts ES-EMEA DSP Transaction
+//************************************************************************************************************
+
+retString= "";
+
+//  55306498
+
+  //Check if uploaded agreement require SAP Synch.
+  SAPSYNCHFORUPLOADEDAGREEMENT = (util.getEnvironmentVariable("UPLOADAGREEMENTSYNCH_" + qqBusinessLineForSalesOrg_t ,"DISABLED") == "ENABLED");
+  setNextTimer= TRUE;
+  runString= "";
+  nextStep= "Active";
+  dateFormat= "yyyy-MM-dd";
+  hasNoErrors= TRUE;
+  statusCode ="";
+  inputDict= dict("string");
+  retCusMas= dict("string");
+  todaysDateString= substring(_system_date,0,10);
+  todaysDate= strtojavadate(todaysDateString,dateFormat);
+  runFrom= todaysDateString;
+  runFromDate= strtojavadate(runFrom,dateFormat);
+  agreementValidTo= substring(agreementValidTo_t,0,10);
+  agreementValidToDate= strtojavadate(agreementValidTo,dateFormat);
+  activeTimer= substring(active_Timer_t,0,10);
+  activeTimerDate= strtojavadate(activeTimer,dateFormat);
+  
+  //  Used for testing if Active is manually clicked by Admins
+  if (comparedates(todaysDate,activeTimerDate) <> 0 ) {
+    todaysDateString= activeTimer;
+  }
+  
+  parmsDict0= dict("string");
+  put(parmsDict0,"runFrom",runFrom);
+  nextTimerDate= commerce.nextTimer(parmsDict0);
+  retString=retString + "1~active_Timer_t~" + substring(datetostr(nextTimerDate,"yyyy-MM-dd HH:mm:ss"),0,10) + " 00:00:00" + "|";
+  daysToValidTo= 0;
+    
+  //  Is Timer Before the Valid To date?
+  if (comparedates(nextTimerDate,agreementValidToDate) == -1) {
+    daysToValidTo= getdiffindays(nextTimerDate,agreementValidToDate);
+  }
+    
+	retString=retString + "1~days_To_ValidTo_t~" + string(daysToValidTo) + "|";
+	nextDate= substring(datetostr(adddays(agreementValidToDate,1),dateFormat),0,10);
+    daysToValidTo= 0;
+    retString=retString + "1~days_To_ValidTo_t~" + string(daysToValidTo) + "|";
+	priceListExtensionCount= priceListExtensionCount_t;
+	priceListToDate= getdate();
+	priceListToDatePlus1Day= strtojavadate("2001-01-01",dateFormat);
+	toDateCompatePriceList= -1;
+if ( (NOT isnull(priceListTo_t)) AND (extendCurrentListPrices_t) ) {
+  priceListToDate= strtojavadate(substring(priceListTo_t,0,10),dateFormat);
+  priceListToDatePlus1Day= adddays(priceListToDate,1);
+  toDateCompatePriceList= comparedates(runFromDate, priceListToDatePlus1Day);
+}
+
+//check if we're on/after the price list from date
+fromDateCompatePriceList= -1;
+if ( (NOT isnull(priceListFrom_t)) AND (extendCurrentListPrices_t) ) {
+  priceListFromDate= strtojavadate(substring(priceListFrom_t,0,10),dateFormat);
+  fromDateCompatePriceList= comparedates(runFromDate, priceListFromDate);
+}
+
+//  Is it time to send to SAP a blank and remove the Price List Extension code (i.e. M3, M4, etc.)
+DisableExtension= ( (extendCurrentListPrices_t) AND (priceListExtensionCount == 1) AND (toDateCompatePriceList >= 0) AND accountTypeKTOKD_t<>"Z012");
+EnableExtension= ( (extendCurrentListPrices_t) AND (priceListExtensionCount == 0) AND (fromDateCompatePriceList >= 0) AND accountTypeKTOKD_t<>"Z012");
+
+//13-02 ALM 1648 -Added below condition to stop price list sync to SAP for old transaction
+if(EnableExtension AND syncToSAP_t){
+//Harshit : Check if uploaded agreement require SAP Synch..
+//All business won't require SAP Synch e.g. Bussmann
+	if(NOT uploadedAgreement_t OR (uploadedAgreement_t AND SAPSYNCHFORUPLOADEDAGREEMENT)){
+		put(inputDict, "priceListName", choosePricelist_t);
+		retCusMas= commerce.updateCustomerMaster(inputDict);
+		retString= retString + "1~dEBMASPriceListUpdateFromDate_t~" + get(retCusMas,"dateTime") + "|";
+		statusCode= get(retCusMas,"statusCode");
+		retString= retString + "1~dEBMASPriceListUpdateStatusCode_t~" + get(retCusMas,"statusCode") + "|";
+		retString= retString + "1~dEBMASPriceListMessageBody_t~" + get(retCusMas,"messageBody") + "|";
+		retString= retString + "1~agreementErrorMessages_t~" + get(retCusMas,"errorMessage") + "|";
+		
+		//  Just in-case, no Pipes or tilde characters
+		payloadXML= replace(get(retCusMas,"payloadXML"),"|","^PIPE^");
+		payloadXML= replace(payloadXML,"~","^TILDE^");
+		retString= retString + "1~dEBMASPriceListUpdateXML_t~" + payloadXML + "|";
+    }
+    
+	//If uploaded agreement doesn't require synch then consider SAP response as success and set status code as 202
+	if(uploadedAgreement_t AND NOT SAPSYNCHFORUPLOADEDAGREEMENT){
+    	statusCode ="202";
+    }
+    nextStep= "Active";
+    
+    if (statusCode == "DISABLED") {
+      
+      //  Try again in a day
+      hasNoErrors= FALSE;  // Skip this and we'll try again tomorrow
+      nextStep= "Active";
+      nextDate= substring(datetostr(adddays(todaysDate,1),"yyyy-MM-dd HH:mm:ss"),0,10) + " 00:00:00";
+      retString= retString + "1~status_t~active" + "|";
+      retString= retString + "1~qqPreviousStatus_t~active" + "|";
+      retString= retString + "1~active_Timer_t~" + nextDate + "|";
+      
+    } elif (statusCode <> "202") {  //202 is the code returned if the SOA service received the message
+      hasNoErrors= FALSE;  // Skip this because we got an error
+      nextStep= "ERP Error";
+      retString= retString + "1~status_t~erpError" + "|";
+      retString= retString + "1~qqPreviousStatus_t~erpError" + "|";
+      retString= retString + "1~approvedWorkflowTransition_t~" + nextStep + "|";
+      retString= retString + "1~active_Timer_t~"+datetostr(strtojavadate("12/31/9999 00:00:00","yyyy-MM-dd HH:mm:ss"))+ "|";
+    }
+    else{
+        retString= retString + "1~priceListExtensionCount_t~1|";
+    }
+}
+
+//  Do we need to disable (i.e. Send a blank for PLTYP/PriceListType) to SAP?
+//13-02 ALM 1648 -Added below condition to stop price list sync to SAP for old transaction
+if (DisableExtension AND syncToSAP_t) {
+	//Check if uploaded agreement require synch
+	//Also not all business require synch for uploaded agreement e.g. Bussmann doesn't want for synch.
+	
+    if(NOT uploadedAgreement_t OR (uploadedAgreement_t AND SAPSYNCHFORUPLOADEDAGREEMENT)){
+		// This count must be greater than 1 to prevent any future sending of this 'OFF' switch to SAP
+		if (priceListExtensionCount == 0) {
+			priceListExtensionCount= 1;
+		}
+		// Set the new count
+		retString= retString + "1~priceListExtensionCount_t~" + string(priceListExtensionCount+1) + "|";
+		inputDict= dict("string");
+		put(inputDict,"priceListName","");  // No matter what, be sure the name is blank
+		put(inputDict,"DisableExtension","TRUE");  //  Tell the routine to clear the price list in the Customer Master file on SAP
+		
+		//  Send the payload via POST to SOA/SAP PI/SAP and update the Customer Master record
+		retCusMas= commerce.updateCustomerMaster(inputDict);
+		retString= retString + "1~dEBMASPriceListUpdateToDate_t~" + get(retCusMas,"dateTime") + "|";
+		statusCode= get(retCusMas,"statusCode");
+		retString= retString + "1~dEBMASPriceListUpdateStatusCode_t~" + get(retCusMas,"statusCode") + "|";
+		retString= retString + "1~dEBMASPriceListMessageBody_t~" + get(retCusMas,"messageBody") + "|";
+		retString= retString + "1~agreementErrorMessages_t~" + get(retCusMas,"errorMessage") + "|";
+		
+		//  Just in-case, no Pipes or tilde characters
+		payloadXML= replace(get(retCusMas,"payloadXML"),"|","^PIPE^");
+		payloadXML= replace(payloadXML,"~","^TILDE^");
+		retString= retString + "1~dEBMASPriceListUpdateXML_t~" + payloadXML + "|";
+    }
+    //If uploaded agreement doesn't require synch then consider SAP response as success and set status code as 202
+	if(uploadedAgreement_t AND NOT SAPSYNCHFORUPLOADEDAGREEMENT){
+    	statusCode ="202";
+    }
+    nextStep= "Active";
+    
+    if (statusCode == "DISABLED") {
+      
+      //  Try again in a day
+      hasNoErrors= FALSE;  // Skip this and we'll try again tomorrow
+      nextStep= "Active";
+      nextDate= substring(datetostr(adddays(todaysDate,1),"yyyy-MM-dd HH:mm:ss"),0,10) + " 00:00:00";
+      
+      retString= retString + "1~status_t~active" + "|";
+      retString= retString + "1~qqPreviousStatus_t~active" + "|";
+      retString= retString + "1~active_Timer_t~" + nextDate + "|";
+      
+    } 
+	elif (statusCode <> "202") {  //202 is the code returned if the SOA service received the message
+      hasNoErrors= FALSE;  // Skip this because we got an error
+      nextStep= "ERP Error";
+      retString= retString + "1~status_t~erpError" + "|";
+      retString= retString + "1~qqPreviousStatus_t~erpError" + "|";
+      retString= retString + "1~approvedWorkflowTransition_t~" + nextStep + "|";
+      retString= retString + "1~active_Timer_t~"+datetostr(strtojavadate("12/31/9999 00:00:00","yyyy-MM-dd HH:mm:ss"))+ "|";
+    }
+}
+
+  // Check for Auto-Renewal
+  // Check for Auto-Renewal
+  // Check for Auto-Renewal
+
+  autoRenewal= FALSE;
+  if (hasNoErrors) {
+    autoRenewalDays= atoi(util.getEnvironmentVariable("AutoRenewalDays", ""));
+    if (autoRenewalDays == days_To_ValidTo_t) {
+      inputDict= dict("string");
+      autoRenewal= commerce.autoRenewAgreement(inputDict);
+
+      //  If this is an auto-renewal then the active_timer needs to be set to the Agreement From and To dates + 1 year
+      if (autoRenewal) {
+        validFromDate= strtojavadate(substring(agreementValidFrom_t,0,10),dateFormat);
+        validFromMM= datetostr(validFromDate,"MM");
+        validFromdd= datetostr(validFromDate,"dd");
+        YYYY= atoi(datetostr(validFromDate,"yyyy"));
+        validFromyyyy= string(YYYY+1);
+        validFrom= datetostr(strtodate(validFromyyyy + "-" + validFromMM + "-" + validfromdd + " 00:00:00","yyyy-MM-dd HH:mm:ss"));
+        
+        validToDate= strtojavadate(substring(agreementValidTo_t,0,10),dateFormat);
+        validToMM= datetostr(validToDate,"MM");
+        validTodd= datetostr(validToDate,"dd");
+        YYYY= atoi(datetostr(validToDate,"yyyy"));
+        validToyyyy= string(YYYY+1);
+        validTo= datetostr(strtodate(validToyyyy + "-" + validToMM + "-" + validTodd + " 00:00:00","yyyy-MM-dd HH:mm:ss"));
+    
+        activeTimer= _system_date;
+        userDateTime= datetostr(getdate(TRUE),"yyyy-MM-dd HH:mm:ss z");
+        autoRenewalRegistryTEXT= autoRenewalRegistryTEXT_t;
+        //  New line for 2nd and beyond auto-renewals (Latest goes on TOP)
+        if (autoRenewalRegistryTEXT <> "") {
+          autoRenewalRegistryTEXT= ":-:" + autoRenewalRegistryTEXT;
+        }
+        
+        retString= retString + "1~autoRenewal_t~true|" +
+        	"1~autoRenew_t~true|" +
+                   "1~status_t~approved|" +
+		 "1~qqPreviousStatus_t~approved|"+
+                   "1~agreementValidFrom_t~" + validFrom + "|" +
+                   "1~agreementValidTo_t~" + validTo + "|" +
+                   "1~autoRenewalRegistryTEXT_t~" + userDateTime + autoRenewalRegistryTEXT + "|" +
+                   "1~active_Timer_t~" + activeTimer + "|";
+        
+      }
+    }
+  }
+  
+  // Is the quote Expired?
+  // Is the quote Expired?
+  // Is the quote Expired?
+  
+  if ( (hasNoErrors) and (NOT autoRenewal) ) {
+
+    // A quote is expired if the Agreement Valid To date is Greater than today's date
+
+    //  0 if Today's Date and Agreement Valid To's date are equal. 
+    // -1 if Today's date-time is before Agreement Valid To's date-time. 
+    //  1 if Today's date-time is after Agreement Valid To's date-time.
+	//10/07/2020 Vasundhara CPQ-1412 Added If block for all quotes excepts ES-EMEA DSP Transaction
+    if(transactionType_t == "DSP" AND (salesOrg_t == "4942" OR salesOrg_t == "4919")){
+		dateCompareExpired=0;
+		daysToValidTo=0;
+		  dateCompareExpired= comparedates(runFromDate, agreementValidToDate);
+		  daysToValidTo= getdiffindays(runFromDate, agreementValidToDate);
+		   if (dateCompareExpired == 1) {
+			daysToValidTo= daysToValidTo * -1;
+			}
+		
+		if ( ((daysToValidTo < 0) AND (dateCompareExpired == 1))) {
+			retString= retString + "1~status_t~expired|" +
+				"1~qqPreviousStatus_t~expired|"+        
+					   "1~days_To_ValidTo_t~" + string(daysToValidTo) + "|" +
+					   "1~expireQuote_t~true|" +
+					 "1~expirationDate_t~" + _system_date + "|";
+			  retString=retString+commerce.updateLineAttributes_POC("");
+		}
+		
+	}else{
+		retString= retString + "1~status_t~expired|" +
+			"1~qqPreviousStatus_t~expired|"+
+                   "1~expireQuote_t~true|" +
+                 "1~expirationDate_t~" + _system_date + "|";
+          retString=retString+commerce.updateLineAttributes_POC("");
+	}
+  
+  }
+  
+return retString;

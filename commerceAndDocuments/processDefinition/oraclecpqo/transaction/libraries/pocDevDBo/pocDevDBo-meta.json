@@ -1,0 +1,11 @@
+{
+  "name" : "POC Dev dBo",
+  "variableName" : "pocDevDBo",
+  "description" : "Proof Of Concepts Development Haizlip",
+  "libraryFunctions" : [ "util.getCurrencyFormatting", "util.getStringDict" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

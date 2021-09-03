@@ -1,0 +1,11 @@
+{
+  "name" : "Mass update for Line items update on Rejected Transactions",
+  "variableName" : "massUpdateForLineItemsUpdateOnRejectedTransactions",
+  "description" : "Mass update to update Rejected on line item where transaction is rejected",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number" ],
+  "mainDocAttributes" : [ "status_t" ],
+  "systemAttributes" : [ ]
+}

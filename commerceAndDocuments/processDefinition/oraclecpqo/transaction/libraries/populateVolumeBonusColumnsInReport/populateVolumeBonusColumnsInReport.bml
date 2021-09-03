@@ -1,0 +1,110 @@
+/**
+
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+21/04/2020|Mubarak Ali          |Initial version/ Populated Bonus Volume rows in attributes to display in report
+
+*/
+
+
+retStr = "";
+bonusTableDataString = "";
+bonusArraySetArr = string[];
+row1 = "";
+row2 = "";
+row3 = "";
+row4 = "";
+row5 = "";
+row6 = "";
+row7 = "";
+row8 = "";
+row9 = "";
+row10 = "";
+row11 = "";
+row12 = "";
+row13 = "";
+row14 = "";
+row15 = "";
+
+size = range(jsonarraysize(bonusArraySet_t));
+for i in size{
+	jsonRow = jsonarrayget(bonusArraySet_t,i,"json");
+	bonusArraySetRow = "";
+	volume = jsonget(jsonRow,"volume_bonusArraySet");
+	bonusDiscount = jsonget(jsonRow,"bonusDiscount_bonusArraySet");
+	validFrom = jsonget(jsonRow,"validFrom_bonusArraySet");
+	validTo = jsonget(jsonRow,"validTo_bonusArraySet");
+	
+	bonusArraySetRow = volume + "$;$" + bonusDiscount + "$;$" + validFrom + "$;$" + validTo;
+	append(bonusArraySetArr, bonusArraySetRow);
+	bonusTableDataString = bonusTableDataString + "@@" + bonusArraySetRow;
+}
+if(bonusTableDataString <> ""){
+	bonusTableDataString = substring(bonusTableDataString,2,len(bonusTableDataString));
+}
+retStr = retStr + "1~bonusTableDataString_t~" + bonusTableDataString + "|";
+
+if(sizeofarray(bonusArraySetArr) > 0){
+	row1 = bonusArraySetArr[0];
+}
+if(sizeofarray(bonusArraySetArr) > 1){
+	row2 = bonusArraySetArr[1];
+}
+if(sizeofarray(bonusArraySetArr) > 2){
+	row3 = bonusArraySetArr[2];
+}
+if(sizeofarray(bonusArraySetArr) > 3){
+	row4 = bonusArraySetArr[3];
+}
+if(sizeofarray(bonusArraySetArr) > 4){
+	row5 = bonusArraySetArr[4];
+}
+if(sizeofarray(bonusArraySetArr) > 5){
+	row6 = bonusArraySetArr[5];
+}
+if(sizeofarray(bonusArraySetArr) > 6){
+	row7 = bonusArraySetArr[6];
+}
+if(sizeofarray(bonusArraySetArr) > 7){
+	row8 = bonusArraySetArr[7];
+}
+if(sizeofarray(bonusArraySetArr) > 8){
+	row9 = bonusArraySetArr[8];
+}
+if(sizeofarray(bonusArraySetArr) > 9){
+	row10 = bonusArraySetArr[9];
+}
+if(sizeofarray(bonusArraySetArr) > 10){
+	row11 = bonusArraySetArr[10];
+}
+if(sizeofarray(bonusArraySetArr) > 11){
+	row12 = bonusArraySetArr[11];
+}
+if(sizeofarray(bonusArraySetArr) > 12){
+	row13 = bonusArraySetArr[12];
+}
+if(sizeofarray(bonusArraySetArr) > 13){
+	row14 = bonusArraySetArr[13];
+}
+if(sizeofarray(bonusArraySetArr) > 14){
+	row15 = bonusArraySetArr[14];
+}
+
+retStr = retStr + "1~bonusVolumeRow1~" + row1 + "|";
+retStr = retStr + "1~bonusVolumeRow2~" + row2 + "|";
+retStr = retStr + "1~bonusVolumeRow3~" + row3 + "|";
+retStr = retStr + "1~bonusVolumeRow4~" + row4 + "|";
+retStr = retStr + "1~bonusVolumeRow5~" + row5 + "|";
+retStr = retStr + "1~bonusVolumeRow6~" + row6 + "|";
+retStr = retStr + "1~bonusVolumeRow7~" + row7 + "|";
+retStr = retStr + "1~bonusVolumeRow8~" + row8 + "|";
+retStr = retStr + "1~bonusVolumeRow9~" + row9 + "|";
+retStr = retStr + "1~bonusVolumeRow10~" + row10 + "|";
+retStr = retStr + "1~bonusVolumeRow11~" + row11 + "|";
+retStr = retStr + "1~bonusVolumeRow12~" + row12 + "|";
+retStr = retStr + "1~bonusVolumeRow13~" + row13 + "|";
+retStr = retStr + "1~bonusVolumeRow14~" + row14 + "|";
+retStr = retStr + "1~bonusVolumeRow15~" + row15 + "|";
+
+
+return retStr;

@@ -1,0 +1,222 @@
+/**
+@name Pricing - After Formulas
+@api pricingAfterFormulas
+@summary Common post pricing commerce util for updating the agreements
+@param action String
+@attribute _document_number
+@attribute _parent_doc_number
+@attribute _system_date
+@attribute accountTypeKTOKD_t
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute bs_id
+@attribute customerNumber_t
+@attribute discount_l
+@attribute headquartersNumber_t
+@attribute materialLineItem_l
+@attribute salesOrg_t
+@attribute scaleFrom_l
+@attribute scale_l
+@attribute soldToNumber_t
+@attribute status_t
+@attribute transactionType_t
+@function Json agreementStatus(String Dictionary inputDict)
+@function Json transactionDiscounts(Integer CPQTransID)
+@function Json transactionLinesSaveJSON(String Dictionary inputDict)
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017.06.07|dBo Haizlip          |Initial version
+2017.08.08|dBo Haizlip          |Added dates to the lookup of agreements in the allagreements table
+2017.08.09|dBo Haizlip          |Removed exit if status_t is NOT "draft"
+2017.08.15|dBo Haizlip          |Added scale pricing to hierarchy discounts check
+2017.10.18|shansen	        	|Changed parent/hierarchy discounts to only pull when agreement type matches (JIRA-432)
+2018-01-05|Tat.Leung            |
+2018.08.21|dBo Haizlip			|Updated using new commerce.transactionDetailsJson(buySide_ID) util (101140945)--Sold To
+2020.11.10|Mubarak Ali			|INC000013984917 - Reset Head quarter discount to 0.00
+2021-06-16|Gautam               |Cpq - 5545 Pricing group types (all countries)
+*/
+
+//  Currently draft is the only time we update anything...
+//Intialize variables
+retString= "";
+
+//What type of customer is this
+//isHierarchy= (accountTypeKTOKD_t == "Z012");
+//Pooja - Commented below if condition as part of Zilliant
+//if ( (isHierarchy) OR (qqBusinessLineForSalesOrg_t <> "ES-EMEA") ) {  // This is the highest level so nothing needs to be checked
+	//Chandan - ALM 2632 - Added the below condition to set line item status to approved when Status is changed to Approved - START
+for line in transactionLine{
+	docNum = line._document_number;
+	//INC000013984917 - Reset Head quarter discount to 0.00
+	retString = retString + docNum + "~headquartersDiscount_l~" + "0.00|";
+	//INC000014014162 - Reset Parent discount to 0.00
+	retString = retString + docNum + "~parentDiscount_l~" + "0.00|";
+	if(status_t == "approved"){
+		if(line.lineItemStatus_l <> "cancelled" AND line.lineItemStatus_l <> "awarded"){
+		retString = retString + docNum + "~lineItemStatus_l~" + "approved|";
+		}
+	}
+}
+//Chandan - ALM 2632 - Added the below condition to set line item status to approved when Status is changed to Approved - END
+if(qqBusinessLineForSalesOrg_t <> "ES-EMEA"){
+	return retString;
+}
+
+isSoldTo= (accountTypeKTOKD_t == "Z001");
+isShipTo= (accountTypeKTOKD_t == "Z002");
+cmrcUpdates= string[];
+cmrcSep = "|";
+mpgPrefix= "VPG";
+cpqAttributes= string[];
+tranNumbers= string[];
+
+//  Get the Hierarchy bs_id if there is one
+hierarchyBSID= "";
+if ( (isSoldTo) OR (isShipTo) ) {  // Then we only need check against the hierarchy
+  // Hierarchy agreement details...
+  inputDict = dict("string");
+  put(inputDict, "Valid From Date", agreementValidFrom_t);
+  put(inputDict, "Valid To Date", agreementValidTo_t);
+  put(inputDict, "Customer Number", headquartersNumber_t);
+  put(inputDict, "Sales Org", salesOrg_t);
+  put(inputDict, "Transaction Type",transactionType_t);
+  hierarchyJson= util.agreementStatus(inputDict);  
+  hierarchyBSID= jsonget(hierarchyJson,headquartersNumber_t,"string","");
+}
+
+// Get the Sold To bs_id if there is one
+soldToBSID= "";
+if ( (isShipTo) AND (customerNumber_t <> soldToNumber_t) ) {  // Then we to check the Sold To
+  // Hierarchy agreement details...
+  inputDict = dict("string");
+  put(inputDict, "Valid From Date", agreementValidFrom_t);
+  put(inputDict, "Valid To Date", agreementValidTo_t);
+  put(inputDict, "Customer Number", soldToNumber_t);
+  put(inputDict, "Sales Org", salesOrg_t);
+  put(inputDict, "Transaction Type",transactionType_t);
+  soldToJson= util.agreementStatus(inputDict);
+  soldToBSID= jsonget(soldToJson,soldToNumber_t,"string","");
+}
+
+bmVariables= dict("string"); //  This dictionary contains all values to be set for Commerce
+//  Make this the ONLY call to get line information...everything should be there or added if needed
+inputDict= dict("string");
+allLinesJSON= commerce.transactionLinesSaveJSON(inputDict);
+
+hierarchyJson= json();
+if (hierarchyBSID <> "") {
+  hierarchyJson= commerce.transactionDetailsJson(hierarchyBSID);
+}
+
+soldToJson= json();
+if (soldToBSID <> "") {
+  soldToJson= commerce.transactionDetailsJson(soldToBSID);
+}
+
+allDocNums= jsonkeys(allLinesJSON);
+for eachDocNum in allDocNums {
+  lineDetails= jsonget(allLinesJSON,eachDocNum,"json",json());
+  item= jsonget(lineDetails,"item","string","");
+  mpg= jsonget(lineDetails,"mpg","string","");
+  scaleFrom= util.stringToInteger(jsonget(lineDetails,"scaleFrom","string",""));
+  scaleTo= util.stringToInteger(jsonget(lineDetails,"scaleTo","string",""));
+  hasScales= (scaleFrom > 0);
+  isItemLine= (item <> "");
+ 
+  // Check items in the Hierarchy transaction
+  if (hierarchyBSID <> "") {
+    if (isItemLine) {
+      allDiscountsIdx= jsonpathgetmultiple(hierarchyJson, "$..[?(@.materialLineItem_l== '"+item+"') ].discountPercent_l",true);
+      allScaleFrom= jsonpathgetmultiple(hierarchyJson, "$..[?(@.materialLineItem_l== '"+item+"') ].scaleFrom_l",false);
+      srcHasScales= false;
+      if(jsonarraysize(allScaleFrom) > 0){
+	      if(NOT isjsonnull(allScaleFrom, 0)){
+	      //  Use the scale From to determine if this line has scales present (i.e. array size is > 0)
+	      srcHasScales= (jsonarraysize(allScaleFrom) > 0);
+	      }
+	}
+      allScaleTo= jsonpathgetmultiple(hierarchyJson, "$..[?(@.materialLineItem_l== '"+item+"') ].scaleTo_l",false);
+      
+      loopCount=range(jsonarraysize(allDiscountsIdx));
+      for eachCount in loopCount {
+        if ( (hasScales AND NOT srcHasScales) OR (NOT hasScales and srcHasScales) ) {
+          //  If this transaction has scales but the Hierarchy doesn't, we can't compare the line and visa versa
+          //  They must either both have them or neither have them
+          continue;
+        }
+        if (hasScales AND srcHasScales) {
+          srcScaleFrom= jsonpathgetsingle(hierarchyJson,jsonarrayget(allScaleFrom,eachCount,"string"),"integer",0);
+          srcScaleTo= jsonpathgetsingle(hierarchyJson,jsonarrayget(allScaleTo,eachCount,"string"),"integer",0);
+          if ( (scaleFrom < srcScaleFrom) OR (scaleTo > srcScaleTo) ) {
+            continue;  // Outside the range so we can't compare
+          }
+        }
+        //  If we get to here, then it's a match
+        jsonPath= jsonarrayget(allDiscountsIdx,eachCount,"string");
+        append(cpqAttributes,eachDocNum + "~headquartersDiscount_l~" + jsonpathgetsingle(hierarchyJson,jsonPath,"string","0.00"));
+      }
+    } else { // Group line
+      //old code
+      //mpgMaterialItemName= mpgPrefix + salesOrgMPGPrefix_t + mpg;
+      //new code
+      //cpq 5545
+      mpgMaterialItemName=  mpgPrefix + mpg;
+      append(cpqAttributes,eachDocNum + "~headquartersDiscount_l~" + jsonpathgetsingle(hierarchyJson,"$..[?(@.materialLineItem_l== '"+mpgMaterialItemName+"') ].discountPercent_l","string","0.00"));
+    }
+  }
+  
+  // Check items in the Sold To transaction
+  if (soldToBSID <> "") {
+    if (isItemLine) {
+      allDiscountsIdx= jsonpathgetmultiple(soldToJson, "$..[?(@.materialLineItem_l== '"+item+"') ].discountPercent_l",true);
+      allScaleFrom= jsonpathgetmultiple(soldToJson, "$..[?(@.materialLineItem_l== '"+item+"') ].scaleFrom_l",false);
+      srcHasScales= false;
+      if(jsonarraysize(allScaleFrom) > 0){
+	      if(NOT isjsonnull(allScaleFrom, 0)){
+	      //  Use the scale From to determine if this line has scales present (i.e. array size is > 0)
+	      srcHasScales= (jsonarraysize(allScaleFrom) > 0);
+	      }
+      }
+      allScaleTo= jsonpathgetmultiple(soldToJson, "$..[?(@.materialLineItem_l== '"+item+"') ].scaleTo_l",false);
+      
+      loopCount=range(jsonarraysize(allDiscountsIdx));
+      for eachCount in loopCount {
+        if ( (hasScales AND NOT srcHasScales) OR (NOT hasScales and srcHasScales) ) {
+          //  If this transaction has scales but the Sold To doesn't, we can't compare the line and visa versa
+          //  They must either both have them or neither have them
+          continue;
+        }
+        if (hasScales AND srcHasScales) {
+          srcScaleFrom= jsonpathgetsingle(soldToJson,jsonarrayget(allScaleFrom,eachCount,"string"),"integer",0);
+          srcScaleTo= jsonpathgetsingle(soldToJson,jsonarrayget(allScaleTo,eachCount,"string"),"integer",0);
+          if ( (scaleFrom < srcScaleFrom) OR (scaleTo > srcScaleTo) ) {
+            continue;  // Outside the range so we can't compare
+          }
+        }
+        //  If we get to here, then it's a match
+        jsonPath= jsonarrayget(allDiscountsIdx,eachCount,"string");
+        append(cpqAttributes,eachDocNum + "~parentDiscount_l~" + jsonpathgetsingle(soldToJson,jsonPath,"string","0.00"));
+      }
+    } else { // Group line
+      //old code
+      //mpgMaterialItemName= mpgPrefix + salesOrgMPGPrefix_t + mpg;
+      //new code
+      //cpq 5545
+      mpgMaterialItemName= mpgPrefix  + mpg;
+      append(cpqAttributes,eachDocNum + "~parentDiscount_l~" + jsonpathgetsingle(soldToJson,"$..[?(@.materialLineItem_l== '"+mpgMaterialItemName+"') ].discountPercent_l","string","0.00"));
+    }
+  }
+  //Chandan - ALM 2632 - Added the below condition to set line item status to approved when Status is changed to Approved - START
+	/*if(status_t == "approved"){
+		append(cpqAttributes, eachDocNum + "~lineItemStatus_l~" + "approved");
+	}*/
+	//Chandan - ALM 2632 - Added the below condition to set line item status to approved when Status is changed to Approved - END
+}
+
+retString= retString + join(cpqAttributes,cmrcSep);
+logStatus = util.u_logString("COM_PRICING", 4, retString, "pricingAfterFormulas - retString");
+
+return retString;

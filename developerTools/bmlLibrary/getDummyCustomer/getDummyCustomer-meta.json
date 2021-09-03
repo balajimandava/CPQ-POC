@@ -1,0 +1,15 @@
+{
+  "name" : "Get Dummy Customer",
+  "variableName" : "getDummyCustomer",
+  "description" : "This function will get Dummy Customer for given SalesOrgs",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  }, {
+    "name" : "stringDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

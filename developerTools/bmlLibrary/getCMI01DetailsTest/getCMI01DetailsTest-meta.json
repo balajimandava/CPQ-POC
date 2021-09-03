@@ -1,0 +1,12 @@
+{
+  "name" : "Get CMI01 Details Test",
+  "variableName" : "getCMI01DetailsTest",
+  "description" : "This UTIL for now, queries for KDMAT value from CMI01 table.This util is added for CSV upload performance testing. This will be removed after testing.",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "partJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

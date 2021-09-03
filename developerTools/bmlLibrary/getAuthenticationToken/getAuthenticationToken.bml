@@ -1,0 +1,64 @@
+/**
+@name 		Get Authentication Token
+@api 		getAuthenticationToken
+@summary 	Connects to Zilliant to fetch the OAuth Token
+@param  	
+@return 	String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+12/03/2020|Vijetha              |49501 - This util connects with Zilliant to fetch OAuth Token
+2020-03-24|Atul Jain		|Added debug mode to print statements.
+23-12-2020|Vijetha				|49501 - Updating the util to fetch required parameters from datatable.
+17-2-2021|Pooja					|49501 - Updated code for retry and error handling
+*/
+//Mandatory Parameters expected to be passed to get the OAuth token. Provided by Zilliant
+oauthToken = "";
+debugMode = false;
+site_ID = _supplier_company_name;//replace this with dynamic site specific util info. its hardcoded for testing.
+//print "Site Id123";
+//print _company_name;
+//print _supplier_company_name;
+
+grant_type = util.getZilliantInfo(site_ID, "ZILLIANT_CLIENT_GRANT_TYPE", "GUIDANCE");
+client_id = util.getZilliantInfo(site_ID, "ZILLIANT_CLIENT_ID", "GUIDANCE");
+client_secret = util.getZilliantInfo(site_ID, "ZILLIANT_CLIENT_SECRET", "GUIDANCE");
+username = util.getZilliantInfo(site_ID, "ZILLIANT_CLIENT_USERNAME", "GUIDANCE");
+password = util.getZilliantInfo(site_ID, "ZILLIANT_CLIENT_PASSWORD", "GUIDANCE");
+cout =0;
+resp ="";
+countRange = range(2);
+isError = false;
+//Build the below url with above params and trigger POST call to get the response.
+url = "https://login.salesforce.com/services/oauth2/token?grant_type="+grant_type+"&client_id="+client_id+"&client_secret="+client_secret+"&username="+username+"&password="+password;
+
+for count in countRange{
+	resp = urldatabypost(url, "", "ERR",dict("string"),true);
+	isError = startswith(resp,"ERROR");
+	if(NOT isError)
+	{
+		break;
+	}
+	print count;
+}
+if(debugMode)
+{
+	print resp;
+}
+
+//Encode whole response using encodebase64 and concatinate with 'OAuth '. This encoded response is the OAuth token.
+oauthToken = "OAuth "+encodebase64(resp);
+if(NOT(isError)){
+	//print "here";
+	oauthTime = getcurrenttimeinmillis();
+	globaldictset("Zilliant_Oath_Token", oauthToken, 525600);
+	globaldictset("Time_Of_Creation", string(oauthTime), 525600);
+}else{
+	//print "error";
+	oauthToken = "";
+	oauthTime = getcurrenttimeinmillis();
+	globaldictset("Zilliant_Oath_Token", oauthToken, 525600);
+	globaldictset("Time_Of_Creation", string(oauthTime), 525600);
+}
+
+return oauthToken;

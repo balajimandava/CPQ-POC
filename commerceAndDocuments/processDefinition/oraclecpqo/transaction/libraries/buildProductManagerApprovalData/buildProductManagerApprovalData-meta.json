@@ -1,0 +1,11 @@
+{
+  "name" : "Build Product Manager Approval Data",
+  "variableName" : "buildProductManagerApprovalData",
+  "description" : "Assemble a list of product manager need to approve the quote",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "requirePMApproval_l", "approver_l", "approverName_l", "takeOffModel_l" ],
+  "mainDocAttributes" : [ "isBussmannDistributor_t" ],
+  "systemAttributes" : [ ]
+}

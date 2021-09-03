@@ -1,0 +1,14 @@
+{
+  "name" : "SAPConditions",
+  "variableName" : "sapConditions",
+  "description" : "Processes all the pricing conditions returned from SAP and updates the attributes.",
+  "libraryFunctions" : [ "util.getStringDict", "util.stringToFloat" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "qqProductType_l", "_parent_doc_number", "externalConfigVCData_l", "_document_number", "materialLineItem_l", "conditionType_l", "takeOffModel_l", "oldListPrice_l", "SAPLineNumber_l", "_group_sequence_number", "costSource_l" ],
+  "mainDocAttributes" : [ "transactionNumber_t", "qqBusinessLineForSalesOrg_t", "documentNumbersBeforeNewAdd_t", "currency_t", "customerNumber_t", "division_t" ],
+  "systemAttributes" : [ ]
+}

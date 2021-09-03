@@ -1,0 +1,247 @@
+/**
+Initial Version
+2019-03-14|Pooja Gupta		    |Defect 1825- Code to identify ESEMEA block conditions
+2019-04-24|Harshit Maheshwari	|Jet UI changes. Added logic to fetch customer # from selected customer arrayset
+2019-05-08|Ali					|MOdified input for getCUSMASDetails lib to pass the Distribution channel as part of INC000012102739
+2019-06-25|murali krishna       |added the if condition to populate the validation message with customer name and number for B-LINE and ES-EMEA code 3
+2019-07-05|Pooja Gupta		    |Defect 2022- Added code to check block conditions on Ship To customer.
+2019-07-24|Harshit Mehta		|ALM# 2343 : Added code to do not reset message in CustomerNumberArray loop.
+2020-02-03|Chandan A J			|49704 - Eagle Development - Added PSD condtion to implement Customer Block for PSD as well
+2020-08-26|Mubarak Ali			|INC000013776786 - Included all SoldTo and ShipTo from selected customer to throw Block message.
+*/
+
+/* 4/24/2019 . Harshit Maheshwari. Jet UI changes. Added logic to fetch customer # from selected customer arrayset. START */
+
+customerNumber = "";
+
+customerName = "";
+shipToCustomerNumber="";
+
+//if(find(_system_user_groups, "jETUITest") <> -1){
+//Chandan - 49704 - Eagle Development - Checking if Array is empty to avoid the exception
+//INC000013776786 - updated below code to included all SoldTo and ShipTo from selected customer to throw Block message.
+customerNumberArr = string[];
+shipToCustomerNumberArr = string[];
+customerNameArr = string[];
+if(jsonarraysize(selectedCustomerArraySet_t) > 0){
+	selectedCustomerArraySetSize = range(jsonarraysize(selectedCustomerArraySet_t));
+	for i in selectedCustomerArraySetSize{
+		custDataJ = jsonarrayget(selectedCustomerArraySet_t, i, "json");
+		customerNumberVal = jsonget(custDataJ, "customer_selctdCust_t", "string","");
+		shipToCustomerNumberVal = jsonget(custDataJ, "shipToCustomer_selctdCust_t", "string","");
+		customerNameVal = jsonget(custDataJ, "name_selctdCust_t", "string","");
+		if(customerNumberVal <> ""){
+			append(customerNumberArr,customerNumberVal);
+		}
+		if(shipToCustomerNumberVal <> ""){
+			append(shipToCustomerNumberArr,shipToCustomerNumberVal);
+		}
+		if(customerNameVal <> ""){
+			append(customerNameArr,customerNameVal);
+		}
+	}
+
+	shipToCustomerNumber = join(shipToCustomerNumberArr,", ");
+	customerName = join(customerNameArr,", ");
+	
+}
+
+/* 4/24/2019 . Harshit Maheshwari. Jet UI changes. Added logic to fetch customer # from selected customer arrayset. END */
+// Array to store both ship to and sold to customer
+CustomerNumberArray = string[];
+if(shipToCustomerNumber<>""){
+	CustomerNumberArray = split(join(customerNumberArr,",")+ "," + join(shipToCustomerNumberArr,","), ",");
+	
+}
+else{
+	CustomerNumberArray = customerNumberArr;
+}
+
+customerBlockJson = json();
+type = qq_ntTransactionType_t;
+salesOrg = ntSelectedSalesOrg_t;
+VTWEG = ntDistributionChannel_t;
+orderBlockCondition = "showOrderBlock";
+billingBlockCondition = "showBillingBlock";
+rowSeparator = "#@#";
+block = false;
+message = "";
+ESEMEACustomerblock=false;
+PSDCustomerBlock = false;
+bussgrpValue = "";
+bussgrpset = BMQL("Select BusinessGroup From BusinessGroup where SalesOrg = $salesOrg");
+for bussgrp in bussgrpset {
+	bussgrpValue = get(bussgrp, "BusinessGroup");
+}
+
+showOrderBlock = util.checkBizGroupCondition(orderBlockCondition, type, salesOrg);
+showBillingBlock = util.checkBizGroupCondition(billingBlockCondition, type, salesOrg);
+
+showMessage = showOrderBlock OR showBillingBlock;
+
+//Check block for customer
+for customer in CustomerNumberArray
+{
+
+//MOdified input for getCUSMASDetails lib to pass the Distribution channel as part of INC000012102739
+getCusmasDetail = json();
+	jsonput(getCusmasDetail, "VKORG", salesOrg);
+	jsonput(getCusmasDetail, "VTWEG", VTWEG);
+	jsonput(getCusmasDetail, "CustomerNumber", customer);
+	jsonput(getCusmasDetail, "KTOKD", "");
+	jsonput(getCusmasDetail, "PARVW", "");
+
+customerJSON= util.getCUSMASDetails(getCusmasDetail);
+customerCount = jsonget(customerJSON, "customercount", "integer", 0);
+
+if (customerCount > 0) {
+	AUFSD = jsonget(customerJSON,"AUFSD","string","");
+	LIFSD = jsonget(customerJSON,"LIFSD","string","");
+	FAKSD = jsonget(customerJSON,"FAKSD","string","");
+	SA_AUFSD = jsonget(customerJSON,"SA_AUFSD","string","");
+	SA_LIFSD = jsonget(customerJSON,"SA_LIFSD","string","");
+	SA_FAKSD = jsonget(customerJSON,"SA_FAKSD","string","");
+	
+	jsonput(customerBlockJson,"AUFSD",AUFSD);
+	jsonput(customerBlockJson,"LIFSD",LIFSD);
+	jsonput(customerBlockJson,"FAKSD",FAKSD);
+	jsonput(customerBlockJson,"SA_AUFSD",SA_AUFSD);
+	jsonput(customerBlockJson,"SA_LIFSD",SA_LIFSD);
+	jsonput(customerBlockJson,"SA_FAKSD",SA_FAKSD);
+		
+
+
+	if(showMessage){
+		//ALM 2343 : Harshit Mehta : Do not reset message in loop as it is already declared with blank at top.
+		
+		orderCodeArray = string[];
+		if(AUFSD<>""){append(orderCodeArray,AUFSD);}
+		if(SA_AUFSD<>""){append(orderCodeArray,SA_AUFSD);}
+		
+		if(sizeofarray(orderCodeArray)>0 AND showOrderBlock){
+			orderName = "Order";
+			blockName = " Block :";
+			if(_system_current_user_language == "de"){
+				orderName = "Auftrag";
+				blockName = "sperre :";
+			}
+			orderDescriptions = bmql("Select Code,Description from CustomerBlockStatus where Type=$orderName AND Code IN $orderCodeArray");
+			for i in orderDescriptions{
+				code = get(i,"Code");
+				desc = get(i,"Description");
+					//Chandan - 49704 - Eagle Development - Added the below if condition to trigger the Customer Block functionality for PSD as well - START
+					if(bussgrpValue == "PSD"){
+						if(code == "01"){
+							PSDCustomerBlock = true;
+						}
+					}
+					//Chandan - 49704 - Eagle Development - Added the above if condition to trigger the Customer Block functionality for PSD as well - END
+					//Chandan - 49704 - Eagle Development - Made the below if condition into elif to accomadate PSD condition above
+				//ALM-1825 -Start
+                    elif (qq_ntTransactionType_t == "DS" OR qq_ntTransactionType_t == "WQ" OR  qq_ntTransactionType_t == "RQ" )
+                    {
+                        if(code<>"90")
+                        {
+                            ESEMEACustomerblock=true;
+                        }
+												
+                    }
+                    else
+                    {
+                    	ESEMEACustomerblock=true;
+                        if(code=="03")
+                        {
+                            ESEMEACustomerblock=false;
+                        }
+                        if(code=="")
+                        {
+                        	ESEMEACustomerblock=false;
+                        }
+                       
+                    }
+                         //End
+						 
+				// murali krishna.. for ALM 2257... added the if condition to populate the validation message with customer name and number for B-LINE and ES-EMEA code 3
+				if(bussgrpValue =="B-LINE" OR bussgrpValue =="BUSSMANN" OR bussgrpValue =="WD" OR (bussgrpValue =="ES-EMEA" AND code=="03")){
+					if(len(message)>0){
+					message = message + rowSeparator + orderName + blockName +code + " - " + desc + " for " + customerNumber + "/" + customerName;
+					}else{
+						message = message + orderName + blockName + code + " - " + desc + " for " + customerNumber + "/" + customerName; 
+					}
+				}else{
+					if(len(message)>0){
+						message = message + rowSeparator + orderName + blockName +code + " - " + desc;
+					}else{
+						message = message + orderName + blockName + code + " - " + desc; 
+					}
+				}					
+			}		
+		}
+		
+		//Billing
+		//Chandan - 49704 - Eagle Development - Added the below if condition to handle Soft Warnings for PSD - START
+		if(bussgrpValue == "PSD"){
+			codeArray = string[];
+			if(FAKSD<>""){append(codeArray,FAKSD);}
+			if(SA_FAKSD<>""){append(codeArray,SA_FAKSD);}
+			if(LIFSD<>""){append(codeArray,LIFSD);}
+			if(SA_LIFSD<>""){append(codeArray,SA_LIFSD);}
+			if(sizeofarray(codeArray) > 0 AND showBillingBlock){
+				billingNameArray = string[]{"Billing","Order"};
+				blockName = " Block :";
+				if(_system_current_user_language == "de"){
+					billingNameArray = string[]{"Rechnung","Auftrag"};
+					blockName = "sperre :";
+				}
+				codeDescriptions = bmql("Select Code, Description, Type from CustomerBlockStatus where Code IN $codeArray AND Type IN $billingNameArray");
+				for j in codeDescriptions{
+					code = get(j,"Code");
+					desc = get(j,"Description");
+					typeResult = get(j,"Type");
+					if(len(message)>0){
+						message = message +  rowSeparator + typeResult + blockName  + code + " - " + desc; 
+					}else{
+						message = message + typeResult + blockName + code + " - " + desc;
+					}	
+				}
+			}
+		}
+		//Chandan - 49704 - Eagle Development - Added the above if condition to handle Soft Warnings for PSD - END
+		else{
+			billingCodeArray = string[];
+			if(FAKSD<>""){append(billingCodeArray,FAKSD);}
+			if(SA_FAKSD<>""){append(billingCodeArray,SA_FAKSD);}
+			
+			if(sizeofarray(billingCodeArray)>0 AND showBillingBlock){
+				billingName = "Billing";
+				blockName = " Block :";
+				if(_system_current_user_language == "de"){
+					billingName = "Rechnung";
+					blockName = "sperre :";
+				}
+				billingDescriptions = bmql("Select Code,Description from CustomerBlockStatus where Type=$billingName AND Code IN $billingCodeArray");
+				for j in billingDescriptions{
+					code = get(j,"Code");
+					desc = get(j,"Description");
+					if(len(message)>0){
+						message = message +  rowSeparator + billingName + blockName  + code + " - " + desc; 
+					}else{
+						message = message + billingName + blockName + code + " - " + desc;
+					}	
+				}
+			}
+		}		
+	}
+
+}
+if(len(message)>0){
+	block = true;
+}
+
+
+jsonput(customerBlockJson,"message",message);
+jsonput(customerBlockJson,"flag",block);	
+jsonput(customerBlockJson,"ESEMEACustomerblock",ESEMEACustomerblock);
+jsonput(customerBlockJson,"PSDCustomerBlock",PSDCustomerBlock);
+}
+return jsontostr(customerBlockJson);

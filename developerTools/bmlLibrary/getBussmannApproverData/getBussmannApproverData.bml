@@ -1,0 +1,76 @@
+/**
+@name Get Bussmann Approver Data
+@api getBussmannApproverData
+@summary It fetches approver data for Bussmann
+	With this function below bussmann related function/ table is deprecated :
+	MPG_PH4_Conversion table , util function : resolvePH4ForMPG
+	MPG_VPG_Conversion table, util function : resolveVPGForMPG
+	SalesTeams_Bussmann table, util function : getApproverForBussmann
+		
+@param mpgList String[]
+@param salesOrg String
+@param salesGroup String
+@param stringDict String Dictionary
+@function JsonArray u_getJsonDataForQuery(String query)
+@function String lookupDAG(String salesOrg, String salesGroup)
+@function Boolean u_logJson(category, level, jsonObject, label)
+@return Json
+@revision
+
+Rev. Date | Developer           |Notes / Comments
+YYYY-MM-DD|						|
+----------|---------------------|-------------------------------------------------------------------------
+2018-05-24| Harshit Mehta       |Initial version
+2018-09-18|Smriti Chaturvedi	|ALM- 1460, updated the where clause in query from MPG to VPG 
+2020-03-19|Atul Jain			|Removed commented code, and added debug mode to print statements.
+
+*/
+
+// resolve DAG
+debugMode = true;
+dag = util.lookupDAG(salesOrg, salesGroup);
+PH4values= get(stringDict,"PH4");
+approverData = Json();
+query = "Select MPG,PH4,VPG,Level4Approver,ApproverName from Bussmann_Approver where VPG in ('" + join(mpgList, "', '") + "') AND SalesOrg = '" + salesOrg +"' OR ( PH4 in(" + PH4values +") AND SalesOrg  IS NULL)";
+// Smriti - ALM-1460, Updated the above where clause in query line from MPG to VPG 
+if (debugMode) {
+	print query;
+}
+
+approverDataJsonArray = util.u_getJsonDataForQuery(query);
+jsonput(approverData,"approverData",approverDataJsonArray );
+
+vpgList = jsonpathgetMultiple(approverData,"$.approverData[*].VPG",false);
+
+if (debugMode) {
+print vpgList;
+}
+
+vpgListStr = replace(jsonarraytostr(vpgList),"\"","'");
+vpgListStr = replace(vpgListStr, "[", "(");
+vpgListStr = replace(vpgListStr, "]", ")");
+
+// Find Threshold
+query = "select DAG, VPG, Sales_Discount, ISR_Discount, ISR_Margin, Pricing_Discount, Pricing_Margin from Thresholds_Bussmann where DAG = '" + dag + "' and VPG in " + vpgListStr;
+discountLimitArray = util.u_getJsonDataForQuery(query);
+discountLimitData = json();
+jsonput(discountLimitData,"discountLimits",discountLimitArray);
+
+if (debugMode) {
+print discountLimitData;
+}
+
+loop = range(jsonarraysize(approverDataJsonArray));
+
+for i in loop{
+	currentApproverData = jsonarrayget(approverDataJsonArray ,i,"json");
+	vpg = jsonget(currentApproverData ,"VPG");
+	currentLimit = jsonpathgetsingle(discountLimitData, "$.discountLimits[?(@.VPG=='" + vpg+ "')]", "json", json());
+	jsonput(currentApproverData,"discountLimit",currentLimit);
+}
+
+if (debugMode) {
+print approverData;
+}
+
+return approverData;

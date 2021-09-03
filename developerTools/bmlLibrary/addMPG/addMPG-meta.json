@@ -1,0 +1,12 @@
+{
+  "name" : "Add MPG",
+  "variableName" : "addMPG",
+  "description" : "",
+  "libraryFunctions" : [ "util.getStringDict" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

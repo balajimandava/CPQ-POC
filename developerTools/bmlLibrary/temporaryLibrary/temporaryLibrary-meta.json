@@ -1,0 +1,9 @@
+{
+  "name" : "TemporaryLibrary",
+  "variableName" : "temporaryLibrary",
+  "description" : "we will remove this library once the B-LINE new approvals flow is completed.",
+  "libraryFunctions" : [ ],
+  "returnType" : "String[]",
+  "parameters" : [ ],
+  "attributes" : [ ]
+}

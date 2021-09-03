@@ -1,0 +1,11 @@
+{
+  "name" : "removeDeletedLines",
+  "variableName" : "removeDeletedLines",
+  "description" : "util function to remove lines with deleted flag set to true.  This is used in copy and version action",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "Boolean",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "lineItemDelete_l", "_document_number", "_parent_doc_number", "lineItemStatus_l" ],
+  "mainDocAttributes" : [ "bs_id" ],
+  "systemAttributes" : [ ]
+}

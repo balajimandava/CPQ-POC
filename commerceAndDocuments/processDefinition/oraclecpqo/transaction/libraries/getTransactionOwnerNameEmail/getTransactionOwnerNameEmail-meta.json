@@ -1,0 +1,14 @@
+{
+  "name" : "Get Transaction Owner Name/Email",
+  "variableName" : "getTransactionOwnerNameEmail",
+  "description" : "Get transaction owner name or email based on input",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputParam",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionOwner_t", "qq_Contact2Name_t", "qq_Contact2Email_t", "qq_Contact3Name_t", "qq_Contact3Email_t", "qq_Contact4Name_t", "qq_Contact4Email_t", "createdBy_t", "preparedByEmail_t" ],
+  "systemAttributes" : [ ]
+}

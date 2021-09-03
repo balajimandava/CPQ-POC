@@ -1,0 +1,138 @@
+//************************************************************************************************************
+//** Function:    Function to incorporate the logic to populate approval required attribute required to 
+//**		  trigger the approval process for PSD.
+//**
+//** Return type: String
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- --------------------------------------------------------------
+//**      	02-April-2020 	Rahul Uttarwar 	Initial version
+//**       	13-April-2020 	Nithin        	Added Invalid Material Status code for PSD Business
+//************************************************************************************************************
+
+returnVal = "";
+inputJson=json();
+message="";
+materialItemArr = jsonarray();
+materialLineItemMapping=json();
+distributionChannel=jsonput(inputJson, "distributionChannel", distributionChannel_t);
+salesOrg=jsonput(inputJson, "salesOrg", salesOrg_t);
+language=jsonput(inputJson, "language", _system_current_user_language);
+businessgroup=jsonput(inputJson, "businessgroup", qqBusinessLineForSalesOrg_t);
+notificationsArray = string[];
+userLanguage = _system_current_user_language;
+notificationMessage = ""; //Approval message variables
+l2Approver = ""; // to hold Level2 Approver User Group id
+l2ApproverName = "";  // to hold Level2 Approver User Group Name
+brandsArr = String[]; // Array to hold distinct brands found on transaction lines
+returnLineString = ""; // retufn string for transaction lines
+isApprovalRequired = false; // Flag to determine whether approval is required or not.
+feedbackflag=false; 
+
+WARNING_MESSAGE_1 = util.getRemark("WARNING_MESSAGE_1", userLanguage); // required by text
+WARNING_MESSAGE_Discount = util.getRemark("WARNING_MESSAGE_2", userLanguage); // Discount Approval text
+
+//get distinct brands
+for line in transactionLine{
+  if ( findinarray(brandsArr, line.brand_l)== -1){
+	  append(brandsArr,line.brand_l);
+  }
+}
+
+//get approvers from PSD_Dscnt_Approvers data table for current transaction
+approvers = bmql("select BRAND, LVL2_APPROVER from PSD_Dscnt_Approvers where BRAND in $brandsArr AND (SALES_DISTRICT = $salesDistrict_t OR SALES_DISTRICT  is null) AND (TRNSCTN_TYP = $transactionType_t OR TRNSCTN_TYP is null) AND (SALES_OFFIC = $salesOffice_t OR SALES_OFFIC is null)");
+
+dictBrand_Apprvr =  dict("string"); // String Dictionary for approvers
+for eachApprover in approvers{
+  put(dictBrand_Apprvr, get(eachApprover, "BRAND"), get(eachApprover, "LVL2_APPROVER"));
+
+  //if logged-in user is L2 Approvar for added product line(s) then approval is not required.  
+  if(find(_system_user_groups,get(eachApprover, "LVL2_APPROVER"))>-1){
+    isApprovalRequired = false;
+    break; // For PSD Oct20 go-live approval is required only for Transformers Product line, multiple user groups found will be identical for different brands of same product line. Once other product lines are introducd for approvals this 'break' statement can be removed.
+  }else{
+    isApprovalRequired = true;
+  }
+}
+
+userGroupList = values(dictBrand_Apprvr); // get business groups in an array, they will be same per product line.
+
+//if logged-in user is L2 Approvar for added product line(s) then approval is not required.
+/*for eachUserGroup in userGroupList {
+  if(find(_system_user_groups,eachUserGroup)>-1){
+    isApprovalRequired = false;
+    break; // For PSD Oct20 go-live approval is required only for Transformers Product line, multiple user groups found will be identical for different brands of same product line. Once other product lines are introducd for approvals this 'break' statement can be removed.
+  }else{
+    isApprovalRequired = true;
+  }
+}*/
+
+//Travers lines and get the approvar also update line attributes
+for line in transactionLine{
+  part = line.materialLineItem_l;
+  docNumber = line._document_number;
+  linenumber=line._sequence_number;
+  //Added Invalid Material Status code for PSD Business - Start
+  if(qqBusinessLineForSalesOrg_t == "PSD" AND line.qqProductType_l <> "configuration" AND line.lineItemStatus_l <> "cancelled")
+  {	
+	jsonarrayappend(materialItemArr, part);
+	jsonput(materialLineItemMapping,part,lineNumber);
+	if(jsonarraysize(materialItemArr) >0)
+	{
+	  jsonput(inputJson, "materialitem", materialItemArr);
+	  jsonput(inputJson,"materialLineItemMapping",materialLineItemMapping);
+	  retJson = util.getMAT01MultipleDetails(inputJson);
+	  message =jsonget(retJson, "message");	
+	}
+	returnVal = returnVal + _transaction_document_number  + "~obsoleteMaterialMessage_t~" + message + "|";
+  }
+  //Added Invalid Material Status code for PSD Business - End
+  
+  if (line.newNetPrice_l < line.salesFloor_l AND isApprovalRequired)
+  {
+    approvalValue = true;
+    
+    // set the variable that determines if an approval is required for that item in the line item grid
+    returnLineString = returnLineString + docNumber + "~approvalRequired_l~" + string(approvalValue) + "|";
+    // set the variable that contains what level of approval is required for that item in the line item grid
+    returnLineString = returnLineString + docNumber + "~approver_l~2|";
+     
+    l2Approver = get(dictBrand_Apprvr, line.brand_l);
+    l2ApproverName = util.getRemark(l2Approver, userLanguage);
+    returnLineString = returnLineString + docNumber + "~approverName_l~" + l2ApproverName + "|";
+  }
+  elif(line.newNetPrice_l >= line.salesFloor_l){
+    approvalValue = false;
+    returnLineString = returnLineString + docNumber + "~approvalRequired_l~" + string(approvalValue) + "|";
+    returnLineString = returnLineString + docNumber + "~approver_l~|";
+	returnLineString = returnLineString + docNumber + "~approverName_l~|";
+  }
+  
+  elif((line.approvedNetFixedAmount_l <> line.netFixedAmountString_l) OR (line.approvedDiscount_l <> line.discountPercentString_l)){
+    feedbackflag=true; // TO identify if feedback is applied.
+  }
+}
+
+//Set transaction level attributes if approval is required.
+if(returnLineString <> "" AND isApprovalRequired AND l2Approver <> ""){
+    returnVal = returnVal + _transaction_document_number + "~isRequiredDiscountApproval_t~true" + "|";
+    returnVal = returnVal + _transaction_document_number + "~whatLevelOfDiscountApprovalRequired_t~2|";
+    returnVal = returnVal + _transaction_document_number + "~level2Email_t~" + l2Approver + "|";
+    append(notificationsArray, "<b>" + WARNING_MESSAGE_Discount + "</b>" + " " + WARNING_MESSAGE_1 + " " + l2ApproverName + " (Level2)");
+}elif(l2Approver == ""){
+    returnVal = returnVal + _transaction_document_number + "~isRequiredDiscountApproval_t~" + "|";
+    returnVal = returnVal + _transaction_document_number + "~whatLevelOfDiscountApprovalRequired_t~|";
+    returnVal = returnVal + _transaction_document_number + "~level2Email_t~|";
+}
+
+//Construct notification message 
+if (sizeofarray(notificationsArray) > 0 AND status_t <> "approved" AND status_t <> "rejected" AND status_t <> "cproFeedback"){
+  notificationMessage = join(notificationsArray, "/n");
+  returnVal = returnVal + _transaction_document_number + "~agreementWarningMessages_t~" + notificationMessage + "|";
+}elif(sizeofarray(notificationsArray) == 0){
+  returnVal = returnVal + _transaction_document_number + "~agreementWarningMessages_t~|";
+}
+returnVal = returnVal + "1~feedbackApplied_t~" + string(feedbackflag) + "|";
+returnVal = returnVal + returnLineString;
+
+return returnVal;

@@ -1,0 +1,14 @@
+{
+  "name" : "Trigger Configurations Mass Update",
+  "variableName" : "triggerConfigurationsMassUpdate",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.identifyConfigurableItems", "util.getEnvironmentVariable", "util.getMAT01DetailsForMultipleItems", "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.getTransactionLineLevelData", "util.xmlToJSONConverter" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputData",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "brand_l", "_document_number", "takeOffModel_l", "externalConfigData_l", "qqCatalogNumber_l" ],
+  "mainDocAttributes" : [ "salesOrg_t", "distributionChannel_t", "bs_id", "psd_customerGroup_t", "psd_priceGroup_t", "customerNumber_t", "endCustomerNo_t", "transactionType_t", "salesDistrict_t", "salesOffice_t", "salesGroup_Menu_t", "qqCountryRegion_t", "qqCountry_t", "qqApplication_t", "qqSubApplication_t", "transactionNumber_t", "qqSegment_t", "qqSubSegment_t", "endCustomerName_t", "qq_Contact4Name_t", "qqBusinessLineForSalesOrg_t" ],
+  "systemAttributes" : [ "_system_current_step_var", "_system_selected_document_number", "_system_user_login" ]
+}

@@ -1,0 +1,35 @@
+/**********************************************************************************
+//** Function: 	To get the line level attribute values.
+
+//** Description: Project#49074|Eagle Development
+
+//** History:	Rev. Date 	Developer	Notes / Comments
+		----------------------------------------------------------------------
+		22-01-2020	Rahul Uttarwar	Initial version
+*************************************************************************************/
+
+xmlData = gettransaction(atoi(bsId)); // get transaction XML
+values = readxmlmultiple(xmlData, xpaths_l); // get values for all the attributes
+
+jsonObj = json(); // new JSOM object to return the result
+
+for xpath_l in xpaths_l{ // for each attribute in the input xpaths_l
+     arrayObj = jsonarray();
+     paths_l = split(xpath_l, "/");
+     key_l = xpath_l;
+     if (sizeofarray(paths_l) > 1) { 
+        key_l = paths_l[sizeofarray(paths_l) - 1]; // get exact attribute name
+     }
+
+     values_l = string[1];
+     values_l = get(values, xpath_l);
+
+     //get value of each line in a jsonarray object
+     for value_l in values_l
+     {
+       jsonarrayappend(arrayObj, value_l);
+     }
+     jsonput(jsonObj, key_l, arrayObj); // final put each attribute array in the json object
+}
+
+return jsonObj;

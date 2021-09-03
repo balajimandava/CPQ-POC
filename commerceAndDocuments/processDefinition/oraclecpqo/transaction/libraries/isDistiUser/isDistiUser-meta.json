@@ -1,0 +1,11 @@
+{
+  "name" : "isDistiUser",
+  "variableName" : "isDistiUser",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ "_system_company_name" ]
+}

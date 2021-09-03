@@ -1,0 +1,11 @@
+{
+  "name" : "ntCustomerSearch",
+  "variableName" : "ntCustomerSearch",
+  "description" : "New Transaction Customer Search",
+  "libraryFunctions" : [ "util.checkBizGroupCondition", "util.customerHierarchyLookup", "util.customerHierarchyLookupNew", "util.customerMasterInfo", "util.getCUSMAS", "util.getRegionsForSalesOrg", "util.getStringDict" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qq_customerSearchField_t", "ntSelectedSalesOrg_t", "isVendorQuote_t", "isDistiQuote_t", "owner_t", "ntDistributionChannel_t", "qq_ntTransactionType_t", "search_CusTab_t" ],
+  "systemAttributes" : [ "_system_company_name", "_system_user_groups", "_system_current_step_var" ]
+}

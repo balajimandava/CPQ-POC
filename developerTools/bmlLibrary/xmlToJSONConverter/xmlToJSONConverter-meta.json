@@ -1,0 +1,12 @@
+{
+  "name" : "XMLtoJSONConverter",
+  "variableName" : "xmlToJSONConverter",
+  "description" : "This library to convert the XML to JSON Object",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputValues",
+    "type" : "Anytype Dictionary"
+  } ],
+  "attributes" : [ ]
+}

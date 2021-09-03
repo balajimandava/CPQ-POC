@@ -1,0 +1,11 @@
+{
+  "name" : "Assemble Previous Approved Values",
+  "variableName" : "assemblePreviousApprovedValues",
+  "description" : "Extract previously approved quote and lines.",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.u_logJson", "util.u_logJsonArray", "util.u_logString", "util.u_logStringDict" ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bs_id", "bonusArraySet_t", "priceListFrom_t", "priceListTo_t" ],
+  "systemAttributes" : [ "_system_supplier_company_name" ]
+}

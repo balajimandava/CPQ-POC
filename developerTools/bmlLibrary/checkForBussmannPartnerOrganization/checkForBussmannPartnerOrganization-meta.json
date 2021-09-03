@@ -1,0 +1,12 @@
+{
+  "name" : "Check for Bussmann Partner Organization",
+  "variableName" : "checkForBussmannPartnerOrganization",
+  "description" : "Project 51951: check if the Company Email is in the UserCustomerLookUp Table",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "currentUserEmail",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

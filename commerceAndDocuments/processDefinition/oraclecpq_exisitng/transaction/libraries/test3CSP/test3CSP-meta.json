@@ -1,0 +1,11 @@
+{
+  "name" : "test3CSP",
+  "variableName" : "test3CSP",
+  "description" : "",
+  "libraryFunctions" : [ "util.addMPG", "util.customerHierarchyLookup" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "transactionName_t" ],
+  "systemAttributes" : [ "_system_user_session_id", "_system_company_name" ]
+}

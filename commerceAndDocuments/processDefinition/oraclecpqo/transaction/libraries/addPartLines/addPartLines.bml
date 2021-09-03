@@ -1,0 +1,257 @@
+/**
+@name Add Part Lines
+@api addPartLines
+@summary 
+@param inputJson Json
+@attribute _document_number
+@attribute _system_supplier_company_name
+@attribute bs_id
+@attribute currentSelectedMaterialItems_t
+@attribute qq_NewItem_MaterialItem_t
+@attribute qq_NewItem_NetPrice_t
+@attribute qq_NewItem_Notes_t
+@attribute qq_NewItem_ProductLine_t
+@attribute qq_NewItem_ProposedMaterialNum_t
+@function Json clickAnAction(Json inputJson)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-05-02|Vivek.Hingorani      |Intial version
+2018-06-22|michael.yeung        |
+2018-09-11|shibaji.ganguly		| QQ-833 Changes - Updating SAP Line Numbers during part addition.
+2018-10-16|Smriti Chaturvedi	| ALM- 746- Changes added for product line
+2018-11-21|Gaurav Singh			| ALM #1722: modified the logic for calling Refresh Net, it won't get called for new items
+2019-05-15|Harshit Maheshwari   | JET UI Changes. Added logic to set attribute qq_NewItem_ProposedMaterialNum_t with qq_NewItem_ProposedMaterialNumCopy_t and  qq_NewItem_NetPrice_t with qq_NewItem_NetPriceCopy_t for create new item functionality
+2020-03-20|Nithin               | Project#49074 - CPQ53 It has been agreed to remove SAP Line # from CPQ and its integrations 
+2020-09-24|Harshit Mehta	| Added execution time to check performance of each action.
+2021-02-18|Pooja Gupta	| Added code to get guidance from zilliant
+*/
+ret = "";
+
+// Declarations
+debugMode = FALSE;
+webServiceFlag = TRUE;
+newItemFlag = false;//Added by Gaurav Singh for ALM-1722
+allParts = "";
+apiUserID = "";
+apiPassID = "";
+allItems = jsonget(inputJson,"currentSelectedMaterialItems","string","");
+searchMode = jsonget(inputJson,"SearchMode","string",""); //Performance_Changes
+
+rowSep = "#@#";
+colSep = "$,$";
+transactionId = bs_id;
+siteID = _system_supplier_company_name;
+addItemEndpoint = "https://"+ siteID + ".bigmachines.com/v2_0/receiver/commerce/oraclecpqo";
+
+// Action Json declaration
+actionJson = json();
+jsonput(inputJson,"siteID",siteID);
+jsonput(inputJson,"id",bs_id);
+
+apiSaveActionStartTime = getcurrenttimeinmillis();
+print "allItems in addPartLines is";
+print allItems;
+/******** 1.click on save action ***********/
+document = json();
+jsonput(document,"currentSelectedMaterialItems_t",allItems);
+//print "currentSelectedMaterialItems_t";
+//print currentSelectedMaterialItems_t;
+//2019-05-15|Harshit Maheshwari   | JET UI Changes. | END
+jsonput(document,"qq_NewItem_NetPrice_t", qq_NewItem_NetPriceCopy_t);
+jsonput(document,"qq_NewItem_ProposedMaterialNum_t", qq_NewItem_ProposedMaterialNumCopy_t);
+jsonput(document,"qq_NewItem_Notes_t", qq_NewItem_Notes_t);
+docArray = string[];
+//Store existing document Numbers
+for line in transactionLine{
+	append(docArray,line._document_number);
+}
+
+//jsonput(document,"lineItemDetailsToBeSorted_t","");
+jsonput(document,"documentNumbersBeforeNewAdd_t",join(docArray,"$,$"));
+//START: SMRITI ALM-746:: FOR NEW ITEM LOGIC
+jsonput(document,"qq_NewItem_ProductLineCopy_t",jsonget(inputJson,"qq_NewItem_ProductLineCopy_t","string",""));
+//END : SMRITi ALM-746:: FOr NEW ITEM LOGIC
+
+//START: SMRITI ALM-746:: FOR ETO LOGIC
+jsonput(document,"qqReturnedFromETO_t",jsonget(inputJson,"qqReturnedFromETO_t","boolean",false));
+//END : SMRITi ALM-746:: FOR ETO LOGIC
+
+//START: EAGLE :Project#49074|C9937367|06-02-20|updating the Brand value to populate in line level.
+jsonput(document,"newItem_BrandCopy_t",newItem_BrandCopy_t);
+//START: EAGLE :Project#49074|C9937367|06-02-20|updating the Brand value to populate in line level.
+
+//jsonput(document,"externalConfigBOM_t","");
+jsonput(document,"externalConfigData_t","");
+jsonput(document,"silentConfigItemsToSendToBidMan_t","");
+jsonput(document,"silentConfigResponse_t","");
+
+//Print "Anita Test Code1";
+// Action Json declaration
+
+print "document in addPartLines is";
+print document;
+
+actionJson = json();
+jsonput(actionJson,"siteID",siteID);
+jsonput(actionJson,"id",transactionId);
+jsonput(actionJson,"actionName","apiSave_t");
+jsonput(actionJson,"document", document);
+saveResponse = util.clickAnAction(actionJson);
+apiSaveActionEndTime = getcurrenttimeinmillis();
+apiSaveActionExecutionTime = (apiSaveActionEndTime - apiSaveActionStartTime)/1000;
+if(debugMode){
+print ("apiSave action execution time(in seconds) from Add Part Lines commerce library: " + string(apiSaveActionExecutionTime));
+}
+
+//Print "Anita Test Code2";
+addPartAPIStartTime = getcurrenttimeinmillis();
+/******** 2.Add parts using webservice ***********/
+
+// Set headers for request message
+//Get API user-name pass
+/*siteBMQL= bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+  for eachSite in siteBMQL {
+    apiUserID= get(eachSite,"FieldName");
+    apiPassID= get(eachSite,"Value1");
+}
+
+requestHeaders = dict("string");
+put(requestHeaders, "Content-Type", "text/xml");
+put(requestHeaders, "Referer", addItemEndpoint);
+
+
+// Generate body of request message
+requestParameters = dict("string");
+put(requestParameters, "USERNAME",apiUserID);
+put(requestParameters, "PASSWORD",apiPassID);
+put(requestParameters, "TRANSACTION_ID", transactionId);
+
+//TODO: Logic to Build All parts
+partBody = applytemplate("$BASE_PATH$/WebServices/individualItem.xml", requestParameters); 
+partsArray = split(allItems, rowSep);
+for i in partsArray{
+    allParts = allParts + partBody;
+}
+
+
+requestBody = applytemplate("$BASE_PATH$/WebServices/addIndividualItems.xml", requestParameters); 
+requestBody = replace(requestBody,"ALLPARTS",allParts);
+
+// Send request message to service endpoint
+if (debugMode) {
+    print "***  REQUEST HEADERS  ***";
+    print requestHeaders;
+    print "";
+    print "***  REQUEST BODY  ***";
+	print requestBody;
+    print "";
+}
+
+if(webServiceFlag){
+	response = urldatabypost(addItemEndpoint, requestBody, "ERROR occurred during service call (AddItems)", requestHeaders, true);
+}*/
+//Performance_Changes_START
+actionJson = json();
+jsonput(actionJson,"siteID",siteID);
+jsonput(actionJson,"id",transactionId);
+jsonput(actionJson,"actionName","addPartLines_t");
+saveResponse = util.clickAnAction(actionJson);
+//Performance_Changes_END
+addPartAPIEndTime = getcurrenttimeinmillis();
+addPartAPIExecutionTime = (addPartAPIEndTime - addPartAPIStartTime)/1000;
+if(debugMode){
+print ("Add Part API call execution time (in seconds) from Add Part Lines commerce library: " + string(addPartAPIExecutionTime));
+}
+
+//Print "Anita Test Code3";
+if(qqBusinessLineForSalesOrg_t == "PSD"){
+	document = json();
+	actionJson = json();
+	jsonput(actionJson,"siteID",siteID);
+	jsonput(actionJson,"id",transactionId);
+	jsonput(actionJson,"actionName","sortLineItems_t");
+	jsonput(actionJson,"document", document);
+	sortLineItemsResponse = util.clickAnAction(actionJson);
+}
+
+
+//Print "Anita Test Code4";
+/******** 3.click on action to update new part line values ***********/
+
+updateMaterialItemsWoGroupActionStartTime = getcurrenttimeinmillis();
+actionJson = json();
+jsonput(actionJson,"siteID",siteID);
+jsonput(actionJson,"id",transactionId);
+jsonput(actionJson,"actionName","updateMaterialItemsWoGroups_t");
+//print "UPDATE MATERIAL  - Part Lines-"+bs_id;
+saveResponse = util.clickAnAction(actionJson);
+updateMaterialItemsWoGroupActionEndTime = getcurrenttimeinmillis();
+updateMaterialItemsWoGroupActionExecutionTime = (updateMaterialItemsWoGroupActionEndTime - updateMaterialItemsWoGroupActionStartTime)/1000;
+if(debugMode){
+print("Update Material Item WO Group action execution time(in seconds) from Add Part Lines commerce library:  " + string(updateMaterialItemsWoGroupActionExecutionTime));
+}
+
+
+//Print "Anita Test Code5";
+
+//Gaurav Singh: Check if the line is not a new line item then only call Refresh Net Price because for new line items the price from SAP would be always 0 (ALM-1722)
+//Below code added for ALM-1722
+//check for new item
+if(searchMode <> "SEARCH_CSV1"){ //Performance_Changes : Added if condition
+	allItemsArray = split(allItems, colSep);
+	if(sizeofarray(allItemsArray) >= 4){
+		if(allItemsArray[3] == "new"){
+			newItemFlag = true;
+		}
+	}
+}
+//Below if condition added by Gaurav Singh for ALM-1722
+if(NOT(newItemFlag)){
+	refreshNetPriceActionStartTime = getcurrenttimeinmillis();
+	document = json();
+	jsonput(document,"isAddNewLine_t","TRUE");
+	actionJson = json();
+	jsonput(actionJson,"siteID",siteID);
+	jsonput(actionJson,"id",transactionId);
+	jsonput(actionJson,"actionName","refreshNetPrice");
+	jsonput(actionJson,"document", document);
+	saveResponse = util.clickAnAction(actionJson);
+	refreshNetPriceActionEndTime = getcurrenttimeinmillis();
+	refreshNetPriceActionExecutionTime = (refreshNetPriceActionEndTime - refreshNetPriceActionStartTime)/1000;
+	if(debugMode)
+	{
+		print ("Refresh Net Price action execution time(in seconds) from Add Part Lines commerce library: " + string(refreshNetPriceActionExecutionTime));
+	}
+}
+//CPQ 3754- Invoke guidance
+if(qqBusinessLineForSalesOrg_t == "ES-EMEA" ){
+	refreshPricingFromBMStartTime = getcurrenttimeinmillis();
+	document = json();
+	//jsonput(document,"actionCalling","lineItemAdd");
+	actionJson = json();
+	jsonput(actionJson,"siteID",siteID);
+	jsonput(actionJson,"id",transactionId);
+	jsonput(actionJson,"actionName","refreshGuidance_t");
+	jsonput(actionJson,"document", document);
+	saveResponse = util.clickAnAction(actionJson);
+	refreshPricingFromBMEndTime = getcurrenttimeinmillis();
+	refreshPricingFromBMExecutionTime = (refreshPricingFromBMEndTime - refreshPricingFromBMStartTime)/1000;
+	if(debugMode)
+	{
+		print ("Invoke guidance action execution time(in seconds) from Add Part Lines commerce library: " + string(refreshPricingFromBMExecutionTime));
+	}
+}
+//Project#49074 - Commenting below logic as per Eagle CPQ53 It has been agreed to remove SAP Line # from CPQ and its integrations start
+/*
+// Added for QQ-833 - Start //
+actionJson = json();
+jsonput(actionJson,"siteID",siteID);
+jsonput(actionJson,"id",transactionId);
+jsonput(actionJson,"actionName","qqUpdateSAPLineNumbers_t");
+saveResponse = util.clickAnAction(actionJson);
+// Added for QQ-833 - End //
+*/
+//Project#49074 - Commenting Above logic as per Eagle CPQ53 It has been agreed to remove SAP Line # from CPQ and its integrations end
+return ret;

@@ -1,0 +1,15 @@
+{
+  "name" : "Security Model Rule",
+  "variableName" : "securityModelRule",
+  "description" : "New rule for Security Model",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  }, {
+    "name" : "retVal",
+    "type" : "StringBuilder"
+  } ],
+  "attributes" : [ ]
+}

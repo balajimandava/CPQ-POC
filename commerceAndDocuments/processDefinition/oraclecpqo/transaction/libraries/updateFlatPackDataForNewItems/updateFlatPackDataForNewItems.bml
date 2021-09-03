@@ -1,0 +1,60 @@
+retStr = "";
+connectedToContractLinesInfo = connectedToContractLinesInfo_t;
+connectedToContractLinesInfoJson = json();
+flatPackItemsInfo = json();
+if(connectedToContractLinesInfo <> ""){
+	connectedToContractLinesInfoJson = json(connectedToContractLinesInfo);
+	flatPackItemsInfo = jsonget(connectedToContractLinesInfoJson,"flatPackItemsInfo","json",json());
+}
+for line in transactionLine{
+	docNum = line._document_number;
+	externalConfigBOM = line.externalConfigBOM_l;
+	newConfigLine = line.newConfigLine_l;
+	externalConfigData = line.externalConfigData_l;
+	externalConfigVCData = line.externalConfigVCData_l;
+	materialMasterPayload = line.materialMasterPayload_l;
+	materialMasterBOMPayload = line.materialMasterBOMPayload_l;
+	sequence_number = line._sequence_number;
+	modelPath = "faltpackBulkAPI"; //This is to differentiate the flatpack and external config Items
+	if(newConfigLine){
+		//print externalConfigBOM;
+		eachLineInfo = json();//This is to avoid the API call in the Util for platpack models
+		jsonput(eachLineInfo,"externalConfigBOM_t",externalConfigBOM);
+		jsonput(eachLineInfo,"externalConfigData_t",externalConfigData);
+		jsonput(eachLineInfo,"externalConfigVCData_t",externalConfigVCData);
+		jsonput(eachLineInfo,"qqBusinessLineForSalesOrg_t",qqBusinessLineForSalesOrg_t);
+		jsonput(eachLineInfo,"distributionChannel_t",distributionChannel_t);
+		jsonput(eachLineInfo,"salesOrg_t",salesOrg_t);
+		transactionType = json();
+		jsonput(transactionType,"value",transactionType_t);
+		jsonput(eachLineInfo,"transactionType_t",transactionType);
+		jsonput(eachLineInfo,"materialMasterPayload_t",materialMasterPayload);
+		jsonput(eachLineInfo,"materialMasterBOMPayload_t",materialMasterBOMPayload);
+		jsonput(eachLineInfo,"salesOrg_t",salesOrg_t);
+		currency = json();
+		jsonput(currency,"value",currency_t);
+		jsonput(eachLineInfo,"currency_t",currency);
+		jsonput(eachLineInfo,"newExchangeRate_t",newExchangeRate_t);
+		//print "Update FlatPack Data For New Items eachLineInfo";
+		//print jsontostr(eachLineInfo);
+		//print "End of Update FlatPack Data For New Items eachLineInfo";
+		//attributesInfo = util.buildBidManagerModelBOM("", externalConfigBOM, modelPath, bs_id);
+		eachLineInfoStr = jsontostr(eachLineInfo);
+		attributesInfo = util.buildBidManagerModelBOM("", eachLineInfoStr, modelPath, bs_id);
+		
+		attributesArray = jsonkeys(attributesInfo);
+		for eachKey in attributesArray{
+			attrValue = jsonget(attributesInfo, eachKey,"string","");
+			//setattributevalue(docNum,eachKey, attrValue);
+			retStr = retStr +docNum+"~"+eachKey+"~"+attrValue+"|";
+			if(eachKey =="configurationType_l" AND lower(attrValue)== "flatpack"){
+				jsonput(flatPackItemsInfo,docNum,sequence_number);
+			}
+		}
+	}
+	//setattributevalue(docNum,"newConfigLine_l", false);
+	retStr = retStr +docNum+"~newConfigLine_l~false|";
+}
+jsonput(connectedToContractLinesInfoJson,"flatPackItemsInfo",flatPackItemsInfo);
+retStr = retStr +"1~connectedToContractLinesInfo_t~"+jsontostr(connectedToContractLinesInfoJson)+"|";
+return retStr;

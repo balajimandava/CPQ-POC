@@ -1,0 +1,12 @@
+{
+  "name" : "Get JSON Data for Query",
+  "variableName" : "u_getJsonDataForQuery",
+  "description" : "Retrieve the data using the BMQL in the query parameter.  Data is returned in JSON format.",
+  "libraryFunctions" : [ ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "query",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,109 @@
+/**
+@name Get Lead Time
+@api getLeadTime
+@summary Get the Lead Time for standard and configured items.
+@param inputData anytype dictionary
+@function String getLeadTime(String AnyTypeDictionary inputDict)
+@AnyTypeDictionary entries: 
+	Key :"brands" Value:string[] 
+		-> read from BOM xml for new configure items
+		-> brand_l OR MVGR1 column data from Mat01, for standard items
+	Key :"higherLevelProducts" Value:string[] 
+		->Product Line From BidMan for config items 
+		->Product Hierarchy from MAT01 for standard items
+	Key :"leadTimeIndicators" Value:string[]->from BidMan
+	Key :"keysToSetValues" Value:String Dictionary 
+			     -> key: catalogNumber for new configure items
+			     	     document number for standard items or old items
+			     -->value:productLine+brand+leadTimeIndicator for newold configure items
+			     	      productHierarchy+brand for standard items
+	Key :"standardItems" Value:boolean -> true value for standard items
+@return String Dictionary
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|--------------------------------------------------------------------------------------------
+2020-04-02|Dhananjay	        |
+*/
+
+brands_array = string[];
+higherLevelProducts_array = string[];
+leadTimeIndicators_array = string[];
+standardItems = false;
+keysToSetValues= dict("string");
+retValues = dict("string");
+//print "LeadTime Util Logs";
+//print inputData;
+if(containskey(inputData,"brands")){
+	brands_array = get(inputData,"brands","string[]");
+}
+if(containskey(inputData,"higherLevelProducts")){
+	higherLevelProducts_array = get(inputData,"higherLevelProducts","string[]");
+}
+
+if(containskey(inputData,"leadTimeIndicators")){
+	leadTimeIndicators_array = get(inputData,"leadTimeIndicators","string[]");
+}
+if(containskey(inputData,"standardItems")){
+	standardItems = get(inputData,"standardItems","boolean");
+}
+
+if(containskey(inputData,"keysToSetValues")){
+	keysToSetValues = get(inputData,"keysToSetValues","dict<string>");
+}
+
+brand_str = "('"+join(brands_array,"','")+"')";
+higherLevelProducts_str = "('"+join(higherLevelProducts_array,"','")+"')";
+leadTimeIndicators_str = "('"+join(leadTimeIndicators_array,"','")+"')";
+
+whereClauseConditions = stringbuilder();
+whereConditionValues = dict("string");
+lang = dict("string");
+selectColumns = string[]{"Brand, HigherLevelProduct", "LeadTimeIndicator", "DaysOrWeeks","ProductHierarchy"};
+
+sbappend(whereClauseConditions," Brand IN ",brand_str);
+sbappend(whereClauseConditions," AND (HigherLevelProduct IN ",higherLevelProducts_str," OR ProductHierarchy IN ",higherLevelProducts_str+" )");
+sbappend(whereClauseConditions," AND (LeadTimeIndicator IN ",leadTimeIndicators_str," OR LeadTimeIndicator IS NULL )");
+//print whereClauseConditions;
+/*if(standardItems){
+	sbappend(whereClauseConditions," AND ProductHierarchy IN ",higherLevelProducts_str);	
+}else{
+	sbappend(whereClauseConditions," AND HigherLevelProduct IN ",higherLevelProducts_str);
+	sbappend(whereClauseConditions," AND LeadTimeIndicator IN ",leadTimeIndicators_str);
+}*/
+
+selectColumns_str = join(selectColumns,",");
+whereClauseConditions_str = sbtostring(whereClauseConditions);
+//print whereClauseConditions_str;
+leadTime_qry = bmql("SELECT $selectColumns_str FROM LeadTime WHERE $whereClauseConditions_str");//,lang,whereConditionValues);
+if(haserror(leadTime_qry)){
+	errorMsg = "LeadTime Data Table Query::"+getmessage(leadTime_qry);
+	throwerror(errorMsg);
+}
+//print keysToSetValues;
+//leadTime_qry = bmql("SELECT * FROM LeadTime WHERE Brand IN $brands_array AND HigherLevelProduct IN $higherLevelProducts_array AND LeadTimeIndicator IN $leadTimeIndicators_array");
+//print leadTime_qry;
+keys = keys(keysToSetValues);
+//PRINT keys;
+for eachKey in keys{
+	uniqVal = get(keysToSetValues,eachKey);
+	for eachRec in leadTime_qry{
+		brand = get(eachRec,"Brand");
+		higherLevelProduct = get(eachRec,"HigherLevelProduct");
+		productHierarchy = get(eachRec,"ProductHierarchy");
+		leadTimeIndicator = get(eachRec,"LeadTimeIndicator");
+		leadTime = get(eachRec,"DaysOrWeeks");
+		config_items_uniqKey = higherLevelProduct+brand+leadTimeIndicator;
+		standard_items_uniqKey = productHierarchy+brand;
+		/*if(standardItems){
+			db_uniqVal = productHierarchy+brand;
+		}*/
+		//PRINT db_uniqVal;
+		//print higherLevelProduct+brand+leadTimeIndicator;
+		if(uniqVal == standard_items_uniqKey OR uniqVal == config_items_uniqKey ){
+			put(retValues,eachKey,leadTime);
+			break;
+		}
+	}
+}
+
+return retValues;

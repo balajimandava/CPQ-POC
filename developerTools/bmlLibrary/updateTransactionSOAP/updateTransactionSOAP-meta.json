@@ -1,0 +1,15 @@
+{
+  "name" : "Update Transaction SOAP",
+  "variableName" : "updateTransactionSOAP",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "template",
+    "type" : "String"
+  }, {
+    "name" : "payload",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

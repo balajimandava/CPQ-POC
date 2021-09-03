@@ -1,0 +1,14 @@
+{
+  "name" : "Update Customer Master",
+  "variableName" : "updateCustomerMaster",
+  "description" : "Called by a Timer in the Active Step to use Web Services to send or clear the Pricing List in the customer master file",
+  "libraryFunctions" : [ "util.getEnvironmentVariable" ],
+  "returnType" : "String Dictionary",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "priceListFrom_t", "bs_id", "customerNumber_t", "salesOrg_t", "distributionChannel_t", "companyCode_t", "division_t", "choosePricelist_t", "agreementDeliveryTerms_t", "agreementPeriodOfInvoicing_t", "agreementPaymentTerms_t", "accountTypeKTOKD_t", "transactionType_t" ],
+  "systemAttributes" : [ "_system_user_time_zone", "_system_user_login", "_system_supplier_company_name" ]
+}

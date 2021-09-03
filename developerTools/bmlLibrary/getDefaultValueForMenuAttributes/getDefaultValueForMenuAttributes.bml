@@ -1,0 +1,27 @@
+/**
+Function:    Get Default Values for Menu Attributes
+Type:        BML Utility Function   
+Description: Returns the Default to the input attributes. 
+Return type: json
+Mandatory Datatable Entries: Need to Add SalesOrg as compulsary field  or Transaction Type and Business Group As compulsary field.   
+Developer : Chandan A J
+
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+02/06/2020|Chandan A J			|49704 - Eagle Development
+*/
+
+returnJson = json();
+salesOrg = jsonget(inputJson, "SalesOrg" ,"string", "");
+transactionType = jsonget(inputJson, "TransactionType" ,"string", "");
+businessGroup = jsonget(inputJson, "BusinessGroup" ,"string", "");
+
+if(NOT(isempty(inputArray))){
+	resultSet = BMQL("SELECT Variable, Key FROM AllAttributes WHERE Variable IN $inputArray AND Default = 'Y' AND (SalesOrg = $salesOrg OR SalesOrg IS NULL) AND (TransactionType = $transactionType OR TransactionType IS NULL) AND (BusinessGroup = $businessGroup OR BusinessGroup IS NULL)");
+	for each in resultSet{
+		jsonput(returnJson, get(each, "Variable"), get(each, "Key"));
+	}
+}
+
+return returnJson;

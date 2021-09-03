@@ -1,0 +1,20 @@
+/**
+@name Get Available Take Off Models
+@api getAvailableTakeOffModels
+@summary Get a list of take-off models based on given sales orgs.
+@param params Json a JSON structure that contains the 'SALES_ORG' that maps to the sales org that we need
+the take off models.
+@function JsonArray u_getJsonDataForQuery(String query)
+@return String[] an array of take off models
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-12-23|Tat.Leung            |initial version
+*/
+salesOrg = jsonget(params, "SALES_ORG", "string", "");
+records = util.u_getJsonDataForQuery("select TakeOffModel from SalesOrgToTakeOff where SalesOrg = '" + salesOrg + "'");
+data = json();
+jsonput(data, "data", records);
+path = "$.data.*.TakeOffModel";
+models = jsonpathgetmultiple(data, path);
+return util.u_convertJsonArrayToStringArray(models);

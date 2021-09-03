@@ -1,0 +1,29 @@
+{
+  "name" : "PSD Brand Total Approvals1",
+  "variableName" : "pSDBrandApprovals",
+  "description" : "PSD POC  - NOT IN USE - E9913664",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "brandTotalThresholdsDict",
+    "type" : "Dictionary of String Dictionaries"
+  }, {
+    "name" : "approversDict",
+    "type" : "Dictionary of String Dictionaries"
+  }, {
+    "name" : "lIPELevel3ApproversDict",
+    "type" : "Dictionary of String Dictionaries"
+  }, {
+    "name" : "brandTotJSONObj",
+    "type" : "Json"
+  }, {
+    "name" : "oldBrandTotJSONObj",
+    "type" : "Json"
+  }, {
+    "name" : "otherParamStringDict",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "pSDTransactionApprovalHistoryInfo_t", "transactionType_t", "salesOffice_t", "newExchangeRate_t" ],
+  "systemAttributes" : [ ]
+}

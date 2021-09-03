@@ -1,0 +1,17 @@
+{
+  "name" : "Test Function",
+  "variableName" : "testFunction",
+  "description" : "",
+  "libraryFunctions" : [ "util.getLeadTime", "util.getSiteSpecificData", "util.getSupplierCompanyName", "util.parseBidManBOM", "util.u_logJson", "util.u_logString" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "BSId",
+    "type" : "String"
+  }, {
+    "name" : "ConfigId",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ "_document_number" ],
+  "mainDocAttributes" : [ "testAttribute", "qqBusinessLineForSalesOrg_t", "newExchangeRate_t", "bs_id" ],
+  "systemAttributes" : [ ]
+}

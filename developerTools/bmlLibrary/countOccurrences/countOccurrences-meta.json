@@ -1,0 +1,15 @@
+{
+  "name" : "countOccurrences",
+  "variableName" : "countOccurrences",
+  "description" : "count occurrences of the matching string.  Break string into smaller chunk to avoid potential CPQ array limit at 5000.  If every other character is a match then need to decrease the checkSize.",
+  "libraryFunctions" : [ ],
+  "returnType" : "Integer",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "String"
+  }, {
+    "name" : "match",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

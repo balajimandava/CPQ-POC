@@ -1,0 +1,12 @@
+{
+  "name" : "Send DSP as Vistex",
+  "variableName" : "sendDSPAsVistex",
+  "description" : "Returns TRUE if this transaction is to be sent to SAP as a Vistex agreement",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "parms",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

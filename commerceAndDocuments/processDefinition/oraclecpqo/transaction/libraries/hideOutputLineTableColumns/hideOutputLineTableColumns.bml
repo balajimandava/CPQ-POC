@@ -1,0 +1,28 @@
+/***********************************************************
+
+@Revision
+
+Date(YYYY/MM/DD)		Name				Comments
+2018/07/16				Harshit Mehta		Changing code to accommodate data table structure changes.
+
+************************************************************/
+
+
+retflag = true;
+selectCol = hideParam;
+whereVal = netPricingOutputTab_t;
+bizGroup = qqBusinessLineForSalesOrg_t;
+
+selectColArr = split(selectCol,","); 
+
+tableRecSet = BMQL("SELECT $selectCol FROM hideLineTableColumns WHERE pricingVal=$whereVal");
+
+for each in tableRecSet {
+	selectcolVal = get(each,selectColArr[0]);
+	
+	if( (find(selectcolVal,"yes") <> -1) AND (find(selectcolVal, bizGroup) <> -1)){
+		retFlag = false;
+	}
+}
+
+return retFlag;

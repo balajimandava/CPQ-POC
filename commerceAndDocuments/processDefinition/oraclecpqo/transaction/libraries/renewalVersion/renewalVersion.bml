@@ -1,0 +1,5 @@
+if(version_number_createRenewal <> "") {
+	return atoi(version_number_createRenewal);
+	} else {
+	return 1;
+}

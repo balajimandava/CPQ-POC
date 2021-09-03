@@ -1,0 +1,18 @@
+/**
+@name Convert JSON Array To String Array
+@api u_convertJsonArrayToStringArray
+@summary Convert a JSON array to a string array.
+@param jsonArr JsonArray the JSON array to be converted to a string array.
+@return String[] the converted string array.
+@package utils/Data Manipulation
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2017-11-11|tleung               |Initial version
+*/
+arrStr = jsonArrayToStr(jsonArr);
+arrStr = replace(arrStr, "[\"", "");
+arrStr = replace(arrStr, "\",\"", "^|^");
+arrStr = replace(arrStr, "\"]", "");
+
+return split(arrStr, "^|^");

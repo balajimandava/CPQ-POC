@@ -1,0 +1,20 @@
+{
+  "name" : "Update Customer Details",
+  "variableName" : "updateCustomerDetails",
+  "description" : "Updates the Customer for Bussman QSCP Configurators - Project 51951",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "SupplierCompanyNumber",
+    "type" : "String"
+  }, {
+    "name" : "ntSelectedSalesOrg",
+    "type" : "String"
+  }, {
+    "name" : "ntDistributionChannel",
+    "type" : "String"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "oldCustomerNo_t", "soldToNumber_t", "qqCustomerNameCopy_t", "qqCityAndRegionCopy_t", "customerPostalCodeZip_t", "qq_CD_SelectedSoldTo_t", "customerStreet_t", "customerName_t", "companyCode_t", "division_t", "customerShipTo_t", "customerCity_t", "primaryCustomerCurrency_t", "salesGroup_Menu_t", "psd_customerGroup_t", "psd_priceGroup_t", "qqBusinessLineForSalesOrg_t", "customerDefaultPaymentTerms_t" ],
+  "systemAttributes" : [ "_system_user_groups" ]
+}

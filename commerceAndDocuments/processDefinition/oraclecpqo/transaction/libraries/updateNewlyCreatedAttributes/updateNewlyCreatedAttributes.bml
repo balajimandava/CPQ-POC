@@ -1,0 +1,110 @@
+/**
+02-June-2021 | Gautam | CPQ-4288 Modified to include logic for ES-EMEA Mpg Update
+07-July-2021 | Malli | CPQ-5902 Modified the logic to include MPG updation for copied transactins
+**/
+
+retStr = stringbuilder();
+//if salesorg is ES-EMEA
+//CPQ-4288 
+
+updateValue = updateNewAttributes_t;
+isRecordEdited = false;
+
+currentDate = getstrdate();
+updateValue = updateNewAttributes_t;
+
+quoteCreatedDate  = strtojavadate(createdDate_t,"yyyy-MM-dd",_system_user_time_zone);
+threasholdDate = strtojavadate("2021-06-01","yyyy-MM-dd",_system_user_time_zone); // 1st June 2021
+threasholdDate2 = strtojavadate("2021-03-22","yyyy-MM-dd",_system_user_time_zone); // 22nd March 2021
+jsonKeys = jsonkeys(inputData); // added by mali for bug fix CPQ-5902, updates MPGs for copied transactions , code at Copy to Draft action
+if((comparedates(threasholdDate,quoteCreatedDate) > 0 OR findinarray(jsonKeys,"copy") <> -1) AND qqBusinessLineForSalesOrg_t == "ES-EMEA" AND (find(updateNewAttributes_t,"UpdateMPG") == -1))
+{
+	partDetails  = recordset();
+	partsDict = dict("string");
+	
+	salesOrg = salesOrg_t;
+	distributionChannel = distributionChannel_t;
+	partsArr = string[];
+	for line in transactionLine{
+		part = line.materialLineItem_l;
+		append(partsArr,part);
+	}
+	
+	if( distributionChannel <> "") {
+		partDetails = bmql("select MATNR, MATNR_SEARCH, MVGR5 from MAT01 where ((MATNR in $partsArr OR MATNR_SEARCH in $partsArr)) AND VKORG=$salesOrg AND VTWEG =$distributionChannel");// Adding the where clause for catalog number here
+	}else
+	{
+		partDetails = bmql("select MATNR, MATNR_SEARCH, MVGR5 from MAT01 where ((MATNR in $partsArr OR MATNR_SEARCH in $partsArr)) AND VKORG=$salesOrg"); // Adding the where clause for catalog number here
+	}
+	
+	for eachPart in partDetails{
+		put(partsDict, get(eachPart, "MATNR"), get(eachPart, "MVGR5"));
+		put(partsDict, get(eachPart, "MATNR_SEARCH"), get(eachPart, "MVGR5"));
+	}
+	
+	for line in transactionLine{
+		mpg  = "";
+		part = line.materialLineItem_l;
+		
+		mpg = get(partsDict,part);
+		
+		if(mpg <> "")
+		{
+		  sbappend(retStr,line._document_number,"~","materialPricingGroup_l","~",mpg,"|");
+		}			 
+	}	
+	
+	updateKeyword = "UpdateMPG";
+	
+	if(updateValue <> "")
+	{
+		updateValue = updateValue + ":" + updateKeyword;
+	}else
+	{
+		updateValue = updateKeyword;
+	}
+	isRecordEdited  = true;
+		
+}
+
+//quoteCreatedDate  = strtojavadate(createdDate_t,"yyyy-MM-dd",_system_user_time_zone);
+//threasholdDate = strtojavadate("2021-03-22","yyyy-MM-dd",_system_user_time_zone);
+
+if((comparedates(threasholdDate2,quoteCreatedDate) > 0) AND (find(updateNewAttributes_t,"PrintOnOutput") == -1))
+{
+  //Setting the Print On Output flag for old transactions
+    for line in transactionLine{
+		/*if(line._parent_doc_number == "" 
+			AND (NOT(line.printOnOutput_l) OR isnull(line.printOnOutput_l))){*/
+		if((NOT(line.printOnOutput_l) OR isnull(line.printOnOutput_l))){
+			sbappend(retStr, line._document_number,"~","printOnOutput_l","~","true","|");
+		}
+    }	
+	//Update Database	
+	
+	updateKeyword = "PrintOnOutput";
+	
+	if(updateValue <> "")
+	{
+		updateValue = updateValue + ":" + updateKeyword;
+	}else
+	{
+		updateValue = updateKeyword;
+	}
+	
+	isRecordEdited  = true;
+	
+	
+	
+}//else end
+
+if(updateValue <> "" AND isRecordEdited )
+{
+        qryStr = "TRANSACTION_ID='"+bs_id+"',UPDATE_KEY_WORD='"+updateValue+"',UPDATED_DATE='"+currentDate+"'";
+	testQry = bmql("MODIFY UPDATED_TRANSACTIONS SET $qryStr  WHERE TRANSACTION_ID=$bs_id");
+	print testQry;
+	sbappend(retStr, "1~updateNewAttributes_t~",updateValue,"|");
+}
+
+
+return sbtostring(retStr);

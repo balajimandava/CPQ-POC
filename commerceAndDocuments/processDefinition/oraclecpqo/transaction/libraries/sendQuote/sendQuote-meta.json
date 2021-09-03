@@ -1,0 +1,14 @@
+{
+  "name" : "Send Quote",
+  "variableName" : "sendQuote",
+  "description" : "Sends CPQ data to an external destination (SOA)",
+  "libraryFunctions" : [ "commerce.buildCreateQuoteXML", "commerce.sapConditions", "util.getEnvironmentVariable" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_user_time_zone" ]
+}

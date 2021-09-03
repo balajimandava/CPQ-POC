@@ -1,0 +1,22 @@
+//2020-03-17|Atul Jain|Removed commented code, and added debug mode to print statements.
+
+retJSON= json("{ \"dummy\" : null }");
+
+//  43088849
+//  42244758
+  debugMode = false;
+  bsId= CPQTransID;
+  transactionXML= gettransaction(bsId);
+  if (debugMode) {
+  print transactionXML;
+  }
+  
+  xslURL= "$BASE_PATH$/XSLT/TransDisc2JSON.xsl";
+  jsonString= transformxml(transactionXML, xslURL, "ERROR");
+ // Temporarily commented because of errors: Vivek 14/7/2017
+  if (jsonString <> "ERROR") {
+    retJSON= json(jsonString);
+  }
+
+  
+return retJSON;

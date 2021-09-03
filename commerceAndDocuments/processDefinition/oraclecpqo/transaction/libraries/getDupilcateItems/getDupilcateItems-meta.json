@@ -1,0 +1,11 @@
+{
+  "name" : "getDupilcateItems",
+  "variableName" : "getDupilcateItems",
+  "description" : "",
+  "libraryFunctions" : [ ],
+  "returnType" : "String[]",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_parent_doc_number", "_model_variable_name", "qqProductType_l", "materialLineItem_l", "validTo_l", "validFrom_l", "scaleFrom_l", "lineItemStatus_l" ],
+  "mainDocAttributes" : [ "agreementValidFrom_t", "agreementValidTo_t", "transactionType_t" ],
+  "systemAttributes" : [ ]
+}

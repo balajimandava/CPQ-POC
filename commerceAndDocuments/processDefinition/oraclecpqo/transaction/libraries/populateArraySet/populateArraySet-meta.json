@@ -1,0 +1,14 @@
+{
+  "name" : "Populate ArraySet",
+  "variableName" : "populateArraySet",
+  "description" : "Populate arraySet and related attributes on basis of Action triggered",
+  "libraryFunctions" : [ "commerce.ntCustomerSearch", "commerce.searchEndCustomers", "util.checkBizGroupCondition", "util.getCUSMASDetails", "util.searchEatonContact", "util.searchMaterialItems", "util.sortingForCustomerSearch" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "jsonParam",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "customerSelectionArraySet_t", "filter_CustSelc_t", "selectedCustomerArraySet_t", "qq_nt_EndCust_name_t", "qq_nt_EndCust_country_t", "qq_nt_EndCust_region_t", "qq_nt_EndCust_city_t", "endCustomerArraySet_t", "qq_EndCust_name_t", "qq_EndCust_country_t", "qq_EndCust_region_t", "qq_EndCust_city_t", "endCustomerArraySet2_t", "selectedCustomerArraySet2_t", "salesHistoryAraySet_t", "filter_salesHistory_t", "materialItemSearchType_t", "salesOrg_t", "distributionChannel_t", "transactionType_t", "salesOrgMPGPrefix_t", "materialItemSearchTerm_t", "materialItemSearchGroupList_t", "qqBusinessLineForSalesOrg_t", "qq_selectedCustomerData_t", "bonusPricingData_t", "materialSelectionArraySet_t", "ntSelectedSalesOrg_t", "selectedCustomerData_t", "selectedMaterialsArraySet_t", "bonusArraySet_t", "qq_ntTransactionType_t", "salesRepLanguage_t", "customerNumber_t", "businessGroupTableData_t", "multiSelectCustomerType_t", "qq_NewItem_materialItemSearchResults_t", "qq_customerReferenceShipTo", "salesOffice_t", "ntDistributionChannel_t", "qq_nt_nationalAccount_t", "materialGroupsInArrangementJson_t", "customerSelectionArraySet_CusTab_t", "filter_CusTab_t", "contactforChangeContact_t", "searchTermForChangeContact_t", "distributionChannelForChangeContact_t", "salesOrgForChangeContact_t", "nt_endCustomerNo_t", "nt_selectedEndCustomerArrayset_t", "nt_endCustomerType_search_t", "endCustomerSelectionArraySet2_t", "customerNo_CusTab_t", "custTab_endCustomerType_t", "qqCustomerNameCopy_t", "customerPostalCodeZip_t", "qqCityAndRegionCopy_t", "customerCountry_t" ],
+  "systemAttributes" : [ "_system_current_user_language", "_system_user_groups", "_system_current_step_var" ]
+}

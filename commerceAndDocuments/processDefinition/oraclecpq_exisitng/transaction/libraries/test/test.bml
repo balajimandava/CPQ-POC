@@ -1,0 +1,58 @@
+//versionSave_t
+
+//***************Create
+siteID = "eatontest1";
+createUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction";
+
+// Rest parameters
+jsonParams = json();
+params = jsontostr(jsonParams);
+
+// Rest Header
+headers = dict("string");  
+put(headers, "Content-Type", "application/json");
+
+results = urldatabypost(createUrl, params, "ERROR", headers, true);
+id = jsonget(json(results),"_id");
+
+
+//***************Click Version Save versionSave_t
+updateUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/versionSave_t";
+
+//Header level attributes
+document = json();
+jsonput(document,"customerRecordKey_t","0000737134");
+jsonput(document,"agreementHierarchy_t","{\"aLevel1\": \"0000737134\", \"aLevel2\": \"0000737134\", \"aLevel3\": \"\"}"); //TODO: Figure logic for Levels based on customer number(discuss with Dave)
+jsonput(document,"transactionType_t","CSP");
+jsonput(document,"transactionName_t","Currency Test"); //TODO: Decription with date and Time
+		
+
+// Rest parameters
+jsonParams = json();
+jsonput(jsonParams,"documents",document);
+params = jsontostr(jsonParams);
+
+
+// Rest Header  
+headers = dict("string");
+put(headers, "Content-Type", "application/json");
+
+results = urldatabypost(updateUrl, params, "ERROR", headers, true);
+
+// SAVE
+updateUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+id+"/actions/cleanSave_t";
+
+// Rest parameters
+jsonParams = json();
+jsonput(jsonParams,"documents",document);
+params = jsontostr(jsonParams);
+
+
+// Rest Header  
+headers = dict("string");
+put(headers, "Content-Type", "application/json");
+
+results = urldatabypost(updateUrl, params, "ERROR", headers, true);
+print results;
+print  jsonget(json(results),"currency_t");
+return "";

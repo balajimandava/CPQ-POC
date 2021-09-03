@@ -1,0 +1,21 @@
+{
+  "name" : "Get BLine Threshold",
+  "variableName" : "getBLineThreshold",
+  "description" : "This function will extract threshold data for BLine",
+  "libraryFunctions" : [ ],
+  "returnType" : "Dictionary of String Dictionaries",
+  "parameters" : [ {
+    "name" : "lookupValueArray",
+    "type" : "String[]"
+  }, {
+    "name" : "agencyAssignment",
+    "type" : "String"
+  }, {
+    "name" : "transactionType",
+    "type" : "String"
+  }, {
+    "name" : "stringDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

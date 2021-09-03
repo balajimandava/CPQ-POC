@@ -1,0 +1,11 @@
+{
+  "name" : "Send to C360",
+  "variableName" : "sendToC360",
+  "description" : "",
+  "libraryFunctions" : [ "commerce.buildC360QuoteXML", "util.getEnvironmentVariable", "util.getListOfTransactionsForQuery" ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "opportunityNumber_t", "qqIsPrimary_t", "customerNumber_t", "bs_id" ],
+  "systemAttributes" : [ "_system_supplier_company_name", "_system_user_time_zone" ]
+}

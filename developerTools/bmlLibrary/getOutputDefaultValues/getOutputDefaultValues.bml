@@ -1,0 +1,59 @@
+//************************************************************************************************************
+//** Function:    Get Output Default Values
+//** Type:        BML Utility Function   
+//**
+//** Description: Return the Default to the Specific Output Attribute. 
+//** 
+//** Return type: String
+//**
+//** Mandatory Datatable Entries: Need to Add SalesOrg as compulsary field  or Transaction Type and Business Group As compulsary field.   
+//** Developer : Sharath K A
+//* Rev. Date |Developer            |Notes / Comments
+//* ----------|---------------------|-------------------------------------------------------------------------
+//* 2018-10-18|michael.yeung        | skip all the header level attributes.
+//* 2020-03-24|Atul Jain            | Removed commented code, and added debug mode to print statements.
+//******************************************************************************************************************
+
+debugMode = false;
+retJSON = json();
+retString = "";
+Key1 = "";
+Variable = "";
+outputAttributeArray =  String[]{"agreementCoverLetterDelivery_t","billOfMaterialsSortOutputTab_t", "documentFormatOutputTab_t", "itemDescriptionLongOutputDoct_t", "uPCEANOutputDoc_t", "materialNumberOutputDoc_t", "materialItemDescriptionShortOutputDoc_t", "pricingGroupOutputDoc_t", "netPricingOutputTab_t","customerSalutation_t","alternates_t","manufacturingLeadTime_t","approvalDrawingLeadTime_t","customerPartNum_t","outputType_t"};
+salesOrg = jsonget(data, "salesOrg", "string", "");
+businessGroup = jsonget(data, "businessGroup", "string", "");
+transactionType = jsonget(data, "transactionType", "string", "");
+defaultvalues = String[]{"pricingGroupOutputDoc_t", "materialNumberOutputDoc_t", "materialItemDescriptionShortOutputDoc_t", "itemDescriptionLongOutputDoct_t", "uPCEANOutputDoc_t","alternates_t","manufacturingLeadTime_t","approvalDrawingLeadTime_t","customerPartNum_t"};  
+//Querying 'AllAttributes' table to set the default values to Output Attributes
+results = bmql("Select Variable, Key from AllAttributes Where Variable IN $outputAttributeArray AND Default = 'Y' AND ((SalesOrg IS NULL AND BusinessGroup = $businessGroup) OR (SalesOrg = $salesOrg AND BusinessGroup IS NULL)) AND (TransactionType IS NULL OR TransactionType = $transactionType)");
+for row in results {
+	Key = get(row, "Key");
+	Variable = get(row, "Variable");
+	if(findinarray(defaultvalues,Variable ) <> -1){
+	    jsonput(retJSON,Variable,lower(Key));
+	}
+	else
+	{	
+	    jsonput(retJSON,Variable,Key); 
+	}  
+}
+//Setting up the Default value as 'false' to remove the 'Warnings'  
+for deVal in defaultvalues{
+	if(isnull(jsonget(retJSON, deVal)) OR jsonget(retJSON, deVal) == "")
+	{
+		jsonput(retJSON, deVal, "false");
+	}
+} 
+//format Return string    
+for opAttr in outputAttributeArray{
+   if(not isnull(jsonget(retJSON, opAttr)) AND jsonget(retJSON, opAttr) <> "")
+   {
+       if(debugMode)
+       {
+        print jsonget(retJSON, opAttr);
+       }
+      retString = retString + "1~" + opAttr+"~"+jsonget(retJSON, opAttr)+ "|";
+   }
+}
+	  	
+return retString;

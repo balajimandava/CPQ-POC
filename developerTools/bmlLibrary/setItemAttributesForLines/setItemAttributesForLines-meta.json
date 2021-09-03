@@ -1,0 +1,12 @@
+{
+  "name" : "Set Item Attributes for Lines",
+  "variableName" : "setItemAttributesForLines",
+  "description" : "",
+  "libraryFunctions" : [ "util.u_convertJsonArrayToStringArray", "util.u_getJsonDataForQuery" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

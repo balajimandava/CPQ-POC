@@ -1,0 +1,12 @@
+{
+  "name" : "General Checks",
+  "variableName" : "generalChecks",
+  "description" : "Handle General Checks in this library",
+  "libraryFunctions" : [ "util.getRemark" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

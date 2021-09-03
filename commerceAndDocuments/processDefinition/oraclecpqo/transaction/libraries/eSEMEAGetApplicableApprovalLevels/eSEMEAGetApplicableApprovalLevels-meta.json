@@ -1,0 +1,11 @@
+{
+  "name" : "ESEMEA Get Applicable Approval Levels",
+  "variableName" : "eSEMEAGetApplicableApprovalLevels",
+  "description" : "Project#52469|Austria Deployment|7thSept2020|Function to get applicable approval levels for particular conditions and sales org in ESEMEA BG",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "salesOrg_t" ],
+  "systemAttributes" : [ ]
+}

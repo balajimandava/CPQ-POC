@@ -1,0 +1,764 @@
+/*
+@name setApprovalRequired_BUSSMANN
+@api setApprovalRequired_BUSSMANN
+@summary BUSSMANN: 
+Determine if approval is required based on the new item and/or new item discounts.
+@attribute _document_number
+@attribute _system_current_step_var
+@attribute discountPercent_l
+@attribute materialPricingGroup_l
+@attribute salesGroup_t
+@attribute salesOrg_t
+@attribute requirePricingTeamApproval_t
+@attribute feedbackDiscountPercent_l
+@function Boolean u_logJson(String category, Integer level, Json jsonObject, String label)
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@function Boolean u_logStringArray(String category, Integer level, String[] strArr, String label)
+@function Json getDiscountLimitForBussmann(mpgList,salesGroup,salesOrg,stringDict);
+@function Json setEffectDateApproval(Json data)
+@function Json u_convertCommerceReturnStringToJSON(String returnString)
+@function Json u_getLineFromJson(Json data, String docNum)
+@function Json u_setCommerceAttribute(Json data, String docNum, String attribute, String value)
+@function String setApprovalRequired_BUSSMANN_BLINE()
+@function String u_buildCommerceReturnStrFromJson(Json data)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-03-31|Tat.Leung            |
+2018-04-18|michael.yeung        |
+2018-04-27|shibaji.ganguly      | Added code for showing Approval Warning Msgs at the top
+2018-04-30|shibaji.ganguly	| QQ-514 related changes.
+2018-05-02|shibaji.ganguly	| QQ-517 & QQ-520 related changes.
+2018-05-03|shibaji.ganguly	| QQ-517 related new changes as per James.
+2018-05-28|Harshit Mehta	| ALM Defect# 762 : Calling function getBussmannApproverData instead of getDiscountLimitForBussmann
+2018-05-30|Harshit Mehta	| ALM Defect# 721, 726 : Consider Margin for approval routing and enabling push functionality for ISR.
+2018-06-06|Harshit Mehta	| Feedback related changes.
+2018-06-08|Harshit Mehta	| ALM Defect# 793 : Notification message changes.
+2018-06-12|Harshit Mehta	| ALM Defect# 822 : Temporarily turn off margin check
+2018-06-28|dBo Haizlip		| Adding checks for previously approved values  98153765
+2018-08-27|Smriti Chaturvedi	|Added a check so that if a threshold is within the limit it should be approved by sales agent only 
+2018-09-25|Smriti Chaturvedi	| Added the Logic to find PLM for MPG and modified Line item PLM logic
+2018-09-27|Pooja Gupta		|Added Logic to stamp Approver Name on line items.
+2018-10-01|Smriti Chaturvedi	| Reverted the logic of Total Threshold Value Approval.
+2019-01-20|Smriti Chaturvedi	| Defect 1486- Logic added to set a flag which will be used in validation rule for Material Item
+2019-02-20|Harshit Maheshwari   |Incident INC000012155691- Added logic to check "Require PM Approval" attribute if Pricing_Discount is zero for particular line
+2019.02.20|Tanya Arora          |Getting feedbackdiscount_l from Previously approved value and comparing with current discount for DE1811 By Tanya Arora
+2019-02-21|Vasundhara Pentakota | Defect ALM -1882 Logic added to remove the red highlight for Line item when the discount is more than threshold and the submitted user belongs to Bussmann 
+2019-03-06|Pooja Gupta          |ALM 1910-Added logic to to check feedback applied flag is not setting at draft status
+2019-03-29|Harshit Maheshwari   |ALM 1967 - Added check to prevent blank MPG to pass through getBussmannApproverData UTIL
+2019-11-18|Harshit Mehta	|Multiple changes for Bussmann Configurator Project
+2020-05-28|Johnny Lin		|INC000013542068 change approval limit from qqTotalValue_t > 5000 to 10000
+2020-09-15|Praveen Sahu		|Project 51951: Req 618 - Added condition for distributor to avoid approval from Pricing Team
+2020-09-22|Shardul S            |Super User logic added as part of Bussmann QSCP Configurator Project 51951.
+2020-10-20|Shardul S		|Fix for INC000013537932
+2020-12-29|Shardul S		|Fix for INC000014086808
+2021-01-12|Shardul S		|Fix for INC000014131854
+2021-02-15|Nithin               |CPQ-3669 - materials should be exempt from the Zero List Price approval workflow triggering if price included flag True.
+2021-08-23|Praveen		|CPQ-6261 - Product Manager escaltion related fix
+*/
+
+prodHArray = String[];
+message="";
+//Smriti -Defect 1486- Parameters for Util function.
+inputJson=json();
+materialLineItemMapping=json();
+materialItemArr = jsonarray();
+distributionChannel=jsonput(inputJson, "distributionChannel", distributionChannel_t);
+salesOrg=jsonput(inputJson, "salesOrg", salesOrg_t);
+businessgroup=jsonput(inputJson, "businessgroup", qqBusinessLineForSalesOrg_t);
+language=jsonput(inputJson, "language", _system_current_user_language);
+previouslyApprovedMaterialitems=String[];
+previouslyApprovedLine= false;
+newItemApprovalFlag = false;
+additionalItemFlag=false;
+notificationMessage = "";
+approverName="";
+emailSubjectStatus="";
+isQSCPModel=false;
+superUser="";
+isPMApprovalRequired=false;
+if (_system_current_step_var == "start_step") {
+    return "";
+}
+// Type of agreement flags
+isNew= ( (previousAction_t == "new") OR (previousAction_t == "copy") );
+isRevise= (previousAction_t == "revise");
+currencyDecimalSeparator = currencyDecimalSeparator_t;
+currencySymbol = currencySymbol_t;
+
+previouslyApproved= false;
+previousApprovedValues= json();
+if (previousApprovedValues_t <> "") {
+  previousApprovedValues= json(previousApprovedValues_t);
+  previouslyApproved= true;
+}
+
+
+LOG_CATEGORY = "COM_APPROVAL";
+
+newItemApprovalData = commerce.setApprovalRequired_BUSSMANN_BLINE();
+data = util.u_convertCommerceReturnStringToJSON(newItemApprovalData);
+
+// ----------- process approval logic for Bussmann for other lines
+
+// get MPG's for all lines
+mpgList = string[];
+materialnumlist=string[];
+for line in transactionLine {
+    docNum = line._document_number;
+    currentLine = util.u_getLineFromJson(data, docNum);
+    mpg = jsonget(currentLine, "materialPricingGroup_l", "string", line.materialPricingGroup_l);
+	matrNum = jsonget(currentLine, "materialLineItem_l", "string", line.materialLineItem_l);
+	if(matrNum <> "")
+	{
+		append(materialnumlist,matrNum);	
+	}
+   
+	 //2019-03-29 | Harshit Maheshwari  |ALM 1967 - Added check to prevent blank MPG to pass through getBussmannApproverData UTIL	 
+	 if ((findinarray(mpgList, mpg) < 0) AND mpg <> ""){
+        append(mpgList, mpg);
+    }
+}
+logStatus = util.u_logStringArray(LOG_CATEGORY, 4, mpgList, "mpgList");
+
+/******************** to Find PH4 from material item ************************/
+phRecordSet = BMQL("Select DISTINCT PRODH,MATNR from MAT01 WHERE MATNR IN $materialnumlist AND VKORG = $salesOrg_t");
+materialItemdict=dict("string");
+
+for phRecord in phRecordSet
+{	
+	materialitem=get(phRecord,"MATNR"); 
+	prodHierarchy = get(phRecord,"PRODH");
+	PH4 = "";
+	if(prodHierarchy <> "")
+	{
+		PH4 = substring(prodHierarchy,6,9);
+	}	
+	if(PH4 <> "")
+	{
+		append(prodHArray,PH4);
+		put(materialItemdict, materialitem,PH4);
+	}
+	
+}	
+/*************End of PH4********************************************************/
+
+
+// get approval limits and approver data
+salesOrg = jsonget(data, "salesOrg_t", "string", salesOrg_t);
+salesGroup = jsonget(data, "salesGroup", "string", salesGroup_t);
+approvalData = json();
+stringDict = dict("string");
+prodHString = "'" + join(prodHArray, "','") + "'";
+put(stringDict,"PH4",prodHString);
+
+if( sizeofarray(mpgList) > 0 ) {
+	//ALM Defect# 762 calling new function getBussmannApproverData function instead of getDiscountLimitForBussmann
+	approvalData = util.getBussmannApproverData(mpgList,salesGroup,salesOrg,stringDict);
+}
+//print "approvalData = ";
+//print approvalData;
+//print "################################";
+logStatus = util.u_logJson(LOG_CATEGORY, 4, approvalData, "approvalData");
+
+// determine if each line needs approval and who the approver will be
+requireInsideSalesApproval = false;
+requirePricingTearmApproval = false;
+requireTotalValueApproval = false;
+requireZeroPricingApproval = false;
+feedbackApplied = false;
+zeroListPriceDocNumArr = string[];
+requirePMApproval=false;
+skipInsideSalesApproval = false; //INC000014086808
+for line in transactionLine {	
+	requirePMApproval=false;
+	previouslyApprovedLine=false;
+    docNum = line._document_number;
+	linenumber=line._sequence_number;
+	productType= line.qqProductType_l; // Smriti- Added for defect 983
+	
+	approvedNetFixedAmount = line.approvedNetFixedAmount_l; //Harshit Maheshwari - Added for Incident INC000012155691
+	level2ThresholdVal = line.level2ThresholdVal;//Ali - Added for Incident INC000012155691
+	approvedDiscount = line.approvedDiscount_l; //Harshit Maheshwari - Added for Incident INC000012155691
+    currentLine = util.u_getLineFromJson(data, docNum);
+    mpg = jsonget(currentLine, "materialPricingGroup_l", "string", line.materialPricingGroup_l);	
+    matrNum = jsonget(currentLine, "materialLineItem_l", "string", line.materialLineItem_l);		
+    currentDiscountPercent = jsonget(currentLine, "discountPercent_l", "float", line.discountPercent_l);
+	feedbackDiscountPercent = jsonget(currentLine,"feedbackDiscountPercent_l","float",line.feedbackDiscountPercent_l);
+    currentMarginPercent = jsonget(currentLine,"marginPercentage_l","float",line.marginPercentage_l);
+    listPrice = jsonget(currentLine, "oldListPrice_l", "float", line.oldListPrice_l);
+	discountType = jsonget(currentLine, "customDiscountType_l", "string", line.customDiscountType_l);
+    logStatus = util.u_logString(LOG_CATEGORY, 4, string(currentDiscountPercent), "currentDiscountPercent (" + docNum + ")");
+	logStatus = util.u_logString(LOG_CATEGORY, 4, string(feedbackDiscountPercent), "feedbackDiscountPercent (" + docNum + ")");
+	discountNetAmount= util.stringToFloat(replace(replace(replace(line.discountString_l, currencySymbol, ""), "%", ""), currencyDecimalSeparator, "."));
+    discountString = line.discountString_l;
+	 
+	/************Currency Profile Check ****************/
+	currencyflag=false;
+	
+	feedbackvalue= line.discountPercentNetApprovedString_l;	
+	currencydecimalseparatorval=currencyDecimalSeparator_t;
+	currencyThousandseparatorval=currencyThousandsSeparator_t;
+	feedbackval=find(feedbackvalue,currencydecimalseparatorval);
+	feedbackthousandval=find(feedbackvalue,currencyThousandseparatorval);
+	if((feedbackval == -1) AND (feedbackthousandval== -1))
+	{
+		currencyflag = false;
+		
+	}
+	elif (feedbackval == -1)
+	{
+		currencyflag = true;
+	}
+
+	jsonput(currentLine,"currencyflag_l",currencyflag);	
+	
+    /* --------------------- Getting the Approval limit for the current line ------------*/
+    discountApprovalLimitData = jsonpathgetsingle(approvalData, "$.approverData[?(@.VPG=='" + mpg + "')]", "json", json());    
+    logStatus = util.u_logJson(LOG_CATEGORY, 4, discountApprovalLimitData, "discountApprovalLimitData");
+    salesDiscountLimit = jsonpathgetsingle(discountApprovalLimitData, "$..discountLimit.['Sales_Discount']", "float", 0.0);
+    isrDiscountLimit = jsonpathgetsingle(discountApprovalLimitData, "$..discountLimit.['ISR_Discount']", "float", 0.0);
+    isrMarginLimit = jsonpathgetsingle(discountApprovalLimitData, "$..discountLimit.['ISR_Margin']", "float", 0.0);
+    contractDiscountLimit = jsonpathgetsingle(discountApprovalLimitData, "$..discountLimit.['Pricing_Discount']", "float", 0.0);
+    contractMarginLimit = jsonpathgetsingle(discountApprovalLimitData, "$..discountLimit.['Pricing_Margin']", "float", 0.0);
+	
+	/* ----------------  Set level2ThresholdVal with isrDiscountLimit ------------------*/
+	jsonput(currentLine,"level2ThresholdVal",isrDiscountLimit);
+	
+	/* ----- 02/20/2019 Harshit Maheshwari : Added for Incident INC000012155691. Setting requirePMApproval_l to true if contractDiscountLimit OR isrDiscountLimit is 0 -----*/
+	/* ----- Praveen Sahu: Added for Project 51951, Req# 618 - For Disti user if above ISR threshold then goes for PM approval -----*/
+	if(contractDiscountLimit <= 0 OR isrDiscountLimit <= 0 OR (isBussmannDistributor_t AND currentDiscountPercent>isrDiscountLimit AND feedbackDiscountPercent > isrDiscountLimit)){		
+		data = util.u_setCommerceAttribute(data, docNum, "requirePMApproval_l", string(true));
+		requirePMApproval=true;		
+	/* ----- 02/20/2019 Harshit Maheshwari : Added for Incident INC000012155691. Setting boolean attribute to restrict "bussmannPricingTeam" user group from entering Feedback ---*/
+	if(((isnumber(approvedNetFixedAmount) AND  atof(approvedNetFixedAmount) > 0) OR (isnumber(approvedDiscount) AND atof(approvedDiscount) > 0)) AND (isnumber(		   		    level2ThresholdVal) AND atof(level2ThresholdVal) > 0)){
+						 data = util.u_setCommerceAttribute(data, docNum, "thresholdCheck_l", string(true));
+		}
+	}  
+	
+	
+	/* ----- ALM- 1445-Smriti- Modified the below code to identify PLM for MPG and Line Item -----*/
+	if(productType == "group")
+	{	
+		PH4value = jsonpathgetsingle(discountApprovalLimitData, "$..['PH4']", "string");
+		
+		if(PH4value <> "" AND (PH4value <> "Mixed" OR PH4value <> "mixed"))
+		{
+			approver=jsonpathgetsingle(discountApprovalLimitData, "$..['Level4Approver']", "string");
+			/* --- ALM-750 -Pooja-Addded below code to get Approver Name of PM ---*/
+			approverName=jsonpathgetsingle(discountApprovalLimitData, "$..['ApproverName']", "string");
+			jsonput(currentLine, "approver_l", approver);
+		}
+		
+	}//End for MPG PLM
+    /* ----- Get PLM Approver for each line item -----*/
+	elif(productType == "normal")
+	{
+		PH4val= get(materialItemdict,matrNum);
+		PH4rowset=jsonarray();
+		if((PH4val <> "" OR NOT ISNULL(PH4val)) AND isnumber(PH4val)){			
+			PH4IntVal=atoi(PH4val);	
+			PH4rowset = jsonpathgetmultiple(approvalData, "$.approverData[?(@.PH4=='"+string(PH4IntVal)+"')]");	
+		}else{
+			PH4rowset = jsonpathgetmultiple(approvalData, "$.approverData[?(@.PH4=='" + PH4val + "')]");
+		}
+		//PH4rowset = jsonpathgetmultiple(approvalData, "$.approverData[?(@.PH4=='"+string(PH4IntVal)+"')]");
+		//print "%%%%%%%%%%%%%%%%%%%%%%%%";
+		//print line._document_number;
+		//print "PH4rowset = ";
+		//print PH4rowset;
+		//print "jsonarraysize(PH4rowset)";
+		//print jsonarraysize(PH4rowset);
+		//print "------------------------";
+		if(jsonarraysize(PH4rowset) > 0)
+		{
+			//print "inside setting approver_l";	
+			
+			approverPH4 = jsonarrayget(PH4rowset,0,"json");
+			approver=jsonpathgetsingle(approverPH4,"$..['Level4Approver']");
+			//ALM-750 -Pooja-Addded below code to get Approver Name of PM
+			approverName=jsonpathgetsingle(approverPH4,"$..['ApproverName']");
+			jsonput(currentLine, "approver_l", approver);
+					
+		}
+		//Smriti -Defect 1486- Parameters for Util function.
+		jsonarrayappend(materialItemArr, line.materialLineItem_l);
+		jsonput(materialLineItemMapping,matrNum,lineNumber);
+	}//End for Line Item PLM
+	/* ----- Harshit Mehta : Get PLM approver for Bussmann Configuration Items. -----*/
+	elif(productType == "configuration")
+	{
+		//print "Inside configuration";
+		//print "Setting approver";
+		approver=jsonpathgetsingle(discountApprovalLimitData, "$..['Level4Approver']", "string");
+		approverName=jsonpathgetsingle(discountApprovalLimitData, "$..['ApproverName']", "string");
+		jsonput(currentLine, "approver_l", approver);
+		jsonput(currentLine, "approverName_l", approverName);
+	}
+    /* ----- assume no approval required for any line -----*/
+    jsonput(currentLine, "approvalRequired_l", false);
+		
+	/************END of Currency Profile Check ****************/
+	
+	/************COPY/REVISE/VERSION logic for line item***************************************************************************/
+	/* ----- Path to find the item in the items array -----*/
+    path= "$..[?(@.materialLineItem_l=='" + matrNum + "')]";
+    previousApprovalManyJsonPath= jsonpathgetmultiple(previousApprovedValues,path,true);	
+	
+	/* ----- Checking if the item is previously approved -----*/
+	if (previouslyApproved)
+	{
+		loopCNT= range(jsonarraysize(previousApprovalManyJsonPath));
+		previouslyApprovedItemFound= false;
+		eachItemJson= json();
+		for eachPathIdx in loopCNT 
+		{ 
+		 pathName= jsonarrayget(previousApprovalManyJsonPath,eachPathIdx,"string");
+		 eachItemJson= jsonpathgetsingle(previousApprovedValues,pathName,"json");
+		 previouslyApprovedItemFound= true;		  
+		 previouslyApprovedDiscountType= jsonpathgetsingle(eachItemJson,"$.customDiscountType_l.value","string","");
+		 previouslyApprovedDiscountNetValueString= jsonget(eachItemJson,"discountString_l","string","0.0");	
+		 /* ----- Getting feedback values to compare with current discount -----*/
+		 previouslyApprovedFeedbackValue= jsonget(eachItemJson,"feedbackDiscount_l","string","0.0");	
+		 previouslyApprovedMaterial= jsonpathgetsingle(eachItemJson,"$.materialLineItem_l","string","");
+		 if (NOT(ISNULL(previouslyApprovedMaterial)))
+		 {
+		 
+			 append(previouslyApprovedMaterialitems,previouslyApprovedMaterial);
+		 }
+			 
+		if(isnull(previouslyApprovedDiscountNetValueString)) 
+		{
+			previouslyApprovedDiscountNetValueString = "";
+		}	
+		if(isnull(previouslyApprovedFeedbackValue)){
+			previouslyApprovedFeedbackValue = "";
+		}
+		previouslyApprovedDiscountNetValue= util.stringToFloat(replace(replace(replace(previouslyApprovedDiscountNetValueString, currencySymbol, ""), "%", ""), currencyDecimalSeparator, "."));		
+		feedbackAmount= util.stringToFloat(replace(replace(replace(previouslyApprovedFeedbackValue, currencySymbol, ""), "%", ""), currencyDecimalSeparator, "."));		
+		
+		  /* ----- If this is a new verion (isVersion) and the row discountType=amt then approval is required again -----*/
+			if (previouslyApprovedItemFound) 
+			{  //  Only check if we found the item
+				if (isRevise) 
+				{
+				  // No approval needed if the previous approval was a percent and the current discount is less or equal
+				 if (previouslyApprovedDiscountType == "percent" AND discountNetAmount <= previouslyApprovedDiscountNetValue AND discountType == "percent"
+					AND feedbackAmount == discountNetAmount)
+					{				
+						previouslyApprovedLine= true;
+					}
+				// If it was an amount and the amount is lowered then approval is needed
+				  elif (previouslyApprovedDiscountType == "amt" AND discountNetAmount >= previouslyApprovedDiscountNetValue AND discountType == "amt" 
+				        AND feedbackAmount == discountNetAmount)
+					{
+					  previouslyApprovedLine= true;
+					
+					}
+				//Comparing Feedback Values and current values for DE1811 by Tanya Arora
+					elif(feedbackAmount <> discountNetAmount){
+						// If feedback values is not same as current discount values then needs to be approved
+					   previouslyApprovedLine = false;
+					}
+				}
+			}
+			
+		} 
+		if(findinarray(previouslyApprovedMaterialitems,matrNum)==-1)
+		{
+				additionalItemFlag=true;
+		}
+		
+    }	
+
+	/* -----  Skip the rest of the checks if this is a previously approved line -----*/
+    if (previouslyApprovedLine AND NOT(additionalItemFlag)) {
+      // set the variable that determines if an approval is required for that item in the line item grid
+	  jsonput(currentLine, "approvalRequired_l", "");
+	  // set the variable that contains what level of approval is required for that item in the line item grid	  
+      continue;
+    }
+	/************END of COPY/REVISE/VERSION logic for line item*******************************************************************************/
+	
+	/* ----- Logic for New Items to fetch if an item is New item ----*/
+	if(productType == "new")
+	{		
+		newItemApprovalFlag = true;
+		jsonput(currentLine, "approvalRequired_l", newItemApprovalFlag);		
+	}
+	/* ----- For New Item discountfeedbackValue may be blank as user is not requesting any discount but looking to change List Price ----*/
+	if(newItemApprovalFlag AND  discountString == "" AND (_system_current_step_var == "pendingApproval") AND ((feedbackvalue <> "") AND isNumber(feedbackValue) AND atof(feedbackValue) > 0))
+	{
+		feedbackApplied = true;
+	}
+	
+	/* ----- Check if Feedback is applied on Quote OR not -----*/
+	//ALM 1910-Added logic to to check feedback applied flag is not setting at draft status
+	
+	if(currentDiscountPercent <> feedbackDiscountPercent AND (_system_current_step_var == "pendingApproval"))
+	{
+		feedbackApplied = true;
+	}	
+
+
+	if ((matrNum <> "") AND (not(isnull(matrNum))) AND (listPrice == 0.00) AND ((productType <>"group") AND (productType <>"new")) AND NOT(line.priceIncluded_l)) {
+		requireZeroPricingApproval = true;
+		append(zeroListPriceDocNumArr, docNum);
+		jsonput(currentLine, "approverName_l", "Pricing Group");
+	} 	
+    
+    /* ----- Logic to determine if inside sales approval is needed ----*/
+	/* ----- Inside Sales approval is needed only if discount is under ISR Discount AND Margin is > ISR Margin Limit otherwise it should skip ISR approval and direct Pricing Team approval will require. ----*/
+	/* ----- Changes are part of ALM-1882 - Added by Vasundhara - Added If condition - If discount is more than sales threshold making approvalValue flag as false so it wont show the line item highlighted in red -----*/
+	if(currentDiscountPercent > salesDiscountLimit AND  find(quoteSubmitter_t,"bussmannInsideSales") > -1){
+		jsonput(currentLine, "approvalRequired_l", false);
+		requireInsideSalesApproval = false;
+		jsonput(currentLine, "approverName_l", "ISR Group");
+	}
+	/* ----- Project 51951- CPQ-618 - Added distributor condition, In case of distributor user approval should go to Inside Bussmann sales if it is within threshold-----*/
+	/* ----- Project 51951- CPQ-618 - For Legacy and Siemens user Approval flow should not trigger -----*/
+    elif (requireZeroPricingApproval==false AND (((currentDiscountPercent > salesDiscountLimit AND currentDiscountPercent <= isrDiscountLimit) AND (currentMarginPercent > isrMarginLimit) AND isLegacyEaton_t==false AND isSiemensUser_t==false) OR (isBussmannDistributor_t AND currentDiscountPercent <= isrDiscountLimit)))
+	   
+	//Harshit : ALM# 822, Removing margin percent from condition	 
+    //if (currentDiscountPercent > salesDiscountLimit AND currentDiscountPercent <= isrDiscountLimit)
+    {
+		jsonput(currentLine, "approvalRequired_l", true);
+		requireInsideSalesApproval = true;	
+		//ALM-750 -Pooja-Addded below code to stamp Approver Name as ISR Group if line item needs ISR Approval
+		jsonput(currentLine, "approverName_l", "ISR Group");		
+		jsonput(currentLine, "approverForBlineBussman_l", "6"); //Added by Shardul as a fix for INC000013537932
+		if(line.takeOffModel_l=="BUSQSCP"){
+			isQSCPModel=true;
+		}
+		
+    }	
+
+    /* ----- determine if pricing team approval is needed  ----- */  	
+	/* ----- Add condition to manually push Quote to Pricing Team from ISR. -----*/
+	/* ----- Smriti : ALM # 1402 , added the condition in order to handle the approval if a limit is within the salesagent threshold. -----*/	
+	/* ----- Praveen : Project 51951 - CPQ 618 - Added distributor condition, don't need Pricing Team Approval in case of distributor -----*/
+	/* ----- Praveen : Project 51951 - CPQ 618 - For Legacy and Siemens user no approval needed -----*/
+	if ((currentDiscountPercent > isrDiscountLimit OR requirePricingTeamApproval_t OR currentMarginPercent < isrMarginLimit) AND (currentDiscountPercent > salesDiscountLimit) AND (isBussmannDistributor_t==false AND isLegacyEaton_t==false AND isSiemensUser_t==false))
+	//Harshit : ALM# 822, Removing margin percent from condition
+	
+	{
+		/* ----- Set approval require flag only if	 threshold condition match -----*/
+		requirePricingTearmApproval = true;		
+		requireInsideSalesApproval= false;
+		skipInsideSalesApproval = true; //INC000014086808
+		jsonput(currentLine, "approvalRequired_l", true);
+			
+		
+		/* ----- ALM-750 -Pooja-Addded below code to stamp Approver Name as Pricing Group if line item needs Pricing Approval -----*/
+		jsonput(currentLine, "approverName_l", "Pricing Group");
+		
+		jsonput(currentLine, "approverForBlineBussman_l", "7"); //Added by Shardul as a fix for INC000013537932
+		
+	}	
+
+	
+		
+	/* ----- ALM-750 -Pooja-Addded below code to stamp Approver Name with PM Name if line item is pusehed to Pricing team for Approval -----*/
+	//if(//_system_current_step_var == "pendingApproval" AND //Commented by Shardul for INC000014131854
+	//Added the OR condition for CPQ-6261
+	   if(requirePMApproval==true OR line.requirePMApproval_l==true)
+	{		
+			//print "Setting requirePMApproval";
+			//print "Setting PM Approval true in Pending Step";
+			//print "Approver name is  - "+approverName;
+			//print "Current Step - ";
+			//print _system_current_step_var;
+			requireInsideSalesApproval= false; // Added for Project 51951 CPQ-618
+			requirePricingTearmApproval = false; // Added for Project 51951 CPQ-618
+			requirePMApproval=true;	
+			//Added this condition for CPQ-6261
+			if(requirePMApproval){
+				isPMApprovalRequired = true; 
+			}	
+			//End changes for CPQ-6261
+			skipInsideSalesApproval = true; //INC000014086808
+			jsonput(currentLine, "approverName_l", approverName);
+			jsonput(currentLine, "approvalRequired_l", true);
+			jsonput(currentLine, "approverForBlineBussman_l", "8"); //Added by Shardul as a fix for INC000013537932
+	}		
+}
+
+if(jsonarraysize(materialItemArr) >0){
+	jsonput(inputJson, "materialitem", materialItemArr);
+	jsonput(inputJson,"materialLineItemMapping",materialLineItemMapping);
+	//Smriti -Defect 1486-  Util function invocation
+	retJson = util.getMAT01MultipleDetails(inputJson);	
+	message =jsonget(retJson, "message");	
+}
+
+/* ----- Smriti - ALM - 1492- Added the below logic to consider revise functionality for totalvalue of transacion -----*/
+previouslyApprovedTotalValue= jsonpathgetsingle(previousApprovedValues,"$.qqTotalValue_t.value","float",0.0);
+
+/* ----- Johnny Lin - INC000013542068 change approval limit from qqTotalValue_t > 5000 to 10000 -----*/
+if((qqTotalValue_t > 10000.0)) {
+	requireTotalValueApproval = true;	
+	skipInsideSalesApproval = true;
+	if((previouslyApprovedTotalValue >= qqTotalValue_t) AND (isRevise)) {
+		requireTotalValueApproval = false;
+		skipInsideSalesApproval = false;
+	}
+}
+
+/* ----- Setting Approval Required in case of Zero Pricing Approval -----*/
+if(requireZeroPricingApproval) {
+	if(sizeofarray(zeroListPriceDocNumArr) > 0) {
+		for eachDocNum in zeroListPriceDocNumArr {
+			data = util.u_setCommerceAttribute(data, eachDocNum, "approvalRequired_l", "true");
+		}
+	}
+}
+
+/* ----- Harshit : Start Changes for ALM# 857 :: To skip ISR level approval if Quote submitter belongs to ISR group. -----*/
+
+if( find(quoteSubmitter_t,"bussmannInsideSales") > -1)
+{
+              requireInsideSalesApproval = false;
+}
+
+
+//Added by Shardul for INC000014086808
+if(skipInsideSalesApproval)
+{
+	requireInsideSalesApproval = false;
+}
+
+
+/* ----- 15 Feb- Pooja Gupta - Added below code to return status of transaction conditionally.This is used in Subject of 1.(Multi) Transaction Approved Template,2.(Multi) Transaction Approved Template - Delegate Notification Email Templates. -----*/ 
+if(feedbackApplied==false)
+{
+	if(_system_current_user_language == "de")
+	{
+	 	emailSubjectStatus="Genehmigt";
+	}
+	else
+	{
+		emailSubjectStatus="Approved";
+	}
+}
+else
+{
+	if(_system_current_user_language == "de")
+	{
+	 	emailSubjectStatus="Ausstehendes Feedback";
+	}
+	else
+	{
+		 emailSubjectStatus="Pending Feedback";
+	}
+}
+
+
+
+
+/* ----- Harshit : End Changes for ALM#857 :: To skip ISR level approval if Quote submitter belongs to ISR group. -----*/
+data = util.u_setCommerceAttribute(data, "1", "requireBussmannInsideSalesApproval_t", string(requireInsideSalesApproval));
+data = util.u_setCommerceAttribute(data, "1", "requireBussmannPricingTeamApproval_t", string(requirePricingTearmApproval));
+data = util.u_setCommerceAttribute(data, "1", "totalValueApprovalRequired_t", string(requireTotalValueApproval));
+data = util.u_setCommerceAttribute(data, "1", "zeroListPriceApprovalRequired_t", string(requireZeroPricingApproval));
+data = util.u_setCommerceAttribute(data, "1", "qqNewItemApprovalRequired_t", string(newItemApprovalFlag));
+data = util.u_setCommerceAttribute(data, "1", "feedbackApplied_t", string(feedbackApplied));
+data = util.u_setCommerceAttribute(data, "1", "obsoleteMaterialMessage_t", message);
+data = util.u_setCommerceAttribute(data, "1", "emailSubjectStatus_t", emailSubjectStatus);
+//data = util.u_setCommerceAttribute(data, "1", "requireBussmannProductManagerApproval_t", string(requirePMApproval));
+data = util.u_setCommerceAttribute(data, "1", "requireBussmannProductManagerApproval_t", string(isPMApprovalRequired)); //updated this for CPQ-6261
+data = commerce.setEffectDateApproval(data);
+effectDateApprovalRequired = jsonget(data, "validityPeriodApprovalRequired_t", "boolean", validityPeriodApprovalRequired_t);
+
+
+/*******************Revise logic for approval dates*******************************/
+
+if (isRevise) 
+{
+	validityPeriodApproval= false;
+	previousApprovedValidityFromString= jsonget(previousApprovedValues,"agreementValidFrom_t","string","");
+	previousApprovedValidityToString= jsonget(previousApprovedValues,"agreementValidTo_t","string","");
+	previouslyApprovedvalidDays  =0 ;
+	if ((previousApprovedValidityFromString <> "") and (previousApprovedValidityToString <> "")) {
+
+	  previouslyApprovedvalidDays = getdiffindays(strtojavadate(previousApprovedValidityFromString, "yyyy-MM-dd"), strtojavadate(previousApprovedValidityToString, "yyyy-MM-dd"));
+	} 
+
+	// set validity period variable
+	if ((agreementValidFrom_t <> "") AND(agreementValidTo_t <> "")) {
+		// Get the number of days betwen the valid from and valid to dates
+		validDays = getdiffindays(strtojavadate(agreementValidFrom_t, "yyyy-MM-dd HH:mm:ss"), strtojavadate(agreementValidTo_t, "yyyy-MM-dd HH:mm:ss")); 
+	}
+
+	if ( (previouslyApprovedvalidDays > 0) AND (previouslyApprovedvalidDays >= validDays) ) {
+		  validityPeriodApproval= false;	  
+		  data = util.u_setCommerceAttribute(data, "1", "validityPeriodApprovalRequired_t", string(validityPeriodApproval));
+		  effectDateApprovalRequired = jsonget(data, "validityPeriodApprovalRequired_t", "boolean", validityPeriodApprovalRequired_t);
+	} 
+}
+/*******************END of Revise logic for approval dates*******************************/
+// For Approval Messages at the top.
+
+notificationsArray = string[];
+if(notificationMessage <> "") {
+	notificationMessage = notificationMessage + "/n";
+}
+
+userLanguage = _system_current_user_language;
+WARNING_MESSAGE_1 = util.getRemark("WARNING_MESSAGE_1", userLanguage);
+WARNING_MESSAGE_DiscountApproval = util.getRemark("WARNING_MESSAGE_13", userLanguage);
+WARNING_MESSAGE_EffectDateApproval = util.getRemark("WARNING_MESSAGE_15", userLanguage);
+WARNING_MESSAGE_TotalValueApproval = util.getRemark("WARNING_MESSAGE_16", userLanguage);
+WARNING_MESSAGE_ZeroPriceApproval = util.getRemark("WARNING_MESSAGE_17", userLanguage);
+WARNING_MESSAGE_PricingTeam = util.getRemark("WARNING_MESSAGE_18", userLanguage);
+WARNING_MESSAGE_InsideSalesTeam = util.getRemark("WARNING_MESSAGE_19", userLanguage);
+WARNING_MESSAGE_NewItem=util.getRemark("WARNING_MESSAGE_7", userLanguage);
+
+
+/* ----- Discount Approval Related Msgs -----*/
+	//ISR Level approval mssg
+msg = "";
+approverNames="";
+		
+	if(requireInsideSalesApproval OR skipInsideSalesApproval) {		
+		msg = msg + WARNING_MESSAGE_InsideSalesTeam + " (Level 2)";
+	}
+	//Pricing Team Level approval mssg.
+	if(requirePricingTearmApproval) {
+		if(msg <> "")
+		{
+			msg = msg + " ," + WARNING_MESSAGE_PricingTeam + " (Level 3)";
+		}
+		else
+		{
+			msg = WARNING_MESSAGE_PricingTeam + " (Level 3)";
+		}
+	}
+	
+	if(requirePricingTearmApproval OR requirePMApproval){
+		
+		if((not(isnull(productManagerApprovers_t))) AND (trim(productManagerApprovers_t) <> "")) {
+			approverArr = split(productManagerApprovers_t, ",");
+			approverNamesArr = string[];
+			for approver in approverArr {
+				approverName = "";
+				  approverNameJsonArray = jsonpathgetmultiple(approvalData,"$..[?(@.Level4Approver =='" + approver + "')].ApproverName",false);
+				  if(jsonarraysize(approverNameJsonArray) > 0)
+				  {
+					approverName = jsonarrayget(approverNameJsonArray,0,"string") ;	
+					if(approverNames<>"")
+					{
+						approverNames = approverNames+","+approverName;
+					}
+					else
+					{
+						approverNames = approverName;
+					}
+				  }
+				
+				if((approverName <> "") AND (not(isnull(approverName))) AND (findinarray(approverNamesArr, approverName + " - " + approver + " (Level 4)") == -1)) {
+					append(approverNamesArr, approverName + " - " + approver + " (Level 4)");
+				}
+			}
+			
+			if(msg <> "")
+			{
+				msg = msg + ", " + join(approverNamesArr, ", ");
+			}
+			else
+			{
+				msg = join(approverNamesArr, ", ");
+			}
+		} 
+	} 
+	if(approverNames <> "")
+	{
+		data = util.u_setCommerceAttribute(data, "1", "level4Email_t", productManagerApprovers_t);
+		data = util.u_setCommerceAttribute(data, "1", "approverNameL4_t", approverNames);	
+	}
+	
+	if(msg <> "")
+	{
+		msgBody1 = "<b>" + WARNING_MESSAGE_DiscountApproval + "</b> ";
+		append(notificationsArray, "<p>" + msgBody1 + " " + WARNING_MESSAGE_1 + " " + msg + "</p>");
+	}
+   
+// Validity Period Related Msgs
+if(effectDateApprovalRequired) {
+	msgBody1 = "<b>" + WARNING_MESSAGE_EffectDateApproval + "</b> ";
+	append(notificationsArray, "<p>" + msgBody1 + " " + WARNING_MESSAGE_1 + " " + WARNING_MESSAGE_PricingTeam + "</p>");
+}
+
+// Total Quote Value Related Msgs
+if(requireTotalValueApproval) {
+	msgBody1 = "<b>" + WARNING_MESSAGE_TotalValueApproval + "</b> ";
+	append(notificationsArray, "<p>" + msgBody1 + " " + WARNING_MESSAGE_1 + " " + WARNING_MESSAGE_PricingTeam + "</p>");
+}
+
+if(newItemApprovalFlag)
+{
+	msgBody1 = "<b>" + WARNING_MESSAGE_NewItem + "</b> ";
+	append(notificationsArray, "<p>" + msgBody1 + " " + WARNING_MESSAGE_1 + " " +WARNING_MESSAGE_InsideSalesTeam+ ","+" "+ WARNING_MESSAGE_PricingTeam + "</p>");
+}
+
+// Zero List Price Related Msgs
+if(requireZeroPricingApproval) {	
+	msgBody1 = "<b>" + WARNING_MESSAGE_ZeroPriceApproval + "</b> ";
+	append(notificationsArray, "<p>" + msgBody1 + " " + WARNING_MESSAGE_1 + " " + WARNING_MESSAGE_PricingTeam + "</p>");    
+}
+
+if(qqNewItemApprovalRequired_t OR requireBussmannPricingTeamApproval_t OR zeroListPriceApprovalRequired_t OR totalValueApprovalRequired_t OR validityPeriodApprovalRequired_t OR qqNewItemApprovalRequired_t)
+{
+	data = util.u_setCommerceAttribute(data, "1", "approverNameL3_t", "Bussmann Pricing Team");	
+}
+
+if (sizeofarray(notificationsArray) > 0) {
+    notificationMessage = notificationMessage + join(notificationsArray, "/n");
+}
+
+/* ----- If Quote status is approved then no need to show warning message -----*/
+if(status_t == "approved")
+{
+	notificationMessage = "";
+}
+data = util.u_setCommerceAttribute(data, "1", "agreementWarningMessages_t", notificationMessage);
+
+/* ----- Super user logic Added by Shardul for 51951 project -----*/
+
+superUserRecordSet = BMQL("SELECT SuperUserEnumber,SalesOrg from SuperUser WHERE BusinessGroup = $businessgroup");
+for superUserRecord in superUserRecordSet
+{
+	superUserValue = get(superUserRecord,"SuperUserEnumber");
+	superUserSalesOrg = get(superUserRecord,"SalesOrg");
+	if(not isnull(superUserSalesOrg) AND superUserSalesOrg == "")
+	{
+		if(find(superUserSalesOrg,salesOrg) > -1)
+		{
+			if(len(superUser) > 0)
+			{
+				superUser=superUser+"#@#"+superUserValue;
+			}
+			else
+			{
+				superUser =superUserValue;
+			}	
+		}
+	}
+	else
+	{
+		if(len(superUser) > 0)
+		{
+			superUser=superUser+"#@#"+superUserValue;
+		}
+		else
+		{
+			superUser =superUserValue;
+		}
+	}
+	
+}
+data = util.u_setCommerceAttribute(data, "1", "superUserEmail_t", superUser);
+
+/* ----- END : Super user logic ----- */
+
+return util.u_buildCommerceReturnStrFromJson(data) + "|";

@@ -1,0 +1,176 @@
+//***********************************************************************************************************
+//** Function:      Update Line Descriptions
+//** Type:          BML Before Formulas
+//**                                                                                                       
+//** Description:   Update line item descriptions for MLI and MPG
+//**                                                                                                       
+//** Parameters:    none
+//**      
+//** Return:    String containing header and/or line items to update
+//**                                                                              
+//** History:     Date    Author     			 Comment                                                              
+//**         2017.10.25.   shansen     			 Initial
+//**		 2019.02.14    Vasundhara   		ALM - 1692
+//**		 2019.04.05    Harshit Maheshwari   INC000012242715
+//**	     23/11/2020	   Malli 		       CPQ-2225 - Modified the logic to fetch the material description for languages
+//**         2021-06-16|Gautam               |Cpq - 5545 Pricing group types (all countries)
+
+//***********************************************************************************************************
+
+retString= "";
+
+language=salesRepLanguage_t;
+if(language==""){
+  language=_system_current_user_language;
+}
+if(language <> "en"){ // This is added as part of CPQ-2225
+		language = "de"; // for language oter than english, Description to be fetched from column MAKTXDE
+}
+mpgDescDict=dict("string");
+mliDescDict=dict("string");
+
+mpgDocNumDict=dict("string[]");
+mliDocNumDict=dict("string[]");
+
+mliIDArr=string[];
+mpgIDArr=string[];
+
+/* 4/4/2019 Harshit Maheshwari  : INC000012242715 : START */
+ret = "";
+salesOrg = salesOrg_t;
+distributionChannel = distributionChannel_t;
+transactionType = transactionType_t;
+businessGrp = qqBusinessLineForSalesOrg_t;
+materialGroupPH5Boolean = util.checkBizGroupCondition("materialGroupPH5", transactionType, salesOrg);
+/* 4/4/2019 Harshit Maheshwari  : INC000012242715 : END */
+
+//limit calls to table
+ productTypeArr = string[]{"new","eto","configuration"}; // Changes as a part of ALM - 1692 - By Vasundhara
+for line in transactionLine {
+	docNumber = line._document_number;
+	grpDecription = line.materialPricingGroupShortDescription_l;
+	if(line.qqProductType_l<>"group"){
+    //build array of doc numbers that have this MLI
+	
+		if(findinarray(mliIDArr, line.materialLineItem_l)==-1 AND findinarray(productTypeArr,line.qqProductType_l) == -1){ // Changes as a part of ALM - 1692 - Not allowing description to be updated for New, ETO and Bid Manger Items - By Vasundhara
+			append(mliIDArr, line.materialLineItem_l);
+		}
+		mliDocNumArr=string[];
+		if(findinarray(productTypeArr,line.qqProductType_l) == -1){ // Changes as a part of ALM - 1692 - Not allowing description to be updated for New, ETO and Bid Manger Items - By Vasundhara
+			if(containskey(mliDocNumDict, line.materialLineItem_l)){
+				mliDocNumArr=get(mliDocNumDict, line.materialLineItem_l);
+			}
+			append(mliDocNumArr, docNumber);
+			put(mliDocNumDict, line.materialLineItem_l, mliDocNumArr);
+		}
+
+		//also update its MPG desc
+		mpgDocNumArr=string[];
+		// old code
+		//mpg=salesOrgMPGPrefix_t+line.materialPricingGroup_l;
+		//new code
+		//Cpq 5545
+		mpg= line.materialPricingGroup_l;
+		if(containskey(mpgDocNumDict, mpg)){
+			mpgDocNumArr=get(mpgDocNumDict, mpg);
+		}
+		append(mpgDocNumArr, docNumber);
+		put(mpgDocNumDict, mpg, mpgDocNumArr);
+	}
+	else{
+    //Build dictionary of MPG-docNum , MPGS are unique but the description is also carried on its individual lines
+		mpgDocNumArr=string[];
+		// old code
+		//mpg=salesOrgMPGPrefix_t+line.materialPricingGroup_l;
+		//new code
+		//Cpq 5545
+		mpg= line.materialPricingGroup_l;    
+		if(salesOrgConditionForTruncatedMPG_t == "BLINE"){
+			mpg=line.materialPricingGroupFullText_l;
+		}    
+		if(containskey(mpgDocNumDict, mpg)){
+			mpgDocNumArr=get(mpgDocNumDict, mpg);
+		}
+		append(mpgDocNumArr, docNumber);
+		put(mpgDocNumDict, mpg, mpgDocNumArr);
+		append(mpgIDArr, mpg);
+	}
+  
+	/* 4/4/2019 Harshit Maheshwari  : INC000012242715 : START */
+	group = "";
+	itemJson = json();
+	jsonput(itemJson, "MATNR", line.materialLineItem_l);
+	jsonput(itemJson, "lang", language);
+	jsonput(itemJson, "salesOrg", salesOrg);
+	jsonput(itemJson, "distributionChannel", distributionChannel);
+	records = util.getMAT01Details(itemJson);
+	
+	mpg = jsonget(records, "MPG", "string", "");
+	mvgr5text = jsonget(records, "MATGRPDESC", "string", grpDecription);
+	ph5text = jsonget(records, "PH5DESC", "string", grpDecription);
+	groupDesc= "";
+	
+	//ES-EMEA
+	groupDesc = mvgr5text;		//MATGRP5_TEXTEN
+	
+	//B-LINE~CH-EMEA
+	if(materialGroupPH5Boolean){
+			groupDesc = ph5text;	//PH5_TEXT
+	}
+	
+	//BUSSMANN	
+	if(businessGrp == "BUSSMANN") {
+		grpBmql = BMQL("Select Description From Bussman_GroupDesc Where MPG = $mpg And SalesOrg = $salesOrg");
+        for eachRow in grpBmql {
+            groupDesc = get(eachRow, "Description");
+            break;
+        }
+    }
+   retString = retString + docNumber + "~materialPricingGroupShortDescription_l~"+groupDesc+"|";
+   
+   /* 4/4/2019 Harshit Maheshwari  : INC000012242715 : END */
+}
+
+mpgLang="MATGRP5_TEXTEN";
+mpgCols="MPG,MATGRP5_TEXTEN";
+if(language<>"en"){
+  mpgLang="MATGRP5_TEXT" + upper(language);
+  mpgCols=mpgCols+","+mpgLang;
+}
+
+mliLang="MAKTXEN";
+mliCols="MATNR,MAKTXEN";
+if(language<>"en"){
+	mliLang="MAKTX" + upper(language);
+    mliCols=mliCols+","+mliLang;
+}
+
+mliDescResults = bmql("Select $mliCols from MAT01 where MATNR in $mliIDArr");
+for mliDescRec in mliDescResults{
+  mliDesc=get(mliDescRec, mliLang);
+  if(isnull(mliDesc) OR mliDesc==""){
+    mliDesc=get(mliDescRec, "MAKTXEN");
+    if(isnull(mliDesc) OR mliDesc==""){
+      mliDesc="No Desc";
+    }
+  }
+  matNum=get(mliDescRec, "MATNR");
+  put(mliDescDict, matNum, mliDesc);
+}
+
+//now go through the MPG's that were on the transaction and add the description if found, "No Desc" if not
+
+//go through mli's that were on the transaction and add the description if found, "No Desc" if not
+mliKeys=keys(mliDocNumDict);
+for mli in mliKeys{
+  mliDocNumArr=get(mliDocNumDict, mli);
+  mliDesc=util.getStringDict(mliDescDict, mli, "No Desc");
+  
+  for mliDocNum in mliDocNumArr{
+  
+    retString=retString+ mliDocNum + "~materialLineItemShortDescription_l~" + mliDesc +"|";
+  }
+}
+
+
+return retString;

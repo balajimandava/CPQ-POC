@@ -1,0 +1,21 @@
+{
+  "name" : "Set Commerce Attribute",
+  "variableName" : "u_setCommerceAttribute",
+  "description" : "Set/update a commerce attribute in \"data\"",
+  "libraryFunctions" : [ "util.u_getLineFromJson" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  }, {
+    "name" : "docNum",
+    "type" : "String"
+  }, {
+    "name" : "attribute",
+    "type" : "String"
+  }, {
+    "name" : "value",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

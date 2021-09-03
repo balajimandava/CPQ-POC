@@ -1,0 +1,15 @@
+{
+  "name" : "TestReconfig",
+  "variableName" : "testReconfig",
+  "description" : "",
+  "libraryFunctions" : [ "util.getSiteSpecificData", "util.getSupplierCompanyName" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "bsId",
+    "type" : "String"
+  }, {
+    "name" : "xPathDictionary",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ "_user_session_id", "_company_name" ]
+}

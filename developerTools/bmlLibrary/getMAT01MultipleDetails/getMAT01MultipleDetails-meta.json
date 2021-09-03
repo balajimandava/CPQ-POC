@@ -1,0 +1,12 @@
+{
+  "name" : "GetMAT01MultipleDetails",
+  "variableName" : "getMAT01MultipleDetails",
+  "description" : "Function created to verify obsolete items",
+  "libraryFunctions" : [ "util.getActiveMaterialStatuses", "util.getRemark" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

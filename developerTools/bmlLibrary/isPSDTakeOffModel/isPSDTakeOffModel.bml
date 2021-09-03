@@ -1,0 +1,26 @@
+//************************************************************************************************************
+//** Function: isPSDTakeOffModel
+//**
+//** Description: This function is, to verify the take of model is related to PSD or not.
+//** Params:
+//**	 takeOffModelName: this is string type and holds the input Take Off Code/Model Name
+//** Return Value: returns boolean true/false
+//**		
+//** History:	Date          	Author		Comment 
+//**          	------------- 	---------------	--------------------------------------------------------------
+//**            28/01/2021	Dhananjay	Created initial version
+//************************************************************************************************************/
+
+isPSDTakeOffModel = false;
+//PSD related Sales Orgs, We need to add in this array, If we introduce any new PSD sales Orgs
+psdSalesOrgs = string[]{"1214","2400"};
+salesOrgToTakeOff_qry = bmql("SELECT SalesOrg,TakeOffModel FROM SalesOrgToTakeOff WHERE TakeOffModel = $takeOffModelName");
+for eachRec in salesOrgToTakeOff_qry{
+	salesOrg = get(eachRec,"SalesOrg");
+	if(findinarray(psdSalesOrgs, salesOrg) <> -1){
+		isPSDTakeOffModel = true;
+		break;
+	}
+}
+
+return isPSDTakeOffModel;

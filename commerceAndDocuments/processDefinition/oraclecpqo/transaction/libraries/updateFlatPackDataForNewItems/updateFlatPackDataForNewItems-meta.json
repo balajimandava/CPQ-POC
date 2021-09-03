@@ -1,0 +1,11 @@
+{
+  "name" : "Update FlatPack Data For New Items",
+  "variableName" : "updateFlatPackDataForNewItems",
+  "description" : "",
+  "libraryFunctions" : [ "util.buildBidManagerModelBOM" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "_document_number", "externalConfigBOM_l", "newConfigLine_l", "materialLineItem_l", "externalConfigData_l", "externalConfigVCData_l", "materialMasterPayload_l", "materialMasterBOMPayload_l", "_sequence_number" ],
+  "mainDocAttributes" : [ "bs_id", "qqBusinessLineForSalesOrg_t", "distributionChannel_t", "salesOrg_t", "transactionType_t", "newExchangeRate_t", "currency_t", "connectedToContractLinesInfo_t" ],
+  "systemAttributes" : [ ]
+}

@@ -1,0 +1,125 @@
+/**************************************************************************************************************
+@name Parse Material Master Response
+@api parseMaterialMasterResponse
+@Description: This library is to parse the response which will sent by PI
+	      This library function call in Process Material Master Response action
+	      materialMasterResponse_t holds the response JSON
+@param 
+
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2020-11-04|Dhananjay            |initial version
+2021-01-18|Dhananjay            |CPQ-3835:BOM Create failed, line item status should switch to ERP Error
+************************************************************************************************************/
+
+materialMasterResponse = materialMasterResponse_t;
+errorLines = string[];
+sucessfullyCreatedMaterials = string[];
+statusMessage = json();
+quoteStatus = status_t;
+retStr = stringbuilder();
+regulatorsParentCatlgNums = dict("string");
+for line in transactionLine{
+	brand = line.brand_l;
+	catalogNumber = line.qqCatalogNumber_l;
+	docNum = line._document_number;
+	if(brand == "P09"){
+		put(regulatorsParentCatlgNums,docNum,catalogNumber);
+	}else{
+		continue;
+	}
+}
+
+if(materialMasterResponse<> "" AND startswith(materialMasterResponse, "{") 
+	AND endswith(materialMasterResponse, "}")){
+	materialMasterResponseJson = json(materialMasterResponse);
+	//responseTestStr = "{\"response\": {\"header\": {\"transactionId\": \"123\",\"logsys\": \"LS_D47200\"},\"itemDetails\": {\"item\": [{\"lineItemId\": \"678\",\"materialNumber\": \"0002MP13XRJA\",\"bomMaterialNumber\": \"0002MP13XRJA\",\"status\": \"S\",\"messages\": {\"message\": [{\"messageText\": \"Material 0002MP13XRJA created\",\"id\": \"M3\",\"type\": \"S\",\"number\": \"200\",\"messageV1\": \"0002MP13XRJA\",\"logsys\": \"LS_D47200\"},{\"messageText\": \"Material 0002MP13XRJA created\",\"id\": \"M3\",\"type\": \"S\",\"number\": \"200\",\"messageV1\": \"0002MP13XRJA\",\"logsys\": \"LS_D47200\"}]}},{\"lineItemId\": \"678\",\"materialNumber\": \"0002MP13XRJA\",\"bomMaterialNumber\": \"0002MP13XRJA\",\"status\": \"S\",\"messages\": {\"message\": {\"messageText\": \"Material 0002MP13XRJA created\",\"id\": \"M3\",\"type\": \"S\",\"number\": \"200\",\"messageV1\": \"0002MP13XRJA\",\"logsys\": \"LS_D47200\"}}}]}}}";
+	responseJson = json();
+	if(jsonpathcheck(materialMasterResponseJson , "$.documents.materialMasterResponse_t")){
+		responseJson = jsonpathgetsingle(materialMasterResponseJson , "$.documents.materialMasterResponse_t","json",materialMasterResponseJson);
+	}
+	responseJson = jsonget(materialMasterResponseJson,"response","json",responseJson);
+	responseType = "";
+	if(jsonpathcheck(responseJson, "$..header.responseType")){
+		responseType = jsonpathgetsingle(responseJson, "$..header.responseType","string",responseType);
+	}
+	print responseType;
+	if(jsonpathcheck(responseJson, "$..itemDetails.item")){
+		itemsAry = jsonpathgetsingle(responseJson, "$..itemDetails.item","jsonarray",jsonarray());
+		//print itemsAry;
+		totalItems = jsonarraysize(itemsAry);
+		totalItemsLoop = range(totalItems);
+		hasErrorLines = false;
+		successfullyCreatedItems = json();
+		for eachItem in totalItemsLoop{
+			eachIem = jsonarrayget(itemsAry, eachItem, "json");
+			documentNumber = jsonget(eachIem,"lineItemId","string","");
+			materialNumber = jsonget(eachIem,"materialNumber","string","");
+			if(responseType == "BOM Creation"){
+				materialNumber = jsonget(eachIem,"bomMaterialNumber","string","");
+			}
+			status = jsonget(eachIem,"status","string","");
+			/*print documentNumber;
+			print materialNumber;
+			print status;*/
+			//If the status for each line is S, then seting the materialLineItem_l attribute and 
+			// the line item status will be Awarded
+			//Otherwise the line item status will be SAP Error
+			if(lower(status) == "s"){
+				if(responseType == "Material Creation"){
+					jsonput(successfullyCreatedItems,documentNumber,materialNumber);
+					if(containskey(regulatorsParentCatlgNums, documentNumber)){
+						regulatorsParentCatlgNum = get(regulatorsParentCatlgNums, documentNumber);
+						//print materialNumber;
+						if(regulatorsParentCatlgNum == materialNumber){
+						//print "Inside Condition";
+							//setattributevalue(documentNumber,"materialLineItem_l",materialNumber);
+							//append(sucessfullyCreatedMaterials,materialNumber);
+							//setattributevalue(documentNumber,"lineItemStatus_l","awarded");
+							sbappend(retStr, documentNumber,"~materialLineItem_l~",materialNumber,"|");
+							sbappend(retStr, documentNumber,"~lineItemStatus_l~awarded|");
+						}
+					}else{
+						//setattributevalue(documentNumber,"materialLineItem_l",materialNumber);
+						//append(sucessfullyCreatedMaterials,materialNumber);
+						//setattributevalue(documentNumber,"lineItemStatus_l","awarded");
+						sbappend(retStr, documentNumber,"~materialLineItem_l~",materialNumber,"|");
+						sbappend(retStr, documentNumber,"~lineItemStatus_l~awarded|");
+					}
+					/*setattributevalue(documentNumber,"materialLineItem_l",materialNumber);
+					//append(sucessfullyCreatedMaterials,materialNumber);
+					setattributevalue(documentNumber,"lineItemStatus_l","awarded");*/
+				}
+				append(sucessfullyCreatedMaterials,materialNumber);
+			}else{
+				//if(responseType == "Material Creation"){ Fix for CPQ-3835
+					//setattributevalue(documentNumber,"lineItemStatus_l","sAPError");
+					sbappend(retStr, documentNumber,"~lineItemStatus_l~sAPError|");
+					hasErrorLines = true;
+					quoteStatus = "erpError";
+				//}
+                		append(errorLines ,materialNumber);
+			}
+		}
+		/*if(hasErrorLines){
+			setattributevalue(1,"status_t","erpError");
+		}*/
+		//setattributevalue(1,"status_t",quoteStatus
+		jsonput(statusMessage,"responseType",responseType);
+		jsonput(statusMessage,"error_lines",join(errorLines,","));
+		jsonput(statusMessage,"sucessfully_created_materials",join(sucessfullyCreatedMaterials,","));
+		//print statusMessage;
+		//setattributevalue(1,"materialMasterCreationStatus_t",jsontostr(statusMessage));
+		//setattributevalue(1,"status_t",quoteStatus);
+		sbappend(retStr, "1~materialMasterCreationStatus_t~",jsontostr(statusMessage),"|");
+		sbappend(retStr, "1~status_t~",quoteStatus,"|");
+		if(responseType == "Material Creation"){
+			//setattributevalue(1,"status_t",quoteStatus);
+			//Invoking the BOM creation for successfully created lines.
+			bomResponse = commerce.materialMasterBOMItemsLinkingProcess(successfullyCreatedItems);
+		}
+	}
+}
+return sbtostring(retStr);

@@ -1,0 +1,21 @@
+{
+  "name" : "Log String Array",
+  "variableName" : "u_logStringArray",
+  "description" : "Print string array to the log file.",
+  "libraryFunctions" : [ "util.u_logString" ],
+  "returnType" : "Boolean",
+  "parameters" : [ {
+    "name" : "category",
+    "type" : "String"
+  }, {
+    "name" : "level",
+    "type" : "Integer"
+  }, {
+    "name" : "strArr",
+    "type" : "String[]"
+  }, {
+    "name" : "label",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

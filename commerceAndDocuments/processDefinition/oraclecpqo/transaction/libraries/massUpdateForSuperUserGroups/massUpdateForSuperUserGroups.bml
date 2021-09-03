@@ -1,0 +1,54 @@
+result = json();
+
+transactionId = bs_id;
+previousStep = previousStep_t;
+
+siteID = _system_supplier_company_name;
+user = util.getSiteSpecificData(siteID);
+
+//get login password
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+
+actionURL = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+transactionId+"/actions/moveToDummyStep";
+
+params = "";
+// Rest Header  
+headers = dict("string");
+
+if (isnull(login) or isnull(password) or login == "" or password == "") {//Error handling if no user login and pwd available.
+    throwerror("No API User is configured for this environment, please check data in Site_Specific data table", false);
+}
+
+if(transactionId == ""){//Error handling if transactionId and array set name is not passed.
+	throwerror("Transaction ID cannot be empty", false);
+}
+
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+response = json(urldatabypost(actionURL,params,"ERROR during updating new super user group", headers, true));
+statusCode = jsonget(response,"Status-Code");//Response code.
+
+if (atoi(statusCode) >= 300) {//If response code > 200, it means API call failed. Error handling if API Call failed.
+    throwerror("Error moving to Dummy Step for SuperUser groups: " + actionURL, false);
+}
+
+if (atoi(statusCode) == 200) {//Success.
+   
+
+		
+		//actionUrl = "";
+	        actionUrl = "https://"+siteID+".bigmachines.com/rest/v1/commerceDocumentsOraclecpqoTransaction/"+transactionId+"/actions/moveToPreviousStep	";
+			
+
+                 //repeat the above condition block for all the possible steps. Once the above condition block returns an url, execute the below code.
+		result = json(urldatabypost(actionURL, params, "ERROR", headers, true));
+		statusCode = jsonget(result,"Status-Code");//Response code.
+		
+		
+		if (atoi(statusCode) >= 300) {//If response code > 200, it means API call failed. Error handling if API Call failed.
+                 throwerror("Error moving to Previous Step for SuperUser groups: " + actionURL, false);
+        }
+}
+
+return "";

@@ -1,0 +1,105 @@
+/**
+@name Transaction Details Json
+@api transactionDetailsJson
+@summary Returns specific transaction details in Json formatted string
+@attribute _system_supplier_company_name
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|---------------------------------------------------------------------------------------
+2018/12/12|Harshit Mehta	| Transaction Details Json
+2020/03/24|Atul Jain        |Removed commented code, and added debug mode to print statements.
+*/
+
+// -----------------------
+// get header level fields
+// -----------------------
+headerFields = string[] {
+    "bs_id",
+    "transactionNumber_t",
+    "transactionName_t",
+    "transactionType_t",
+    "agreementValidFrom_t",
+    "agreementValidTo_t",
+    "silver_t",
+    "silverValue_t",
+    "copper_t",
+    "copperValue_t",
+    "aluminium_t",
+    "aluminiumValue_t"
+};
+
+debugMode = false;
+bsID= buySide_ID;
+
+company = util.getSupplierCompanyName();
+url = "https://" + company + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction/" + bsID;
+parameters = join(headerFields, ",");
+
+// get system user
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+headers = dict("string");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+put(headers, "Content-Type", "application/json");
+
+quoteHeaderResp = urldata(url + "?fields=" + parameters, "get", headers);
+statusCode = get(quoteHeaderResp, "Status-Code");
+if (not isnumber(statusCode) and atoi(statusCode) >= 400) {
+    throwerror("Unable to get quote header data for quote.", true);
+}
+quoteHeader = get(quoteHeaderResp, "Message-Body");
+quoteJson = json(quoteHeader);
+
+
+// save line link
+lineUrl = jsonpathgetsingle(quoteJson, "$.links[1].href", "string", "");
+
+jsonremove(quoteJson, "links");
+
+// ---------------------
+// get line level fields
+// ---------------------
+lineFields = string[] {
+    "_document_number",
+    "agreementNetPrice_l",
+    "customDiscountType_l",
+    "qqProductType_l",
+    "materialPricingGroup_l",
+    "materialLineItem_l",
+    "agreementNetDiscount_l",
+    "scaleFrom_l",
+    "scaleTo_l",
+    "validTo_l", 	// Added for QQ-824
+    "validFrom_l",	// Added for QQ-824
+    "lineItemDelete_l",	// Added for QQ-823
+    "discountPercent_l" // Added for Defect 1276
+};
+
+parameters = join(lineFields, ",");
+
+quoteLineResp = urlData(lineUrl + "?fields=" + parameters, "get", headers);
+
+if(debugMode)
+{
+    print lineUrl;
+    print quoteJson;
+    print lineUrl + "?fields=" + parameters;
+    print quoteLineResp;
+}
+
+statusCode = get(quoteLineResp, "Status-Code");
+if (not isnumber(statusCode) and atoi(statusCode) >= 400) {
+    throwerror("Unable to get line data for quote.", true);
+}
+lineData = get(quoteLineResp, "Message-Body");
+lineDataJson = json(lineData);
+jsonpathremove(lineDataJson, "$..links");
+lineJsonArray = jsonget(lineDataJson, "items", "jsonarray");
+
+// -------------------------
+// assemble return json data
+// -------------------------
+jsonput(quoteJson, "items", lineJsonArray);
+return quoteJson;

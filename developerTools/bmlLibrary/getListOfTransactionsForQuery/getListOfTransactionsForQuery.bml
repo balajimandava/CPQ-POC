@@ -1,0 +1,58 @@
+/**
+@name Get List of Transactions for Query
+@api getListOfTransactionsForQuery
+@summary Get a list of transaction for a given query.
+@param params Json - query = the query criteria; fields - quote header fields to return
+@function Json getSiteSpecificData(String siteID)
+@function String getSupplierCompanyName()
+@return JsonArray a list of quotes
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-31|Tat.Leung            |Initial version
+2018-07-18|Harshit Mehta	|added authorization header
+2018-09-13|michael.yeung        |
+2020-03-19|Atul Jain		|Added print statement to debugMode
+*/
+
+debugMode = false;
+company = lower(util.getSupplierCompanyName());
+primaryQuoteRestUrl = "https://" + company + ".bigmachines.com/rest/v5/commerceDocumentsOraclecpqoTransaction";
+//Get API Username and Password.
+user = util.getSiteSpecificData(company);
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+fields = jsonget(params, "fields", "string", "" /*, "bs_id,transactionNumber_t" */);
+query = jsonget(params, "query", "json", json());
+
+// Rest Header  
+headers = dict("string");
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+
+reqParams = makeurlparam({
+    'q': jsontostr(query)
+});
+
+if( not isnull(fields) AND fields <> ""  ) {
+    reqParams = makeurlparam({
+        'q': jsontostr(query)
+        , 'fields': fields
+    });
+}
+
+
+
+response = urldata(primaryQuoteRestUrl + "?" + reqParams, "get",headers);
+if(debugMode){
+	print reqParams;
+	print company;
+	print response;
+}
+body = get(response, "Message-Body");
+jsonBody = json();
+if( NOT isnull (body) ) {
+ jsonBody = json(body);
+}
+quotes = jsonget(jsonBody, "items", "jsonarray", jsonarray());
+return quotes;

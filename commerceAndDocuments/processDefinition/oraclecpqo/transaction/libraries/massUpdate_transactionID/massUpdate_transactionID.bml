@@ -1,0 +1,8 @@
+retString = "";
+if (transactionNumber_t == "" ) {
+  retString=retString+ "1~transactionNumber_t~" + bs_id + "|";
+}
+if (qqRootTransactionNumber_t == "" ) {
+  retString=retString+ "1~qqRootTransactionNumber_t~" + bs_id + "|";
+}
+return retString;

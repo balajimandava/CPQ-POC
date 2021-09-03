@@ -1,0 +1,83 @@
+//************************************************************************************************************
+//** Function:    Update All Agreements 
+//** Type:        Commerce Library Function   
+//**
+//** Description: Utility to update All Agreements CPQ data table with the customer information and 
+//**		  Agreement Number (bs_id) for lookup of data in transactions
+//** 
+//** Return type: String Dictionary 
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              26/04/2017    dBo Haizlip	Initial version
+//**              12/07/2017    apatterson      Updated to use environment variable util function
+//**		  18/10/2017	dBo Haizlip	Removed the Deploy and set All Agreements to Live
+//************************************************************************************************************
+retDict= dict("string");print "*****inside all agreements******";
+
+  transactionStatus= status_t;
+  if (containskey(inputDict,"NextStep")) {
+    transactionStatus= get(inputDict,"NextStep");
+  }
+
+  customerNumber= customerNumber_t;
+  if ( (customerNumber == "") AND (customerRecordKey_t <> "") ) {
+    customerNumber= customerNumber_t;
+  } elif (customerNumber == "") {
+    return retDict;
+  }
+  
+  salesOrg= salesOrg_t;
+  if ( (salesOrg == "") AND (preparedBySalesOrg_t <> "") ) {
+    salesOrg= preparedBySalesOrg_t;
+  } elif (preparedBySalesOrg_t == "") {
+    return retDict;
+  }
+
+  allAgreementsWebServicesUrl = util.getEnvironmentVariable("AllAgreements", "");
+  apiUserID= "";
+  apiPassID= "";
+  siteID= _system_supplier_company_name;
+  siteBMQL= bmql("SELECT FieldName,Value1 FROM Site_Specific WHERE SiteID = $siteID");
+  for eachSite in siteBMQL {
+    apiUserID= get(eachSite,"FieldName");
+    apiPassID= get(eachSite,"Value1");
+  }
+  
+  agreementNumber= bs_id;
+  soapCall= "add";
+  checkBMQL= bmql("SELECT AgreementNumber,CustomerNumber " +
+  		  "FROM AllAgreements " +
+  		  "WHERE AgreementNumber = $agreementNumber AND CustomerNumber = $customerNumber");
+  
+  for eachAgreement in checkBMQL {
+    soapCall= "update";
+  }
+  headers= dict("string");
+  soapTemplateURL= "$BASE_PATH$/WebServices/allAgreements.xml";
+  allAgreementsTags= dict("string");
+  put(allAgreementsTags,"USERNAME",apiUserID);
+  put(allAgreementsTags,"PASSWORD",apiPassID);
+  put(allAgreementsTags,"ADDORUPDATE",soapCall);
+  put(allAgreementsTags,"HEADQUARTERS",headquartersNumber_t);
+  put(allAgreementsTags,"SOLDTO",soldToNumber_t);
+  put(allAgreementsTags,"SHIPTO",shipToNumber_t);
+  put(allAgreementsTags,"AGREEMENTNUMBER",bs_id);
+  put(allAgreementsTags,"CUSTOMERNUMBER",customerNumber_t);
+  put(allAgreementsTags,"SALESORG",salesOrg);
+  put(allAgreementsTags,"STATUS",transactionStatus);
+  put(allAgreementsTags,"VALIDFROM",replace(substring(agreementValidFrom_t,0,10),"-",""));
+  put(allAgreementsTags,"VALIDTO",replace(substring(agreementValidTo_t,0,10),"-",""));
+  loadedXML= applytemplate(soapTemplateURL, allAgreementsTags, "ERROR");
+  postResultD= urldata(allAgreementsWebServicesURL, "POST", headers, loadedXML);
+  
+  statusCode= get(postResultD,"Status-Code");
+  if (statusCode == "200") {
+    deployTemplateURL= "$BASE_PATH$/WebServices/deployDataTable.xml";
+    deployTags= dict("string");
+    put(deployTags,"USERNAME",apiUserID);
+    put(deployTags,"PASSWORD",apiPassID);
+    put(deployTags,"TABLENAME","AllAgreements");
+ }
+  
+return retDict;

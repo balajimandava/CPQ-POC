@@ -1,0 +1,11 @@
+{
+  "name" : "updateC360DataFieldsVersionOnly",
+  "variableName" : "updateC360DataFieldsVersionOnly",
+  "description" : "reset related C360 transaction to non-primary.  This should be run when receiving sync result update from C360.",
+  "libraryFunctions" : [ "util.getListOfTransactionsForQuery", "util.updateTransactionSOAP" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "bs_id", "qqRootTransactionNumber_t", "opportunityNumber_t", "opportunityAccountID_t" ],
+  "systemAttributes" : [ ]
+}

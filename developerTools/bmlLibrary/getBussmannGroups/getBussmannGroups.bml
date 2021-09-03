@@ -1,0 +1,34 @@
+/**
+@name Get Bussmann Groups
+@api getBussmannGroups
+@summary Return the Bussmann groups that should have access to the quote
+@param data Json
+@function Json getTransactionData(String bsId, String[] xpaths)
+@return String[]
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-13|Tat.Leung            |QQ-575 Initial Version
+2018-07-25|Vivek.Hingorani      |Changed return type to be json
+*/
+retJson = json();
+
+bsId = jsonget(data, "id", "string", "");
+// import data needed for forwarding rules, add more xpath expression here if additional fields are needed
+xpaths = string[] {
+    "//transaction/salesOffice_t",
+    "//transaction/salesDistrict_t",
+    "//transaction/salesGroup_t"
+};
+headerData = util.getTransactionData(bsId, xpaths);
+
+salesDistrict = jsonget(headerData, "salesDistrict_t", "string", "");
+salesOffice = jsonget(headerData, "salesOffice_t", "string", "");
+salesGroup = jsonget(headerData, "salesGroup_t", "string", "");
+
+groups = jsonarray();
+jsonarrayappend(groups, salesDistrict + "_" + salesOffice + "_" + salesGroup);
+
+jsonput(retJson, "Sales User", groups);
+
+return retJson;

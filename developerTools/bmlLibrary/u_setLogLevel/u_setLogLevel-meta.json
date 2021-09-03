@@ -1,0 +1,12 @@
+{
+  "name" : "Set Log Level",
+  "variableName" : "u_setLogLevel",
+  "description" : "Set the logging level for the packages specified in packageLevel.  A package will be\nremoved from settings if the logging level is 0.\n\nLogging level: \n\n* ```0 = NONE```\n* ```1 = ERROR```\n* ```2 = WARNING```\n* ```3 = INFO```\n* ```4 = DEBUG```\n* ```5 = TRACE/FULL```",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "categoryLevel",
+    "type" : "String[][]"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,11 @@
+{
+  "name" : "test floats",
+  "variableName" : "testFloats",
+  "description" : "Function to test the rounding of the currency in the final price column of the line item grid",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "agreementNetDiscountRequested_l", "agreementNetPriceRequested_l" ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

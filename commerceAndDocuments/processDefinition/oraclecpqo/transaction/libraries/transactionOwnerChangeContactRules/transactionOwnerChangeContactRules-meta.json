@@ -1,0 +1,11 @@
+{
+  "name" : "Transaction Owner Change Contact Rules",
+  "variableName" : "transactionOwnerChangeContactRules",
+  "description" : "Project#49074|E9913664|8thJan2020|Created new Commerce library function, used to evaluate rules to constrain Transaction Owner dropdown and Hide Change Eaton Contact button",
+  "libraryFunctions" : [ ],
+  "returnType" : "Boolean",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qqBusinessLineForSalesOrg_t", "transactionType_t", "status_t" ],
+  "systemAttributes" : [ "_system_user_groups" ]
+}

@@ -1,0 +1,14 @@
+//prevValidTo=jsonget(inputJson,"agreementValidTo");
+res="";
+
+
+validFromDate= strtojavadate(inputJson, "MM/dd/yyyy",_system_user_time_zone);
+newValidFromDate = util.u_addToDate(validFromDate, "DAYS", 1);
+newValidToDate = util.u_addToDate(newValidFromDate , "YEARS", 1);
+
+retFromDt= substring(datetostr(newValidFromDate,"MM/dd/yyyy"),0,10) + " 00:00:00";
+retToDt=substring(datetostr(newValidToDate ,"MM/dd/yyyy",_system_user_time_zone),0,10) + " 00:00:00";
+
+res = res + "1~agreementValidFrom_t~" + retFromDt+"|";
+res = res + "1~agreementValidTo_t~" + retToDt+"|";
+return res;

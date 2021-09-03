@@ -1,0 +1,116 @@
+/**
+@name parseBidManBOM
+@api parseBidManBOM
+@summary parse Bid manager BOM into parent line and array of child line items.
+@param bom String
+@function String getStringDict(String Dictionary inputDict, String key, String default)
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-02|michael.yeung        |
+2018-07-18|michael.yeung        |
+2018-10-03|michael.yeung        |  Update based on 08/27/2018 meeting notes
+2018-10-10|michael.yeung        |
+2019-11-11|Harshit Mehta	| Project# 45670 : Added code to extract cost information from Bid Manager BOM XML.
+2020-01-31|Vijetha.N 		| Project# 49074 : Added Code to extract TechnicalNotes from Bid Manager BOM XML.
+2020-03-19|Atul Jain		|Added debug mode to print statement
+*/
+result = json();
+debugMode = false;
+/*
+
+8/27/18
+o    Terminal Boxes: one parent line item (no children). For Terminal Box, we can bring over the children and not display them
+o    Pushbuttons: parent and children (discount off of children, not the parent)
+o    Bussmann: parent and one child with no price for the QSCP takeoff (not VC)
+
+Bid Manager			CPQ				Notes
+SAPCatalogNumber	Catalog #		SAP Catalog Number
+CatalogNumber		Material #		SAP Material Number
+ProductID			Description		No field named "description" in Bid Man
+ListPrice			List Price		Bussmann takeoffs will use this
+Designation			Customer Part #	Bussmann will use this, Pushbuttons and Term Boxes can if they want, but currently not in their current business process
+ProductLine			TBD				Terminal Boxes team would like to see this added to CPQ to do reporting off of this. Would not need to be visible on LIG. Ex: "PREformance", "Terminal Box"
+ProductCode			TBD				Pushbuttons uses for reporting, for Terminal Boxes it should be the PH5 value
+MaterialCost		Cost			cost_l field in CPQ.
+
+*/
+
+
+xpathItems = string [];
+xpathItems[0] = "//BOM/BMTable_Neg.Items/TakeoffDataAccess.TakeoffSaveItem";
+xpathItemDetail = string [];
+xpathItemDetail[0] = "//ParentIndicator";
+xpathItemDetail[1] = "//ItemID";
+xpathItemDetail[2] = "//ParentItemID";
+xpathItemDetail[3] = "//CatalogNumber";
+xpathItemDetail[4] = "//SAPCatalogNumber";
+xpathItemDetail[5] = "//Quantity";
+xpathItemDetail[6] = "//ListPrice";
+xpathItemDetail[7] = "//BaseCurrency";
+xpathItemDetail[8] = "//ProductID";
+xpathItemDetail[9] = "//Designation";
+xpathItemDetail[10] = "//ProductLine";
+xpathItemDetail[11] = "//ProductCode";
+xpathItemDetail[12] = "//MaterialCost";
+xpathItemDetail[13] = "//TechnicalNotes";//Project# 49074
+
+
+allItems = readxmlmultiple(bom, xpathItems);
+
+ allItemsArray = get(allItems, xpathItems[0]);
+
+ for eachItemXML in allItemsArray {
+		eachItem = readxmlsingle(eachItemXML, xpathItemDetail);
+		if (debugMode) {
+			print eachItem;
+		}
+        parentIndicator = util.getStringDict(eachItem, xpathItemDetail[0], "");
+        itemID = util.getStringDict(eachItem, xpathItemDetail[1], "");
+        parentItemID = util.getStringDict(eachItem, xpathItemDetail[2], "");
+        catalogNumber = util.getStringDict(eachItem, xpathItemDetail[3], "");	// material #
+        SAPCatalogNumber = util.getStringDict(eachItem, xpathItemDetail[4], ""); // Catalog #
+        quantity = util.getStringDict(eachItem, xpathItemDetail[5], "");	// quantity
+        listPrice = util.getStringDict(eachItem, xpathItemDetail[6], "");	// listPrice
+        baseCurrency = util.getStringDict(eachItem, xpathItemDetail[7], "");
+        productID = util.getStringDict(eachItem, xpathItemDetail[8], "");	// description
+        designation = util.getStringDict(eachItem, xpathItemDetail[9], "");	// customer part #
+        productLine = util.getStringDict(eachItem, xpathItemDetail[10], "");
+        productCode = util.getStringDict(eachItem, xpathItemDetail[11], "");
+		MaterialCost = util.getStringDict(eachItem, xpathItemDetail[12], ""); //materialCost
+		technicalNotes = util.getStringDict(eachItem, xpathItemDetail[13], ""); //TechnicalNotes (Project# 49074)
+		if( parentIndicator == "C") {
+			childItem = json();
+			jsonput(childItem, "itemID", itemID);
+			jsonput(childItem, "parentItemID", parentItemID);
+			jsonput(childItem, "catalogNumber", catalogNumber);
+			jsonput(childItem, "SAPCatalogNumber", SAPCatalogNumber);
+			jsonput(childItem, "quantity", quantity);
+			jsonput(childItem, "listPrice", listPrice);
+			jsonput(childItem, "baseCurrency", baseCurrency);
+			jsonput(childItem, "productID", productID);
+			jsonput(childItem, "designation", designation);
+			jsonput(childItem, "productCode", productCode);
+			jsonput(childItem, "MaterialCost", MaterialCost);
+			jsonput(childItem, "TechnicalNotes", technicalNotes);//Project# 49074
+			childrenJsonArray= jsonget(result,"children","jsonarray",jsonarray());
+			jsonarrayappend(childrenJsonArray, childItem);
+			jsonput(result, "children", childrenJsonArray);
+		} else {
+			jsonput(result, "itemID", itemID);
+			jsonput(result, "parentItemID", parentItemID);
+			jsonput(result, "parentMaterialItem", catalogNumber);
+			jsonput(result, "catalogNumber", catalogNumber);
+			jsonput(result, "SAPCatalogNumber", SAPCatalogNumber);
+			jsonput(result, "quantity", quantity);
+			jsonput(result, "listPrice", listPrice);
+			jsonput(result, "baseCurrency", baseCurrency);
+			jsonput(result, "productID", productID);
+			jsonput(result, "designation", designation);
+			jsonput(result, "productCode", productCode);
+			jsonput(result, "MaterialCost", MaterialCost);
+			jsonput(result, "TechnicalNotes", technicalNotes);//Project# 49074
+		}
+ }
+return result;

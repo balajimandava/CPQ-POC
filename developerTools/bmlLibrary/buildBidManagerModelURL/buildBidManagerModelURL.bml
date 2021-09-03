@@ -1,0 +1,112 @@
+/**
+@name Build Bid Manager Model URL
+@api buildBidManagerModelURL
+@summary 
+@param selectedDocNumber String
+@param configExtraInfo String
+@param modelPath String
+@param bsId String
+@param searchResult String
+@attribute _company_name
+@attribute _site_url
+@function Boolean u_logString(String category, Integer level, String message, String label)
+@function Json getSiteSpecificData(String siteID)
+@function String getSupplierCompanyName()
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-01-25|Tat.Leung            |
+2018-02-06|Tat.Leung            |
+2018-02-07|Tat.Leung            |
+2018-04-26|Michael.Yeung        |
+2018-04-27|Michael.Yeung        |
+2018-08-23|michael.yeung        | QQ-802 Add readonly handling
+2018-12-27|Smriti Chaturvedi	| Changes made for INC000012093920
+2019-11-01|Harshit Mehta		| Project# 45670 : Pass role information to BidManager for Bussmann business.
+2020-19-03|Atul Jain			|Removed commented code, and added debug mode to print statements.
+
+*/
+debugMode = false;
+logStatus = util.u_logString("CFG_EXTERNAL", 4, selectedDocNumber, "selectedDocNumber");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, configExtraInfo, "configExtraInfo");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, modelPath, "modelPath");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, bsId, "bsId");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, searchResult, "searchResult");
+logStatus = util.u_logString("CFG_EXTERNAL", 4, _site_url, "_site_url");
+
+if(debugMode){
+print "Bid Manager bsId:" + bsId;
+print "Bid Manager selectedDocNumber:" + selectedDocNumber;
+print "Bid Manager configExtraInfo:" + configExtraInfo;
+print "Bid Manager modelPath:" + modelPath;
+print "Bid Manager searchResult:" + searchResult;
+}
+
+isReadonly = false;
+xpaths = string[] {
+	// Smriti - Below changes are against INC000012093920
+    //"//transaction/cPQStep_t"
+	"//transaction/step_var_name",
+	"//transaction/qqBusinessLineForSalesOrg_t"
+};
+headerData = util.getTransactionData(bsId, xpaths);
+// Smriti - Below changes are against INC000012093920
+currentStep = jsonget(headerData, "step_var_name", "string", "");
+businessGroup = jsonget(headerData, "qqBusinessLineForSalesOrg_t", "string", "");
+
+if( currentStep <> "draft") {
+    isReadonly = true;
+}
+
+if(debugMode){
+    print "configExtraInfo: "  + configExtraInfo;
+	print "_site_url = " + _site_url;
+}
+
+company = util.getSupplierCompanyName();
+envData = util.getSiteSpecificData(company);
+bidManagerUrlPrefix = jsonget(envData, "Value2");
+
+itemId = "";
+if (not isnull(selectedDocNumber)) {
+    itemId = trim(selectedDocNumber);
+    if (itemId == "-1") {
+        itemId = "";
+    }    
+} 
+
+isloginemail = (upper(company) <> upper(_company_name));
+url = _site_url + "/bmfsweb/" + company + "/image/ext_cfg/bid_mgr.html?source=cpq" 
+    + "&isloginemail=" + string(isloginemail) 
+    + "&cpqid=" + bsId 
+    + "&model=" + modelPath 
+    + "&siteUrl=" + _site_url;
+
+if( isReadonly ) {
+    url = url + "&readonly=true";
+}
+if (itemId <> "") {
+// reconfigure get takeoffCode from configExtraInfo
+    takeOffCode="";
+    if (configExtraInfo <> "" ) {
+        cfgExtraInfo = json(configExtraInfo);
+        takeOffCode = jsonget(cfgExtraInfo, "configHeaderId");
+    }
+	if (debugMode) {
+		print takeOffCode;
+	}
+    url = url + "&tocode=" + takeOffCode;
+    url = url + "&itemid=" + itemId;
+}
+
+//Harshit Mehta : 1st Nov 2019 : Project# 45670 : Added code to set role information as CBM for BUSSMANN.
+if(businessGroup == "BUSSMANN")
+{
+	url = url + "&role=" + "CBM";
+}
+//Bidmanager URL prefix needs to add at last as it will contain #/sso that will create an issue while parsing URL.
+url = url + "&bidManagerUrlPrefix=" + bidManagerUrlPrefix;
+//Dhana Quick Test
+
+return url;

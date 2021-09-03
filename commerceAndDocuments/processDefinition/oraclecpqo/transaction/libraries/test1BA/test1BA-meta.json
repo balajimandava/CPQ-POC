@@ -1,0 +1,11 @@
+{
+  "name" : "test1BA",
+  "variableName" : "test1BA",
+  "description" : "",
+  "libraryFunctions" : [ "util.getDefaultValidToDate_psd" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "salesDistrict_t", "transactionType_t", "salesOrg_t" ],
+  "systemAttributes" : [ "_system_user_date_pref", "_system_user_time_zone" ]
+}

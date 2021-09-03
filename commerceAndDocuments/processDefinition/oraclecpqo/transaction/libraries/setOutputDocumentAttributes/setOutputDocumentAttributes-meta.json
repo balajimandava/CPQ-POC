@@ -1,0 +1,11 @@
+{
+  "name" : "Set Output Document Attributes",
+  "variableName" : "setOutputDocumentAttributes",
+  "description" : "This function will set values for output document related attributes.",
+  "libraryFunctions" : [ "commerce.getOutputDocTableData", "util.checkBizGroupCondition", "util.getCUSMASDetails", "util.translationBasedOnSelectedLanguage" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "validFrom_l", "validTo_l", "externalConfiguratorAttachment_l", "_document_number", "qqGroup_l", "coperSurcharge_l", "aluminumSurcharge_l", "silverSurcharge_l", "freight_l", "outputTax_l", "oldListPrice_l", "qqTotal_l", "totalAfterHeaderDiscount_l", "scaleFrom_l", "scaleTo_l", "newNetPrice_l", "wasteDisposalFee_l", "quantity_l", "weightGross_l", "weightUnit_l", "materialLineItem_l", "discount_l", "metalSurcharges_l", "_parent_doc_number", "lineItemStatus_l", "alternates_l", "printOnOutput_l", "priceAtChildLine_l", "_sequence_number", "suggestedDiscount_l", "suggestedTotal_l", "suggestedSellingPrice_l" ],
+  "mainDocAttributes" : [ "qqBusinessLineForSalesOrg_t", "headerDiscountOrPercentOff_t", "headerPercentOff_t", "agreementValidFrom_t", "agreementValidTo_t", "createdDate_t", "qqTotalValue_t", "headerDiscountAmount_t", "outputLanguage_t", "noteArraySet_t", "bonusTableDataString_t", "bonusArraySet_t", "salesOrg_t", "transactionType_t", "selectedCustomer_OutputTab_t", "selectedCustomerArraySet2_t", "qq_ntTransactionType_t", "distributionChannel_t", "transactionNumber_t", "customGroup1Name_t", "customGroup2Name_t", "customGroup3Name_t", "customGroup4Name_t", "customGroup5Name_t", "customGroup6Name_t", "printOnOutPutValidationFlag_t", "connectedToContractLinesInfo_t", "currency_t", "hideSuggestedPricesColumns_t", "endCustomerDetails_t", "endCustomerArraySet2_t", "outputType_t" ],
+  "systemAttributes" : [ "_system_user_date_pref", "_system_user_groups" ]
+}

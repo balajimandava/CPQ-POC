@@ -1,0 +1,24 @@
+{
+  "name" : "Get Table Value",
+  "variableName" : "getTableValue",
+  "description" : "Returns a value from any table/column/row combo",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputCol",
+    "type" : "String"
+  }, {
+    "name" : "inputTable",
+    "type" : "String"
+  }, {
+    "name" : "inputFieldValue",
+    "type" : "String"
+  }, {
+    "name" : "language",
+    "type" : "String"
+  }, {
+    "name" : "outputField",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

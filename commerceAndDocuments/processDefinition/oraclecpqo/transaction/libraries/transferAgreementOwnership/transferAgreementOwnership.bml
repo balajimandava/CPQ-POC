@@ -1,0 +1,71 @@
+//************************************************************************************************************
+//** Function:    Transfer Agreement Ownership 
+//** Type:        Commerce Library Function   
+//**
+//** Description: Re-Assign ownership of agreements new sales rep(s), using mass update
+//**
+//** Parameters: String dictionary of key(Old Sales Rep Enumber)-value(New Sales Rep ENumber) pairs
+//**				Will evaluate on a per quote, basis - so enter a pair for each sales rep that is being replaced
+//**
+//** Return type: String  
+//**
+//** History:     Date          Author          Comment 
+//**              ------------- --------------- --------------------------------------------------------------
+//**              05/06/2017    Shansen         Initial version
+//**              05/06/2017    Ali		Updated the filed which are present in Eaton contact tab.
+//**		  13/10/2020	Johnny Lin	Added createdBy_t per INC000013879062
+//**		  18/12/2020	Johnny Lin	Added preparedByENumber_t per INC000014073545		  
+
+//************************************************************************************************************
+
+ret="";
+if(containskey(eNumberDict, owner_t)){
+	newENum=get(eNumberDict, owner_t);
+	thisRet="";
+	salesRS=BMQL("SELECT SORT2, VKORG, SMTP_ADDR, NAME1, TELF1, KUNNR FROM CUSMAS WHERE SORT2=$newENum");	
+	for eachUser in salesRS{
+		salesENum=get(eachUser, "SORT2");
+		name1= get(eachUser,"NAME1");
+		salesOrg= get(eachUser,"VKORG");
+		telf1= get(eachUser,"TELF1");
+		email1=get(eachUser, "SMTP_ADDR");
+		eRecID=get(eachUser, "KUNNR");
+		thisRet="1~owner_t~" + newENum +
+				"|1~preparedByENumber_t~" + newENum +
+				"|1~createdBy_t~" + name1 +
+				"|1~qq_Contact2Name_t~" + name1 +
+				"|1~qq_Contact2Phone_t~"  + telf1 + 
+				"|1~qq_Contact2Email_t~" + email1 +
+				"|1~preparedBySalesOrg_t~" + salesOrg +
+				"|1~preparedByName_t~" + name1 +
+				"|1~preparedByPhone_t~"  + telf1 + 
+				"|1~preparedByEmail_t~" + email1 +
+				"|1~eRecordID_t~" + eRecID + "|";
+	}
+	if(thisRet==""){
+		print "Couldn't find value for " + newENum + " in CUSMAS, Agreement " +bs_id + " remains unchanged.";
+	}
+	else{
+		//get delegate/backup information
+		delegateName="";
+		delegateEmail="";
+		delegateENum="";
+		delegateRS=BMQL("Select SalesDelegate from SalesTeams where eNumber=$owner_t");	
+		for eachUser in delegateRS{
+			delegateENum=get(eachUser, "SalesDelegate");
+		}
+		if(delegateENum<>""){
+			delegateInfoRS=BMQL("Select Name, Email from SalesTeams where eNumber=$delegateENum");
+			for delegateInfo in delegateInfoRS{
+				delegateName=get(delegateInfo, "Name");
+				delegateEmail=get(delegateInfo, "Email");
+			}
+		}
+		thisRet=thisRet + "1~backupSalesENumber_t~" + delegateENum+
+						"|1~backupName_t~" + delegateName +
+						"|1~backupSalesEmail_t~" + delegateEmail + "|";
+		ret=ret+thisRet;
+	}
+}
+
+return ret;

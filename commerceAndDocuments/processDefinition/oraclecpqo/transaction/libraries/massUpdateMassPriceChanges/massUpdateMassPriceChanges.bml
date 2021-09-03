@@ -1,0 +1,13 @@
+massPriceChanges = "false";
+if(massPriceChanges_t){
+	massPriceChanges = "true";
+}
+print massPriceChanges;
+payload = "{\"documents\":{\"massPriceChanges_t\":\""+massPriceChanges+"\"}}";
+paramsDict = dict("string");
+put(paramsDict , "BSID",bs_id);
+put(paramsDict , "ACTION", "cleanSave_t");
+put(paramsDict , "SiteName", "eatontest2");
+put(paramsDict , "Payload", payload);
+resp = util.triggerAnyActionUsingRESTAPI(paramsDict);print resp;
+return "";

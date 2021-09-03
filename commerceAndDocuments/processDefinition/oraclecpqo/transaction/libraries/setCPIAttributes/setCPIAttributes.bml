@@ -1,0 +1,59 @@
+//************************************************************************************************************
+//** Description: This function is to set the CPI related attributes based on the data avaiablity in CPI_DATA data table
+//**
+//** Return type: String
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- --------------------------------------------------------------
+//**      	08-Dec-2020 	Dhana 	Initial version
+//**       	23-Dec-2020 	Nithin        	Updated cpiAdjustmentDate_t calculation
+//************************************************************************************************************
+
+//Varaible Declaration
+hyphenSymbol = "-";
+slashSymbol = "/";
+cpi_adj_percent = 0.0;
+cpi_Config_Att = "";
+cpi_frequency = commodityPriceIndex_t;
+cpiType = cpiType_t;
+dateFormat = _system_user_date_pref;
+cpiBase_str = "";
+cpiAdjustmentDate_str = "";
+cpi_Brand = ""; 
+//End of Varaible Declaration
+
+//Replace the . if the user selected pprefered date format.
+if(find(cpiBase_t,hyphenSymbol) <> -1){
+	dateFormat = replace(dateFormat,".",hyphenSymbol);
+}elif(find(cpiBase_t,slashSymbol) <> -1){
+	dateFormat = replace(dateFormat,".",slashSymbol);
+}
+
+//Converting the cpi based date into required formated date
+
+if(cpiBase_t <> ""){
+	cpiBase_date = strtojavadate(cpiBase_t, "yyyy-MM-dd HH:mm:ss");
+	cpiBase_str = datetostr(cpiBase_date,"MM/dd/yyyy");
+}
+
+//Converting the cpi Adjustment date into required formated date
+if(cpiAdjustmentDate_t <> ""){
+	cpiAdjustment_date = strtojavadate(cpiAdjustmentDate_t, "yyyy-MM-dd HH:mm:ss");
+	cpiAdjustmentDate_str = datetostr(cpiAdjustment_date,"MM/dd/yyyy");
+}
+
+//Querying the CPI_DATA data table based to get the CPI data
+cpiData_recordset = bmql("SELECT CPIPer,StartDate,EndDate,ConfigAttr,Brands FROM CPI_DATA WHERE BasePeriod = $cpiBase_str AND CPIType = $cpiType");
+
+StartDate = "";
+EndDate  = "";
+for eachRec in cpiData_recordset{
+
+    if(comparedates(strtojavadate(cpiAdjustmentDate_str,"MM/dd/yyyy"),strtojavadate(get(eachRec,"StartDate"),"MM/dd/yyyy")) >= 0 AND comparedates(strtojavadate(cpiAdjustmentDate_str,"MM/dd/yyyy"),strtojavadate(get(eachRec,"EndDate"),"MM/dd/yyyy")) <= 0 )
+	{
+	cpi_adj_percent = getFloat(eachRec,"CPIPer"); // getting the cpi_adj_percent from record set.
+	cpi_Config_Att = get(eachRec,"ConfigAttr"); 
+	cpi_Brand = get(eachRec,"Brands"); 
+	}
+}
+return "1~cpiAdjustmentPercent_t~"+string(cpi_adj_percent)+"|"+"1~cPIConfigAttr~"+(cpi_Config_Att)+"|"+"1~cpiBaseString_t~"+(cpi_Brand)+"|";

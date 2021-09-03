@@ -1,0 +1,12 @@
+{
+  "name" : "External Config Save for Bulk Add",
+  "variableName" : "externalConfigSaveForBulkAdd",
+  "description" : "47438 - Residential Configuration - POC to add multiple models into a transaction",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

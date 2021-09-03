@@ -1,0 +1,12 @@
+{
+  "name" : "Set_AddMPG",
+  "variableName" : "set_AddMPG",
+  "description" : "",
+  "libraryFunctions" : [ "util.u_logString" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "inputDict",
+    "type" : "String Dictionary"
+  } ],
+  "attributes" : [ ]
+}

@@ -1,0 +1,1756 @@
+/**
+@name 		Populate ArraySet
+@api 		populateArraySet
+@summary 	Populate ArraySet attributes
+@param  	Json
+@return 	Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+04/11/2019|Harshit Maheshwari   |Initial version
+04/19/2019|Gaurav Singh			|Gaurav Singh
+05/06/2019|Vasundhara Pentakota |Updated for NOtes and Bonus Array set population
+05/30/2019|Murali krishna       |ALM 2059 B-Line Sales Contact should be ZW
+06/20/2019|Vasundhara Pentakota |ALM-2169 User is able to add same MPG multiple times
+06/21/2019|Vasundhara Pentakota |ALM-2269 JETUI Customer added twice on Rebate Quote
+07/22/2019|Vasundhara Pentakota |ALM-2328 Getting Primary selection from Selected Customer Array set
+8/13/2019 |Vasundhara Pentakota |ALM-2379 Added size condition to return json Array
+12/27/2019|Chandan A J		|49704 - Eagle Development
+01/03/2020|Rahul U		|49704 - Eagle Development (Eaton_Contact_Search)
+01/10/2020|Ankit Vernekar	|49704 - Eagle Development
+02/4/2020|Dhananjay		|49704 - Eagle Development|Added code to set the Brand values for Create_New_Item
+02/18/2020|Rahul U		|49704 - Eagle Development|Added code to set the Sales Contact#
+03/03/2020|Gautam T             |49501 - Code added for Assigning Associate Column in Customer selection grid
+09/10/2020|Shardul S            |INC000013911288 Updated selectedCustomerArraySet_t to selectedCustomerArraySet2_t in Multi Select Customer
+11/06/2020|Shardul S            |INC000013980785 MPG and that particular MPG is already added to the selected grid
+10/03/2020|Praveen Sahu	        |Added changes for CPQ-4103 
+22/06/2021|Rahul Uttarwar	|Project#53390|Commented for CPQ-4228
+26/08/2021|Nithin               |CPQ-4098 Commenting PSD – Note for All Quotes logic
+*/
+populateArraySetStart = getcurrenttimeinmillis();
+
+setStr = jsonget(jsonParam, "arraySet", "string", "");
+retJson = json();
+soldToFormat="";
+if(setStr == ""){
+	jsonput(retJson, "data", "Please pass ArraySet name(s)");
+	return retJson;
+}
+retArray = jsonarray();
+valArr = string[];
+arraySets = split(setStr, "$$$");
+sortIndex = 3; //CustomerName at 3rd place in search result
+
+//On Action : Search (jetSearchCustomer_t) OR Apply (applyCustSelcFilter_t)
+//This functionality populate Customer Search ArraySet. Also filter out Customer records on basis of searched text
+if(findinarray(arraySets, "Customer_Selection") <> -1){
+	//Fetch Customer Records
+	customerData = commerce.ntCustomerSearch();
+	customerData  = util.sortingForCustomerSearch(customerData,sortIndex);
+	rowSep = "#@#";
+	colSep = "$,$";
+	if(customerData <> ""){
+		rowsArr = split(customerData, rowSep);
+		upFilterCust = UPPER(filter_CustSelc_t);
+		i = 0;
+		selectedCustomersList = string[]; //Stores the Customer # and Associated Customer # combination separated with "$$"
+		selectedCustIndexArr = range(jsonarraysize(selectedCustomerArraySet_t));
+		// below loop will not run in new transation
+		for eachSelectedCustomerIndex in selectedCustIndexArr{
+			//Get the current selected customer
+			currentJson = jsonarrayget(selectedCustomerArraySet_t, eachSelectedCustomerIndex, "json");
+			custNumber = jsonget(currentJson, "customer_selctdCust_t", "string", "");
+			associatedCustNumber = jsonget(currentJson, "shipToCustomer_selctdCust_t", "string", "");
+			//Add the selected customer to array
+			append(selectedCustomersList, custNumber + "$$" + associatedCustNumber);
+		}
+		for records in rowsArr{
+			colArr = split(records, colSep);
+			newRow = json();
+			
+			//Variable name of array attributes to populate 
+			varNameArr = string[]{"type_CustSelc_t", "customer_CustSelc_t", "name_CustSelc_t", "name2_CustSelc_t", "postalCode_CustSelc_t","city_CustSelc_t", "region_CustSelc_t", "country_CustSelc_t", "associated_CustSelc_t", "associatedCustomer_CustSelc_t", "nameAssoc_CustSelc_t","postalCodeAssoc_CustSelc_t", "cityAssoc_CustSelc_t", "regionAssoc_CustSelc_t", "countryAssoc_CustSelc_t", "hierarchy_CustSelc_t","salesDistrictArray_t"};
+			
+				
+			//Index Descriptions
+			//0: Customer Type, 1: Type, 2: Customer #, 3: Customer Name, 4: Postal Code, 5: City, 6: Region, 7: Country, 8: Associated, 9: Associated Customer, 10: Associated Name, 11: Associated Postal Code, 12: Associated City, 13: Associated Region, 14: Associated Country, 15: Hierarchy , 17: Sales District 
+			//Values to populate. 
+			valueArr = string[]{colArr[0], colArr[1], colArr[2],colArr[3],colArr[4],colArr[5],colArr[6],colArr[7],colArr[8],colArr[9],colArr[10],colArr[11],colArr[12],colArr[13],colArr[14],colArr[15],colArr[17]};
+			//Check if Customer is present in Selected List then ignore
+			if(findinarray(selectedCustomersList, colArr[1] + "$$" + colArr[9]) <> -1){
+				
+				continue;
+				
+			}
+			indexArr = range(sizeofarray(varNameArr));
+			
+			
+			//Check if any text entered to filter out customer records
+			if(upFilterCust <> ""){
+				if(((find(UPPER(colArr[0]), upFilterCust) <> -1) OR (find(UPPER(colArr[1]), upFilterCust) <> -1) OR (find(UPPER(colArr[2]), upFilterCust) <> -1) OR (find(UPPER(colArr[3]), upFilterCust) <> -1) OR (find(UPPER(colArr[4]), upFilterCust) <> -1) OR (find(UPPER(colArr[5]), upFilterCust) <> -1) OR (find(UPPER(colArr[6]), upFilterCust) <> -1) OR (find(UPPER(colArr[7]), upFilterCust) <> -1) OR (find(UPPER(colArr[8]), upFilterCust) <> -1) OR (find(UPPER(colArr[9]), upFilterCust) <> -1) OR (find(UPPER(colArr[10]), upFilterCust) <> -1) OR (find(UPPER(colArr[11]), upFilterCust) <> -1) OR (find(UPPER(colArr[12]), upFilterCust) <> -1) OR (find(UPPER(colArr[13]), upFilterCust) <> -1) OR (find(UPPER(colArr[14]), upFilterCust) <> -1) OR (find(UPPER(colArr[15]), upFilterCust) <> -1)) AND i <= 500)
+				{
+					//Populate filtered records
+					
+					for index in indexArr{
+						jsonput(newRow, varNameArr[index], valueArr[index]);
+					}
+					jsonarrayappend(retArray, newRow);
+			
+					//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+					if(jsonarraysize(retArray) == 500){
+						break;
+					}
+				}
+			}
+			
+			//Populate records on basis of text searched
+			else{
+				//Populate filtered records
+				for index in indexArr{
+					jsonput(newRow, varNameArr[index], valueArr[index]);
+				}
+				jsonarrayappend(retArray, newRow);
+			
+				//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+				if(jsonarraysize(retArray) == 500){
+					break;
+				}
+			}
+			i = i + 1;
+		}
+		append(valArr, "1~customerSelectionArraySet_t~" + jsonarrayrefid(retArray) + "|");
+	}
+	else{
+		retArray = jsonarray();
+		append(valArr, "1~customerSelectionArraySet_t~" + jsonarrayrefid(retArray) + "|");
+	}
+}
+
+// Chandan - 26-12-2019 - Added the below condition to populate Customer Selection Array Set in Customer Tab - START
+elif(findinarray(arraySets, "Customer_Selection_CusTab") <> -1){
+	//Fetch Customer Records
+	customerData = commerce.ntCustomerSearch();
+	customerData  = util.sortingForCustomerSearch(customerData,sortIndex);
+	rowSep = "#@#";
+	colSep = "$,$";
+	if(customerData <> ""){
+		rowsArr = split(customerData, rowSep);
+		upFilterCust = UPPER(filter_CusTab_t);
+		i = 0;
+		selectedCustomersList = string[]; //Stores the Customer # and Associated Customer # combination separated with "$$"
+		selectedCustIndexArr = range(jsonarraysize(selectedCustomerArraySet2_t));
+		for eachSelectedCustomerIndex in selectedCustIndexArr{
+			//Get the current selected customer
+			currentJson = jsonarrayget(selectedCustomerArraySet2_t, eachSelectedCustomerIndex, "json");
+			custNumber = jsonget(currentJson, "customer_selctdCust2_t", "string", "");
+			associatedCustNumber = jsonget(currentJson, "shipToCustomer_selctdCust2_t", "string", "");
+			//Add the selected customer to array
+			append(selectedCustomersList, custNumber + "$$" + associatedCustNumber);
+		}
+		for records in rowsArr{
+			colArr = split(records, colSep);
+			newRow = json();
+			//Variable name of array attributes to populate 
+			varNameArr = string[]{"type_t", "customerNo_t", "name_t", "name2_t", "postalCode_t","city_t", "region_t", "country_t", "associated_t", "associatedCustomerNo_t", "name_ShipTo_t","postalCode_ShipTo_t", "city_ShipTo_t", "region_ShipTo_t", "country_ShipTo_t", "hierarchy_ShipTo_t", "salesDistrict_CusSel_t"};
+			//Index Descriptions
+			//0: Customer Type, 1: Type, 2: Customer #, 3: Customer Name, 4: Postal Code, 5: City, 6: Region, 7: Country, 8: Associated, 9: Associated Customer, 10: Associated Name, 11: Associated Postal Code, 12: Associated City, 13: Associated Region, 14: Associated Country, 15: Hierarchy
+			
+			//Values to populate. 
+			
+			valueArr = string[]{colArr[0], colArr[1], colArr[2],colArr[3],colArr[4],colArr[5],colArr[6],colArr[7],colArr[8],colArr[9],colArr[10],colArr[11],colArr[12],colArr[13],colArr[14],colArr[15],colArr[17]};
+			
+			//Check if Customer is present in Selected List then ignore
+			if(findinarray(selectedCustomersList, colArr[1] + "$$" + colArr[9]) <> -1){
+				continue;
+			}
+			indexArr = range(sizeofarray(varNameArr));
+			
+			//Check if any text entered to filter out customer records
+			if(upFilterCust <> ""){
+				if(((find(UPPER(colArr[0]), upFilterCust) <> -1) OR (find(UPPER(colArr[1]), upFilterCust) <> -1) OR (find(UPPER(colArr[2]), upFilterCust) <> -1) OR (find(UPPER(colArr[3]), upFilterCust) <> -1) OR (find(UPPER(colArr[4]), upFilterCust) <> -1) OR (find(UPPER(colArr[5]), upFilterCust) <> -1) OR (find(UPPER(colArr[6]), upFilterCust) <> -1) OR (find(UPPER(colArr[7]), upFilterCust) <> -1) OR (find(UPPER(colArr[8]), upFilterCust) <> -1) OR (find(UPPER(colArr[9]), upFilterCust) <> -1) OR (find(UPPER(colArr[10]), upFilterCust) <> -1) OR (find(UPPER(colArr[11]), upFilterCust) <> -1) OR (find(UPPER(colArr[12]), upFilterCust) <> -1) OR (find(UPPER(colArr[13]), upFilterCust) <> -1) OR (find(UPPER(colArr[14]), upFilterCust) <> -1) OR (find(UPPER(colArr[15]), upFilterCust) <> -1)) AND i <= 500)
+				{
+					//Populate filtered records
+					
+					for index in indexArr{
+						jsonput(newRow, varNameArr[index], valueArr[index]);
+					}
+					jsonarrayappend(retArray, newRow);
+			
+					//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+					if(jsonarraysize(retArray) == 500){
+						break;
+					}
+				}
+			}
+			
+			//Populate records on basis of text searched
+			else{
+				//Populate filtered records
+				for index in indexArr{
+					jsonput(newRow, varNameArr[index], valueArr[index]);
+				}
+				jsonarrayappend(retArray, newRow);
+			
+				//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+				if(jsonarraysize(retArray) == 500){
+					break;
+				}
+			}
+			i = i + 1;
+		}
+		append(valArr, "1~customerSelectionArraySet_CusTab_t~" + jsonarrayrefid(retArray) + "|");
+	}
+	else{
+		retArray = jsonarray();
+		append(valArr, "1~customerSelectionArraySet_CusTab_t~" + jsonarrayrefid(retArray) + "|");
+	}
+}
+// Chandan - 26-12-2019 - Added the below condition to populate Customer Selection Array Set in Customer Tab - END
+
+//On Action : Add (jetAddCustomer_t)
+//This functionality populate Selected Customer ArraySet located in New Transaction tab
+elif(findinarray(arraySets, "Selected_Customer_1") <> -1){
+	//Check if multiple customers allowed
+	checkedIn = false;
+	multiCustomerAllowed = false;
+	bussGrpJ = json(businessGroupTableData_t);
+	multiCustJ = json(multiSelectCustomerType_t);
+	businessGrp = jsonget(bussGrpJ, ntSelectedSalesOrg_t, "string", "");
+	
+	multiCustGrp = split(jsonget(multiCustJ, qq_ntTransactionType_t, "string", ""), "~");
+	//ALM-2269 Added By Vasundhara
+	customerNumArray = string[];
+	
+	if(findinarray(multiCustGrp,businessGrp ) <> -1){
+		multiCustomerAllowed = true;
+		
+	}
+	selectedCustomerArraySet_temp = jsonarray();
+	
+	
+	if(NOT(ISNULL(customerSelectionArraySet_t))){
+		parentJ = json();
+		
+		//Keys of of Customer List Array
+		//Convert jsonArray to json because jsonpathgetmultiple takes json as input
+		selectedCustRecordsJson = json();
+		selectedCustomerDataJson = json();
+		jsonput(selectedCustRecordsJson, "records", customerSelectionArraySet_t);
+		
+		
+		//START ALM-2328 Vasundhara getting Primary selection from Selected Customer Array set
+		primarySelectionExistsInSelectedTable = true;
+		existingSelectedCustRecordsJson = json();
+		jsonput(existingSelectedCustRecordsJson, "records", selectedCustomerArraySet_t);
+		
+		existingSelectedCustRecordsJsonArray = jsonpathgetmultiple(existingSelectedCustRecordsJson, "$.records[?(@.primary_selctdCust_t==true)]");
+		
+		if(jsonarraysize(existingSelectedCustRecordsJsonArray) > 0 AND multiCustomerAllowed == true){
+			primarySelectionExistsInSelectedTable = false;
+		}
+		//END - ALM-2328
+		
+		//Fetch selected rows from the array
+		selectedCustRecordsJsonArray = jsonpathgetmultiple(selectedCustRecordsJson, "$.records[?(@.select_CustSelc_t==true)]");
+		
+		//Get existing selected customer data details
+		if(selectedCustomerData_t <> "")
+		{
+			selectedCustomerDataJson = json(selectedCustomerData_t);
+		}
+		
+		//Gaurav: Execute below code only if something was selected
+		if(jsonarraysize(selectedCustRecordsJsonArray) > 0){
+			indexArr = range(jsonarraysize(selectedCustRecordsJsonArray));
+			for index in indexArr{
+				custJ = jsonarrayget(selectedCustRecordsJsonArray, index, "json");
+				selectedCustJ = json();
+				uncheckedCustRecords = json();
+				
+				//ALM-2269 - START - Added By Vasundhara - adding selected customer Number and associated Customer Number in an array.
+				append(customerNumArray,jsonget(custJ, "customer_CustSelc_t","string","") + "$$" + jsonget(custJ, "associatedCustomer_CustSelc_t","string",""));
+				//END
+				
+				jsonput(selectedCustJ, "type_selctdCust_t", jsonget(custJ, "type_CustSelc_t","string",""));
+				jsonput(selectedCustJ, "customer_selctdCust_t", jsonget(custJ, "customer_CustSelc_t","string",""));
+				jsonput(selectedCustJ, "name_selctdCust_t", jsonget(custJ, "name_CustSelc_t","string",""));
+				jsonput(selectedCustJ, "postalCode_selctdCust_t", jsonget(custJ, "postalCode_CustSelc_t","string",""));
+				jsonput(selectedCustJ, "city_selctdCust_t", jsonget(custJ, "city_CustSelc_t","string",""));
+				jsonput(selectedCustJ, "region_selctdCust_t", jsonget(custJ, "region_CustSelc_t","string",""));
+				jsonput(selectedCustJ, "country_selctdCust_t", jsonget(custJ, "country_CustSelc_t","string",""));
+				
+				//Project # 49501 : The below line is added to fill in the newly added Associated Column in the customer grid with value from #associated_CustSelc_t. 06/03/2020: Gautam T
+				jsonput(selectedCustJ, "associated_selctdCust_t", jsonget(custJ, "associated_CustSelc_t","string",""));
+				jsonput(selectedCustJ, "shipToCustomer_selctdCust_t", jsonget(custJ, "associatedCustomer_CustSelc_t","string",""));
+				//Set 1st row as primary by default
+				jsonput(selectedCustJ, "primary_selctdCust_t", string(primarySelectionExistsInSelectedTable));
+				primarySelectionExistsInSelectedTable  = false;
+				
+				//Set Selected Customer Data attribute  
+				childJ = json();
+				jsonput(childJ, "customerNo", jsonget(custJ, "customer_CustSelc_t","string",""));
+				jsonput(childJ, "associated", jsonget(custJ, "associatedCustomer_CustSelc_t","string",""));
+				jsonput(childJ, "hierarchy", jsonget(custJ, "hierarchy_CustSelc_t","string",""));
+				jsonput(childJ, "type", jsonget(custJ, "type_CustSelc_t","string",""));
+				jsonput(selectedCustomerDataJson, jsonget(custJ, "customer_CustSelc_t","string","NoKey") + "$$" + jsonget(custJ,"associatedCustomer_CustSelc_t","string","NoKey"), childJ);
+				
+				//Check if multiple customers are allowed for current salesorg and transaction type
+				if(multiCustomerAllowed == false AND checkedIn == false){
+					jsonarrayappend(selectedCustomerArraySet_temp, selectedCustJ);
+					checkedIn = true;
+					break; // ALM-2328 Vasundhara Added break statement to avoid the looping for single customer
+				}
+				//If multiple customers are allowed, append selected customers to existing selected customers array
+				else{
+					jsonarrayappend(selectedCustomerArraySet_t, selectedCustJ);
+				}
+			}
+			append(valArr, "1~selectedCustomerData_t~" + jsontostr(selectedCustomerDataJson) + "|");
+			if(multiCustomerAllowed == false){
+				append(valArr, "1~selectedCustomerArraySet_t~" + jsonarrayrefid(selectedCustomerArraySet_temp) + "|");
+			}
+			else{
+				append(valArr, "1~selectedCustomerArraySet_t~" + jsonarrayrefid(selectedCustomerArraySet_t) + "|");
+			}
+			
+			
+			//ALM-2269 - Added by Vasundhara -  Removing the selected Customers from the selection Customers Array Set
+			retArray = jsonarray(); 
+			selectionCustomerJsonArray = jsonarraycopy(customerSelectionArraySet_t);
+			NumberOfRowsArray = range(jsonarraysize(selectionCustomerJsonArray));
+			for eachRowNumber in NumberOfRowsArray{
+				currentRow = jsonarrayget(selectionCustomerJsonArray, eachRowNumber, "json");
+				existingCustomer = jsonget(currentRow, "customer_CustSelc_t", "string", "");
+				existingAssociatedCustomer = jsonget(currentRow, "associatedCustomer_CustSelc_t", "string", "");
+				existingCustomerIndex = findinarray(customerNumArray,existingCustomer + "$$" + existingAssociatedCustomer);
+				if(existingCustomerIndex == -1){
+					selectedCustJ = json();
+					jsonput(selectedCustJ, "select_CustSelc_t", false);
+					jsonput(selectedCustJ, "type_CustSelc_t", jsonget(currentRow, "type_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "customer_CustSelc_t", jsonget(currentRow, "customer_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "name_CustSelc_t", jsonget(currentRow, "name_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "name2_CustSelc_t", jsonget(currentRow, "name2_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "postalCode_CustSelc_t", jsonget(currentRow, "postalCode_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "city_CustSelc_t", jsonget(currentRow, "city_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "region_CustSelc_t", jsonget(currentRow, "region_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "country_CustSelc_t", jsonget(currentRow, "country_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "associated_CustSelc_t", jsonget(currentRow, "associated_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "associatedCustomer_CustSelc_t", jsonget(currentRow, "associatedCustomer_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "nameAssoc_CustSelc_t", jsonget(currentRow, "nameAssoc_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "postalCodeAssoc_CustSelc_t", jsonget(currentRow, "postalCodeAssoc_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "cityAssoc_CustSelc_t", jsonget(currentRow, "cityAssoc_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "regionAssoc_CustSelc_t", jsonget(currentRow, "regionAssoc_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "countryAssoc_CustSelc_t", jsonget(currentRow, "countryAssoc_CustSelc_t", "string",""));
+					jsonput(selectedCustJ, "hierarchy_CustSelc_t", jsonget(currentRow, "hierarchy_CustSelc_t", "string",""));
+					//Chandan A J - 40974 - Eagle Development - Added the below row to retain Sales Disctricts after adding the customers
+					jsonput(selectedCustJ, "salesDistrictArray_t", jsonget(currentRow, "salesDistrictArray_t", "string",""));
+					jsonarrayappend(retArray, selectedCustJ);
+					//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+					if(jsonarraysize(retArray) == 500){
+						break;
+					}
+				}
+			}
+			append(valArr, "1~customerSelectionArraySet_t~" + jsonarrayrefid(retArray) + "|");
+		}
+	}
+}
+//Added for External Users - CPQ-4103
+elif(findinarray(arraySets, "Set_Customer_for_External_Users") <> -1){
+	
+	//if(selectedCustomerArraySet_t<>"[]" AND selectedCustomerArraySet2_t <> "[]"){
+
+				
+		customerNumber = jsonget(jsonParam, "customerNumber", "string", "");
+		qqCustomerNameCopy = jsonget(jsonParam, "qqCustomerNameCopy", "string", "");
+		customerPostalCodeZip = jsonget(jsonParam, "customerPostalCodeZip", "string", "");
+		qqCityAndRegionCopy = jsonget(jsonParam, "qqCityAndRegionCopy", "string", "");
+		customerCountry = jsonget(jsonParam, "customerCountry", "string", "");
+		
+		selectedCustomerDataJson = json();
+		childJ = json();
+		jsonput(childJ, "customerNo", customerNumber);
+		jsonput(childJ, "associated", "");
+		jsonput(childJ, "hierarchy", "");
+		jsonput(childJ, "type", "Sold To");
+		jsonput(selectedCustomerDataJson, customerNumber + "$$" + "", childJ);
+		
+		append(valArr, "1~selectedCustomerData_t~" + jsontostr(selectedCustomerDataJson) + "|");
+		
+		
+		selectedCustomerDataJson = json();
+		selectedCustomerArraySet_temp = jsonarray();
+		primarySelectionExistsInSelectedTable = true;
+		cityRegion=split(qqCityAndRegionCopy, "");
+		
+		city=cityRegion[0];
+		
+		region=cityRegion[1];
+		
+		jsonput(selectedCustomerDataJson, "type_selctdCust_t", "Sold To");
+		jsonput(selectedCustomerDataJson, "customer_selctdCust_t", customerNumber);
+		jsonput(selectedCustomerDataJson, "name_selctdCust_t", qqCustomerNameCopy);
+		jsonput(selectedCustomerDataJson, "postalCode_selctdCust_t", customerPostalCodeZip);
+		jsonput(selectedCustomerDataJson, "city_selctdCust_t", city);
+		jsonput(selectedCustomerDataJson, "region_selctdCust_t", region);
+		jsonput(selectedCustomerDataJson, "country_selctdCust_t", customerCountry);
+		jsonput(selectedCustomerDataJson, "primary_selctdCust_t", string(primarySelectionExistsInSelectedTable));
+		
+		jsonarrayappend(selectedCustomerArraySet_temp, selectedCustomerDataJson);
+		append(valArr, "1~selectedCustomerArraySet_t~" + jsonarrayrefid(selectedCustomerArraySet_temp) + "|");	
+
+		
+		jsonput(selectedCustomerDataJson, "type_selctdCust2_t", "Sold To");
+		jsonput(selectedCustomerDataJson, "customer_selctdCust2_t", customerNumber);
+		jsonput(selectedCustomerDataJson, "name_selctdCust2_t", qqCustomerNameCopy);
+		jsonput(selectedCustomerDataJson, "postalCode_selctdCust2_t", customerPostalCodeZip);
+		jsonput(selectedCustomerDataJson, "city_selctdCust2_t", city);
+		jsonput(selectedCustomerDataJson, "region_selctdCust2_t", region);
+		jsonput(selectedCustomerDataJson, "country_selctdCust2_t", customerCountry);
+		jsonput(selectedCustomerDataJson, "primary_selctdCust2_t", string(primarySelectionExistsInSelectedTable));
+		
+		jsonarrayappend(selectedCustomerArraySet_temp, selectedCustomerDataJson);
+		append(valArr, "1~selectedCustomerArraySet2_t~" + jsonarrayrefid(selectedCustomerArraySet_temp) + "|");	
+
+	//}
+}
+//Chandan - 26-12-2019 - Added the below condition to set the Selected Customer Array Set in Customer tab - START
+elif(findinarray(arraySets, "Selected_Customer_1_CusTab") <> -1){
+	//Check if multiple customers allowed
+	checkedIn = false;
+	multiCustomerAllowed = false;
+	bussGrpJ = json(businessGroupTableData_t);
+	multiCustJ = json(multiSelectCustomerType_t);
+	businessGrp = jsonget(bussGrpJ, ntSelectedSalesOrg_t, "string", "");
+	multiCustGrp = split(jsonget(multiCustJ, qq_ntTransactionType_t, "string", ""), "~");
+	
+	//ALM-2269 Added By Vasundhara
+	customerNumArray = string[];
+	
+	if(findinarray(multiCustGrp,businessGrp ) <> -1){
+		multiCustomerAllowed = true;
+	}
+	selectedCustomerArraySet_temp = jsonarray();print "++++++++";print "Selected Customer arraygrid Draft Step";print customerSelectionArraySet_CusTab_t;print "++++++++";
+	if(NOT(ISNULL(customerSelectionArraySet_CusTab_t))){
+		parentJ = json();
+		//Convert jsonArray to json because jsonpathgetmultiple takes json as input
+		selectedCustRecordsJson = json();
+		selectedCustomerDataJson = json();
+		jsonput(selectedCustRecordsJson, "records", customerSelectionArraySet_CusTab_t);
+		primarySelectionExistsInSelectedTable = false;
+		existingSelectedCustRecordsJson = json();
+		jsonput(existingSelectedCustRecordsJson, "records", selectedCustomerArraySet2_t);
+		
+		existingSelectedCustRecordsJsonArray = jsonpathgetmultiple(existingSelectedCustRecordsJson, "$.records[?(@.primary_selctdCust2_t==true)]");
+		
+		//END - ALM-2328
+		
+		//Fetch selected rows from the array
+		selectedCustRecordsJsonArray = jsonpathgetmultiple(selectedCustRecordsJson, "$.records[?(@.primary_t==true)]");
+		
+		//Get existing selected customer data details
+		if(selectedCustomerData_t <> "")
+		{
+			selectedCustomerDataJson = json(selectedCustomerData_t);
+		}
+		
+		//Gaurav: Execute below code only if something was selected
+		if(jsonarraysize(selectedCustRecordsJsonArray) > 0){
+			indexArr = range(jsonarraysize(selectedCustRecordsJsonArray));
+			for index in indexArr{
+				custJ = jsonarrayget(selectedCustRecordsJsonArray, index, "json");
+				selectedCustJ = json();
+				uncheckedCustRecords = json();
+				
+				//ALM-2269 - START - Added By Vasundhara - adding selected customer Number and associated Customer Number in an array.
+				append(customerNumArray,jsonget(custJ, "customerNo_t","string","") + "$$" + jsonget(custJ, "associatedCustomerNo_t","string",""));
+				//END
+				
+				jsonput(selectedCustJ, "type_selctdCust2_t", jsonget(custJ, "type_t","string",""));
+				jsonput(selectedCustJ, "customer_selctdCust2_t", jsonget(custJ, "customerNo_t","string",""));
+				jsonput(selectedCustJ, "name_selctdCust2_t", jsonget(custJ, "name_t","string",""));
+				jsonput(selectedCustJ, "postalCode_selctdCust2_t", jsonget(custJ, "postalCode_t","string",""));
+				jsonput(selectedCustJ, "city_selctdCust2_t", jsonget(custJ, "city_t","string",""));
+				jsonput(selectedCustJ, "region_selctdCust2_t", jsonget(custJ, "region_t","string",""));
+				jsonput(selectedCustJ, "country_selctdCust2_t", jsonget(custJ, "country_t","string",""));
+				//Project # 49501 : The below line is added to fill in the newly added Associated Column in the customer grid with value from #associated_CustSelc_t. 06/03/2020: Gautam T
+				jsonput(selectedCustJ, "associated_selctdCust2_t", jsonget(custJ, "associated_t","string",""));
+                                jsonput(selectedCustJ, "shipToCustomer_selctdCust2_t", jsonget(custJ, "associatedCustomerNo_t","string",""));
+				//Chandan - 49704 - Eagle Development - Added the below if condtion to set the deleted primary customer back to Primary customer when added back
+				selectedCustNo = jsonget(custJ, "customerNo_t","string","");
+				if(selectedCustNo == customerNumber_t){
+					primarySelectionExistsInSelectedTable = true;
+					jsonput(selectedCustJ, "primary_selctdCust2_t", string(primarySelectionExistsInSelectedTable));
+				}
+				else{
+					jsonput(selectedCustJ, "primary_selctdCust2_t", string(primarySelectionExistsInSelectedTable));
+				}
+				
+				//Set Selected Customer Data attribute  
+				childJ = json();
+				jsonput(childJ, "customerNo", jsonget(custJ, "customerNo_t","string",""));
+				jsonput(childJ, "associated", jsonget(custJ, "associatedCustomerNo_t","string",""));
+				jsonput(childJ, "hierarchy", jsonget(custJ, "hierarchy_ShipTo_t","string",""));
+				jsonput(childJ, "type", jsonget(custJ, "type_CustSelc_t","string",""));
+				jsonput(selectedCustomerDataJson, jsonget(custJ, "customerNo_t","string","NoKey") + "$$" + jsonget(custJ,"associatedCustomerNo_t","string","NoKey"), childJ);
+				
+				//Check if multiple customers are allowed for current salesorg and transaction type
+				if(multiCustomerAllowed == false AND checkedIn == false){
+					jsonarrayappend(selectedCustomerArraySet_temp, selectedCustJ);
+					checkedIn = true;
+					break; // ALM-2328 Vasundhara Added break statement to avoid the looping for single customer
+				}
+				//If multiple customers are allowed, append selected customers to existing selected customers array
+				else{
+					jsonarrayappend(selectedCustomerArraySet2_t, selectedCustJ);
+				}
+			}
+			append(valArr, "1~selectedCustomerData_t~" + jsontostr(selectedCustomerDataJson) + "|");
+			if(multiCustomerAllowed == false){
+				append(valArr, "1~selectedCustomerArraySet2_t~" + jsonarrayrefid(selectedCustomerArraySet_temp) + "|");
+			}
+			else{
+				append(valArr, "1~selectedCustomerArraySet2_t~" + jsonarrayrefid(selectedCustomerArraySet2_t) + "|");
+			}
+			
+			//ALM-2269 - Added by Vasundhara -  Removing the selected Customers from the selection Customers Array Set
+			retArray = jsonarray(); 
+			selectionCustomerJsonArray = jsonarraycopy(customerSelectionArraySet_CusTab_t);
+			NumberOfRowsArray = range(jsonarraysize(selectionCustomerJsonArray));
+			for eachRowNumber in NumberOfRowsArray{
+				currentRow = jsonarrayget(selectionCustomerJsonArray, eachRowNumber, "json");
+				existingCustomer = jsonget(currentRow, "customerNo_t", "string", "");
+				existingAssociatedCustomer = jsonget(currentRow, "associatedCustomerNo_t", "string", "");
+				existingCustomerIndex = findinarray(customerNumArray,existingCustomer + "$$" + existingAssociatedCustomer);
+				if(existingCustomerIndex == -1){
+					selectedCustJ = json();
+					jsonput(selectedCustJ, "primary_t", false);
+					jsonput(selectedCustJ, "type_t", jsonget(currentRow, "type_t", "string",""));
+					jsonput(selectedCustJ, "customerNo_t", jsonget(currentRow, "customerNo_t", "string",""));
+					jsonput(selectedCustJ, "name_t", jsonget(currentRow, "name_t", "string",""));
+					jsonput(selectedCustJ, "name2_t", jsonget(currentRow, "name2_t", "string",""));
+					jsonput(selectedCustJ, "postalCode_t", jsonget(currentRow, "postalCode_t", "string",""));
+					jsonput(selectedCustJ, "city_t", jsonget(currentRow, "city_t", "string",""));
+					jsonput(selectedCustJ, "region_t", jsonget(currentRow, "region_t", "string",""));
+					jsonput(selectedCustJ, "country_t", jsonget(currentRow, "country_t", "string",""));
+					jsonput(selectedCustJ, "associated_t", jsonget(currentRow, "associated_t", "string",""));
+					jsonput(selectedCustJ, "associatedCustomerNo_t", jsonget(currentRow, "associatedCustomerNo_t", "string",""));
+					jsonput(selectedCustJ, "name_ShipTo_t", jsonget(currentRow, "name_ShipTo_t", "string",""));
+					jsonput(selectedCustJ, "postalCode_ShipTo_t", jsonget(currentRow, "postalCode_ShipTo_t", "string",""));
+					jsonput(selectedCustJ, "city_ShipTo_t", jsonget(currentRow, "city_ShipTo_t", "string",""));
+					jsonput(selectedCustJ, "region_ShipTo_t", jsonget(currentRow, "region_ShipTo_t", "string",""));
+					jsonput(selectedCustJ, "country_ShipTo_t", jsonget(currentRow, "country_ShipTo_t", "string",""));
+					jsonput(selectedCustJ, "hierarchy_ShipTo_t", jsonget(currentRow, "hierarchy_ShipTo_t", "string",""));
+					//Chandan A J - 40974 - Eagle Development - Added the below row to retain Sales Disctricts after adding the customers
+					jsonput(selectedCustJ, "salesDistrict_CusSel_t", jsonget(currentRow, "salesDistrict_CusSel_t", "string",""));
+					jsonarrayappend(retArray, selectedCustJ);
+					//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+					if(jsonarraysize(retArray) == 500){
+						break;
+					}
+				}
+			}
+			append(valArr, "1~customerSelectionArraySet_CusTab_t~" + jsonarrayrefid(retArray) + "|");
+		}
+	}
+}
+//Chandan - 26-12-2019 - Added the above Condtion to set the Selected Ciustomer Array Set in Customer tab - END
+//Shardul - updated selectedCustomerArraySet_t to selectedCustomerArraySet2_t
+elif(findinarray(arraySets, "Selected_MultipleCustomer") <> -1){
+		existingSelectedCustRecordsJson = json();
+		jsonput(existingSelectedCustRecordsJson, "records", selectedCustomerArraySet2_t);
+		existingCustRecordsJsonArray = jsonpathgetmultiple(existingSelectedCustRecordsJson, "$.records[?(@.primary_selctdCust2_t==false)]");
+		if(jsonarraysize(existingCustRecordsJsonArray) > 0)
+		{
+			indexsize = range(jsonarraysize(existingCustRecordsJsonArray));
+			for indexVal in indexsize{
+			uncheckedCustRecords = json();
+			custJ = jsonarrayget(existingCustRecordsJsonArray, indexVal, "json");
+			customerNo = jsonget(jsonarrayget(existingCustRecordsJsonArray, indexVal, "json"), "customer_selctdCust2_t", "string", "");
+			shipToCustomerNo = jsonget(jsonarrayget(existingCustRecordsJsonArray, indexVal, "json"), "shipToCustomer_selctdCust2_t", "string", "NoKey");
+			keyValue=customerNo+ "$$" +shipToCustomerNo;					
+			selectedCustJ = json(selectedCustomerData_t);
+			primaryCustJ = jsonget(selectedCustJ, keyValue, "json");	
+			type = jsonget(primaryCustJ , "type", "string", "");
+			customer = jsonget(primaryCustJ , "customerNo", "string", "");
+			hierarchy = jsonget(primaryCustJ , "hierarchy", "string", "");				
+			if(type == "Hierarchy")
+			{
+				
+				if(soldToFormat <> "")
+				{
+					soldToFormat = soldToFormat +"#@#"+ ntSelectedSalesOrg_t + "-" +customer + "-"+customer;
+				}
+				else
+				{
+					soldToFormat = ntSelectedSalesOrg_t + "-" +customer + "-"+customer;
+				}
+			}
+			elif(type == "Sold to")
+			{				
+				if(soldToFormat <> "")
+				{						
+					
+					if(hierarchy <> "")
+					{
+						soldToFormat = soldToFormat +"#@#"+ ntSelectedSalesOrg_t + "-" +hierarchy + "-"+customer;
+					}
+					else
+					{
+						soldToFormat = soldToFormat +"#@#"+ ntSelectedSalesOrg_t + "-" +customer + "-"+customer;
+					}
+				}
+			
+				else
+				{
+					
+					if(hierarchy <> "")
+					{
+						soldToFormat = ntSelectedSalesOrg_t + "-" +hierarchy + "-"+customer;
+					}
+					else
+					{
+						soldToFormat = ntSelectedSalesOrg_t + "-" +customer + "-"+customer;
+					}
+				}
+			}
+			
+			elif(type == "Ship to")
+			{
+				if(soldToFormat <> "")
+				{
+					
+					if(hierarchy <> "")
+					{
+						soldToFormat = soldToFormat +"#@#"+ntSelectedSalesOrg_t + "-" +hierarchy + "-"+customer;
+					}
+					else
+					{
+						soldToFormat = soldToFormat +"#@#"+ntSelectedSalesOrg_t + "-" +customer + "-"+customer;
+					}
+				}
+	
+				else
+				{
+					
+					if(hierarchy <> "")
+					{
+						soldToFormat = ntSelectedSalesOrg_t + "-" +hierarchy + "-"+customer;
+					}
+					else
+					{
+						soldToFormat =ntSelectedSalesOrg_t + "-" +customer + "-"+customer;	
+					}
+				}
+			}
+			}
+			append(valArr, soldToFormat);
+		}
+	}		
+
+				
+//On Action : Add (jetEndCust_t)
+//This functionality populate End Customer ArraySet located in New Transaction tab
+elif(findinarray(arraySets, "End_Customer_1") <> -1){
+	ret = "";
+	if(qq_nt_EndCust_name_t <> "" AND qq_nt_EndCust_country_t <> "" AND qq_nt_EndCust_region_t <> "" AND qq_nt_EndCust_city_t <> ""){
+		newRowJ = json();
+		countryRegion = split(qq_nt_EndCust_region_t, "_");
+		countryCode = countryRegion[0];
+		regionCode = countryRegion[1];
+		countryName = "";
+		regionName = "";
+		//Fetch Country Code and Region Code
+		recordSet = bmql("select Country, Region from SAPRegions where CountryCode = $countryCode AND RegionCode = $regionCode");
+		for records in recordSet{
+			countryName = get(records, "Country");
+			regionName = get(records, "Region");
+			break;
+		}
+		jsonput(newRowJ, "name_endCust_t", qq_nt_EndCust_name_t);
+		jsonput(newRowJ, "country_endCust_t", countryName);
+		jsonput(newRowJ, "region_endCust_t", regionName);
+		jsonput(newRowJ, "city_endCust_t",  qq_nt_EndCust_city_t);
+
+		jsonarrayappend(endCustomerArraySet_t, newRowJ);
+		ret = "1~endCustomerArraySet_t~" + jsonarrayrefid(endCustomerArraySet_t) + "|";
+	}
+	append(valArr, ret);
+}
+
+//On Action : Add (jetEndCust2_t)
+//This functionality populate End Customer ArraySet located in Customer Tab
+elif(findinarray(arraySets, "End_Customer_2") <> -1){
+	ret = "";
+	if(qq_EndCust_name_t <> "" AND qq_EndCust_country_t <> "" AND qq_EndCust_region_t <> "" AND qq_EndCust_city_t <> ""){
+		newRowJ = json();
+		countryRegion = split(qq_EndCust_region_t, "_");
+		countryCode = countryRegion[0];
+		regionCode = countryRegion[1];
+		countryName = "";
+		regionName = "";
+		//Fetch Country Code and Region Code
+		recordSet = bmql("select Country, Region from SAPRegions where CountryCode = $countryCode AND RegionCode = $regionCode");
+		for records in recordSet{
+			countryName = get(records, "Country");
+			regionName = get(records, "Region");
+			break;
+		}
+		jsonput(newRowJ, "name_endCust2_t", qq_EndCust_name_t);
+		jsonput(newRowJ, "country_endCust2_t", countryName);
+		jsonput(newRowJ, "region_endCust2_t", regionName);
+		jsonput(newRowJ, "city_endCust2_t",  qq_EndCust_city_t);
+
+		jsonarrayappend(endCustomerArraySet2_t, newRowJ);
+		ret = "1~endCustomerArraySet2_t~" + jsonarrayrefid(endCustomerArraySet2_t) + "|";
+	}
+	append(valArr, ret);
+}
+
+//On Action : Save (cleanSave_t)
+elif((findinarray(arraySets, "SelectedCust_EndCust_2") <> -1)){
+	retJArr = jsonarray();
+	//This functionality copies Customer data from End Customer ArraySet located in New Transaction tab to End Customer ArraySet located in Customer Tab
+	if(jsonarraysize(nt_selectedEndCustomerArrayset_t) > 0){
+			indexArr = range(jsonarraysize(nt_selectedEndCustomerArrayset_t));
+			primaryEndCustName = "";
+			primaryEndCustNo = "";
+			
+			for index in indexArr{
+				endcustJ = jsonarrayget(nt_selectedEndCustomerArrayset_t, index, "json");
+				selectedEndCustJ = json();
+				
+				
+				// adding selected customer Number and associated Customer Number in an array.
+				//END
+				
+				jsonput(selectedEndCustJ, "primary_EndCus_t", jsonget(endcustJ, "nt_primaryEndCustomer_t","string",""));
+				jsonput(selectedEndCustJ, "customer_EndCus2_t", jsonget(endcustJ, "nt_selectedEndCustomer_t","string",""));
+				jsonput(selectedEndCustJ, "name_endCust2_t", jsonget(endcustJ, "nt_selectedEndCustomerName_t","string",""));
+				jsonput(selectedEndCustJ, "address1_EndCus2_t", jsonget(endcustJ, "nt_selectedEndCustomerAddress_t","string",""));
+				jsonput(selectedEndCustJ, "postalCode_EndCus2_t", jsonget(endcustJ, "nt_selectedEndCustomerPostalCode_t","string",""));
+				jsonput(selectedEndCustJ, "country_endCust2_t", jsonget(endcustJ, "nt_selectedEndCustomerCountry_t","string",""));
+				jsonput(selectedEndCustJ, "region_endCust2_t", jsonget(endcustJ, "nt_selecteEndCustomerRegion_t","string",""));
+				jsonput(selectedEndCustJ, "city_endCust2_t", jsonget(endcustJ, "nt_selectedEndCustomerCity_t","string",""));
+				jsonput(selectedEndCustJ, "endCustomerType_endcust2_t", jsonget(endcustJ, "nt_endCustomerType_t","string",""));
+				if(jsonget(endcustJ, "nt_primaryEndCustomer_t", "string", "false") == "true"){
+					primaryEndCustName = jsonget(endcustJ, "nt_selectedEndCustomerName_t","string","");
+					primaryEndCustNo = jsonget(endcustJ, "nt_selectedEndCustomer_t","string","");
+				}			
+				
+				jsonarrayappend(retJArr, selectedEndCustJ);
+			}
+			
+			append(valArr, "1~endCustomerArraySet2_t~" + jsonarrayrefid(retJArr)+ "|");
+			append(valArr, "1~endCustomerNo_t~" + primaryEndCustNo + "|");
+			append(valArr, "1~endCustomerName_t~" + primaryEndCustName + "|");
+
+	} 
+	
+	//This functionality copies Customer data from Selected Customer ArraySet located in New Transaction tab to Selected Customer ArraySet located in Customer Tab
+	retJArr = jsonarray();
+	primaryCustNo = "";
+	if(NOT(ISNULL(selectedCustomerArraySet_t))){
+		indexArr = range(jsonarraysize(selectedCustomerArraySet_t));
+		for index in indexArr{
+			custJ = jsonarrayget(selectedCustomerArraySet_t, index, "json");
+			selectedCustJ = json();
+			jsonput(selectedCustJ, "type_selctdCust2_t", jsonget(custJ, "type_selctdCust_t","string",""));
+			jsonput(selectedCustJ, "customer_selctdCust2_t", jsonget(custJ, "customer_selctdCust_t","string",""));
+			jsonput(selectedCustJ, "name_selctdCust2_t", jsonget(custJ, "name_selctdCust_t","string",""));
+			jsonput(selectedCustJ, "postalCode_selctdCust2_t", jsonget(custJ, "postalCode_selctdCust_t","string",""));
+			jsonput(selectedCustJ, "city_selctdCust2_t", jsonget(custJ, "city_selctdCust_t","string",""));
+			jsonput(selectedCustJ, "region_selctdCust2_t", jsonget(custJ, "region_selctdCust_t","string",""));
+			jsonput(selectedCustJ, "country_selctdCust2_t", jsonget(custJ, "country_selctdCust_t","string",""));
+			//Project # 49501 : The below line is added to fill in the newly added Associated Column in the customer grid with value from #associated_CustSelc_t. 06/03/2020: Gautam T
+			jsonput(selectedCustJ, "associated_selctdCust2_t", jsonget(custJ, "associated_selctdCust_t","string",""));
+            jsonput(selectedCustJ, "shipToCustomer_selctdCust2_t", jsonget(custJ, "shipToCustomer_selctdCust_t","string",""));
+			jsonput(selectedCustJ, "primary_selctdCust2_t", jsonget(custJ, "primary_selctdCust_t","boolean",false));
+			jsonput(selectedCustJ, "hierarchy_ShipTo_t", jsonget(custJ, "hierarchy_ShipTo_t","string",""));
+			
+			if(jsonget(custJ, "primary_selctdCust_t", "string", "false") == "true"){
+					
+					primaryCustNo = jsonget(custJ, "customer_selctdCust_t","string","");
+					
+				}
+			jsonarrayappend(retJArr, selectedCustJ);
+		}
+	}
+	append(valArr, "1~selectedCustomerArraySet2_t~" + jsonarrayrefid(retJArr) + "|");
+	append(valArr, "1~custTab_endCustomerType_t~" + nt_endCustomerType_search_t+ "|");
+	//append(valArr, "1~customerNumber_t~" + primaryCustNo+ "|");
+	
+	//Set checkPrimary_t attribute to true if primary customer is selected
+	if(jsonarraysize(selectedCustomerArraySet_t) >= 1 AND NOT(ISNULL(selectedCustomerArraySet_t))){
+		selectedCustRecordsJson = json();
+		jsonput(selectedCustRecordsJson, "records", selectedCustomerArraySet_t);
+		//Fetch primary selected customer record
+	    selectedCustRecordsJsonArray = jsonpathgetmultiple(selectedCustRecordsJson, "$.records[?(@.primary_selctdCust_t==true)]");
+		//Chandan - 49704 - Eagle Development - Added the below if condition to handle if no row is selected as primary in array set
+		if(jsonarraysize(selectedCustRecordsJsonArray) > 0){
+			if(jsonget(jsonarrayget(selectedCustRecordsJsonArray, 0, "json"), "primary_selctdCust_t", "string", "false") == "true"){
+				append(valArr, "1~checkPrimary_t~" + string(true) + "|");
+			}
+		}
+		else{
+			append(valArr, "1~checkPrimary_t~" + string(false) + "|");
+		}
+		//Chandan - 49704 - Eagle Development - Added the above else condition to handle if no row is selected as primary in array set
+	}
+}
+
+//On Action : Get Sales History Action (getSalesHistory_t) OR Apply (jetApplySalesHistFilter_t)
+//This functionality populate Sales History Records
+elif(findinarray(arraySets, "Sales_History") <> -1){
+	salesHistArr = jsonarray();
+	
+	//Uncomment before go live
+	salesHistArr = jsonget(jsonParam, "salesHistoryData", "jsonarray", salesHistArr);
+	
+	//Hardcoded string for testing purpose. Comment before go live
+	upFiltetSearch = UPPER(filter_salesHistory_t);
+	indexArr = range(jsonarraysize(salesHistArr));
+	eachRowDataArr = jsonarray();
+	i = 0;
+	for index in indexArr{
+		eachRowDataArr = jsonarrayget(salesHistArr, index, "jsonarray");
+		selectedCustJ = json();
+		
+		//Index Descriptions
+		// 1: Pricing Group, 2: Item #, 3: Current Year To Date Qty, 4: Current Year To Date Amount, 5: Current Average Price, 6: Previous Year Quantity, 7: Previous Year Amount, 8: Previous Average Price
+		
+		//Populate ArraySet with filtered records
+		if(upFiltetSearch <> ""){
+			if(((find(UPPER(jsonarrayget(eachRowDataArr, 1, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 2, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 3, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 4, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 5, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 6, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 7, "string")), UPPER(filter_salesHistory_t)) <> -1) OR (find(UPPER(jsonarrayget(eachRowDataArr, 8, "string")), UPPER(filter_salesHistory_t)) <> -1)) AND  i <= 500){
+				jsonput(selectedCustJ, "pricingGroup_SalesHist_t", jsonarrayget(eachRowDataArr, 1, "string"));
+				jsonput(selectedCustJ, "item_SalesHist_t", jsonarrayget(eachRowDataArr, 2, "string"));
+				jsonput(selectedCustJ, "currYearToDateQty_SalesHist_t", jsonarrayget(eachRowDataArr, 3, "string"));
+				jsonput(selectedCustJ, "currYearToDateAmt_SalesHist_t", jsonarrayget(eachRowDataArr, 4, "string"));
+				jsonput(selectedCustJ, "currAvgPrice_SalesHist_t", jsonarrayget(eachRowDataArr, 5, "string"));
+				jsonput(selectedCustJ, "previousYearQty_SalesHist_t", jsonarrayget(eachRowDataArr, 6, "string"));
+				jsonput(selectedCustJ, "previousYearAmt_SalesHist_t", jsonarrayget(eachRowDataArr, 7, "string"));
+				jsonput(selectedCustJ, "previousAvgPrice_SalesHist_t", jsonarrayget(eachRowDataArr, 8, "string"));
+				
+				jsonarrayappend(retArray, selectedCustJ);
+				//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+				if(jsonarraysize(retArray) == 500){
+					break;
+				}
+			}
+		}
+		
+		//Populate ArraySet with all records
+		else{
+			jsonput(selectedCustJ, "pricingGroup_SalesHist_t", jsonarrayget(eachRowDataArr, 1, "string"));
+			jsonput(selectedCustJ, "item_SalesHist_t", jsonarrayget(eachRowDataArr, 2, "string"));
+			jsonput(selectedCustJ, "currYearToDateQty_SalesHist_t", jsonarrayget(eachRowDataArr, 3, "string"));
+			jsonput(selectedCustJ, "currYearToDateAmt_SalesHist_t", jsonarrayget(eachRowDataArr, 4, "string"));
+			jsonput(selectedCustJ, "currAvgPrice_SalesHist_t", jsonarrayget(eachRowDataArr, 5, "string"));
+			jsonput(selectedCustJ, "previousYearQty_SalesHist_t", jsonarrayget(eachRowDataArr, 6, "string"));
+			jsonput(selectedCustJ, "previousYearAmt_SalesHist_t", jsonarrayget(eachRowDataArr, 7, "string"));
+			jsonput(selectedCustJ, "previousAvgPrice_SalesHist_t", jsonarrayget(eachRowDataArr, 8, "string"));
+			jsonarrayappend(retArray, selectedCustJ);
+			//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+			if(jsonarraysize(retArray) == 500){
+				break;
+			}
+		}
+		i = i +1;
+	}
+	append(valArr, "1~salesHistoryAraySet_t~" + jsonarrayrefid(retArray) + "|");
+}
+
+//On Action : Search (Material Search)
+//This functionality searches the data tables to get Material Details based on the params provided
+elif(findinarray(arraySets, "Material_Search") <> -1){
+	// Set search parameters
+	searchParams = dict("string");
+	put(searchParams, "searchMode", materialItemSearchType_t);
+	put(searchParams, "salesOrg", salesOrg_t);
+	put(searchParams, "distributionChannel", distributionChannel_t);
+	put(searchParams, "transactionType", transactionType_t);
+	put(searchParams, "language", _system_current_user_language);
+	put(searchParams, "materialGroupPrefix", salesOrgMPGPrefix_t);
+	put(searchParams, "filterItemSearchTerm", trim(materialItemSearchTerm_t));
+	put(searchParams, "filterMaterialGroupIds", trim(materialItemSearchGroupList_t));
+	put(searchParams, "businessGrp", qqBusinessLineForSalesOrg_t);  // Added for QQ-721
+	put(searchParams, "selectedAgentData", qq_selectedCustomerData_t);
+	put(searchParams, "userGroups", _system_user_groups);
+	//Get the results based on params
+	if(salesOrg_t == "4919")
+	{
+	print "searchParams materials earch is";
+	print searchParams;
+	}
+	
+	resultsJsonArray = util.searchMaterialItems(searchParams);
+	if(salesOrg_t == "4919")
+	{
+	print "resultsJsonArray  materials earch is";
+	print resultsJsonArray ;
+	}
+	//Loop over the records and prepare the array attributes
+	//Prepare array to loop over
+	indexArr = range(jsonarraysize(resultsJsonArray));
+	
+	//Vasundhara ALM-2169 Ignore the group which is already added in selected Material Array set
+	existingPricingGroupArr = string[];
+	if(materialItemSearchType_t == "SEARCH_GROUPS"){
+		selectionMaterialsJsonArray = jsonarraycopy(selectedMaterialsArraySet_t);
+		NumberOfRowsArray = range(jsonarraysize(selectionMaterialsJsonArray));
+		for eachRowNumber in NumberOfRowsArray{
+			currentRow = jsonarrayget(selectionMaterialsJsonArray, eachRowNumber, "json");
+			existingPricingGroup = jsonget(currentRow, "pricingGroup_selectedMaterialsArraySet", "string", "");
+			existingcatalogNumber = jsonget(currentRow,"catalog_MaterialSelectionArraySet", "string", ""); //Added by Shardul for INC000013980785
+			if(existingcatalogNumber == "" AND isnull(existingcatalogNumber))//Added by Shardul for INC000013980785
+			{
+				append(existingPricingGroupArr,existingPricingGroup);
+			}
+		}
+	}
+	
+	//Loop over results and populate array attributes
+	for index in indexArr{
+		eachRowDataArr = jsonarrayget(resultsJsonArray, index, "jsonarray");
+		pricingGroup = jsonarrayget(eachRowDataArr, 3, "string");
+		pricingGroupDescription = jsonarrayget(eachRowDataArr, 4, "string");
+		catalogNumber = jsonarrayget(eachRowDataArr, 5, "string");
+		materialNumber = jsonarrayget(eachRowDataArr, 6, "string");
+		materialDescription = jsonarrayget(eachRowDataArr, 7, "string");
+		//Change table values for Material Group Search
+		if(materialItemSearchType_t == "SEARCH_GROUPS"){
+			pricingGroupDescription = materialDescription;
+			catalogNumber = "";
+			materialNumber = "";
+			materialDescription = "";
+			//Ignore the group which is already added on LIG
+			if(find(materialGroupsInArrangementJson_t, "\"" + pricingGroup + "\"") <> -1){
+				continue;
+			}
+		}
+		//Index Descriptions
+		//0: Boolean for Select, 1: Type, 2: Quantity, 3: Pricing Group, 4: Pricing Group Description, 5: Catalog #, 6: Material #, 7: Material Description
+		if(NOT(sizeofarray(existingPricingGroupArr) > 0 AND findinarray(existingPricingGroupArr,pricingGroup) <> -1)){//Vasundhara ALM-2169 Added condition to avoid added pricing group in Selected table
+			selectedCustJ = json();
+			jsonput(selectedCustJ, "select_MaterialSelectionArraySet", false);
+			jsonput(selectedCustJ, "type_MaterialSelectionArraySet", jsonarrayget(eachRowDataArr, 1, "string"));
+			jsonput(selectedCustJ, "qty_MaterialSelectionArraySet", jsonarrayget(eachRowDataArr, 2, "string"));
+			jsonput(selectedCustJ, "pricingGroup_MaterialSelectionArraySet", pricingGroup);
+			jsonput(selectedCustJ, "pricingGroupDescription_MaterialSelectionArraySet", pricingGroupDescription);
+			jsonput(selectedCustJ, "catalog_MaterialSelectionArraySet", catalogNumber);
+			jsonput(selectedCustJ, "material_MaterialSelectionArraySet", materialNumber);
+			jsonput(selectedCustJ, "description_MaterialSelectionArraySet", materialDescription);
+			jsonput(selectedCustJ, "crossReference_MaterialSelectionArraySet", jsonarrayget(eachRowDataArr, 8, "string"));
+			//Added hidden Material # column to store Mat # even for MPGs
+			jsonput(selectedCustJ, "hiddenMaterial_MaterialSelectionArraySet", jsonarrayget(eachRowDataArr, 6, "string"));
+			jsonarrayappend(retArray, selectedCustJ);
+		}
+		//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+		if(jsonarraysize(retArray) == 500){
+			break;
+		}
+	}
+	//Write values to array set
+	append(valArr, "1~materialSelectionArraySet_t~" + jsonarraytostr(retArray) + "|");
+}
+
+//On Action : Add Selected (Material Search)
+//This functionality adds the selected items to Selected Materials ArraySet
+elif(findinarray(arraySets, "Add_Material_Search") <> -1){
+	pricingGroupArr = string[];
+	//Store previous Selected Items and append to it the new selections
+	retArray = jsonarraycopy(selectedMaterialsArraySet_t);
+	
+	// Get selected rows from Material Selection Array Set
+	//Convert jsonArray to json because jsonpathgetmultiple takes json as input
+	selectedMaterialRecordsJson = json();
+	jsonput(selectedMaterialRecordsJson, "records", materialSelectionArraySet_t);
+	//Fetch selected rows from the array
+	selectedMaterialRecordsJsonArray = jsonpathgetmultiple(selectedMaterialRecordsJson, "$.records[?(@.select_MaterialSelectionArraySet==true)]");
+	//Loop over selected rows and populate Selected Materials Array Set
+	numberOfSelectedRowsArray = range(jsonarraysize(selectedMaterialRecordsJsonArray));
+	for eachRowNumber in numberOfSelectedRowsArray{
+		currentRow = jsonarrayget(selectedMaterialRecordsJsonArray, eachRowNumber, "json");
+		selectedCustJ = json();
+		append(pricingGroupArr,jsonget(currentRow, "pricingGroup_MaterialSelectionArraySet", "string", ""));
+		jsonput(selectedCustJ, "type_selectedMaterialsArraySet", jsonget(currentRow, "type_MaterialSelectionArraySet", "string", ""));
+		jsonput(selectedCustJ, "qty_selectedMaterialsArraySet", jsonget(currentRow, "qty_MaterialSelectionArraySet", "integer", 1));
+		jsonput(selectedCustJ, "pricingGroup_selectedMaterialsArraySet", jsonget(currentRow, "pricingGroup_MaterialSelectionArraySet", "string", ""));
+		jsonput(selectedCustJ, "pricingGroupDescription_selectedMaterialsArraySet", jsonget(currentRow, "pricingGroupDescription_MaterialSelectionArraySet", "string", ""));
+		jsonput(selectedCustJ, "catalog_selectedMaterialsArraySet", jsonget(currentRow, "catalog_MaterialSelectionArraySet", "string", ""));
+		jsonput(selectedCustJ, "material_selectedMaterialsArraySet", jsonget(currentRow, "material_MaterialSelectionArraySet", "string", ""));
+		jsonput(selectedCustJ, "description_selectedMaterialsArraySet", jsonget(currentRow, "description_MaterialSelectionArraySet", "string", ""));
+		jsonput(selectedCustJ, "crossReference_selectedMaterialsArraySet", jsonget(currentRow, "crossReference_MaterialSelectionArraySet", "string", ""));
+		//Added hidden Material # column to store Mat # even for MPGs
+		jsonput(selectedCustJ, "hiddenMaterial_selectedMaterialsArraySet", jsonget(currentRow, "hiddenMaterial_MaterialSelectionArraySet", "string", ""));
+		jsonarrayappend(retArray, selectedCustJ);
+	}
+	//Write values to array set
+	append(valArr, "1~selectedMaterialsArraySet_t~" + jsonarraytostr(retArray) + "|");
+	
+	//ALM-2169 - Added by Vasundhara - Removing the selected Pricing Groups rows from the Material Selection Array Set
+	retArray = jsonarray(); 
+	if(materialItemSearchType_t == "SEARCH_GROUPS"){
+		selectionMaterialsJsonArray = jsonarraycopy(materialSelectionArraySet_t);
+		NumberOfRowsArray = range(jsonarraysize(selectionMaterialsJsonArray));
+		for eachRowNumber in NumberOfRowsArray{
+			currentRow = jsonarrayget(selectionMaterialsJsonArray, eachRowNumber, "json");
+			existingPricingGroup = jsonget(currentRow, "pricingGroup_MaterialSelectionArraySet", "string", "");
+			if(findinarray(pricingGroupArr,existingPricingGroup) == -1){
+				selectedCustJ = json();
+				jsonput(selectedCustJ, "select_MaterialSelectionArraySet", false);
+				jsonput(selectedCustJ, "type_MaterialSelectionArraySet", jsonget(currentRow, "type_MaterialSelectionArraySet", "string",""));
+				jsonput(selectedCustJ, "qty_MaterialSelectionArraySet", jsonget(currentRow, "qty_MaterialSelectionArraySet", "string",""));
+				jsonput(selectedCustJ, "pricingGroup_MaterialSelectionArraySet", jsonget(currentRow, "pricingGroup_MaterialSelectionArraySet", "string",""));
+				jsonput(selectedCustJ, "pricingGroupDescription_MaterialSelectionArraySet", jsonget(currentRow, "pricingGroupDescription_MaterialSelectionArraySet", "string",""));
+				jsonput(selectedCustJ, "catalog_MaterialSelectionArraySet", jsonget(currentRow, "catalog_MaterialSelectionArraySet", "string",""));
+				jsonput(selectedCustJ, "material_MaterialSelectionArraySet", jsonget(currentRow, "material_MaterialSelectionArraySet", "string",""));
+				jsonput(selectedCustJ, "description_MaterialSelectionArraySet", jsonget(currentRow, "description_MaterialSelectionArraySet", "string",""));
+				jsonput(selectedCustJ, "crossReference_MaterialSelectionArraySet", jsonget(currentRow, "crossReference_MaterialSelectionArraySet", "string",""));
+				//Added hidden Material # column to store Mat # even for MPGs
+				jsonput(selectedCustJ, "hiddenMaterial_MaterialSelectionArraySet", jsonget(currentRow, "hiddenMaterial_MaterialSelectionArraySet", "string",""));
+				jsonarrayappend(retArray, selectedCustJ);
+				//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+				if(jsonarraysize(retArray) == 500){
+					break;
+				}
+			}
+		}
+		append(valArr, "1~materialSelectionArraySet_t~" + jsonarraytostr(retArray) + "|");
+	}
+}
+
+//On Action : Populate Groups (Material Search)
+//This functionality populates the list of available pricing group and their descriptions to the Pricing Group to Search in ArraySet
+elif(findinarray(arraySets, "Populate_Available_Material_Groups") <> -1){	
+	//Below is the logic to query and populate the array set based on businesses
+	//Retrieve the set of Material Price Groups based on user's language and sales org
+	bizGroupFlag = util.checkBizGroupCondition("truncateMPG", qq_ntTransactionType_t, ntSelectedSalesOrg_t);
+	mpgDict = dict("anytype");
+	//Get data fro BUSSMANN
+	if(qqBusinessLineForSalesOrg_t == "BUSSMANN"){
+		results = bmql("Select VPG, Description From Bussman_GroupDesc Where SalesOrg = $salesOrg_t");		
+		for row in results {
+			groupId = get(row, "VPG");
+			description = get(row, "Description");
+			//Populate Array Set with table data
+			selectedCustJ = json();
+			jsonput(selectedCustJ, "select_pricingGroupToSearchInArraySet", false);
+			jsonput(selectedCustJ, "pricingGroup_pricingGroupToSearchInArraySet", groupId);
+			jsonput(selectedCustJ, "description_pricingGroupToSearchInArraySet", description);
+			jsonarrayappend(retArray, selectedCustJ);
+			
+			//Added as a part of ALM-2379 - Updated by Vasundhara.
+			//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+			if(jsonarraysize(retArray) == 500){
+				break;
+			}
+		}  
+	} 
+	else{
+		//Querying Maerial Group and Description from MPG01
+		results = bmql("SELECT MPG, Description, type, WholesalerOnly FROM MPG01 WHERE SPRAS = $salesRepLanguage_t AND SalesOrg = $ntSelectedSalesOrg_t ORDER BY MPG");
+		for row in results{
+			groupId = get(row, "MPG");
+			description = get(row, "Description");
+			type = get(row, "type");
+			//Pooja: Updated code to add wholesalerOnly value in attribute for defect 1807
+			wholesalerOnly =  get(row, "WholesalerOnly");
+			
+			// Format Material Group ID, if it is larger than 2 characters
+			/*if (len(groupId) >= 1 AND type == "MVGR5") {Project#53390|Rahul|22June2021 - Commented for CPQ-4228
+				groupId = substring(groupId, 1);
+			}*/
+			
+			// For not including the ETO01 and NEWITEMGROUP group in the Pricing Group List.
+			if(endswith(groupId, "ETO01") OR (endswith(groupId, "NEWITEMGROUP"))) {
+				continue;
+			}
+			
+			//Format Material Group ID display text for B_LINE
+			groupIDtext = "";
+			if(bizGroupFlag){
+				if (len(groupId) >= 1 AND type == "PH5") {
+					groupIDtext = substring(groupId, 9, 12);
+				}
+			}
+			
+			// Add to result set
+			//Populate Array Set with table data
+			selectedCustJ = json();
+			jsonput(selectedCustJ, "select_pricingGroupToSearchInArraySet", false);
+			jsonput(selectedCustJ, "pricingGroup_pricingGroupToSearchInArraySet", groupId);
+			jsonput(selectedCustJ, "description_pricingGroupToSearchInArraySet", description);
+			jsonarrayappend(retArray, selectedCustJ);
+			
+			//Added as a part of ALM-2379 - Updated by Vasundhara.
+			//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+			if(jsonarraysize(retArray) == 500){
+				break;
+			}
+		}
+	}
+	//Write values to array set
+	append(valArr, "1~pricingGroupToSearchInArraySet_t~" + jsonarraytostr(retArray) + "|");
+}
+
+//On Action : Add Selected (Quick Add)
+//This functionality adds the entered Quick Add items to Selected Materials ArraySet
+elif(findinarray(arraySets, "Quick_Add") <> -1){
+	//Store previous Selected Items and append to it the new selections
+	retArray = jsonarraycopy(selectedMaterialsArraySet_t);
+	//Get entered record from json
+	selectedMaterialRecordsJsonArray = jsonget(jsonParam, "searchResults", "jsonarray");
+	jsonget(jsonParam, "arraySet", "string", "");
+	//Loop over the records and prepare the array attributes
+	//Prepare array to loop over
+	indexArr = range(jsonarraysize(selectedMaterialRecordsJsonArray));
+	//Loop over results and populate array attributes
+	for index in indexArr{
+		currentRow = jsonarrayget(selectedMaterialRecordsJsonArray, index, "jsonarray");
+		//Index Descriptions
+		//0: Blank, 1: Quantity, 2: Material Grp, 3: Material #, 4: Catalog #, 5: Description, 6: Truncated value of GroupID, 7: type of line whether group or normal, 8: Cross Reference
+		
+		selectedCustJ = json();
+		jsonput(selectedCustJ, "type_selectedMaterialsArraySet", jsonarrayget(currentRow, 7, "string"));
+		jsonput(selectedCustJ, "qty_selectedMaterialsArraySet", jsonarrayget(currentRow, 1, "string"));
+		jsonput(selectedCustJ, "pricingGroup_selectedMaterialsArraySet", jsonarrayget(currentRow, 2, "string"));
+		jsonput(selectedCustJ, "pricingGroupDescription_selectedMaterialsArraySet", jsonarrayget(currentRow, 6, "string"));
+		jsonput(selectedCustJ, "catalog_selectedMaterialsArraySet", jsonarrayget(currentRow, 4, "string"));
+		jsonput(selectedCustJ, "material_selectedMaterialsArraySet", jsonarrayget(currentRow, 3, "string"));
+		jsonput(selectedCustJ, "description_selectedMaterialsArraySet", jsonarrayget(currentRow, 5, "string"));
+		jsonput(selectedCustJ, "crossReference_selectedMaterialsArraySet", jsonarrayget(currentRow, 8, "string"));
+		//Added hidden Material # column to store Mat # even for MPGs
+		jsonput(selectedCustJ, "hiddenMaterial_selectedMaterialsArraySet", jsonarrayget(currentRow, 3, "string"));
+		jsonarrayappend(retArray, selectedCustJ);
+	}
+	//Write values to array set
+	append(valArr, "1~selectedMaterialsArraySet_t~" + jsonarraytostr(retArray) + "|");
+}
+
+//On Action : Refresh Pricing (qqRefreshPricing_t)
+//This functionality populate Bonus Pricing ArraySet
+elif(findinarray(arraySets, "Bonus_Pricing") <> -1){
+	if(bonusPricingData_t <> "[]"){
+		pricingArr = jsonarray(bonusPricingData_t);
+		//Prepare array to loop over
+		indexArr = range(jsonarraysize(pricingArr));
+		
+		//Variable name of array attributes to populate 
+		varNameArr = string[]{"line_pricingArr_t", "material_pricingArr_t", "description_pricingArr_t", "custPart_pricingArr_t", "pricingGrp_pricingArr_t","pricingGrpDesc_pricingArr_t", "qty_pricingArr_t", "listPrice_pricingArr_t", "uOM_pricingArr_t", "currNetPrice_pricingArr_t", "fixedNetAmt_pricingArr_t","discoPercent_pricingArr_t", "newNetPrice_pricingArr_t", "netPriceDiff_pricingArr_t", "discoOffList_pricingArr_t", "bonusPriceGrp_pricingArr_t", "bPGDisco_pricingArr_t", "finalDiscoRequested_pricingArr_t", "finalPriceRequested_pricingArr_t", "finalDiscotApproved_pricingArr_t", "finalPriceApproved_pricingArr_t"};
+			
+		//Index Descriptions (i)
+		//1: Line #, 2: Material #, 3: Description, 4: Customer Part #, 5: Pricing Group, 6: Pricing Group Description, 7: Qty, 8: List Price, 9: UOM, 10: Current Net Price, 11: Fixed Net Amount, 12: Discount Percent, 13: New Net Price, 14: Net Price Diff %, 15: Discount Off List, 16: Bonus Price Group, 17: BPG Discount %, 18: Final Discount (Requested), 19: Final Price( Requested), 20: Final Discount (Approved), 21: Final Price (Approved), 
+		
+		//Loop over results and populate array attributes
+		for index in indexArr{
+			eachRowDataArr = jsonarrayget(pricingArr, index, "jsonarray");
+			newRow = json();
+			i =1;
+			for each in varNameArr{
+				jsonput(newRow, each, jsonarrayget(eachRowDataArr, i, "string"));
+				i = i +1;
+			}
+			jsonarrayappend(retArray, newRow);
+			//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+			if(jsonarraysize(retArray) == 500){
+				break;
+			}
+		}
+	
+		append(valArr, "1~pricingArraySet_t~" + jsonarrayrefid(retArray) + "|");
+	}
+}
+
+//On Action : Sync to C360 (syncToC360)
+//This functionality populate Opportunity Sync Details ArraySet
+elif(findinarray(arraySets, "Opty_Sync") <> -1){
+	optySync = jsonget(jsonParam, "optyDetail", "string", "");
+	if(optySync <> ""){
+		syncDetailArr = jsonarray(optySync);
+		indexArr = range(jsonarraysize(syncDetailArr));
+		for index in indexArr{
+			optyJ = jsonarrayget(syncDetailArr, index, "json");
+			newRow = json();
+			jsonput(newRow, "timestamp_optySync_t", jsonget(optyJ, "timestamp", "string", ""));
+			jsonput(newRow, "action_optySync_t", jsonget(optyJ, "action", "string", ""));
+			jsonput(newRow, "status_optySync_t", jsonget(optyJ, "status", "string", ""));
+			jsonput(newRow, "message_optySync_t", jsonget(optyJ, "message", "string", ""));
+			jsonarrayappend(retArray, newRow);
+			
+			//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+			if(jsonarraysize(retArray) == 500){
+				break;
+			}
+		}
+		append(valArr, "1~optySyncArraySet_t~" + jsonarrayrefid(retArray) + "|");
+	}
+}
+
+//On Action : Add Volume Bonus (addVolumeBonus_t)
+// This Functionality is to populate Bonus Array Set
+elif(findinarray(arraySets, "bonus_Table") <> -1){
+	//Store previous Selected Items and append to it the new selections
+	retArray = jsonarraycopy(bonusArraySet_t);
+	volumeStr = jsonget(jsonParam, "Volume", "string", "");
+	bonusDiscountStr = jsonget(jsonParam, "Bonus %", "string", "");
+	validFromStr = jsonget(jsonParam, "Valid From", "string", "");
+	validToStr = jsonget(jsonParam, "Valid To", "string", "");
+	newRow = json();
+	jsonput(newRow, "volume_bonusArraySet", volumeStr);
+	jsonput(newRow, "bonusDiscount_bonusArraySet", bonusDiscountStr);
+	jsonput(newRow, "validFrom_bonusArraySet", validFromStr);
+	jsonput(newRow, "validTo_bonusArraySet", validToStr);
+	jsonarrayappend(retArray, newRow);
+	append(valArr, "1~bonusArraySet_t~" + jsonarrayrefid(retArray) + "|");
+}
+
+//On Action : Save (cleanSave_t)
+// This Functionality is to populate Notes Array Set on Save
+elif(findinarray(arraySets, "notesTableCallOnSave") <> -1){
+	alreadySelectednotes = jsonget(jsonParam,"alreadySelectednotes","string","");
+	notesTableStr = jsonget(jsonParam,"noteSection");
+	notestrArr = jsonarray(notesTableStr);
+	indexArr = range(jsonarraysize(notestrArr));
+	for index in indexArr{
+		rowStr= jsonarrayget(notestrArr,index,"string");
+		rowArr = jsonarray(rowStr);
+		noteNameStr = jsonarrayget(rowArr,0,"string");
+		noteNameDescription = jsonarrayget(rowArr,1,"string");
+		selectedFlag = "false";
+		//CPQ-4098 - Commenting below logic as it is no more required by business
+		/*if(noteNameStr == "Bussmann_Standard_Text" OR noteNameStr == "General Quote Notes" 
+			OR noteNameStr == "PSD – Note for All Quotes"){
+			selectedFlag = "true";
+		}*/
+		if(find(alreadySelectednotes, noteNameStr)<>-1){
+			selectedFlag = "true";
+		}
+		newRow = json();
+		jsonput(newRow, "select_notesArraySet", selectedFlag);
+		jsonput(newRow, "noteName_notesArraySet", noteNameStr);
+		print noteNameStr;
+		jsonput(newRow, "noteDescription_notesArraySet", noteNameDescription);
+		jsonarrayappend(retArray, newRow);
+	}
+	append(valArr, "1~noteArraySet_t~" + jsonarrayrefid(retArray) + "|"); 
+}
+
+//On Action : Search Agent (searchAgent_t)
+//This functionality populates the Agent(s) list
+elif(findinarray(arraySets, "AgentDataOnSearch") <> -1){
+	agentDataStr = jsonget(jsonParam,"agentData");
+	agentDataArr = jsonarray(agentDataStr);
+	indexArr = range(jsonarraysize(agentDataArr));
+	for index in indexArr{
+		rowStr= jsonarrayget(agentDataArr,index,"string");
+		rowArr = jsonarray(rowStr);
+		newRow = json();
+		jsonput(newRow, "partner_agent_t", jsonarrayget(rowArr,0,"string"));
+		jsonput(newRow, "name_agent_t", jsonarrayget(rowArr,1,"string"));
+		jsonput(newRow, "phone_agent_t", jsonarrayget(rowArr,2,"string"));
+		jsonput(newRow, "email_agent_t", jsonarrayget(rowArr,3,"string"));
+		jsonarrayappend(retArray, newRow);
+	}
+	append(valArr, "1~agentArraySet_t~" + jsonarrayrefid(retArray) + "|"); 
+}
+
+//On Action : Search Agent (searchAgent_t)
+//This functionality populates the Agent(s) list
+elif(findinarray(arraySets, "Agent_Data") <> -1){	
+	headerAttbChange = jsonget(jsonParam,"headerAttbChange", "string", "false"); // Check to populate non-array attb or not
+	PARVWArr = string[]{"Z1", "ZW", "Z5"}; //PARVW to search for
+	ZWAgentArr = string[];
+	Z1AgentArr = string[];
+	Z5AgentArr = string[];
+	agentArray = jsonarray();
+	//Populate Agents ArraySet for BUSSMANN
+	if(qqBusinessLineForSalesOrg_t  == "BUSSMANN" AND headerAttbChange == "false"){
+		//Store all Agents for each distinct PARVW
+		recordSet = bmql("select DISTINCT KUNN2, PARVW from CUSMAS where KUNNR = $customerNumber_t and VKORG = $ntSelectedSalesOrg_t and PARVW in $PARVWArr");
+		for records in recordSet{
+			KUNN2 = get(records, "KUNN2");
+			if(KUNN2 <> "" AND NOT(ISNULL(KUNN2))){
+				if(get(records, "PARVW") == "ZW"){
+					append(ZWAgentArr, KUNN2); //Array having KUNN2 values for which PARVW = ZW
+				}
+				if(get(records, "PARVW") == "Z1"){
+					append(Z1AgentArr, KUNN2); //Array having KUNN2 values for which PARVW = Z1
+				}
+			}
+		}
+		if(sizeofarray(ZWAgentArr) > 0){
+			//Fetch Agent details for Agents having PARVW as ZW and populate Agent arrayset
+			recordSet = bmql("select DISTINCT NAME1, SMTP_ADDR, TELF1 from CUSMAS where KUNNR in $ZWAgentArr AND VKORG = $ntSelectedSalesOrg_t");
+			for records in recordSet{
+				newRowJ = json();
+				jsonput(newRowJ, "select_agent_t", string(false));
+				jsonput(newRowJ, "name_agent_t", get(records, "NAME1"));
+				jsonput(newRowJ, "phone_agent_t", get(records, "TELF1"));
+				jsonput(newRowJ, "email_agent_t", get(records, "SMTP_ADDR"));
+				jsonarrayappend(agentArray, newRowJ);
+			}
+		}
+		//Fetch Agent details for PARVW as Z1 and populate Agent arrayset
+		if(sizeofarray(Z1AgentArr) > 0){
+			//Check if Agent No exists in OwnerExclusion table. If yes, replace that particular Agent with new agent number mentioned in the table
+			recordSet = bmql("select DISTINCT AGENT_NR, NEW_OWNER from OwnerExclusion where VKORG = $ntSelectedSalesOrg_t AND CHANNEL = $ntDistributionChannel_t AND AGENT_NR in $Z1AgentArr");
+			for records in recordSet{
+				if(findinarray(Z1AgentArr, get(records, "AGENT_NR")) <> -1){
+					remove(Z1AgentArr, (findinarray(Z1AgentArr, get(records, "AGENT_NR"))));
+					append(Z1AgentArr, get(records, "NEW_OWNER"));
+				}
+			}	
+			//Fetch Agent details for Agents having PARVW as Z1 and populate Agent arrayset
+			recordSet = bmql("select DISTINCT NAME1, SMTP_ADDR, TELF1 from VENDOR where LIFNR in $Z1AgentArr ");
+			for records in recordSet{
+				newRowJ = json();
+				jsonput(newRowJ, "select_agent_t", string(false));
+				jsonput(newRowJ, "name_agent_t", get(records, "NAME1"));
+				jsonput(newRowJ, "phone_agent_t", get(records, "TELF1"));
+				jsonput(newRowJ, "email_agent_t", get(records, "SMTP_ADDR"));
+				jsonarrayappend(agentArray, newRowJ);
+			}
+		}
+	}
+	//Populate Agents ArraySet for B-LINE
+	if(qqBusinessLineForSalesOrg_t  == "B-LINE"){
+	
+		//Store all Agents for each distinct PARVW
+		custID = "";
+		if(qq_customerReferenceShipTo <> ""){
+			custID =  qq_customerReferenceShipTo;
+		}
+		else{
+			custID =  customerNumber_t;
+		}
+		recordSet = bmql("select DISTINCT KUNN2, PARVW from CUSMAS where KUNNR = $custID and VKORG = $salesOrg_t and PARVW in $PARVWArr AND VKBUR = $salesOffice_t");
+		for records in recordSet{
+			KUNN2 = get(records, "KUNN2");
+			if(KUNN2 <> "" AND NOT(ISNULL(KUNN2))){
+				//comented by murali krishna for ALM 2059
+				if(get(records, "PARVW") == "ZW"){
+					append(ZWAgentArr, KUNN2); //Array having KUNN2 values for which PARVW = Z5
+				}
+			}
+		}
+		if(sizeofarray(ZWAgentArr) > 0){
+			//Fetch Agent details for Agents having PARVW as ZW and populate Agent arrayset
+			recordSet = bmql("select DISTINCT KUNNR, NAME1, SMTP_ADDR, TELF1 from CUSMAS where KUNNR in $ZWAgentArr AND VKORG = $salesOrg_t"); //RahulU|Eagle Development|Added KUNNR in search
+			for records in recordSet{
+				newRowJ = json();
+				jsonput(newRowJ, "select_agent_t", string(false));
+				jsonput(newRowJ, "name_agent_t", get(records, "NAME1"));
+				jsonput(newRowJ, "phone_agent_t", get(records, "TELF1"));
+				jsonput(newRowJ, "email_agent_t", get(records, "SMTP_ADDR"));
+				jsonarrayappend(agentArray, newRowJ);
+				if(_system_current_step_var == "start_step" AND headerAttbChange == "true"){//RahulU|Eagle Development|Added step check
+					append(valArr, "1~qq_Contact2Name_t~" + get(records, "NAME1") + "|");
+					append(valArr, "1~qq_Contact2Phone_t~" + get(records, "TELF1") + "|");
+					append(valArr, "1~qq_Contact2Email_t~" + get(records, "SMTP_ADDR") + "|");
+					append(valArr, "1~salesContactNumber_t~" + get(records, "KUNNR") + "|"); //RahulU|Eagle Development|Added this code to set the Sales Contact#
+				}
+			}
+		}
+		//comented by murali krishna for ALM 2059
+	}
+	if(headerAttbChange == "false"){
+		append(valArr, "1~agentArraySet_t~" + jsonarrayrefid(agentArray) + "|"); 
+	}
+}
+
+//On Action : Search material items for new item (searchMaterialItemsForNewItem)
+//This functionality populates the Material data in ArraySet available in Create New Item tab
+elif(findinarray(arraySets, "Create_New_Item") <> -1){	
+	itemDataArr = jsonarray(qq_NewItem_materialItemSearchResults_t);
+	indexArr = range(jsonarraysize(itemDataArr));
+	newRowArr = jsonarray();
+	for each in indexArr{
+		rowArr = jsonarrayget(itemDataArr, each, "jsonarray");
+		newRowJ = json();
+		jsonput(newRowJ, "pricingGroup_createNewItem_t", jsonarrayget(rowArr, 1, "string"));
+		jsonput(newRowJ, "materialItem_createNewItem_t", jsonarrayget(rowArr, 2, "string"));
+		jsonput(newRowJ, "description_createNewItem_t", jsonarrayget(rowArr, 3, "string"));
+		jsonput(newRowJ, "productLine_createNewItem_t", jsonarrayget(rowArr, 4, "string"));
+		jsonput(newRowJ, "brand_createNewItem_t", jsonarrayget(rowArr, 5, "string"));
+		jsonarrayappend(newRowArr, newRowJ);
+		//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+		if(jsonarraysize(newRowArr) == 500){
+			break;
+		}
+	}
+	append(valArr, "1~createNewItemArraySet_t~" + jsonarrayrefid(newRowArr) + "|"); 
+}
+
+elif(findinarray(arraySets, "Eaton_Contact_Search") <> -1){
+	searchParams = dict("string");
+	put(searchParams, "salesOrg", salesOrgForChangeContact_t);
+	put(searchParams, "distributionChannel", distributionChannelForChangeContact_t);
+	put(searchParams, "contactType", contactforChangeContact_t);	
+	put(searchParams, "filterItemSearchTerm", trim(searchTermForChangeContact_t));
+	
+	//Get the results based on params
+	resultsJsonArray = util.searchEatonContact(searchParams);
+	//Loop over the records and prepare the array attributes
+	//Prepare array to loop over
+	indexArr = range(jsonarraysize(resultsJsonArray));
+	
+	//Loop over results and populate array attributes
+	for index in indexArr{
+		eachRowDataArr = jsonarrayget(resultsJsonArray, index, "jsonarray");
+		selectedContactJ = json();
+		jsonput(selectedContactJ, "select_t", false);
+		jsonput(selectedContactJ, "partner_t", jsonarrayget(eachRowDataArr, 1, "string"));
+		jsonput(selectedContactJ, "contact_name_t", jsonarrayget(eachRowDataArr, 2, "string"));
+
+		jsonarrayappend(retArray, selectedContactJ);
+		
+		//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+		if(jsonarraysize(retArray) == 500){
+			break;
+		}
+	}
+	append(valArr, "1~changeContactArraySet_t~" + jsonarraytostr(retArray) + "|");
+}
+//Chandan - 49704 - Eagle Development - Added the below logic to delete the rows selected in Customer Tab - START
+elif(findinarray(arraySets, "Delete_Selected_Rows") <> -1){
+	indexArr = range(jsonarraysize(selectedCustomerArraySet2_t));
+	for index in indexArr{
+		currentRow = jsonarrayget(selectedCustomerArraySet2_t, index, "json");		
+		selectedCustJ = json();
+		if(jsonget(currentRow, "sAPSoldTo_T") <> "true"){
+			jsonput(selectedCustJ, "type_selctdCust2_t", jsonget(currentRow, "type_selctdCust2_t"));
+			jsonput(selectedCustJ, "customer_selctdCust2_t", jsonget(currentRow, "customer_selctdCust2_t"));
+			jsonput(selectedCustJ, "name_selctdCust2_t", jsonget(currentRow, "name_selctdCust2_t"));
+			jsonput(selectedCustJ, "postalCode_selctdCust2_t", jsonget(currentRow, "postalCode_selctdCust2_t"));
+			jsonput(selectedCustJ, "city_selctdCust2_t", jsonget(currentRow, "city_selctdCust2_t"));
+			jsonput(selectedCustJ, "region_selctdCust2_t", jsonget(currentRow, "region_selctdCust2_t"));
+			jsonput(selectedCustJ, "country_selctdCust2_t", jsonget(currentRow, "country_selctdCust2_t"));
+			jsonput(selectedCustJ, "shipToCustomer_selctdCust2_t", jsonget(currentRow, "shipToCustomer_selctdCust2_t"));
+			jsonput(selectedCustJ, "primary_selctdCust2_t", jsonget(currentRow, "primary_selctdCust2_t"));
+			jsonarrayappend(retArray, selectedCustJ);
+		}
+	}
+	append(valArr, "1~selectedCustomerArraySet2_t~" + jsonarrayrefid(retArray) + "|");
+}
+//Chandan - 49704 - Eagle Development - Added the above logic to delete the rows selected in Customer Tab - END
+if(findinarray(arraySets, "End_Customer_Search") <> -1){
+	searchParams = dict("string");
+	put(searchParams, "Customer", nt_endCustomerNo_t);
+	put(searchParams, "Name", qq_nt_EndCust_name_t);
+	put(searchParams, "Country", qq_nt_EndCust_country_t);	
+	put(searchParams, "Region", trim(qq_nt_EndCust_region_t));
+	put(searchParams, "EndCustomerType", trim(nt_endCustomerType_search_t));
+	put(searchParams, "City", trim(qq_nt_EndCust_city_t));
+	
+	//Get the results based on params
+	resultsJsonArray = commerce.searchEndCustomers(searchParams);
+	//Loop over the records and prepare the array attributes
+	//Prepare array to loop over
+	indexArr = range(jsonarraysize(resultsJsonArray));
+	
+	//Loop over results and populate array attributes
+	for index in indexArr{
+		eachRowDataArr = jsonarrayget(resultsJsonArray, index, "jsonarray");
+		selectedContactJ = json();
+		jsonput(selectedContactJ, "nt_select_endCustomer_t", false);
+		jsonput(selectedContactJ, "nt_customer_endCustomer_t", jsonarrayget(eachRowDataArr, 1, "string"));
+		jsonput(selectedContactJ, "name_endCust_t", jsonarrayget(eachRowDataArr, 2, "string"));
+		jsonput(selectedContactJ, "nt_address_endCustomer_t", jsonarrayget(eachRowDataArr, 3, "string"));
+		jsonput(selectedContactJ, "nt_postalCode_endCustomer_t", jsonarrayget(eachRowDataArr, 4, "string"));
+		jsonput(selectedContactJ, "country_endCust_t", jsonarrayget(eachRowDataArr, 5, "string"));
+		jsonput(selectedContactJ, "region_endCust_t", jsonarrayget(eachRowDataArr, 6, "string"));
+		jsonput(selectedContactJ, "city_endCust_t", jsonarrayget(eachRowDataArr, 7, "string"));
+		jsonput(selectedContactJ, "nt_endCustomerType_EndCus_t", jsonarrayget(eachRowDataArr, 8, "string"));
+
+		jsonarrayappend(retArray, selectedContactJ);
+		
+		//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+		if(jsonarraysize(retArray) == 500){
+			break;
+		}
+	}
+	append(valArr, "1~endCustomerArraySet_t~" + jsonarraytostr(retArray) + "|");
+}
+
+if(findinarray(arraySets, "Selected_EndCustomer_NT") <> -1){
+	
+	customerNumArray = string[];
+	
+	
+	selectedEndCustomerArraySet_temp = jsonarray();
+	
+	
+	if(NOT(ISNULL(endCustomerArraySet_t))){
+		parentJ = json();
+		
+		//Keys of of Customer List Array
+		//varNameArr = string[]{"type_CustSelc_t", "customer_CustSelc_t", "name_CustSelc_t", "name2_CustSelc_t", "postalCode_CustSelc_t","city_CustSelc_t", "region_CustSelc_t", "country_CustSelc_t", "associated_CustSelc_t", "associatedCustomer_CustSelc_t", "nameAssoc_CustSelc_t","postalCodeAssoc_CustSelc_t", "cityAssoc_CustSelc_t", "regionAssoc_CustSelc_t", "countryAssoc_CustSelc_t", "hierarchy_CustSelc_t", "_row_number"};
+			
+		//Convert jsonArray to json because jsonpathgetmultiple takes json as input
+		selectedEndCustRecordsJson = json();
+		selectedEndCustomerDataJson = json();
+		jsonput(selectedEndCustRecordsJson, "records", endCustomerArraySet_t);
+		
+		
+		//START  getting Primary selection from Selected End Customer Array set
+		primarySelectionExistsInSelectedTable = true;
+		existingSelectedEndCustRecordsJson = json();
+		jsonput(existingSelectedEndCustRecordsJson, "records", nt_selectedEndCustomerArrayset_t);
+		
+		existingSelectedEndCustRecordsJsonArray = jsonpathgetmultiple(existingSelectedEndCustRecordsJson, "$.records[?(@.nt_primaryEndCustomer_t==true)]");
+		
+		if(jsonarraysize(existingSelectedEndCustRecordsJsonArray) > 0 ){
+			primarySelectionExistsInSelectedTable = false;
+		}
+		//END 
+		
+		//Fetch selected rows from the array
+		selectedEndCustRecordsJsonArray = jsonpathgetmultiple(selectedEndCustRecordsJson, "$.records[?(@.nt_select_endCustomer_t==true)]");
+		
+		//Get existing selected customer data details
+		if(selectedCustomerData_t <> "")
+		{
+			selectedCustomerDataJson = json(selectedCustomerData_t);
+		}
+		
+		// Execute below code only if something was selected
+		if(jsonarraysize(selectedEndCustRecordsJsonArray) > 0){
+			indexArr = range(jsonarraysize(selectedEndCustRecordsJsonArray));
+			for index in indexArr{
+				endcustJ = jsonarrayget(selectedEndCustRecordsJsonArray, index, "json");
+				selectedEndCustJ = json();
+				uncheckedCustRecords = json();
+				
+				// adding selected customer Number and associated Customer Number in an array.
+				//END
+				found = false;
+				endCustNo = jsonget(endcustJ, "nt_customer_endCustomer_t","string","");
+				existingSelectedEndCust = jsonarraytostr(jsonpathgetmultiple(existingSelectedEndCustRecordsJson, "$.records[?(@.nt_selectedEndCustomer_t)]"));
+				if(find(existingSelectedEndCust,endCustNo)>= 0){
+					found = true;
+				}
+				if(NOT found){
+				jsonput(selectedEndCustJ, "nt_selectedEndCustomer_t", jsonget(endcustJ, "nt_customer_endCustomer_t","string",""));
+				jsonput(selectedEndCustJ, "nt_selectedEndCustomerName_t", jsonget(endcustJ, "name_endCust_t","string",""));
+				jsonput(selectedEndCustJ, "nt_selectedEndCustomerAddress_t", jsonget(endcustJ, "nt_address_endCustomer_t","string",""));
+				jsonput(selectedEndCustJ, "nt_selectedEndCustomerPostalCode_t", jsonget(endcustJ, "nt_postalCode_endCustomer_t","string",""));
+				jsonput(selectedEndCustJ, "nt_selectedEndCustomerCountry_t", jsonget(endcustJ, "country_endCust_t","string",""));
+				jsonput(selectedEndCustJ, "nt_selecteEndCustomerRegion_t", jsonget(endcustJ, "region_endCust_t","string",""));
+				jsonput(selectedEndCustJ, "nt_selectedEndCustomerCity_t", jsonget(endcustJ, "city_endCust_t","string",""));
+				jsonput(selectedEndCustJ, "nt_endCustomerType_t", jsonget(endcustJ, "nt_endCustomerType_EndCus_t","string",""));
+				
+				//Set 1st row as primary by default
+				 if(index == 0 AND primarySelectionExistsInSelectedTable == false){ //Added flag condition to check whether the Selected Customer Table contains primary selection.
+					jsonput(selectedEndCustJ, "nt_primaryEndCustomer_t", string(true));
+				} 
+				jsonput(selectedEndCustJ, "nt_primaryEndCustomer_t", string(primarySelectionExistsInSelectedTable));
+				primarySelectionExistsInSelectedTable  = false;
+				
+				
+				jsonarrayappend(nt_selectedEndCustomerArrayset_t, selectedEndCustJ);
+				}
+			}
+			
+			
+			append(valArr, "1~nt_selectedEndCustomerArrayset_t~" + jsonarrayrefid(nt_selectedEndCustomerArrayset_t) + "|");
+			// Removing the selected Customers from the selection Customers Array Set
+		}
+	}
+}
+
+if(findinarray(arraySets, "End_Customer_Search_CustTab") <> -1){
+	searchParams = dict("string");
+	put(searchParams, "Customer", customerNo_CusTab_t);
+	put(searchParams, "Name", qq_EndCust_name_t);
+	put(searchParams, "Country", qq_EndCust_country_t);	
+	put(searchParams, "Region", trim(qq_EndCust_region_t));
+	put(searchParams, "EndCustomerType", trim(custTab_endCustomerType_t));
+	put(searchParams, "City", trim(qq_EndCust_city_t));
+	
+	//Get the results based on params
+	resultsJsonArray = commerce.searchEndCustomers(searchParams);
+	//Loop over the records and prepare the array attributes
+	//Prepare array to loop over
+	indexArr = range(jsonarraysize(resultsJsonArray));
+	
+	//Loop over results and populate array attributes
+	for index in indexArr{
+		eachRowDataArr = jsonarrayget(resultsJsonArray, index, "jsonarray");
+		selectedContactJ = json();
+		jsonput(selectedContactJ, "select_EndCus_t", false);
+		jsonput(selectedContactJ, "customer_EndCus_t", jsonarrayget(eachRowDataArr, 1, "string"));
+		jsonput(selectedContactJ, "name_EndCus_t", jsonarrayget(eachRowDataArr, 2, "string"));
+		jsonput(selectedContactJ, "address1_EndCus_t", jsonarrayget(eachRowDataArr, 3, "string"));
+		jsonput(selectedContactJ, "postalCode_EndCus_t", jsonarrayget(eachRowDataArr, 4, "string"));
+		jsonput(selectedContactJ, "county_EndCus_t", jsonarrayget(eachRowDataArr, 5, "string"));
+		jsonput(selectedContactJ, "region_EndCus_t", jsonarrayget(eachRowDataArr, 6, "string"));
+		jsonput(selectedContactJ, "city_EndCus_t", jsonarrayget(eachRowDataArr, 7, "string"));
+		jsonput(selectedContactJ, "endCustomerType_EndCus_t", jsonarrayget(eachRowDataArr, 8, "string"));
+
+		jsonarrayappend(retArray, selectedContactJ);
+		
+		//Array Set can hold only 500 rows so break the loop if the number of records is more than 500
+		if(jsonarraysize(retArray) == 500){
+			break;
+		}
+	}
+	append(valArr, "1~endCustomerSelectionArraySet2_t~" + jsonarraytostr(retArray) + "|");
+}
+
+if(findinarray(arraySets, "Selected_EndCustomer_CustTab") <> -1){
+	
+	customerNumArray = string[];
+	
+	
+	selectedEndCustomerArraySet_temp = jsonarray();
+	
+	
+	if(NOT(ISNULL(endCustomerSelectionArraySet2_t))){
+		parentJ = json();
+		
+		//Keys of of Customer List Array
+			
+		//Convert jsonArray to json because jsonpathgetmultiple takes json as input
+		selectedEndCustRecordsJson = json();
+		selectedEndCustomerDataJson = json();
+		jsonput(selectedEndCustRecordsJson, "records", endCustomerSelectionArraySet2_t);
+		
+		
+		//START  getting Primary selection from Selected End Customer Array set
+		primarySelectionExistsInSelectedTable = true;
+		existingSelectedEndCustRecordsJson = json();
+		jsonput(existingSelectedEndCustRecordsJson, "records", endCustomerArraySet2_t);
+		
+		existingSelectedEndCustRecordsJsonArray = jsonpathgetmultiple(existingSelectedEndCustRecordsJson, "$.records[?(@.primary_EndCus_t==true)]");
+		
+		if(jsonarraysize(existingSelectedEndCustRecordsJsonArray) > 0 ){
+			primarySelectionExistsInSelectedTable = false;
+		}
+		//END 
+		
+		//Fetch selected rows from the array
+		selectedEndCustRecordsJsonArray = jsonpathgetmultiple(selectedEndCustRecordsJson, "$.records[?(@.select_EndCus_t==true)]");
+		
+		//Get existing selected customer data details
+		if(selectedCustomerData_t <> "")
+		{
+			selectedCustomerDataJson = json(selectedCustomerData_t);
+		}
+		
+		// Execute below code only if something was selected
+		if(jsonarraysize(selectedEndCustRecordsJsonArray) > 0){
+			indexArr = range(jsonarraysize(selectedEndCustRecordsJsonArray));
+			for index in indexArr{
+				endcustJ = jsonarrayget(selectedEndCustRecordsJsonArray, index, "json");
+				selectedEndCustJ = json();
+				uncheckedCustRecords = json();
+				
+				// adding selected customer Number and associated Customer Number in an array.
+				//append(customerNumArray,jsonget(endcustJ, "customer_CustSelc_t","string","") + "$$" + jsonget(custJ, "associatedCustomer_CustSelc_t","string",""));
+				//END
+				found = false;
+				endCustNo = jsonget(endcustJ, "customer_EndCus_t","string","");
+				existingSelectedEndCust = jsonarraytostr(jsonpathgetmultiple(existingSelectedEndCustRecordsJson, "$.records[?(@.customer_EndCus2_t)]"));
+				if(find(existingSelectedEndCust,endCustNo)>= 0){
+					found = true;
+				}
+				if(NOT found){
+				jsonput(selectedEndCustJ, "customer_EndCus2_t", jsonget(endcustJ, "customer_EndCus_t","string",""));
+				jsonput(selectedEndCustJ, "name_endCust2_t", jsonget(endcustJ, "name_EndCus_t","string",""));
+				jsonput(selectedEndCustJ, "address1_EndCus2_t", jsonget(endcustJ, "address1_EndCus_t","string",""));
+				jsonput(selectedEndCustJ, "postalCode_EndCus2_t", jsonget(endcustJ, "postalCode_EndCus_t","string",""));
+				jsonput(selectedEndCustJ, "country_endCust2_t", jsonget(endcustJ, "county_EndCus_t","string",""));
+				jsonput(selectedEndCustJ, "region_endCust2_t", jsonget(endcustJ, "region_EndCus_t","string",""));
+				jsonput(selectedEndCustJ, "city_endCust2_t", jsonget(endcustJ, "city_EndCus_t","string",""));
+				jsonput(selectedEndCustJ, "endCustomerType_endcust2_t", jsonget(endcustJ, "endCustomerType_EndCus_t","string",""));
+				
+				//Set 1st row as primary by default
+				 if(index == 0 AND primarySelectionExistsInSelectedTable == false){ //Added flag condition to check whether the Selected Customer Table contains primary selection.
+					jsonput(selectedEndCustJ, "primary_EndCus_t", string(true));
+				} 
+				jsonput(selectedEndCustJ, "primary_EndCus_t", string(primarySelectionExistsInSelectedTable));
+				primarySelectionExistsInSelectedTable  = false;
+				
+				
+				jsonarrayappend(endCustomerArraySet2_t, selectedEndCustJ);
+				}
+			}
+			
+			
+			append(valArr, "1~endCustomerArraySet2_t~" + jsonarrayrefid(endCustomerArraySet2_t) + "|");
+			
+			// Removing the selected Customers from the selection Customers Array Set
+			
+		}
+	}
+}
+
+//Chandan - 12-02-2020 - Added the below condition to add the Primary Customer to Selected Customers grid in Customer Tab - START
+if(findinarray(arraySets, "Add_Primary_Customer") <> -1){
+	selectedCustJ = json();
+	//Check if multiple customers allowed
+	checkedIn = false;
+	multiCustomerAllowed = false;
+	bussGrpJ = json(businessGroupTableData_t);
+	multiCustJ = json(multiSelectCustomerType_t);
+	businessGrp = jsonget(bussGrpJ, ntSelectedSalesOrg_t, "string", "");
+	multiCustGrp = split(jsonget(multiCustJ, qq_ntTransactionType_t, "string", ""), "~");
+	customerNumArray = string[];
+	
+	if(findinarray(multiCustGrp,businessGrp ) <> -1){
+		multiCustomerAllowed = true;
+	}
+	selectedCustomerArraySet_temp = jsonarray();
+	primarySelectionExistsInSelectedTable = false;
+	existingSelectedCustRecordsJson = json();
+	jsonput(existingSelectedCustRecordsJson, "records", selectedCustomerArraySet2_t);
+	//Chandan - 49704 - Eagle Development - Added the below query to fetch the City and Region
+	getCusmasDetail = json();
+	jsonput(getCusmasDetail, "CustomerNumber", customerNumber_t);
+	jsonput(getCusmasDetail, "VKORG", salesOrg_t);
+	jsonput(getCusmasDetail, "VTWEG", distributionChannel_t);
+	customerJson= util.getCUSMASDetails(getCusmasDetail);
+	city = jsonget(customerJSON, "ORT01", "string", "");
+	countryCode = jsonget(customerJSON, "LAND1", "string", "");
+	regionCode = jsonget(customerJSON, "REGIO", "string", "");
+	regionNamesRS = BMQL("Select Region From SAPRegions Where CountryCode = $countryCode And RegionCode = $regionCode");
+	regn = "";
+	for eachRegionName in regionNamesRS {
+		regn = get(eachRegionName, "Region");
+		break;
+	}
+	//Chandan - 49704 - Eagle Development - Added the above query to fetch the City and Region
+	jsonput(selectedCustJ, "type_selctdCust2_t", "Sold to");
+	jsonput(selectedCustJ, "customer_selctdCust2_t", customerNumber_t);
+	jsonput(selectedCustJ, "name_selctdCust2_t", qqCustomerNameCopy_t);
+	jsonput(selectedCustJ, "postalCode_selctdCust2_t", customerPostalCodeZip_t);
+	jsonput(selectedCustJ, "city_selctdCust2_t", city);
+	jsonput(selectedCustJ, "region_selctdCust2_t", regn);
+	jsonput(selectedCustJ, "country_selctdCust2_t", customerCountry_t);
+	jsonput(selectedCustJ, "shipToCustomer_selctdCust2_t", qq_customerReferenceShipTo);
+	jsonput(selectedCustJ, "primary_selctdCust2_t", string(true));	
+	
+	//Check if multiple customers are allowed for current salesorg and transaction type
+	if(multiCustomerAllowed == false AND checkedIn == false){
+		jsonarrayappend(selectedCustomerArraySet_temp, selectedCustJ);
+		checkedIn = true;
+	}
+	//If multiple customers are allowed, append selected customers to existing selected customers array
+	else{
+		jsonarrayappend(selectedCustomerArraySet2_t, selectedCustJ);
+	}
+	if(multiCustomerAllowed == false){
+		append(valArr, "1~selectedCustomerArraySet2_t~" + jsonarrayrefid(selectedCustomerArraySet_temp) + "|");
+	}
+	else{
+		append(valArr, "1~selectedCustomerArraySet2_t~" + jsonarrayrefid(selectedCustomerArraySet2_t) + "|");
+	}
+}
+//Chandan - 12-02-2020 - Added the above condition to add the Primary Customer to Selected Customers grid in Customer Tab - END
+
+jsonput(retJson, "data", join(valArr, ""));
+
+print "Return Json - PopulateArraySet = ";
+print retJson;
+return retJson;

@@ -1,0 +1,14 @@
+{
+  "name" : "Search End Customers",
+  "variableName" : "searchEndCustomers",
+  "description" : "",
+  "libraryFunctions" : [ "util.getStringDict" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "searchParams",
+    "type" : "String Dictionary"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

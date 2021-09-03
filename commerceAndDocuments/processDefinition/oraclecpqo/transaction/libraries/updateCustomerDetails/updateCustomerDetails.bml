@@ -1,0 +1,68 @@
+/****************************************************
+@Revision
+
+Date(YYYY/MM/DD) 	Name			Comments
+04/07/2021		Shardul			Updated Customer Array set from Customer Tab
+/*****************************************************/
+
+retsString = "";
+if(oldCustomerNo_t <> "0000061145"){
+
+	retJArr = jsonarray();
+	idcolumns = "KUNNR, KUNN2, KTOKD, PARVW, HKUNNR, STRAS ,NAME1,NAME2, BZIRK,ORT01,PSTLZ,WAERS,ZTERM_SALES,INCO1,BZIRK,VKBUR,VKGRP,KDGRP,KONDA,SPART,REGIO,LAND1";
+	companyAddressRecord = bmql("SELECT $idcolumns FROM CUSMAS WHERE VKORG = $ntSelectedSalesOrg AND VTWEG=$ntDistributionChannel AND KUNNR = $SupplierCompanyNumber");
+	for eachCustID in companyAddressRecord {
+		KUNNR = get(eachCustID, "KUNNR");
+		KUNN2 = get(eachCustID, "KUNN2");
+		KTOKD = get(eachCustID, "KTOKD");
+		PARVW = get(eachCustID, "PARVW");
+		HKUNNR = get(eachCustID, "HKUNNR");
+		NAME1 = get(eachCustID, "NAME1");
+		NAME2 = get(eachCustID, "NAME2"); 
+		BZIRK = get(eachCustID, "BZIRK"); 
+		ORT01 = get(eachCustID,"ORT01");
+		PSTLZ = get(eachCustID,"PSTLZ");
+		STRAS = get(eachCustID,"STRAS");
+		WAERS = get(eachCustID,"WAERS");
+		ZTERM = get(eachCustID,"ZTERM_SALES");
+		INCO1 = get(eachCustID,"INCO1");
+		BZIRK = get(eachCustID,"BZIRK");
+		VKBUR = get(eachCustID,"VKBUR");
+		VKGRP = get(eachCustID,"VKGRP");
+		KDGRP = get(eachCustID,"KDGRP");
+		KONDA = get(eachCustID,"KONDA");
+		SPART = get(eachCustID,"SPART");
+		REGIO = get(eachCustID,"REGIO");
+		LAND1 = get(eachCustID,"LAND1");
+		
+		
+		retsString = "1~soldToNumber_t~"+KUNNR+ "|" + "1~customerNumber_t~"+KUNNR+ "|" +"1~qqCustomerNameCopy_t~"+NAME1+ "|" +"1~qqCityAndRegionCopy_t~"+ORT01+ "|" +"1~customerPostalCodeZip_t~"+PSTLZ + "|" + "1~checkPrimary_t~true" + "|" + "1~qq_CD_SelectedSoldTo_t~"+KUNNR + "|" + "1~customerStreet_t~"+STRAS + "|" + "1~customerName_t~"+NAME1 + "|" + "1~companyCode_t~"+ntSelectedSalesOrg + "|" + "1~division_t~"+SPART + "|" + "1~customerShipTo_t~"+NAME1 + "|" + "1~customerCity_t~"+ORT01+ "|" + "1~primaryCustomerCurrency_t~"+WAERS + "|"+"1~agreementPaymentTerms_t~"+ZTERM+"|"+ "1~agreementDeliveryTerms_t~"+INCO1+"|"+ "1~salesDistrict_t~"+BZIRK+"|"+ "1~salesOffice_t~"+VKBUR+"|"+"1~accountTypeKTOKD_t~"+KTOKD+"|"+"1~customerCountry_t~"+LAND1+"|"+ "1~checkPrimary_t~" + string(true) + "|";
+		
+		if(qqBusinessLineForSalesOrg_t == "PSD" AND _system_user_groups == "legacyEatonPSD")
+		{
+			if(customerDefaultPaymentTerms_t == ""){
+				retsString = retsString + "1~customerDefaultPaymentTerms_t~"+ZTERM+"|";
+			}
+			if(salesGroup_Menu_t == "" ){
+				retsString = retsString + "1~salesGroup_Menu_t~"+VKGRP+"|"+ "1~salesGroup_t~"+VKGRP+"|";
+				
+			}
+			if(psd_customerGroup_t == ""){
+				retsString = retsString + "1~psd_customerGroup_t~"+KDGRP+"|"+ "1~qqCustomerGroup_t~"+KDGRP+"|";
+			}
+			
+			if(psd_priceGroup_t == ""){
+				retsString = retsString + "1~psd_priceGroup_t~"+KONDA+"|"+ "1~priceGroup_t~"+KONDA+"|";
+			}
+		}
+	}
+	
+
+}
+else
+{
+	retsString = "1~soldToNumber_t~"+soldToNumber_t+ "|" + "1~customerNumber_t~"+oldCustomerNo_t+ "|" +"1~qqCustomerNameCopy_t~"+qqCustomerNameCopy_t+ "|" +"1~qqCityAndRegionCopy_t~"+qqCityAndRegionCopy_t+ "|" +"1~customerPostalCodeZip_t~"+customerPostalCodeZip_t+ "|" + "1~checkPrimary_t~true" + "|" + "1~qq_CD_SelectedSoldTo_t~"+qq_CD_SelectedSoldTo_t+ "|" + "1~customerStreet_t~"+customerStreet_t+ "|" + "1~customerName_t~"+customerName_t+ "|" + "1~companyCode_t~"+companyCode_t+ "|" + "1~division_t~"+division_t+ "|" + "1~customerShipTo_t~"+customerShipTo_t+ "|" + "1~customerCity_t~"+customerCity_t+"|" + "1~primaryCustomerCurrency_t~"+primaryCustomerCurrency_t;
+
+}
+
+return retsString ;

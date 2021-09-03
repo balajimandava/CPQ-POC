@@ -1,0 +1,12 @@
+{
+  "name" : "Get MAT01 Details For Multiple Items",
+  "variableName" : "getMAT01DetailsForMultipleItems",
+  "description" : "Get data from all columns of MAT01 data table for multiple parts in the specified language. Default language is English.\ninputjson(Materials:jsonarray, salesOrg and distributionChannel)",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputJson",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

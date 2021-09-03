@@ -1,0 +1,29 @@
+fromCopy = qqComingFromCopyAction_t;
+keepOppInfo = qqKeepOpportunityInformation_t;
+keepBidInfo = keepBidNumber_t;
+C360Num = opportunityNumber_t;
+application = qqApplication_t;
+subApplication = qqSubApplication_t;
+oppSyncHistory = opportunitySyncHistory_t;
+retStr = "";
+// Coming from Copy action and Keep Opportunity Info is not checked then clear the opportunity related data:
+if(fromCopy) {
+    if(NOT(keepOppInfo)) {        
+        if(C360Num <> "") {
+            retStr = retStr + "1~opportunityNumber_t~" + "|";
+        }
+    }	
+    // If coming from copy, always clear Opportunity Sync History if it is not empty.
+    if(oppSyncHistory <> "") {
+        retStr = retStr + "1~opportunitySyncHistory_t~" + "|";
+    }
+    //Added below IF condition to Keep Bid Group # on Copy if "Keep Bid Number" is checked
+    if(NOT(keepBidInfo)){
+    	retStr = retStr + commerce.generateBidGroupNo();
+    	retStr = retStr + "1~bidGroupDescription_t~"+"|";
+    }
+    // Change the qqComingFromCopyAction_t action to false when save is clicked and if it is not false so that 
+    // opportunity clearing is not triggered on further click of Save action.
+    retStr = retStr + "1~qqComingFromCopyAction_t~false" + "|";
+}
+return retStr;

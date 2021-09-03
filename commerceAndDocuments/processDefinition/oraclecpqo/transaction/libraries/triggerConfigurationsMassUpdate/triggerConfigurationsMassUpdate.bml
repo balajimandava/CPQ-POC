@@ -1,0 +1,168 @@
+/**************************************************************************************************************
+@name Trigger Configurations Mass Update
+@api triggerConfigurationsMassUpdate
+@param inputData -- Json
+@Description: This is used to prepare the Configurations Mass Update json payload
+
+@return Json
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2021-01-20|Dhananjay		|initial version
+2021-04-30|Dhananjay		|CPQ-5058: Add additional fields to the send to Bid Manager call for Global Changes
+2021-07-27|Nithin           |CPQ-4777: Control Configurator Visibility per User
+************************************************************************************************************/
+
+//Constants declaration
+bidman_process = "CPQ.MassUpdate";
+bidman_role = "PSD";
+model_path = "bidManager:bidManager:takeOff";
+siteID 		= "SOABidmanUser";
+ACCESS = "";
+
+//Variable Declaration
+headers 	= dict("string");
+retStr = stringbuilder();
+company = util.getSupplierCompanyName();
+siteID = company + siteID;
+envData = util.getSiteSpecificData(siteID);
+soaUserID = jsonget(envData, "FieldName","string","");
+soaPassID = jsonget(envData, "Value1","string","");
+bidManagerUrlPrefix = jsonget(envData, "Value2","string","");
+envVariable = util.getEnvironmentVariable("SOA_OAG_BIDMAN_URL", "");
+selectedLines = string[];
+if(isnull(_system_selected_document_number) OR _system_selected_document_number == ""){
+	//setattributevalue(1, "bidManagerURLForGlobalConfigChange_t", "Error");
+	sbappend(retStr,"1~bidManagerURLForGlobalConfigChange_t~Error|");
+	//return "";
+	//throwerror("Please select atleast one line for Global Config Change !");
+}else{
+	selectedLines = split(_system_selected_document_number,"~");
+}
+
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", "Basic " + encodebase64(soaUserID + ":" + soaPassID));
+
+payload= dict("string");
+put(payload,"PROCESS_NAME",bidman_process);
+put(payload,"ROLE",bidman_role);
+put(payload,"MODEL_PATH",model_path);
+put(payload,"QUOTE_ID",bs_id);
+
+items = jsonget(inputData,"items","jsonarray",jsonarray());
+
+//List of Line level attributes to be included in the payload
+xPathDictionary = dict("string");
+put(xPathDictionary, "item_id", "//transactionLine/_document_number");
+put(xPathDictionary, "config_id", "//transactionLine/externalConfigData_l");
+//put(xPathDictionary, "read_only", "//transactionLine/_document_number");  
+put(xPathDictionary, "catalog_number", "//transactionLine/qqCatalogNumber_l");
+put(xPathDictionary, "product_hierarchy", "//transactionLine/productHierarchy_l");
+put(xPathDictionary, "quantity", "//transactionLine/quantity_l");
+put(xPathDictionary, "design_status", "//transactionLine/engineeringDesignStatus_l");
+put(xPathDictionary, "is_placeholder", "//transactionLine/isPlaceholder_l");//0 for normal case, 1 for prelim item
+put(xPathDictionary, "designation", "//transactionLine/designation_l");
+put(xPathDictionary, "brand", "//transactionLine/brand_l");
+put(xPathDictionary, "qqProductType", "//transactionLine/qqProductType_l");
+put(xPathDictionary, "sequence_number", "//transactionLine/_group_sequence_number");
+put(xPathDictionary, "lineOwner", "//transactionLine/lineOwner_l");	
+put(xPathDictionary, "reqconfreviewflag", "//transactionLine/requestConfigReviewFlag_l");
+put(xPathDictionary, "takeOffModel", "//transactionLine/takeOffModel_l");
+put(xPathDictionary, "customer_material_number", "//transactionLine/customerPartNumber_l");
+put(xPathDictionary, "lead_time", "//transactionLine/qqLeadTime_l");
+
+for lineDocNum in selectedLines{
+	lineData = util.getTransactionLineLevelData(bs_id, lineDocNum, xPathDictionary,"");
+	if(jsonarraysize(lineData) > 0){
+		eachItemInfo = jsonarrayget(lineData,0,"json");
+		tocode = jsonget(eachItemInfo,"takeOffModel","string","");
+		jsonput(eachItemInfo,"tocode",tocode);
+		//CPQ-4777-Start
+		if(qqBusinessLineForSalesOrg_t == "PSD")
+		{
+		ACCESS = "read-only";
+		ConfigACCESSBidmannRecords = bmql("select Access from ConfigACCESSBidmann where SalesOrg =$salesOrg_t and TakeOffModel = $tocode and UserID =$_system_user_login");
+		for r in ConfigACCESSBidmannRecords 
+	        {
+	        ACCESS = get(r,"Access");
+	        break;
+		}
+		}
+		if(qqBusinessLineForSalesOrg_t == "PSD")
+		{
+		jsonput(eachItemInfo, "config_access", ACCESS);
+		}
+		//CPQ-4777-End
+		jsonarrayappend(items, eachItemInfo);
+	}
+}
+
+//Commented the below code to fix CPQ-5058
+/*for line in transactionLine{
+	item_id = line._document_number;
+	catalogNumber = line.qqCatalogNumber_l;
+	takeOffModel = line.takeOffModel_l;
+	externalConfigDataXML = line.externalConfigData_l;
+	brand = line.brand_l;
+	if(findinarray(selectedLines, item_id) <> -1){
+		eachItemInfo = json();
+		jsonput(eachItemInfo,"item_id",item_id);
+		jsonput(eachItemInfo,"catalog_number",catalogNumber);
+		jsonput(eachItemInfo,"takeOffModel",takeOffModel);
+		jsonput(eachItemInfo,"tocode",takeOffModel);
+		jsonput(eachItemInfo,"brand",brand);
+		config_id = "";
+		if(externalConfigDataXML <> ""){
+			inputValues = dict("anytype");
+			put(inputValues,"inputXML","<BOM>"+externalConfigDataXML+"</BOM>");
+			externalConfigData = util.xmlToJSONConverter(inputValues);
+			config_id = jsonget(externalConfigData,"SAP_ConfigurationID","string","");
+		}
+		jsonput(eachItemInfo,"config_id",config_id);
+		jsonarrayappend(items, eachItemInfo);
+	}
+}*/
+//print items;
+if(jsonarraysize(items) > 0){
+	json_payload= json();
+	jsonput(json_payload,"ITEMS",items);
+	//print json_payload;
+	configurationsMassUpdateayload = applytemplate("$BASE_PATH$/ext_cfg/BidMan_Payload.txt",payload,"Failed to Load the Template",json_payload);
+	configurationsMassUpdateayload = replace(configurationsMassUpdateayload, "&quot;", "\"");
+	print "************Configurations Mass Update Payload*********";
+	print configurationsMassUpdateayload;
+	responseDetails = urldata(envVariable, "POST", headers, configurationsMassUpdateayload);
+	//errorMessage = get(responseDetails, "Error-Message");
+	print "************responseDetails*********";
+	print responseDetails;
+	statusCode = get(responseDetails, "Status-Code");
+	if(statusCode == "200"){
+		responseBody = get(responseDetails, "Message-Body");
+		if(responseBody <> ""){
+			responseJson = json(responseBody);
+			extId = jsonpathgetsingle(responseJson, "$.payload.extid","string","");
+			//print "extId***********::"+extId;
+			isloginemail = false;
+			bidManLaunchUrl ="https://"+company+".bigmachines.com/bmfsweb/" 
+					+ company + "/image/ext_cfg/bid_mgr_new.html" 
+					+ "?isloginemail=" + string(isloginemail) + "&source=cpq" 
+					+ "&extid=" + extId+ "&cpqid=" + bs_id;
+			
+			bidManLaunchUrl= bidManLaunchUrl+ "&bidManagerUrlPrefix=" + bidManagerUrlPrefix;
+			/*bidManLaunchUrl = bidManagerUrlPrefix
+					+ "?isloginemail=" + string(isloginemail) + "&source=cpq" 
+					+ "&extid=" + extId+ "&cpqid=" + bs_id;*/
+			
+			bidManLaunchUrl = replace(bidManLaunchUrl,"_","%5F");
+			//print bidManLaunchUrl;
+			//setattributevalue(1, "bidManagerURLForGlobalConfigChange_t", bidManLaunchUrl);
+			sbappend(retStr,"1~bidManagerURLForGlobalConfigChange_t~",bidManLaunchUrl,"|");
+		}
+	
+	}
+}else{
+	//setattributevalue(1, "bidManagerURLForGlobalConfigChange_t", "Error");
+	sbappend(retStr,"1~bidManagerURLForGlobalConfigChange_t~Error|");
+}
+
+return sbtostring(retStr);

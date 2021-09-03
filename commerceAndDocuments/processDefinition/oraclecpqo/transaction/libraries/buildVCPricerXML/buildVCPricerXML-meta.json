@@ -1,0 +1,14 @@
+{
+  "name" : "Build VC Pricer XML",
+  "variableName" : "buildVCPricerXML",
+  "description" : "Build the VC Pricer SOAP xml for calling SOA.",
+  "libraryFunctions" : [ "commerce.buildVCDataItemsXML", "commerce.buildVCPricerLineXML", "util.u_getLineFromJson" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_parent_doc_number", "qqProductType_l", "externalConfigVCData_l", "materialLineItem_l", "materialPricingGroup_l", "quantity_l", "scaleFrom_l", "scaleTo_l", "listPrice_l", "newNetPrice_l", "discountType_l", "discountString_l", "sAPDeletionFlag_l", "coperSurcharge_l", "silverSurcharge_l", "aluminumSurcharge_l", "uOM_l", "_document_number", "_sequence_number", "_group_sequence_number", "priceAtChildLine_l" ],
+  "mainDocAttributes" : [ "bs_id", "customerName_t", "customerName2_t", "opportunityAccountID_t", "qq_MnlShpTo_Address1_t", "qq_MnlShpTo_Address2_t", "qq_MnlShpTo_City_t", "qq_MnlShpTo_Zip_t", "qq_MnlShpTo_Country_t", "qq_MnlShpTo_Region_t", "salesOrg_t", "division_t", "distributionChannel_t", "customerNumber_t", "agreementDeliveryTerms_t", "agreementPaymentTerms_t", "incoterm2_t", "minimumOrderVolume_t", "surchargeExemption_t", "silver_t", "silverValue_t", "copper_t", "copperValue_t", "aluminium_t", "aluminiumValue_t", "qqApplication_t", "qqSubApplication_t", "currency_t", "owner_t", "opportunityNumber_t", "opportunityName_t", "agreementValidFrom_t", "agreementValidTo_t", "submittedDate_t", "soldToNumber_t", "shipToNumber_t", "preparedByENumber_t", "transactionType_t", "transactionNumber_t", "pricingDate_t", "qqProjectName_t", "qqCity_t", "qqRegion_t", "qqCountry_t", "customerStreet_t", "customerStreet2_t", "customerCity_t", "customerCountry_t", "customerState_t", "customerPostalCodeZip_t", "customerPhone_t", "customerCurrency_t", "qqTotalValue_t", "qqSegment_t", "qqSubSegment_t" ],
+  "systemAttributes" : [ ]
+}

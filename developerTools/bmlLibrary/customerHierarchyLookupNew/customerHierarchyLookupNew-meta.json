@@ -1,0 +1,12 @@
+{
+  "name" : "customer Hierarchy Lookup New",
+  "variableName" : "customerHierarchyLookupNew",
+  "description" : "Created copy function of \"customer Hierarchy Lookup\" to consider input param as JSON object.",
+  "libraryFunctions" : [ "util.getCUSMAS", "util.u_convertJsonArrayToStringArray" ],
+  "returnType" : "JsonArray",
+  "parameters" : [ {
+    "name" : "inputParam",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

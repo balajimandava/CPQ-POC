@@ -1,0 +1,14 @@
+{
+  "name" : "Assign Line Number",
+  "variableName" : "assignLineNumber",
+  "description" : "Assign lineNumber_l and parentLineNumber_l for each line.  These fields are needed in output document and SAP integration.\n\nTODO: Temporary logic.  Will need to be updated after line item grid changes are complete.",
+  "libraryFunctions" : [ "util.u_getLineFromJson", "util.u_setCommerceAttribute" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ "_sequence_number", "_document_number", "_parent_doc_number" ],
+  "mainDocAttributes" : [ ],
+  "systemAttributes" : [ ]
+}

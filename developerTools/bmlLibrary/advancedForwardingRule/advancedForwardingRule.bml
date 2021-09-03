@@ -1,0 +1,545 @@
+/**
+@name Advanced Forwarding Rule
+@api advancedForwardingRule
+@summary Consolidated Advanced Forwarding Rule for step transition.
+@param data Json
+@function Boolean isPerformerExist(String performer, String company, String siteID)
+@function Json getBLineGroups(Json data)
+@function Json getBussmannGroups(Json data)
+@function Json getCHEMEAGroups(Json data)
+@function Json getESEMEAGroups(Json data)
+@function Json getTransactionData(String bsId, String[] xpaths)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-07-13|Tat.Leung            |Initial version based on code from "Draft" step. QQ-575
+2018-07-14|Tat.Leung            |
+2018-07-25|Vivek.Hingorani      |Added salesPerson to data json. Commented Manager logic and moved to getESEMEAGroups
+2018-07-26|michael.yeung        |Add business specific readonly group and business admin group.  update distributor vendor logic
+2018-07-26|Vivek.Hingorani      |Added Manger Profile to return string. Also, added isNull check for VendorNumber
+2018-07-27|michael.yeung        |Add isPerformerExist to make sure user or group/partner Org exist in CPQ
+2018-08-13|michael.yeung        |
+2019-03-22|Pooja Gupta			|ALM- 1872: Added code to assign Nation Account Read Only role conditionally to bussman user	
+2019-06-11|Mubarak Ali			|Remedy INC000012577070 - to provide transaction access to current user also (required in case of manual forwarding)
+2020-05-11|Dhananjay			|Adding repUserWithPremium group distribution user to Sales User PP.
+2020-06-12|Dhananjay			|Combined all the forwardind rules logic And Sales Org level transaction access.
+2020-09-09|Gautam		    	|CPQ-589 New security model for ES-EMEA.
+2020-10-20|Praveen              | Project 51951 - CPQ-608
+2021-02-23|Shardul				|Legacy PSD updates
+2021-03-05|Shardul				|Performance issue fix for user and group api call from isPerfomerExists
+2021-03-08|Ankit				|Performance issue fix for user and group api call from isPerfomerExists
+2021-04-22|Dhananjay			|CPQ-4989:Unable to create Versions for PSD Transactions in T4
+2021-06-11|Dhananjay			|INC000014536902: Sales Agents not able to create a new version
+2021-06-25|Praveen              |Changed Sales org value from 3209 to 3208
+//////////////////////////////////////////////////////////////////////
+The current SuperUser existing groups eg(businessAdminESEMEA) have been split based on salesorg eg. for sales org 4942 the group created is superUser_4942
+New groups have also been added to implement new security model based on CustomerNo(KDGRP) for  currently restricted to ES_EMEA salesorg 4942(agreements) eg 4942_MOEM(4942_06)
+
+Super User Groups
+Any new groups created will have to follow the naming standard mentioned below
+GroupName => Super User_salesOrg
+variableName = > superUser_salesOrg
+E.g Super User_4942(superUser_4942)
+
+Security Model groups
+Any new groups created will have to follow the naming standard mentioned below
+GroupName =>  Salesorg_KDGRP
+variableName = > superUser_salesOrg
+E.g 4942_IT(4942_3C)
+///////////////////////////////////////////////////////////////////////////
+
+
+2020-09-21|Nithin           |CPQ-939,CPQ-991,CPQ-992 provide transaction access
+*/
+//Variable data from input json
+
+bsId = jsonget(data, "id", "string", "");
+currentLoggedInUser = jsonget(data, "currentUser", "string", "");
+quoteSubmitter = jsonget(data, "quotesubmitter", "string", "");
+userCompanyName = jsonget(data, "_system_company_name", "string", "");
+supplierCompanyName = jsonget(data, "_system_supplier_company_name", "string", "");
+userShipFirstName = jsonget(data, "_system_user_ship_first_name", "string", "");
+currentStep = jsonget(data, "CurrentStep","string","");
+whatLevelOfDiscountApprovalRequired = jsonget(data, "whatLevelOfDiscountApprovalRequired","string","");
+cSMEmail = jsonget(data, "cSMEmail","string","");
+currentUserGroups = jsonget(data, "currentUserGroups", "string", "");
+productApprovers_t = jsonget(data, "productApprovers","string","");
+isBussmannDistri = jsonget(data, "isBussmannDistributor","boolean",false);// Added for Project 51951 CPQ-608
+isperformanceExistsJson = json();
+// import data needed for forwarding rules, add more xpath expression here if additional fields are needed
+xpaths = string[] {
+    "//transaction/owner_t",
+    "//transaction/adminSales_eNumber_t",
+    "//transaction/isDistiQuote_t",
+    "//transaction/backupSalesENumber_t",
+    "//transaction/level2Delegate_t",
+    "//transaction/level3Delegate_t",
+    "//transaction/level4Delegate_t",
+    "//transaction/wholesaler_t",
+    "//transaction/isVendorQuote_t",
+    "//transaction/cSMDelegate_t",
+    "//transaction/accountTypeKTOKD_t",
+    "//transaction/customerNumber_t",
+    "//transaction/soldToNumber_t ",
+    "//transaction/qqBusinessLineForSalesOrg_t",
+    "//transaction/vendorNumber_t",
+	"//transaction/qq_ntTransactionType_t",
+	"//transaction/qq_nt_nationalAccount_t",
+	"//transaction/salesOrg_t",
+	"//transaction/transactionType_t",
+	"//transaction/distributionChannel_t",
+	"//transaction/salesDistrict_t", // added for CPQ-608
+	"//transaction/salesOffice_t",// added for CPQ-608
+	"//transaction/salesGroup_t",// added for CPQ-608
+	"//transaction/preparedByEmail_t",
+	"//transaction/qqCustomerGroup_t", // added for CPQ-589	
+    "//transaction/level2Email_t",
+    "//transaction/level3Email_t",
+    "//transaction/cSMEmail_t",
+	"//transaction/qq_customerReferenceShipTo"
+};
+
+
+headerData = util.getTransactionData(bsId, xpaths);
+
+salesPerson = jsonget(headerData, "owner_t", "string", "");
+//Below Variable added by Ali to provide transaction access to current user also (required in case of manual forwarding) as part of INC000012577070
+salesPersonENumber = jsonget(headerData, "owner_t", "string", "");
+adminSales_eNumber = jsonget(headerData, "adminSales_eNumber_t", "string", "");
+adminSalesLogin = jsonget(headerData, "adminSalesLogin_t", "string", "");
+isDistiQuote = jsonget(headerData, "isDistiQuote_t", "boolean", false);
+backupSalesENumber = jsonget(headerData, "backupSalesENumber_t", "string", "");
+backupSalesENumber = jsonget(headerData, "backupSalesENumber_t", "string", "");
+level2Delegate = jsonget(headerData, "level2Delegate_t", "string", "");
+level3Delegate = jsonget(headerData, "level3Delegate_t", "string", "");
+level4Delegate = jsonget(headerData, "level4Delegate_t", "string", "");
+wholeSaler = jsonget(headerData, "wholesaler_t", "boolean", false);
+isVendorQuote = jsonget(headerData, "isVendorQuote_t", "boolean", false);
+cSMDelegate = jsonget(headerData, "cSMDelegate_t", "string", "");
+accountTypeKTOKD = jsonget(headerData, "accountTypeKTOKD_t", "string", "");
+customerNumber = jsonget(headerData, "customerNumber_t", "string", "");
+soldToCustomer = jsonget(headerData, "soldToNumber_t", "string", "");
+businessLine = jsonget(headerData, "qqBusinessLineForSalesOrg_t", "string", "");
+vendorNumber = jsonget(headerData, "vendorNumber_t", "string", "");
+transactionType = jsonget(headerData, "qq_ntTransactionType_t", "string", "");
+nationalAccount = jsonget(headerData, "qq_nt_nationalAccount_t", "string", "");
+salesOrg = jsonget(headerData, "salesOrg_t","string","");
+transactionType = jsonget(headerData, "transactionType_t","string","");
+distchannel = jsonget(headerData, "distributionChannel_t","string","");
+salesDist = jsonget(headerData, "salesDistrict_t","string","");
+salesOffice = jsonget(headerData, "salesOffice_t","string","");
+salesGroup = jsonget(headerData, "salesGroup_t","string","");
+customerGroup = jsonget(headerData, "qqCustomerGroup_t","string",""); //CPQ-589
+level2Email = jsonget(headerData, "level2Email_t", "string", "");
+level3Email = jsonget(headerData, "level3Email_t", "string", "");
+custrefshipto = jsonget(headerData, "qq_customerReferenceShipTo", "string", "");
+/*if(cSMEmail == "")
+{
+	cSMEmail = jsonget(headerData, "cSMEmail_t", "string", "");
+}*/
+
+//This holds the return value
+retVal = stringbuilder();
+
+if (adminSales_eNumber <> "" and adminSalesLogin <> "") {
+    salesPerson = adminSalesLogin;
+}
+
+if (currentUserGroups <> "legacyEaton" AND currentUserGroups <> "legacyEatonPSD" AND salesPerson <> "" AND userCompanyName == supplierCompanyName) {// ADDED and condition for Project 51951
+    jsonput(isperformanceExistsJson,"performer",salesPerson);
+	jsonput(isperformanceExistsJson,"company",supplierCompanyName);
+	jsonput(isperformanceExistsJson,"siteID",supplierCompanyName);
+	jsonput(isperformanceExistsJson,"apiType","user");
+	//if( util.isPerformerExist(isperformanceExistsJson)) { commented as part of User API 500 error changes
+	if(NOT(isVendorQuote)){//Fix for CPQ-4989
+		sbappend(retVal,salesPerson,"~",supplierCompanyName,"~","Sales User","|");
+	}
+}
+
+if(whatLevelOfDiscountApprovalRequired == "4"){
+	sbappend(retVal,"cPROTeam","~",supplierCompanyName,"~Manager|");
+}
+
+if (cSMEmail<> "") {
+	if(businessLine == "ES-EMEA" AND currentStep == "pendingApproval"){print "CurrentStep is::CSM";print currentStep;
+		sbappend(retVal,cSMEmail,"~",supplierCompanyName,"~CSM|");
+	}else{
+		sbappend(retVal,cSMEmail,"~",supplierCompanyName,"~Manager|");
+	}
+}
+
+if (productApprovers_t<> "") {
+    productApproverJson = jsonArray(productApprovers_t);
+    if (jsonarraysize(productApproverJson) >= 1) {
+        productApprovers = util.u_convertJsonArrayToStringArray(productApproverJson);
+		for productApprover in productApprovers {
+			if(businessLine == "ES-EMEA" AND currentStep == "pendingApproval"){print "CurrentStep is::CPRO";print currentStep;
+				sbappend(retVal,productApprover ,"~",supplierCompanyName,"~CPRO|");
+			}else{
+				sbappend(retVal,productApprover ,"~",supplierCompanyName,"~Manager|");
+			}
+		}
+    }
+}
+
+// The below code is to get the sales org level access groups and profiles
+lang = dict("string");
+tableName = "SalesOrgTxnAccess";
+selectColumns = "UserGroup,Profile,SoldTo";
+whereCondition = "SalesOrg = $salesOrg AND StepName = $currentStep AND (TransactionType = $transactionType OR TransactionType IS NULL)";
+whereConditionVal = dict("string");
+put(whereConditionVal,"$salesOrg",salesOrg);
+put(whereConditionVal,"$currentStep",currentStep);
+put(whereConditionVal,"$transactionType",transactionType);
+
+salesOrgTxnAccessRecSet = bmql("SELECT $selectColumns FROM $tableName WHERE $whereCondition",lang,whereConditionVal);
+if(haserror(salesOrgTxnAccessRecSet)){
+	throwerror("UTIL::getTransactionAccess: "+ getmessage(salesOrgTxnAccessRecSet));
+}
+for eachRec in salesOrgTxnAccessRecSet{
+	userGroup = get(eachRec,"UserGroup");
+	profile	= get(eachRec,"Profile");
+	soldTos = get(eachRec,"SoldTo");
+	if(soldTos == "")
+	{
+		sbappend(retVal,userGroup,"~",supplierCompanyName,"~",profile,"|");
+	}
+	else
+	{
+		soldto = split(soldTos,"~");
+		if(findinarray(soldto,soldToCustomer) > -1)
+		{
+			sbappend(retVal,userGroup,"~",supplierCompanyName,"~",profile,"|");
+		}
+	}
+}
+
+
+
+//Below condition added by Ali to provide transaction access to current user also (required in case of manual forwarding) as part of INC000012577070
+// a condition for project 51951
+	isperformanceExistsJson = json();
+    jsonput(isperformanceExistsJson,"performer",currentLoggedInUser);
+	jsonput(isperformanceExistsJson,"company",supplierCompanyName);
+	jsonput(isperformanceExistsJson,"siteID",supplierCompanyName);
+	jsonput(isperformanceExistsJson,"apiType","user");
+//if(currentUserGroups <> "legacyEaton" AND currentUserGroups <> "legacyEatonPSD" AND userCompanyName == supplierCompanyName AND currentLoggedInUser <> "" AND util.isPerformerExist(isperformanceExistsJson)){	
+	//INC000014536902
+	if(NOT(isVendorQuote)){	//Fix for CPQ-4989
+		//sbappend(retVal,currentLoggedInUser,"~",supplierCompanyName,"~","Sales User","|");
+		if(currentLoggedInUser <> "" AND userCompanyName <> "" AND startswith(userCompanyName,"V")){
+			jsonput(isperformanceExistsJson,"performer","repUser");
+			jsonput(isperformanceExistsJson,"company",userCompanyName);
+			jsonput(isperformanceExistsJson,"siteID",supplierCompanyName);
+			jsonput(isperformanceExistsJson,"apiType","group");
+			if( util.isPerformerExist(isperformanceExistsJson) ) {
+				sbappend(retVal,"repUser~",userCompanyName,"~","Sales User","|");
+			}
+			
+			jsonput(isperformanceExistsJson,"performer","repUserWithPremium");
+			if( util.isPerformerExist(isperformanceExistsJson) ) {
+				sbappend(retVal,"repUserWithPremium~",userCompanyName,"~","Sales User","|");
+			}
+			
+		}elif(currentLoggedInUser <> ""){
+			sbappend(retVal,currentLoggedInUser,"~",supplierCompanyName,"~","Sales User","|");
+		}
+	}
+//}
+
+if(quoteSubmitter <> ""){
+	quoteSubmitterDetailsArr = split(quoteSubmitter, "@");
+	quoteSubmittedBy = quoteSubmitterDetailsArr[0];
+	isperformanceExistsJson = json();
+    jsonput(isperformanceExistsJson,"performer",quoteSubmittedBy);
+	jsonput(isperformanceExistsJson,"company",supplierCompanyName);
+	jsonput(isperformanceExistsJson,"siteID",supplierCompanyName);
+	jsonput(isperformanceExistsJson,"apiType","user");
+	if(util.isPerformerExist(isperformanceExistsJson)){
+		sbappend(retVal,quoteSubmittedBy,"~",supplierCompanyName,"~","Sales User","|");
+	}
+	
+}
+
+// TAT 2018-07-13 QQ-575
+// allow distributor to access the quote
+if( soldToCustomer <> "" ) {
+	customerNumber = soldToCustomer;
+}
+	isperformanceExistsJson = json();
+    jsonput(isperformanceExistsJson,"performer","distributorUser");
+	jsonput(isperformanceExistsJson,"company",customerNumber);
+	jsonput(isperformanceExistsJson,"siteID",supplierCompanyName);
+	jsonput(isperformanceExistsJson,"apiType","group");
+if( util.isPerformerExist(isperformanceExistsJson) ) {
+	sbappend(retVal,"distributorUser","~",supplierCompanyName,"~","Sales User","|");// if partner org is created after this adv fwd rule is run, the partner org user will not be able to see the transaction
+}
+
+// TAT 2018-07-13 QQ-575
+// allow vendor to access the quote
+// probably only one vendor per customer. Otherwise, there is potential vendor see each other's transactions
+//49704 - Commenting this part as Version is not happening for external users
+if(businessLine == "PSD" AND startswith(userCompanyName,"V")){
+	vendorArr = string[];
+	if (vendorNumber<>"" AND NOT(isnull(vendorNumber))) {
+		vendorArr = split(vendorNumber, "$,$");
+	}
+	if(findinarray(vendorArr,replace(userCompanyName,"V","")) == -1) //Added by Shardul for duplicate vendor getting added
+	{
+		append(vendorArr,userCompanyName);
+	}
+	vendorNumber = join(vendorArr,"$,$");
+}
+if (vendorNumber<>"" AND NOT(isnull(vendorNumber))) {
+	vendorArr = split(vendorNumber, "$,$");
+	for curVendor in vendorArr {
+		vendorCompanyLogin = curVendor;
+		if(NOT(startswith(curVendor,"V"))){
+			vendorCompanyLogin = "V" + curVendor;
+		}
+		isperformanceExistsJson = json();
+		jsonput(isperformanceExistsJson,"performer","repUser");
+		jsonput(isperformanceExistsJson,"company",vendorCompanyLogin);
+		jsonput(isperformanceExistsJson,"siteID",supplierCompanyName);
+		jsonput(isperformanceExistsJson,"apiType","group");
+		if( util.isPerformerExist(isperformanceExistsJson) ) {
+			sbappend(retVal,"repUser~",vendorCompanyLogin,"~","Sales User","|");
+			//sbappend(retVal,"repUserWithPremium~V",curVendor,"~","Sales User","|");
+			//print "repUser for the supplierCompanyName "+vendorCompanyLogin ;
+			
+		}
+		isperformanceExistsJson = json();
+		jsonput(isperformanceExistsJson,"performer","repUserWithPremium");
+		jsonput(isperformanceExistsJson,"company",vendorCompanyLogin);
+		jsonput(isperformanceExistsJson,"siteID",supplierCompanyName);
+		jsonput(isperformanceExistsJson,"apiType","group");
+		if( util.isPerformerExist(isperformanceExistsJson) ) {
+			//sbappend(retVal,"repUser~V",curVendor,"~","Sales User","|");
+			sbappend(retVal,"repUserWithPremium~",vendorCompanyLogin ,"~","Sales User","|");
+			//print "repUserWithPremium for the supplierCompanyName "+vendorCompanyLogin ;
+			
+		}
+	}
+}
+//print "businessLine:->"+businessLine ;
+jsonput(data,"salesPerson",salesPerson);
+jsonput(data,"backupSalesENumber_t",salesPerson);
+jsonput(data,"owner_t",salesPersonENumber);
+jsonput(data,"level2Email_t",level2Email);
+jsonput(data,"level3Email_t",level3Email);
+jsonput(data,"cSMEmail_t",cSMEmail);
+jsonput(data,"level2Delegate_t",level2Delegate);
+jsonput(data,"level3Delegate_t",level3Delegate);
+jsonput(data,"level4Delegate_t",level4Delegate);
+jsonput(data,"cSMDelegate_t",cSMDelegate);
+//jsonput(data,"wholesaler_t",wholeSaler);
+jsonput(data,"salesOrg_t",salesOrg);
+jsonput(data,"salesOffice_t",salesOffice);
+jsonput(data,"salesDistrict_t",salesDist);
+jsonput(data,"salesGroup_t",salesGroup);
+jsonput(data,"qq_customerReferenceShipTo",custrefshipto);
+jsonput(data,"customerNumber_t",customerNumber);
+jsonput(data,"distributionChannel_t",distchannel);
+
+// Tat 2018-07-13 QQ-575
+accessGroups = json();
+salesGroups = jsonarray();
+managerGroups = jsonarray();
+recommendedUserGroup  = "";
+isAgreement = "";
+if (businessLine == "BUSSMANN") {
+    
+    /*accessGroups = util.getBussmannGroups(data); //Removed call to function as part of performance impv activity.
+	print "BUSSMANN";
+	print accessGroups;
+    salesGroups = jsonget(accessGroups,"Sales User","jsonarray",jsonarray());
+    managerGroups = jsonget(accessGroups,"Manager","jsonarray",jsonarray());
+	*/
+	slgroup = salesDist + "_" + salesOffice + "_" + salesGroup;
+	jsonarrayappend(salesGroups, slgroup);
+
+	
+    //ALM- 1872: Added code to assign Nation Account Read Only role conditionally to bussman user
+	if(nationalAccount =="true"){
+		sbappend(retVal,"nationalAccountReadOnly","~",supplierCompanyName,"~","Read Only User","|");
+	} else {	
+		// CPQ-1771 starts for Siemens Quotes
+		if(soldToCustomer == "0000061145"){
+			getAccessUsers = util.getBussmannSiemensUsers();
+			for each in getAccessUsers {
+				sbappend(retVal,each ,"~",supplierCompanyName,"~","Sales User","|");
+			}
+			sbappend(retVal,"siemens","~",userCompanyName,"~","Bussmann Ext User","|");
+			sbappend(retVal,"siemensSuperUserNew","~",supplierCompanyName,"~","Sales User","|");
+			sbappend(retVal,"siemensSuperUser","~",supplierCompanyName,"~","Sales User","|");
+		}
+		// CPQ-1771 ends for Siemens Quotes
+		 	   
+		// CPQ - 608 starts
+		/*if(//soldToCustomer == "0650004140" 
+		   currentUserGroups == "legacyEaton"){
+			sbappend(retVal,"legacyEaton","~",supplierCompanyName,"~","Bussmann Ext User","|");
+			sbappend(retVal,"businessAdminBussmann","~",supplierCompanyName,"~","Admin","|");
+		}  */
+		// Currently distributor has only one company, in future if multiple company added, data table approach should be used.
+		if(currentUserGroups == "distributor" OR isBussmannDistri ) {
+			sbappend(retVal,"distributor","~",userCompanyName,"~","Bussmann Ext User","|");
+			sbappend(retVal,"distributor~"+soldToCustomer+"~Bussmann Ext User|");
+		}
+		if(currentUserGroups == "nonPricingCustomer")
+		{
+			sbappend(retVal,"nonPricingCustomer","~",userCompanyName,"~","Bussmann Ext User","|");
+			sbappend(retVal,"businessAdminBussmann","~",supplierCompanyName,"~","Sales User","|");
+		}
+		// CPQ - 608 ends			
+		if (soldToCustomer <> "0000061145")
+		{
+			//code for CPQ-589 Security Model
+			sbappend(retVal,"superUser_" + salesOrg,"~",supplierCompanyName,"~","Sales User","|");  
+		}
+	}	
+	
+} elif (businessLine == "B-LINE") {
+    accessGroups = util.getBLineGroups(data);
+	//print "B-LINE";
+	//print accessGroups;
+    salesGroups = jsonget(accessGroups,"Sales User","jsonarray",jsonarray());
+    managerGroups = jsonget(accessGroups,"Manager","jsonarray",jsonarray());
+	//ALM- 1872: Added code to assign Nation Account Read Only role conditionally to bline user
+	if(nationalAccount =="true"){
+		sbappend(retVal,"nationalAccountReadOnly","~",supplierCompanyName,"~","Read Only User","|");
+	}
+	else{
+		  // commented for CPQ-589 Security Model
+		  //sbappend(retVal,"businessAdminBline","~",supplierCompanyName,"~","Admin","|");
+		  //code for CPQ-589 Security Model
+		  sbappend(retVal,"superUser_" + salesOrg,"~",supplierCompanyName,"~","Sales User","|");
+	}
+
+} elif (businessLine == "ES-EMEA") {
+    accessGroups = util.getESEMEAGroups(data);
+	//print "ES-EMEA";
+	//print accessGroups;
+    salesGroups = jsonget(accessGroups,"Sales User","jsonarray",jsonarray());
+    managerGroups = jsonget(accessGroups,"Manager","jsonarray",jsonarray());
+	
+	if (wholesaler AND salesOrg=="4942") { //Moved logic from getESMEAGroups to here
+		isperformanceExistsJson = json();
+		jsonput(isperformanceExistsJson,"performer","cSPWholesalerAccess");
+		jsonput(isperformanceExistsJson,"company",supplierCompanyName);
+		jsonput(isperformanceExistsJson,"siteID",supplierCompanyName);
+		jsonput(isperformanceExistsJson,"apiType","group");
+		isPerfomerExists = util.isPerformerExist(isperformanceExistsJson);
+		if(isPerfomerExists)
+		{
+			//jsonarrayappend(salesUsers, "cSPWholesalerAccess"); // pass the group name
+			sbappend(retVal,"cSPWholesalerAccess","~",supplierCompanyName,"~","Sales User","|");
+		}
+	}
+		
+	//commented the below line for Cpq-589
+   //sbappend(retVal,"businessAdminESEMEA","~",supplierCompanyName,"~","Admin","|");
+    sbappend(retVal,"readOnlyESEMEA","~",supplierCompanyName,"~","Read Only User","|");
+	
+	
+	//Gautam cpq-589
+	
+	isPerfomerExists = false;
+	//if agreement
+	if(customerGroup <> "" AND NOT wholesaler AND salesOrg=="4942"){
+		recommendedUserGroup = salesOrg + "_" + customerGroup;
+		/*isperformanceExistsJson = json();
+		jsonput(isperformanceExistsJson,"performer",recommendedUserGroup);
+		jsonput(isperformanceExistsJson,"company",userCompanyName);
+		jsonput(isperformanceExistsJson,"siteID",userCompanyName);
+		jsonput(isperformanceExistsJson,"apiType","group");
+		isPerfomerExists = util.isPerformerExist(isperformanceExistsJson);*/
+		sbappend(retVal,recommendedUserGroup,"~",supplierCompanyName,"~","Sales User","|");
+		
+	}else{
+		sbappend(retVal,salesPerson,"~",supplierCompanyName,"~","Sales User","|");
+	}
+
+ 
+
+	/*if(isPerfomerExists){//4942 (both Aggrements and quotes)
+		/*if(transactionType == "DSP" OR transactionType == "CSP"){
+			sbappend(retVal,recommendedUserGroup,"~",supplierCompanyName,"~","Admin","|");
+		}else{
+			
+        }
+		*/
+		sbappend(retVal,"superUser_" + salesOrg,"~",supplierCompanyName,"~","Sales User","|");
+	/*}elif(customerGroup <> "" AND NOT(isPerfomerExists)){//4946
+		sbappend(retVal,"superUser_" + salesOrg,"~",supplierCompanyName,"~","Sales User","|");
+	}*/	
+    //json(jsonObj,Profile Name,Profile Array);
+} elif (businessLine == "CH-EMEA") {
+	
+    /*accessGroups = util.getCHEMEAGroups(data); //Removed for improving performance
+	
+	print "CH-EMEA";
+	print accessGroups;
+    salesGroups = jsonget(accessGroups,"Sales User","jsonarray",jsonarray());
+    managerGroups = jsonget(accessGroups,"Manager","jsonarray",jsonarray());*/
+	jsonarrayappend(salesGroups, salesOrg);
+	
+	sbappend(retVal,"businessAdminCHEMEA","~",supplierCompanyName,"~","Admin","|");
+	sbappend(retVal,"readOnlyCHEMEA","~",supplierCompanyName,"~","Read Only User","|");
+} elif (businessLine == "WD") {
+	
+	if(salesOrg == "1216" and salesGroup <> ""){
+	sbappend(retVal,salesOrg,"_",salesGroup,"~",supplierCompanyName,"~","Sales User","|");	
+	}
+	/*if(salesOrg == "1216"){
+        sbappend(retVal,"superUser_1216","~",supplierCompanyName,"~","Admin","|");
+    }*/
+    if(salesOrg == "2500"){
+        sbappend(retVal,"superUser_2500","~",supplierCompanyName,"~","Sales User","|");
+       }
+	//Changed the sales org value to 3208   
+	if(salesOrg == "3208"){
+        sbappend(retVal,"superUser_3209","~",supplierCompanyName,"~","Sales User","|");
+        sbappend(retVal,"salesUser_3209","~",supplierCompanyName,"~","Sales User","|");
+       }
+	
+} 
+// ********** Append Json Arrays to return string
+salesGroupSize = jsonarraysize(salesGroups);
+//print "salesGroupSize:->";
+//print salesGroupSize;
+	if (salesGroupSize > 0 ) {
+		loopRange = range(salesGroupSize);
+		for each in loopRange {
+			group = jsonarrayget(salesGroups, each, "string");
+			/*isperformanceExistsJson = json();
+			jsonput(isperformanceExistsJson,"performer",group);
+			jsonput(isperformanceExistsJson,"company",supplierCompanyName);
+			jsonput(isperformanceExistsJson,"siteID",supplierCompanyName);
+			jsonput(isperformanceExistsJson,"apiType","user");
+			if( util.isPerformerExist(isperformanceExistsJson) ) {	*/		
+				sbappend(retVal,group,"~",supplierCompanyName,"~","Sales User","|");
+			//}
+		}
+}
+
+managerGroupSize = jsonarraysize(managerGroups);
+	if (managerGroupSize > 0 ) {
+		loopRange = range(managerGroupSize);
+		for each in loopRange {
+			group = jsonarrayget(managerGroups, each, "string");
+		    /*isperformanceExistsJson = json();
+			jsonput(isperformanceExistsJson,"performer",group);
+			jsonput(isperformanceExistsJson,"company",supplierCompanyName);
+			jsonput(isperformanceExistsJson,"siteID",supplierCompanyName);
+			jsonput(isperformanceExistsJson,"apiType","user");
+			if( util.isPerformerExist(isperformanceExistsJson) ) {*/
+				sbappend(retVal,group,"~",supplierCompanyName,"~","Manager","|");
+			//}
+
+		}
+}
+//print "return value of adv forwrding rule is" ;
+//print retVal;
+return sbtostring(retVal);

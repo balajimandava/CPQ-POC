@@ -1,0 +1,48 @@
+returnStr  = "";
+//endCustNoForValidation = jsonget(inputJson,"EndCustNoForValidation","string","");
+//endCustNo = jsonget(inputJson,"EndCustNo","string","");
+userLanguage = _system_current_user_language;
+notificationMessage = "";
+notificationsArray = string[];
+isEndCustomerChanged = false;
+
+endCustomerNo = endCustomerNo_t;
+
+//print endCustomerNo;
+//testing purpose TransactionID : 124031132
+//endCustomerNo  = "0000422808";
+
+WARNING_MESSAGE_PRIMARYCUSTCHANGED = util.getRemark("WARNING_PRIMARYENDCUSTOMER_CHANGED", userLanguage);
+primaryEndCusomterNo = "";
+if(NOT(ISNULL(endCustomerNo)) OR endCustomerNo <> "")
+{
+	//if(NOT(ISNULL(nt_selectedEndCustomerArrayset_t))){	
+		selectPrimaryEndCustomerRecord = json();
+		jsonput(selectPrimaryEndCustomerRecord,"SelectedEndCusomterRecordSet",nt_selectedEndCustomerArrayset_t);
+		
+		if(jsonpathcheck(selectPrimaryEndCustomerRecord,"$.SelectedEndCusomterRecordSet[?(@.nt_primaryEndCustomer_t==true)].nt_selectedEndCustomer_t"))
+		{
+			//print selectPrimaryEndCustomerRecord;
+			primaryEndCusomterNo = jsonpathgetsingle(selectPrimaryEndCustomerRecord,"$.SelectedEndCusomterRecordSet[?(@.nt_primaryEndCustomer_t==true)].nt_selectedEndCustomer_t");
+
+			//print "Selected Record #**************************";
+			print primaryEndCusomterNo ;
+		}
+		
+		
+	          
+
+	 //}
+}
+
+if((primaryEndCusomterNo <> endCustomerNo) AND (primaryEndCusomterNo <> "")){
+     //fetch from database based on user language
+     message = WARNING_MESSAGE_PRIMARYCUSTCHANGED;//End customer has changed, PriceScope guidance has been refreshed
+     append(notificationsArray, "<p>" + message + "</p>");
+ }
+
+if(sizeofarray(notificationsArray) > 0){
+		notificationMessage = join(notificationsArray, "/n");
+		returnStr = returnStr + _transaction_document_number  + "~endCustomerUpdatedWarningMessage_t~" + notificationMessage + "|";
+}
+return returnStr;

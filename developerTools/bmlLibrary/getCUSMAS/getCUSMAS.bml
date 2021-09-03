@@ -1,0 +1,77 @@
+//***********************************************************************************************************
+//** Function:    	Get CUSMAS (getCUSMAS)
+//** Type:        	BML Util Function   
+//**                                                                                                       
+//** Description: 	Returns a JSON Array of records from the Customer Master (CUSMAS) data table based
+//**			on values passed to us
+//**                                                                                                       
+//** Parameters:  	parmsDict -- Contains the name of the column and the value in the column to search for
+//**      
+//** Return:		JSON Array containing the results of the BMQL call
+//**                                                                              
+//** History:   	Date		Author			Comment                                                              
+//**            	2017.06.28	dBoHaizlip(PW)	        Initial
+//**			2018.06.29	vhingorani		Added new columnNames TELF1,SMTP_ADDR
+//**			2020.02.06	RahulU			Added new code for Eagle Development
+//**			2020.03.17	Atul Jain		Added debug mode to print statements
+//***********************************************************************************************************retJSONarr= jsonarray();
+debugMode = false;
+retJSONarr= jsonarray();
+CustomerSearchCall=get(parmsDict,"CustomerSearchCall");
+partnerFunctionSearch=get(parmsDict,"VTWEG"); // RahulU|6Feb2020|Eagle Development|Get distribution channel from the input
+
+//  List of the column names in CUSMAS that we search for and/or return values for
+columnNames= string[];
+if(CustomerSearchCall=="True")
+{
+    columnNames= string[]{"KUNNR","KTOKD","PARVW","KUNN2","HKUNNR","VKORG","NAME1","TELF1","SMTP_ADDR","NAME2","PSTLZ","ORT01","LAND1","REGIO","BZIRK"};//Chandan - 49704 - Eagle Development - Added the Sales District(BZIRK) column to fetch
+}
+elif(partnerFunctionSearch <> "" AND NOT(ISNULL(partnerFunctionSearch))){// RahulU|6Feb2020|Eagle Development|Added for Partner function search based on distribution channel
+    columnNames= string[]{"KUNNR","KTOKD","PARVW","KUNN2","HKUNNR","VKORG","NAME1","TELF1","SMTP_ADDR","VTWEG"};
+}
+else{
+    columnNames= string[]{"KUNNR","KTOKD","PARVW","KUNN2","HKUNNR","VKORG","NAME1","TELF1","SMTP_ADDR"};
+}
+cols= join(columnNames,",");
+
+lang = dict("string");
+fields = dict("string");
+whereBMQL= "";
+
+//  Loop thru the column names and see if there is a value to match
+for eachColumn in columnNames {
+  if (containskey(parmsDict,eachColumn)) {
+    searchValue= get(parmsDict,eachColumn);
+    if (whereBMQL <> "") {whereBMQL=whereBMQL+ " AND ";}
+    whereBMQL= whereBMQL+ eachColumn + " = $"+eachColumn;
+    put(fields,"$"+eachColumn,searchValue);
+  }
+}
+
+cusmasBMQL= bmql("SELECT DISTINCT $cols FROM CUSMAS WHERE $whereBMQL",lang,fields);
+if (debugMode) {
+print cusmasBMQL;
+}
+
+// Return the results
+customerCount= 0;
+for eachCustomer in cusmasBMQL {
+  customerJSON= json();
+  customerCount=customerCount+1;
+  jsonput(customerJSON,"customercount",string(customerCount));
+  for eachColumn in columnNames {
+    eachValue= get(eachCustomer,eachColumn);
+    jsonput(customerJSON,eachColumn,eachValue);
+	if (debugMode) {
+    print eachColumn + " / " + eachValue;
+	}
+  }
+  jsonarrayappend(retJSONarr, customerJSON);
+}
+
+//  Total number of rows/customers found
+totalCustomers= json();
+jsonput(totalCustomers,"totalcustomers",string(customerCount));
+jsonarrayappend(retJSONarr, totalCustomers);
+
+return retJSONarr;

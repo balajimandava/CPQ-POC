@@ -1,0 +1,12 @@
+selectedCustRecordsJson = json();
+identifier = nt_selectedEndCustomerArrayset_t;
+if(ArraySet == "endCustomerArraySet2_t"){
+	identifier = endCustomerArraySet2_t;
+}
+elif(ArraySet == "nt_selectedEndCustomerArrayset_t"){
+	identifier = nt_selectedEndCustomerArrayset_t;
+}
+
+jsonput(selectedCustRecordsJson, "records", identifier);
+
+return selectedCustRecordsJson;

@@ -1,0 +1,14 @@
+{
+  "name" : "Get BLINE Approvers",
+  "variableName" : "getBlineApprovers",
+  "description" : "Using to capture all the approves",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "inputData",
+    "type" : "Json"
+  } ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "shipToNumber_t", "soldToNumber_t", "customerNumber_t", "salesOrg_t" ],
+  "systemAttributes" : [ ]
+}

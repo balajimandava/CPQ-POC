@@ -1,0 +1,12 @@
+{
+  "name" : "Get Transaction Access",
+  "variableName" : "getTransactionAccess",
+  "description" : "",
+  "libraryFunctions" : [ "util.getBLineGroups", "util.getBussmannGroups", "util.getCHEMEAGroups", "util.getESEMEAGroups", "util.getTransactionData", "util.u_convertJsonArrayToStringArray" ],
+  "returnType" : "String",
+  "parameters" : [ {
+    "name" : "data",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

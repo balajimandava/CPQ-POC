@@ -1,0 +1,226 @@
+/**
+@name Build VC Pricer XML
+@api buildVCPricerXML
+@summary Build the VC Pricer SOAP xml for calling SOA.
+@param data Json
+@attribute agreementDeliveryTerms_t
+@attribute agreementPaymentTerms_t
+@attribute agreementValidFrom_t
+@attribute agreementValidTo_t
+@attribute aluminiumValue_t
+@attribute aluminium_t
+@attribute bs_id
+@attribute copperValue_t
+@attribute copper_t
+@attribute currency_t
+@attribute customerCity_t
+@attribute customerCountry_t
+@attribute customerCurrency_t
+@attribute customerName2_t
+@attribute customerName_t
+@attribute customerNumber_t
+@attribute customerPhone_t
+@attribute customerPostalCodeZip_t
+@attribute customerState_t
+@attribute customerStreet2_t
+@attribute customerStreet_t
+@attribute distributionChannel_t
+@attribute division_t
+@attribute incoterm2_t
+@attribute minimumOrderVolume_t
+@attribute opportunityAccountID_t
+@attribute opportunityName_t
+@attribute opportunityNumber_t
+@attribute owner_t
+@attribute preparedByENumber_t
+@attribute pricingDate_t
+@attribute qqApplication_t
+@attribute qqCity_t
+@attribute qqCountry_t
+@attribute qqProjectName_t
+@attribute qqRegion_t
+@attribute qqSegment_t
+@attribute qqSubApplication_t
+@attribute qqSubSegment_t
+@attribute qqTotalValue_t
+@attribute qq_MnlShpTo_Address1_t
+@attribute qq_MnlShpTo_Address2_t
+@attribute qq_MnlShpTo_City_t
+@attribute qq_MnlShpTo_Country_t
+@attribute qq_MnlShpTo_Region_t
+@attribute qq_MnlShpTo_Zip_t
+@attribute salesOrg_t
+@attribute shipToNumber_t
+@attribute silverValue_t
+@attribute silver_t
+@attribute soldToNumber_t
+@attribute submittedDate_t
+@attribute surchargeExemption_t
+@attribute transactionNumber_t
+@attribute transactionType_t
+@function String buildNetPriceLineXML(Json data)
+@return String
+@revision
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2018-04-23|dBo Haizlip		|Initial Version
+2018-06-13|dBo Haizlip		|Removed <VCData_Type> and </VCData_Type> before sending to SOA
+2020-03-20|Nithin               | Project#49074 - CPQ53 It has been agreed to remove SAPLineNumber_l,parentSAPLineNumber_l from CPQ and its integrations 
+2020-08-14|Dhananjay            | Project#49074 - CPQ-2350 included group sequence number in the payload instead of SAP Line Number 
+*/
+
+
+template = "$BASE_PATH$/WebServices/vc_pricer_template.xml";
+payload = dict("string");
+//print data;
+put(payload, "CPQSOASAP", jsonget(data, "CPQSOASAP", "string", ""));
+put(payload, "CPQSOASAPPW", jsonget(data, "CPQSOASAPPW", "string", ""));
+
+put(payload, "bs_id", jsonget(data, "bs_id", "string", bs_id));
+put(payload, "customerName_t", jsonget(data, "customerName_t", "string", customerName_t));
+put(payload, "opportunityAccountID_t", jsonget(data, "opportunityAccountID_t", "string", opportunityAccountID_t));
+put(payload, "customerStreet_t", jsonget(data, "customerStreet_t", "string", customerStreet_t));
+put(payload, "customerStreet2_t", jsonget(data, "customerStreet2_t", "string", customerStreet2_t));
+put(payload, "customerCity_t", jsonget(data, "customerCity_t", "string", customerCity_t));
+put(payload, "customerPostalCodeZip_t", jsonget(data, "customerPostalCodeZip_t", "string", customerPostalCodeZip_t));
+put(payload, "customerCountry_t", jsonget(data, "customerCountry_t", "string", customerCountry_t));
+put(payload, "customerState_t", jsonget(data, "customerState_t", "string", customerState_t));
+put(payload, "customerPhone_t", jsonget(data, "customerPhone_t", "string", customerPhone_t));
+
+put(payload, "salesOrg_t", jsonget(data, "salesOrg_t", "string", salesOrg_t));
+put(payload, "division_t", jsonget(data, "division_t", "string", division_t));
+put(payload, "distributionChannel_t", jsonget(data, "distributionChannel_t", "string", distributionChannel_t));
+put(payload, "customerNumber_t", jsonget(data, "customerNumber_t", "string", customerNumber_t));
+put(payload, "agreementDeliveryTerms_t", jsonget(data, "agreementDeliveryTerms_t", "string", agreementDeliveryTerms_t));
+put(payload, "agreementPaymentTerms_t", jsonget(data, "agreementPaymentTerms_t", "string", agreementPaymentTerms_t));
+put(payload, "incoterm2_t", jsonget(data, "incoterm2_t", "string", incoterm2_t));
+put(payload, "minimumOrderVolume_t", jsonget(data, "minimumOrderVolume_t", "string", minimumOrderVolume_t));
+put(payload, "surchargeExemption_t", jsonget(data, "surchargeExemption_t", "string", string(surchargeExemption_t)));
+put(payload, "silver_t", jsonget(data, "silver_t", "string", silver_t));
+put(payload, "silverValue_t", jsonget(data, "silverValue_t", "string", string(silverValue_t)));
+put(payload, "copper_t", jsonget(data, "copper_t", "string", copper_t));
+put(payload, "copperValue_t", jsonget(data, "copperValue_t", "string", string(copperValue_t)));
+put(payload, "aluminium_t", jsonget(data, "aluminium_t", "string", aluminium_t));
+put(payload, "aluminiumValue_t", jsonget(data, "aluminiumValue_t", "string", string(aluminiumValue_t)));
+put(payload, "qqApplication_t", jsonget(data, "qqApplication_t", "string", qqApplication_t));
+put(payload, "qqSubApplication_t", jsonget(data, "qqSubApplication_t", "string", qqSubApplication_t));
+put(payload, "currency_t", jsonget(data, "currency_t", "string", currency_t));
+put(payload, "owner_t", jsonget(data, "owner_t", "string", owner_t));
+put(payload, "opportunityNumber_t", jsonget(data, "opportunityNumber_t", "string", opportunityNumber_t));
+put(payload, "opportunityName_t", jsonget(data, "opportunityName_t", "string", opportunityName_t));
+
+validFromDateString = jsonget(data, "agreementValidFrom_t", "string", agreementValidFrom_t);
+validFromDateString = replace(substring(validFromDateString, 0, 10), "-", "");
+validToDateString = jsonget(data, "agreementValidTo_t", "string", agreementValidTo_t);
+validToDateString = replace(substring(validToDateString, 0, 10), "-", "");
+submittedDateString = jsonget(data, "submittedDate_t", "string", submittedDate_t);
+submittedDateString = replace(substring(submittedDateString, 0, 10), "-", "");
+pricingDateString = jsonget(data, "pricingDate_t", "string", pricingDate_t);
+pricingDateString = replace(substring(pricingDateString, 0, 10), "-", "");
+
+put(payload, "validFrom_t", validFromDateString);
+put(payload, "validTo_t", validToDateString);
+put(payload, "submittedDate_t", submittedDateString);
+put(payload, "pricingDate_t", pricingDateString);
+put(payload, "qqExpectedDecisionDate_t", validFromDateString);
+put(payload, "soldToNumber_t", jsonget(data, "soldToNumber_t", "string", soldToNumber_t));
+put(payload, "shipToNumber_t", jsonget(data, "shipToNumber_t", "string", shipToNumber_t));
+put(payload, "preparedByENumber_t", jsonget(data, "preparedByENumber_t", "string", preparedByENumber_t));
+put(payload, "transactionType_t", jsonget(data, "transactionType_t", "string", transactionType_t));
+put(payload, "poNumber_t", jsonget(data, "transactionNumber_t", "string", transactionNumber_t));
+put(payload, "qqProjectName_t", jsonget(data, "qqProjectName_t", "string", qqProjectName_t));
+put(payload, "qqCity_t", jsonget(data, "qqCity_t", "string", qqCity_t));
+put(payload, "qqRegion_t", jsonget(data, "qqRegion_t", "string", qqRegion_t));
+put(payload, "qqCountry_t", jsonget(data, "qqCountry_t", "string", qqCountry_t));
+put(payload, "customerCurrency_t", jsonget(data, "customerCurrency_t", "string", customerCurrency_t));
+put(payload, "qqTotalValue_t", jsonget(data, "qqTotalValue_t", "string", string(qqTotalValue_t)));
+put(payload, "qqSegment_t", jsonget(data, "qqSegment_t", "string", qqSegment_t));
+put(payload, "qqSubSegment_t", jsonget(data, "qqSubSegment_t", "string", qqSubSegment_t));
+
+quoteLines = string[];
+nonVCModels = string[]; 
+parentSeqNumJson = json(); 
+for eachLine in transactionLine {
+    currentLine = util.u_getLineFromJson(data, eachLine._document_number);
+    if( eachLine._parent_doc_number == "" ) {
+        if ( (eachLine.qqProductType_l <> "configuration") ) {
+            continue;    // exclude non-configuration lines
+        } elif (eachLine.externalConfigVCData_l == "")  {
+            append( nonVCModels, eachLine._document_number );
+            continue;   // exclude configuration with no vc data
+        }
+         jsonput(parentSeqNumJson,eachLine._document_number,eachLine._group_sequence_number);
+    } else {
+        if( findinarray(nonVCModels, eachLine._parent_doc_number) > -1) {
+            continue;   // exclude configuration child lines  with no vc data   
+        }
+    }
+
+    payload2 = dict("string");
+    put(payload2, "_document_number", eachLine._document_number);
+    put(payload2, "materialLineItem_l", jsonget(currentline, "materialLineItem_l", "string", eachLine.materialLineItem_l));
+    put(payload2, "materialPricingGroup_l", jsonget(currentline, "materialPricingGroup_l", "string", eachLine.materialPricingGroup_l));
+    put(payload2, "quantity_l", jsonget(currentline, "quantity_l", "string", string(eachLine.quantity_l)));
+    put(payload2, "scaleFrom_l", jsonget(currentline, "scaleFrom_l", "string", eachLine.scaleFrom_l));
+    put(payload2, "scaleTo_l", jsonget(currentline, "scaleTo_l", "string", eachLine.scaleTo_l));
+	
+	//Adding below condition to avoid sending the parent list price information - CPQ-3796
+	if(eachLine._parent_doc_number == "" and eachLine.priceAtChildLine_l == TRUE ){
+		put(payload2, "listPrice_l", "");
+		put(payload2, "newNetPrice_l", "");
+		put(payload2, "discountString_l", "");
+		put(payload2, "coperSurcharge_l", "");
+		put(payload2, "silverSurcharge_l", "");
+		put(payload2, "aluminumSurcharge_l", "");
+	}else{
+		put(payload2, "listPrice_l", jsonget(currentline, "listPrice_l", "string", string(eachLine.listPrice_l)));
+		put(payload2, "newNetPrice_l", jsonget(currentline, "newNetPrice_l", "string", string(eachLine.newNetPrice_l)));
+		put(payload2, "discountString_l", jsonget(currentline, "discountString_l", "string", eachLine.discountString_l));
+		put(payload2, "coperSurcharge_l", jsonget(currentline, "coperSurcharge_l", "string", string(eachLine.coperSurcharge_l)));
+		put(payload2, "silverSurcharge_l", jsonget(currentline, "silverSurcharge_l", "string", string(eachLine.silverSurcharge_l)));
+		put(payload2, "aluminumSurcharge_l", jsonget(currentline, "aluminumSurcharge_l", "string", string(eachLine.aluminumSurcharge_l)));		
+	}	
+    
+    put(payload2, "discountType_l", jsonget(currentline, "discountType_l", "string", eachLine.discountType_l));
+    put(payload2, "sAPDeletionFlag_l", jsonget(currentline, "sAPDeletionFlag_l", "string", string(eachLine.sAPDeletionFlag_l)));    
+    put(payload2, "uOM_l", jsonget(currentline, "uOM_l", "string", eachLine.uOM_l));
+
+    //Sending Group Sequence number
+    put(payload2, "lineNumber_l", eachLine._group_sequence_number);
+    parentSeqNum = jsonget(parentSeqNumJson,eachLine._parent_doc_number,"string","");
+    //Sending parent line group sequence number
+    put(payload2, "parentSAPLineNumber_l", parentSeqNum);
+	
+	if ( (eachLine.externalConfigVCData_l <> "") AND (eachLine.qqProductType_l == "configuration") ) {
+        jsonput(currentLine, "externalConfigVCData_l", eachLine.externalConfigVCData_l);
+        jsonput(currentLine, "SAPLineNumber_l", eachLine._group_sequence_number);
+        jsonput(currentLine, "quantity_l", "1");
+        jsonput(currentLine, "_sequence_number", eachLine._sequence_number);
+        jsonput(currentLine, "materialLineItem_l", eachLine.materialLineItem_l);
+        vcData = commerce.buildVCDataItemsXML(currentLine);
+        
+        put(payload2, "VC_DATA", vcData);
+    }
+
+    lineXml = applytemplate("$BASE_PATH$/WebServices/vc_pricer_line_template.xml", payload2, "");
+    lineXml = replace(lineXml, "&lt;", "<");
+    lineXml = replace(lineXml, "&gt;", ">");
+    
+    //  Remove the duplicate tags
+    append(quoteLines, lineXml);
+	//print "Quote Lines = ";
+	//print quoteLines;
+}
+
+
+quoteLineXml= join(quoteLines, "");
+quoteLineXml = replace(quoteLineXml,"<VCData_Type>","");
+quoteLineXml = replace(quoteLineXml,"</VCData_Type>","");
+
+put(payload, "QUOTE_LINES", quoteLineXml);
+
+quoteXml = applytemplate(template, payload, "");
+quoteXml = replace(quoteXml, "&lt;", "<");
+quoteXml = replace(quoteXml, "&gt;", ">");
+
+return quoteXml;

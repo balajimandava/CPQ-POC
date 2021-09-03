@@ -1,0 +1,11 @@
+{
+  "name" : "End Customer Update From Vistex",
+  "variableName" : "endCustomerUpdateFromVistex",
+  "description" : "Project#49074|Eagle Development|28052020|Rahul|Function to update EndCustomer arrayset From Vistex",
+  "libraryFunctions" : [ ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ ],
+  "mainDocAttributes" : [ "qq_nt_EndCust_DataString_t", "endCustomerArraySet2_t" ],
+  "systemAttributes" : [ ]
+}

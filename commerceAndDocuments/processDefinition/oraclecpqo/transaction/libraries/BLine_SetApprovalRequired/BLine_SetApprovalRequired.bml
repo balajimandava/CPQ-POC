@@ -1,0 +1,466 @@
+/*****************
+@name BLine_SetApprovalRequired
+@api BLine_SetApprovalRequired
+@summary BLINE: 
+Determine if approval is required based on the new item and/or new item discounts.
+@attribute _document_number
+@attribute discountPercent_l
+@attribute materialPricingGroup_l
+@attribute salesGroup_t
+@attribute salesOrg_t
+@attribute _transaction_document_number
+
+@function String commerce.get_BLineProductHierarchyAndPLMApprover(agencyAssignment, stringDict, intDict)
+
+
+@return String
+@revision
+Rev. Date   	|Developer            |Notes / Comments
+----------------|---------------------|-------------------------------------------------------------------------
+11-April-2018   |Harshit Mehta        |Initial Code
+02-July-2018	|Harshit Mehta	      |ALM Defect# 857 : Passing QuoteRepEnum to function get_BLineProductHierarchyAndPLMApprover
+23-April-2019	|Smriti Chaturvedi    |ALM- 1023 - Identify Territory of the userAgent and payment term logic
+18-Feb-2020     |Shardul S	      |INC000012960059: Reporting Changes
+17-April-2020	|Rahul Uttarwar	      |Project#:49704|Jira#782 - End customer approval for BLine
+04-Nov-2020     |Shardul S	      | CPQ-3286 Error on B-Line Quote Rep providing feedback 
+*/
+
+	
+//If transaction is just created then no need to execute logic of this function as no line items would be available.
+if (_system_current_step_var == "start_step") {
+    return "";
+}
+
+//START - Local Variable Declaration
+result = "";
+agencyNumber = "";
+quoteRepKUNN2 = "";
+quoteRepENum = "";
+agencyAssignment = "";
+quoteManagerENum = "";
+quoteRepName = "";
+quoteManagerName="";
+paymentTerm = "";
+deliveryTerm= "";
+paymentTermApprovalRequired= "";
+deliveryTermApprovalRequired= "";
+territoryApprovalRequired = false;
+customernumber ="";
+territoryFlag = "";
+customerNumberValue = String[];
+//End - Local Variable Declaration
+
+
+//////////////////START of CUSTOMER SHIP to LOGIC///////////////////////////////////////////////////////
+
+if(shipToNumber_t <> "")
+	{
+		customernumber = shipToNumber_t;								
+	}
+else
+	{
+		if( soldToNumber_t<> "")
+			{								
+				customernumber = soldToNumber_t;
+			}
+			else
+			{
+				customernumber = customerNumber_t;
+			}
+	}	
+		
+append(customerNumberValue, customernumber);		
+append(customerNumberValue, customerNumber_t);
+////////////////////////////END of CUSTOMER SHIP/SOLD to Logic///////////////////////////////////////////////
+
+
+/////////////////START - Get Agency Number(If PARVW = Z1) and Quote approval Rep (If PARVW = ZQ) from KUNN2 //////////////////////// 
+
+recordSet = BMQL("Select KUNN2,VKORG,PARVW,ZTERM_SALES,KUNNR,INCO1 from CUSMAS WHERE KUNNR in $customerNumberValue AND VKORG = $salesOrg_t AND PARVW IN ('Z1','ZQ')");
+
+for eachRecord in recordSet
+{
+	if(get(eachRecord , "KUNNR")  == customernumber)
+	{
+		if(get(eachRecord , "PARVW") == "Z1")
+		{
+			agencyNumber = get(eachRecord,"KUNN2");
+			
+		}
+		
+		if(get(eachRecord,"PARVW") == "ZQ")
+		{
+			quoteRepKUNN2 = get(eachRecord,"KUNN2");
+		
+		}
+	}
+	if( get(eachRecord , "KUNNR")  == customerNumber_t)
+	{
+		if(get(eachRecord , "PARVW") == "Z1")
+		{
+			paymentTerm = get(eachRecord,"ZTERM_SALES"); // Smriti - ALM-1023 - added for payment term of Customer
+			deliveryTerm = get(eachRecord,"INCO1"); // Smriti - ALM-1023 - added for payment term of Customer
+			
+		}
+	}
+}
+//Smriti - ALM- 1023 - to compare payment term with the Customer payment term.
+if( paymentTerm <> agreementPaymentTerms_t AND (transactionType_t == "DS" OR transactionType_t=="WQ"))
+{	
+	paymentTermApprovalRequired = "CSM";
+}
+else
+{
+		paymentTermApprovalRequired = "";
+}
+
+
+//Smriti - ALM- 1023 - to compare payment term with the Customer payment term.
+if( deliveryTerm <> agreementDeliveryTerms_t)
+{	
+	deliveryTermApprovalRequired = "CSM";
+}
+else
+{
+		deliveryTermApprovalRequired = "";
+}
+
+
+//To extract Quote Rep E# from CUSMAS based upon value received in previous query in quoteRepKUNN2 variable.
+quoteRepRecordSet = BMQL("Select SORT2,NAME1 from CUSMAS WHERE KUNNR = $quoteRepKUNN2 AND VKORG = $salesOrg_t");
+
+for quoteRepRecord in quoteRepRecordSet
+{
+	quoteRepENum = get(quoteRepRecord,"SORT2");
+	quoteRepName = get(quoteRepRecord,"NAME1"); // E0422424:- Added for notification messages.
+}
+//discountApprovers = discountApprovers +","+ quoteRepName +" " + "(QuoteRep)" ;   // E0422424:- Added for notification messages.
+
+/////////////// END - GET Agency Number AND Quote approval Rep/////////////////////////////
+
+
+////////////// START - GET Agency Assignment based upon agencyNumber AND Quote Manager Approval //////////////////
+agencyAssignmentRecordSet = BMQL ("Select Agency_Assignment,Quotes_Leads_E_Num,Quotes_Leads_Name from Agent_Assign_BLine WHERE Agency_Number = $agencyNumber");
+
+for agencyAssignmentRecord in agencyAssignmentRecordSet
+{
+	agencyAssignment = get(agencyAssignmentRecord,"Agency_Assignment");
+	quoteManagerENum = get(agencyAssignmentRecord , "Quotes_Leads_E_Num");
+	quoteManagerName=get(agencyAssignmentRecord , "Quotes_Leads_Name");
+	break; // Only 1 record is expected.
+}
+///////////// END - GET Agency Assignment AND Quote Manager Approval/////////////////////
+
+////////////// START - GET Territory //////////////////
+
+
+if((transactionType_t == "DS" OR transactionType_t=="WQ" OR transactionType_t == "RQ") AND (find(quoteSubmitter_t,"approverWithMarginBline") == -1))
+{
+
+	territoryRecordSet = BMQL ("Select Territory from Territory WHERE Agency_Number = $agencyNumber");
+
+	for territoryRecord in territoryRecordSet
+	{
+		territoryVal = get(territoryRecord,"Territory");
+		if(qqCountryRegion_t == territoryVal)
+		{		
+			territoryFlag = "";
+			break;
+		}
+		else
+		{		
+			territoryFlag = "CSM";
+		}
+	}
+}
+///////////// END - Territory/////////////////////
+
+stringDict = dict("string");
+put(stringDict,"quoteManagerName",quoteManagerName);
+put(stringDict,"quoteRepName",quoteRepName);
+put(stringDict,"quoteRepENum",quoteRepENum);
+put(stringDict,"paymentTermApprovalRequired",paymentTermApprovalRequired); // Smriti - ALM- 1023 Added for payment term approval logic 
+put(stringDict,"deliveryTermApprovalRequired",deliveryTermApprovalRequired); // Smriti - ALM- 1023 Added for payment term approval logic 
+put(stringDict,"territoryFlag",territoryFlag); // Smriti - ALM- 1023 Added for Territory approval logic 
+intDict = dict("integer");
+//Agency assignment would use to identify product hierarchy and later product hierarchy would use to identify PLM approver.
+//PLM approver + notification message information would come from get_BLineProductHierarchyAndPLMApprover
+result = result + commerce.get_BLineProductHierarchyAndPLMApprover(agencyAssignment, stringDict, intDict);
+
+quoteRepThresholdApprovalRequired = "false";
+pricingManagerThresholdApprovalRequired = "false";
+quoteManagerThresholdApprovalRequired = "false";
+
+quoteRepAppReq = find(result, "quoteRepThresholdApprovalRequired_t~true");
+evaDisAppReq = find(result, "evaluateDiscountApproval_t~true");
+newItemAppReq = find(result, "qqNewItemApprovalRequired_t~true");
+OverTermsAppReq = find(result, "overallTermsApprovalLevel_t~true");
+TotValAppReq = find(result, "totalValueApprovalRequired_t~true");
+ValPerAppReq = find(result, "validityPeriodApprovalRequired_t~true");
+ZerLisPrcAppReq = find(result, "zeroListPriceApprovalRequired_t~true");
+endCustUpdtAppReq = find(result, "endCustomerUpdateApprovalRequired_t~true");//17April-Rahul - End Customer approval for Bline
+
+//Added by Shardul for CPQ-3286 Error on B-Line Quote Rep providing feedback
+requiredApprovals = "";
+if(RequiredApprovals_t <> "" AND NOT isnull(RequiredApprovals_t) and status_t ==  "pendingApproval")
+{
+	requiredApprovals = RequiredApprovals_t;
+}
+else
+{
+	if(endCustUpdtAppReq > -1)
+	{
+		requiredApprovals = "endCustomerApproval#";
+	}
+	if(ZerLisPrcAppReq > -1 AND evaDisAppReq > -1)
+	{
+		requiredApprovals = requiredApprovals+"bLineZeroListPriceApproval#";
+	}
+	if(((quoteRepAppReq > -1 AND evaDisAppReq > -1) OR newItemAppReq > -1 OR OverTermsAppReq > -1 OR TotValAppReq > -1 OR ValPerAppReq > -1) AND NOT controllerApproved_t)
+	{
+		requiredApprovals = requiredApprovals+"bLineDiscountThresholdQuoteRepApprover#";
+	}
+}
+
+if(((ZerLisPrcAppReq > -1 AND evaDisAppReq > -1) OR endCustUpdtAppReq > -1 OR (quoteRepAppReq > -1 AND evaDisAppReq > -1) OR newItemAppReq > -1 OR OverTermsAppReq > -1 OR TotValAppReq > -1 OR ValPerAppReq > -1) AND NOT controllerApproved_t) {
+	quoteRepThresholdApprovalRequired= "true";
+}
+
+if( find(result, "pricingManagerThresholdApprovalRequired_t~true") > -1 ) {
+	pricingManagerThresholdApprovalRequired = "true";
+}
+
+if((find(result, "quoteManagerThresholdApprovalRequired_t~true") > -1) OR ((qqTnC_t == "Non-Standard" OR ( whatLevelOfDeliveryTermsApprovalRequired_t <> "" OR whatLevelOfTermsApprovalRequired_t <> "")) 
+AND NOT controllerApproved_t)) {
+	quoteManagerThresholdApprovalRequired = "true";
+}
+
+
+startpos = find(result, "productApprovers_t~");
+prodApprovers = "";
+if( startpos > -1 ) {
+	startposValue = find(result, "~", startpos);
+	endposValue = find(result, "|", startposValue);
+	prodApprovers = subString(result, startposValue + 1, endposValue);
+	//print "prodApp:-"+prodApprovers;
+}
+
+//Query BLine_Approver_Table table
+
+PLMTeam = bmql("SELECT DISTINCT PLM_E_Num, PLM_Name FROM BLine_Approver_Table");
+PLMTable = json();
+for person in PLMTeam{
+    // JSON object for each row of the table
+    PLMPerson = json();
+    // put the information of that row into the JSON object
+    jsonput(PLMPerson, "Name", get(person, "PLM_Name"));
+    // put that JSON object inside the PLMTable JSON object so it can be called using the eNumber of the row
+    jsonput(PLMTable, get(person, "PLM_E_Num"), PLMPerson);
+}
+
+// Get the sales team data from the table
+salesTeam = bmql("SELECT eNumber, Name FROM SalesTeams");
+// Creating  a JSON object of the format {"eNumber": {JSON object of row information}} from the data table 
+salesTable = json();
+for person in salesTeam {
+  // JSON object for each row of the table
+  salesPerson = json();
+  // put the information of that row into the JSON object
+  jsonput(salesPerson, "Name", get(person, "Name"));
+  // put that JSON object inside the salesTable JSON object so it can be called using the eNumber of the row
+  jsonput(salesTable, get(person, "eNumber"),salesPerson);
+}
+
+approved=BM_REASON_STATUS_APPROVED;
+pending=BM_REASON_STATUS_PENDING;
+invalid=BM_REASON_STATUS_INVALID;
+inactive = BM_REASON_STATUS_INACTIVE;
+
+level2Status1=getreasonstatus("bLineZeroListPriceApproval");
+level2Status2=getreasonstatus("endCustomerApproval");
+level2Status3=getreasonstatus("bLineDiscountThresholdQuoteRepApprover");
+
+level3Status1=getreasonstatus("bLineDiscountThresholdQuoteManagerApprover");
+level3Status2=getreasonstatus("bLineDiscountThresholdPricingManagerApprover");
+level3Status3=getreasonstatus("bLineDiscountThresholdProductManagerApprover");
+
+
+level3emails  = "";
+level3manager = "";
+blinelevel3email = quoteManagerENum;
+productApprovers = string[];
+if (productApprovers_t <> "") {
+	productApproverJson = jsonArray(productApprovers_t);
+	if (jsonarraysize(productApproverJson) >= 1) {
+		productApprovers = util.u_convertJsonArrayToStringArray(productApproverJson);
+	}
+
+}	
+
+prodApprovers = replace(replace(replace(prodApprovers,"[",""),"]",""),"\"","");
+productApprovers = split(prodApprovers,",");
+
+if (quoteManagerThresholdApprovalRequired == "true" AND level3Status1 <> approved )
+{
+	level3emails  = quoteManagerENum;
+	
+	if (pricingManagerThresholdApprovalRequired == "true" AND level3Status2  <> approved )
+	{
+	    level3manager = "Pricing Manager Group";	
+	}	
+	if ((prodApprovers <> ""  AND evaluateDiscountApproval_t) AND NOT(controllerApproved_t))// AND level3Status3  <> approved )
+	{
+	     	for productApprover in productApprovers {
+			if (level3emails <> "")
+			{
+				level3emails = level3emails+","+productApprover;
+			}
+			else
+			{
+				level3emails = productApprover;
+			}
+		}
+	}
+}
+elif (pricingManagerThresholdApprovalRequired == "true" AND level3Status2  <> approved )
+{
+	level3manager = "Pricing Manager Group";	
+	if ((prodApprovers <> ""  AND evaluateDiscountApproval_t) AND NOT(controllerApproved_t) AND level3Status3  <> approved )
+	{
+		for productApprover in productApprovers {
+			if (level3emails <> "")
+			{
+				level3emails = level3emails+","+productApprover;
+			}
+			else
+			{
+				level3emails = productApprover;
+			}
+		}		
+	}
+}
+elif ((prodApprovers <> ""  AND evaluateDiscountApproval_t) AND NOT(controllerApproved_t) AND level3Status3  <> approved )
+{
+    	for productApprover in productApprovers {
+		if (level3emails <> "")
+		{
+			level3emails = level3emails+","+productApprover;
+		}
+		else
+		{
+			level3emails = productApprover;
+		}
+	}
+}
+
+
+if(level3Email_t <> "" AND NOT isnull(level3Email_t) AND status_t == "pendingApproval")
+{
+	level3emails = level3Email_t;
+}
+
+lvl3email = string[];
+level3ApproverName = "";
+
+if (level3emails <> "")
+{
+	lvl3email = split(level3emails,",");
+}
+
+if(sizeofarray(lvl3email) > 0){
+	for level3email in lvl3email
+	{	
+		if(level3email <> ""){
+			if (NOT isnull(jsonget(PLMTable,level3email)))
+			{
+				if (level3ApproverName <> "")
+				{
+					level3ApproverName = level3ApproverName+","+jsonget(json(jsonget(PLMTable,level3email)), "Name");
+				}
+				else
+				{
+					level3ApproverName = jsonget(json(jsonget(PLMTable,level3email)), "Name");
+				}
+			}
+			elif(NOT isnull(jsonget(salesTable,level3email)))
+			{
+				if (level3ApproverName <> "")
+				{
+					level3ApproverName = level3ApproverName+","+jsonget(json(jsonget(salesTable,level3email)), "Name");
+				}
+				else
+				{
+					level3ApproverName = jsonget(json(jsonget(salesTable,level3email)), "Name");
+				}
+			}
+		}
+		
+	}
+}
+
+if(level3manager <> "" AND level3ApproverName <> "")
+{
+	level3manager = level3manager + "," + level3ApproverName;
+}
+elif(level3manager == "" AND level3ApproverName <> "")
+{
+	level3manager = level3ApproverName;
+}	
+
+
+checkstatusreasonl2 = false;
+checkstatusreasonl3 = false;
+
+if(status_t ==  "draft")
+{
+	checkstatusreasonl2 = true;
+	checkstatusreasonl3 = true;
+}
+else
+{
+	if(level2Status1 <> approved OR level2Status2 <> approved OR level2Status3 <> approved)
+	{
+		checkstatusreasonl2 = true;		
+	}
+	if(level3Status1 == pending OR level3Status2 == pending OR level3Status3 == pending)
+	{
+		checkstatusreasonl3 = true;
+	}
+}
+
+if(quoteRepThresholdApprovalRequired == "true" AND checkstatusreasonl2)
+{
+	result = result + "1~level2Email_t~" + quoteRepENum + "|" + "1~approverNameL2_t~" + quoteRepName + "|";
+}
+else
+{
+	result = result + "1~level2Email_t~|1~approverNameL2_t~|";
+}
+
+if(blinelevel3email <> "") //Used in approval flow for setting enum of level3
+{
+	result = result + "1~bLINELevel3Email_t~" + blinelevel3email + "|";
+}
+
+if(level3emails <> "")
+{
+	result = result + "1~level3Email_t~" + level3emails + "|" + "1~approverNameL3_t~" + level3manager + "|";
+}
+elif(level3manager == "Pricing Manager Group")
+{
+	result = result + "1~approverNameL3_t~" + level3manager + "|";
+}
+else	
+{
+	result = result + "1~level3Email_t~|1~approverNameL3_t~|";
+}	
+
+if(level2Status1 == approved AND level2Status2 == approved AND level2Status3 == approved AND level3Status1 == approved AND level3Status2 == approved AND level3Status3 == approved)
+{
+	result = result + "1~currentApprovalLevel_t~|";
+}
+if(requiredApprovals <> "")
+{
+	result = result + "1~requiredApprovals_t~"+requiredApprovals + "|";
+}
+return result;

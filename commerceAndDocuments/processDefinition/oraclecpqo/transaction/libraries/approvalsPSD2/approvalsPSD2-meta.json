@@ -1,0 +1,11 @@
+{
+  "name" : "PSD Approvals2",
+  "variableName" : "approvalsPSD2",
+  "description" : "PSD POC  - NOT IN USE - E9913664",
+  "libraryFunctions" : [ "commerce.pSDBrandApprovals", "commerce.pSDGetApproverDetails", "commerce.readJSONToGetApprovalInfo" ],
+  "returnType" : "String",
+  "parameters" : [ ],
+  "subDocAttributes" : [ "productLineName_l", "brand_l", "_document_number", "qqMarginString", "quantity_l", "oldListPrice_l", "brandTotal_l", "pSDOldRequestedMargin_l", "priceIncluded_l" ],
+  "mainDocAttributes" : [ "psd_liquidatedDamages_t", "salesOffice_t", "psd_warranty_t", "agreementDeliveryTerms_t", "customerDefaultPaymentTerms_t", "qqTnC_t", "transactionType_t", "qqTotalValue_t", "salesOrg_t", "salesDistrict_t", "agreementValidFrom_t", "agreementValidTo_t", "bidDate_t", "bidExpirationDate_t", "agreementPaymentTerms_t", "pSDTransactionApprovalHistoryInfo_t" ],
+  "systemAttributes" : [ ]
+}

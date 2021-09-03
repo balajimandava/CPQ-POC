@@ -1,0 +1,82 @@
+//******************************************************************************************
+//** Description: 1. Function to update transaction json on approve action
+//**		  2. Update Line level approver and approval required flag 
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	15-July-2020 	Rahul Uttarwar 	Initial version
+//******************************************************************************************
+
+returnVal = "";
+jsonObj = json(transactionLineApprovalInformation_t);
+approvalReasonJsonKey = "";
+level = "";
+nextLevel = 0;
+
+level = substring(CurrentReasonVarName, 8,9);
+triggeredReason = substring(CurrentReasonVarName, 9);
+
+// Added if statement to resolve the issue CPQ-2882
+if(level<>"" AND NOT ISNULL(level)){
+	nextLevel = atoi(level) + 1;
+}
+
+if(triggeredReason == "NONSTANDARDPAYMENTTERMSAPPROVAL"){
+	approvalReasonJsonKey = "Non-Standard Payment Terms";
+}elif(triggeredReason == "ZEROLISTPRICEAPPROVAL"){
+	approvalReasonJsonKey = "Zero List Price";
+}elif(triggeredReason == "NONSTANDARDDELIVERYTERMSAPPROVAL"){
+	approvalReasonJsonKey = "Non-Standard Delivery Terms";
+}elif(triggeredReason == "LIQUIDATEDDAMAGESAPPROVAL"){
+	approvalReasonJsonKey = "Liquidated Damage";
+}elif(triggeredReason == "WARRANTYAPPROVAL"){
+	approvalReasonJsonKey = "Warranty";
+}elif(triggeredReason == "VALIDITYPERIODAPPROVAL"){
+	approvalReasonJsonKey = "Validity Period";
+}elif(triggeredReason == "NONSTANDARDTERMSANDCONDITIONSAPPROVAL"){
+	approvalReasonJsonKey = "Non-Standard Terms and Conditions";
+}elif(triggeredReason == "BRANDTOTALAPPROVAL"){
+	approvalReasonJsonKey = "Brand Total";
+}elif(triggeredReason == "DISCOUNTAPPROVAL"){
+	approvalReasonJsonKey = "Discount";
+}elif(triggeredReason == "LINEITEMQUANTITYAPPROVAL"){
+	approvalReasonJsonKey = "Line Item Quantity";
+}
+
+jsonArr = jsonget(jsonObj, "LinesObjet", "jsonarray");
+jsonArrRange = range(jsonarraysize(jsonArr));
+
+for eachJsonObj in jsonArrRange{
+	internalJSONObj = jsonarrayget(jsonArr, eachJsonObj, "json");
+	lineNum = jsonget(internalJSONObj, "LineNumber", "string");
+	jsonObjForKey = jsonget(internalJSONObj, approvalReasonJsonKey, "json");	
+
+	if(jsonpathcheck(jsonObjForKey, "level"+level+"Approver")){
+		approver =  jsonget(jsonObjForKey, "level"+level+"Approver", "string");
+		approvedFlag = false;
+		
+		if(find(_system_user_groups, approver) > -1){
+			jsonpathset(jsonObjForKey, "$.level"+level+"ApprovalStatus",ApprovalFlag);
+		}elif(_system_user_login == approver){
+			jsonpathset(jsonObjForKey, "$.level"+level+"ApprovalStatus",ApprovalFlag);
+		}elif(find(_system_user_groups, "pSDApprovalSuperUser") > -1){
+			jsonpathset(jsonObjForKey, "$.level"+level+"ApprovalStatus",ApprovalFlag);
+		}
+
+		nxtLvlApprvrExsts = jsonpathcheck(jsonObjForKey, "level"+string(nextLevel)+"Approver");
+		
+		if(nxtLvlApprvrExsts AND (approvalReasonJsonKey == "Brand Total" OR approvalReasonJsonKey == "Discount")){
+			nxtLvlApprvr = jsonget(jsonObjForKey, "level"+string(nextLevel)+"Approver", "string");
+			nxtLvlApprvrDict = commerce.pSDGetApproverDetails(nxtLvlApprvr);
+			nxtLvlApprvrCaption = get(nxtLvlApprvrDict, "approverCaption");
+			returnVal = returnVal + lineNum + "~approverName_l~" + nxtLvlApprvrCaption + "|";
+		}elif(NOT(nxtLvlApprvrExsts) AND (approvalReasonJsonKey == "Brand Total" OR approvalReasonJsonKey == "Discount")){
+			returnVal = returnVal + lineNum + "~approvalRequired_l~false|";
+		}
+	}
+}
+returnVal = returnVal + "1~transactionLineApprovalInformation_t~" + jsontostr(jsonObj) + "|";
+returnVal = returnVal + commerce.pSDGetBannerTextAndCurrentApprovalLevel(jsonObj);
+
+return returnVal;

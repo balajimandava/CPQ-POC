@@ -1,0 +1,12 @@
+{
+  "name" : "Get Approval Thresholds CHEMEA",
+  "variableName" : "getApprovalThresholdsCHEMEA",
+  "description" : "Queries approval threshold table and returns a json string with the thresholds for each material pricing group CH-EMEA",
+  "libraryFunctions" : [ ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "approvalInputs",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

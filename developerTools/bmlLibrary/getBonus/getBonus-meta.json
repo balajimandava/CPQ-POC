@@ -1,0 +1,12 @@
+{
+  "name" : "Get Bonus",
+  "variableName" : "getBonus",
+  "description" : "Return the bonus group and bonus discount for a MPG or part",
+  "libraryFunctions" : [ "util.getBonusGroups" ],
+  "returnType" : "Json",
+  "parameters" : [ {
+    "name" : "customerInput",
+    "type" : "Json"
+  } ],
+  "attributes" : [ ]
+}

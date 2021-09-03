@@ -1,0 +1,18 @@
+{
+  "name" : "Get Default Valid To Date",
+  "variableName" : "getDefaultValidToDate",
+  "description" : "",
+  "libraryFunctions" : [ "util.calculateEndDate", "util.u_addToDate" ],
+  "returnType" : "Date",
+  "parameters" : [ {
+    "name" : "validFrom",
+    "type" : "Date"
+  }, {
+    "name" : "salesOrg",
+    "type" : "String"
+  }, {
+    "name" : "transactionType",
+    "type" : "String"
+  } ],
+  "attributes" : [ ]
+}

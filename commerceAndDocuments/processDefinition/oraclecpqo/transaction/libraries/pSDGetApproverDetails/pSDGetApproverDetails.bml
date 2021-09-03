@@ -1,0 +1,33 @@
+//***************************************************************************************************
+//** Description: Function to get approver Group/Emp Id and type 1/2, will be used in approval tree.
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	15-July-2020 	Rahul Uttarwar 	Initial version
+//***************************************************************************************************
+returnDict = dict("string");
+
+inStringArray = (split(approverString, ""));
+sizeOfInString = sizeofarray(inStringArray);
+firstCharOfInStr = inStringArray[0];
+identifier = 0;
+approverCaption = "";
+if(sizeOfInString == 8 AND firstCharOfInStr == "E"){
+	identifier = 1;
+	approverCaption = approverString;
+	
+}else{
+	identifier = 2;
+	groupName = util.getRemark(approverString, "en");
+	if (groupName == ""){
+		approverCaption = util.getRemark("pSDDefaultGroup", "en");
+		
+	}else{
+		approverCaption = groupName;
+	}
+}
+put(returnDict, "identifier", string(identifier));
+put(returnDict, "approverCaption", approverCaption);
+
+return returnDict;

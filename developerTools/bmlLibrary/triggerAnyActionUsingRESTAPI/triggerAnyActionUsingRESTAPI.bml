@@ -1,0 +1,53 @@
+/**
+@triggerAnyActionUsingRESTAPI
+Rev. Date |Developer            |Notes / Comments
+----------|---------------------|-------------------------------------------------------------------------
+2020-05-07|Vijetha	            |Util to trigger any action using Rest API  
+*/
+//Variable declaration and importing required attributes.
+paramDict = inputDict;
+transactionId = "";
+action = "active_Timer";
+siteName = _company_name;
+payload = "";
+debugMode = false;
+//Read input parameter dictionary and set corresponding local variables
+if(containskey(paramDict,"BSID")){
+	transactionId = get(paramDict,"BSID");
+}
+if(containskey(paramDict,"ACTION")){
+	action = get(paramDict,"ACTION");
+}
+if(containskey(paramDict,"SiteName")){
+	siteName = get(paramDict,"SiteName");//Site name is already imported, however if site name is sent as param, then param input will override the imported value.
+}
+if(containskey(paramDict,"Payload")){
+	payload = get(paramDict,"Payload");
+}
+
+url = "https://"+siteName+".bigmachines.com/rest/v6/commerceDocumentsOraclecpqoTransaction/"+transactionId+"/actions/"+action;
+user = util.getSiteSpecificData(siteName);//using an existing util library to return a specific user and pwd for corresponding site.
+login = jsonget(user, "FieldName", "string", "");
+password = jsonget(user, "Value1", "string", "");
+if (isnull(login) or isnull(password) or login == "" or password == "") {//Error handling if no user login and pwd available.
+    throwerror("No API User is configured for this environment, please check data in Site_Specific data table", false);
+}
+if(transactionId == ""){//Error handling if transactionId and array set name is not passed.
+	throwerror("Transaction ID cannot be empty", false);
+}
+//Prepare required header dictionary for REST API call.
+headers = dict("string");
+put(headers, "Content-Type", "application/json");
+put(headers, "Authorization", "Basic " + encodebase64(login + ":" + password));
+response = urldata(url, "POST", headers, payload);//API call.
+statusCode = get(response, "Status-Code");//Response code.
+if (atoi(statusCode) >= 300) {//If response code > 200, it means API call failed. Error handling if API Call failed.
+    throwerror("Required Info not available: " + url, false);
+}
+jsonResp = json(get(response, "Message-Body"));//Rest API gives response in JSON format. Extract Message Body 
+
+if(debugMode)
+{
+	print jsonResp;
+}
+return jsonResp ;

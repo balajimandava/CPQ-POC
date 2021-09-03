@@ -1,0 +1,66 @@
+//******************************************************************************************
+//** Description: 1. Function to track the config review activities performed.
+//**		  2. Update the config review history attribute
+//**		  
+//**
+//** History:	Date         	Author       	Comment 
+//**         	------------- 	--------------- ------------------------
+//**      	14-Sep-2020 	Subha	 	Initial version
+//******************************************************************************************
+returnVal="";
+countDocNum=0;
+todaysDateString= getstrdate();
+print getstrdate();
+retValStrBuilder = stringbuilder();
+selectedConfigLines=split(_system_selected_document_number,"~");
+lineOwner="";
+if(requestConfigReviewFlag_t==true){
+	for eachLine in transactionLine{
+		docNum=eachLine._document_number;
+		selectedDocNum=_system_selected_document_number;
+	        if(findinarray(selectedConfigLines,docNum)<>-1){
+			print "here";
+				countDocNum=countDocNum+1;
+			}
+		}
+	sbappend(retValStrBuilder,"User"," ",createdBy_t," ","submitted for Config Review for"," ",string(countDocNum)," ","items on the date"," ",todaysDateString,"\n");
+	print retValStrBuilder;	
+}
+if(assigntoGroupflag_t==true){
+	for eachLine in transactionLine{
+		docNum=eachLine._document_number;
+		selectedDocNum=_system_selected_document_number;
+	        if(findinarray(selectedConfigLines,docNum)<>-1){
+			print "here";
+				countDocNum=countDocNum+1;
+			}
+		}
+	sbappend(retValStrBuilder,"User"," ",_system_user_name," ","assigned"," ",userNames_t," ",string(countDocNum)," ","items on the date"," ",todaysDateString,"\n");
+	print retValStrBuilder;	
+}
+if(assigntoMeflag_t==true){
+	for eachLine in transactionLine{
+		docNum=eachLine._document_number;
+		lineOwner=eachLine.lineOwner_l;
+	        if(findinarray(selectedConfigLines,docNum)<>-1){
+			print "here";
+				countDocNum=countDocNum+1;
+			}
+		}
+	sbappend(retValStrBuilder,"User"," ",_system_user_name," ","changed Line Owner from"," ",_system_user_name," ", "to"," ",lineOwner," ","on the date"," ",todaysDateString,"\n");
+	print retValStrBuilder;	
+}
+if(completeConfigReviewflag_t==true){
+	for eachLine in transactionLine{
+		docNum=eachLine._document_number;
+		lineOwner=eachLine.lineOwner_l;
+	        if(findinarray(selectedConfigLines,docNum)<>-1){
+			print "here";
+				countDocNum=countDocNum+1;
+			}
+		}
+	sbappend(retValStrBuilder,"User"," ",lineOwner," ","completed configuration help on"," ",todaysDateString,"\n");
+	print retValStrBuilder;	
+}
+
+return "";

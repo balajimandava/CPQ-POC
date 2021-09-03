@@ -1,0 +1,444 @@
+//************************************************************************************************************
+	//** Function: To connect CPQ with BidMan via SOA.
+	//**
+	//** Description: Project#49074|Eagle Development
+	//**
+	//** History:	Date          	Author		Comment 
+	//**          	------------- 	---------------	--------------------------------------------------------------
+	//**            03rdDec2019	Chandan A J	Created initial version
+	//**		20thDec2019	Rahul Uttarwar	Updated to implement the message as required by SOA.
+	//**		20thFeb2020	Rahul Uttarwar	Implementd the code review comments.
+	//**         	13thMar2020 	Nithin          Project#49074| line item grid changes - Multiplier, Sales floor, Div min logic
+    	//          	2020-03-24	Atul Jain	|Removed commented code, and added debug mode to print statements.
+    	//         	 2020-05-04	Dhananjay	|Included is_placeholder in the payload to identify the PRELIM items
+	//**		12-May-2020	Shardul S	Changes for Residential Project	
+	//**		26-Jun-2020	Rahul		|Included designation in the payload and other line attributes
+	//**		14-July-2020	Dhananjay	|Sending End User Segment and End User Sub Segment instead of Application and Sub-Application.
+	//**        	11-Aug-2020	Praveen	Sahu	|Added code to send the User role as part of Project 51951 Req CPQ-610 
+	//**        	17-Aug-2020     Praveen Sahu|Added code to send the Primary sold to information to Bid Manager as part of Project 51951 Req CPQ-611
+	//**        	17-Aug-2020     Dhananjay	|included Salesoffice and Transaction# in the payload CPQ-2363
+	//**        	25-Aug-2020     Ankit		|included customer group and price group in the payload CPQ-2434
+	//**        	03-Sep-2020     Dhananjay	|CPQ-2557: included Brand and is_configured_product based on qqProductType in the payload
+	//**        	09-Sep-2020     Dhananjay	|CPQ-2681: Added additional logiv to populate the Brand and Product Hierarchy in the payload
+	//**        	09-Sep-2020     Dhananjay	|CPQ-2826: Added _group_sequence_number in the payload
+	//**            12-Oct-2020     Nithin      	|errorMessage check have been added for LPM call
+	//**            23-Oct-2020     Dhananjay	|CPQ-3146: included Sales Group(salesGroup_Menu_t) in the payload
+	//**            17-Mar-2021     Dhananjay	|CPQ-4599: included qq_Contact4Name_t,endCustomerName_t,customerPartNumber_l and qqLeadTime_l in the payload
+	//************************************************************************************************************/
+	print "bidman parameters";
+	print inParams;
+	print _user_name;
+	print _user_login;
+    debugMode = false;
+	returnStr	= "";
+	url 		= "";
+	createQuoteXml 	= "";
+	inputJson 	= json();
+	inputJsonwrapper = json();
+	extIdjsonContenor = json();
+	jsonLPMContenor   = json();
+	isReadonly 	= false;
+	siteID 		= "SOABidmanUser";
+	soaUserID 	= "";
+	soaPassID 	= "";
+	headers 	= dict("string");
+	lineDocNum	= "";
+	takeOffCode 	= "";
+	lineData	= jsonarray();
+	selectedDocNumber = get(inParams, "selectedDocNumber");
+	configExtraInfo = get(inParams, "configExtraInfo");
+	modelPath 	= get(inParams, "modelPath");
+	bsId 		= get(inParams, "bsId");
+	searchResult 	= get(inParams, "searchResult");
+	bmProcess	= get(inParams, "bmProcess");
+	userRole="";	
+	soldto_num="";		
+	soldto_cust_name="";		
+	soldto_zipcode="";
+	soldto_city	="";	
+	soldto_region="";
+	soldto_country="";
+	Access="";
+	
+	if(modelPath == ""){
+		modelPath = "bidManager:bidManager:takeOff";
+	}
+	company = util.getSupplierCompanyName();
+	siteID = company + siteID;
+	envData = util.getSiteSpecificData(siteID);
+	soaUserID = jsonget(envData, "FieldName");
+	soaPassID = jsonget(envData, "Value1");
+	bidManagerUrlPrefix = jsonget(envData, "Value2");
+
+	//END POINT URL START - Below used Util library will fetch the End Point OAG URL for the web service call
+	envVariable = util.getEnvironmentVariable("SOA_OAG_BIDMAN_URL", "");
+	//END POINT URL END
+
+	// HEADERS START - Set headers for request message
+	put(headers, "Content-Type", "application/json");
+	put(headers, "Authorization", "Basic " + encodebase64(soaUserID + ":" + soaPassID));
+	//HEADERS END
+	
+	if(not isnull(selectedDocNumber)){
+		lineDocNum = trim(selectedDocNumber);
+		if (lineDocNum == "-1") {			
+				takeOffCode="";
+				if (searchResult <> "" ) {
+					cfgExtraInfo = split(searchResult, "@");
+					takeOffCode = cfgExtraInfo[1];
+					
+				}
+		}else{				
+				takeOffCode="";
+				if (configExtraInfo <> "" ) {
+					cfgExtraInfo = json(configExtraInfo);
+					takeOffCode = jsonget(cfgExtraInfo, "configHeaderId");
+				}
+		}
+		
+	}
+
+	xpaths = string[] {
+		"//transaction/step_var_name",
+		"//transaction/qqBusinessLineForSalesOrg_t",
+		"//transaction/salesOrg_t",
+		"//transaction/distributionChannel_t",
+		"//transaction/qqCustomerGroup_t",
+		"//transaction/priceGroup_t",
+		"//transaction/customerNumber_t",
+		"//transaction/endCustomerNo_t",
+		"//transaction/transactionType_t",
+		"//transaction/salesDistrict_t",
+		"//transaction/salesGroup_t",
+		"//transaction/qqCountry_t",
+		"//transaction/qqCountryRegion_t",
+		"//transaction/qqApplication_t",
+		"//transaction/qqSubApplication_t",
+		"//transaction/qqSegment_t",
+		"//transaction/qqSubSegment_t",
+		"//transaction/salesOffice_t",
+		"//transaction/transactionNumber_t",
+		"//transaction/psd_customerGroup_t",	//49704
+		"//transaction/psd_priceGroup_t",	//49704
+		"//transaction/salesGroup_Menu_t",	//49704
+		"//transaction/reconfiguringModelDocumentNumber_t",
+		"//transaction/qq_Contact4Name_t",
+		"//transaction/endCustomerName_t"
+	};
+	
+	// Start -Added as part of Project 51951 CPQ-610,CPQ-611.
+	if(takeOffCode=="BUSQSCP"){
+		append(xpaths , "//transaction/userRole_t");		
+		append(xpaths , "//transaction/soldToNumber_t");
+		//append(xpaths , "//transaction/customerSoldTo_t");
+		//append(xpaths , "//transaction/customerPostalCodeZip_t");
+		//append(xpaths , "//transaction/customerCity_t");
+		//append(xpaths , "//transaction/customerRegion_t");
+		//append(xpaths , "//transaction/customerCountry_t");
+		
+	}
+	// End -Added as part of Project 51951 CPQ-610,CPQ-611.
+	
+	headerData = util.getTransactionData(bsId, xpaths); // BML Util call
+	currentStep 	= jsonget(headerData, "step_var_name", "string", "");
+	businessGroup 	= jsonget(headerData, "qqBusinessLineForSalesOrg_t", "string", "");
+	sales_org	= jsonget(headerData, "salesOrg_t", "string", "");
+	dist_channel  	= jsonget(headerData, "distributionChannel_t", "string", "");
+	customer_group  = jsonget(headerData, "qqCustomerGroup_t", "string", "");
+	price_group 	= jsonget(headerData, "priceGroup_t", "string", "");
+	sales_group	= jsonget(headerData, "salesGroup_t", "string", "");
+	customerSupportContactName = jsonget(headerData, "qq_Contact4Name_t", "string", "");
+	primaryEndCustomerName = jsonget(headerData, "endCustomerName_t", "string", "");
+	if(businessGroup == "PSD"){
+		customer_group  = jsonget(headerData, "psd_customerGroup_t", "string", "");
+		price_group 	= jsonget(headerData, "psd_priceGroup_t", "string", "");
+		sales_group	= jsonget(headerData, "salesGroup_Menu_t", "string", "");
+	}
+	soldto_customer = jsonget(headerData, "customerNumber_t", "string", "");
+	end_user		= jsonget(headerData, "endCustomerNo_t", "string", "");
+	quote_type 		= jsonget(headerData, "transactionType_t", "string", "");
+	sales_district	= jsonget(headerData, "salesDistrict_t", "string", "");
+	//sales_group		= jsonget(headerData, "salesGroup_t", "string", "");
+	project_country	= jsonget(headerData, "qqCountry_t", "string", "");
+	project_region	= jsonget(headerData, "qqCountryRegion_t", "string", "");
+	application		= jsonget(headerData, "qqApplication_t", "string", "");
+	sub_appln		= jsonget(headerData, "qqSubApplication_t", "string", "");
+	endUserSegment	= jsonget(headerData, "qqSegment_t", "string", "");
+	endUserSubSegment = jsonget(headerData, "qqSubSegment_t", "string", "");
+	salesOffice = jsonget(headerData, "salesOffice_t", "string", "");
+	transactionNumber = jsonget(headerData, "transactionNumber_t", "string", "");
+	//Added by Shardul for CPQ-69
+	createdBy = jsonget(headerData, "createdBy_t", "string", "");
+	transactionOwner = jsonget(headerData, "transactionOwner_t", "string", "");
+	salesContact = jsonget(headerData, "qq_Contact2Name_t", "string", "");
+	customerSupportContact = jsonget(headerData, "qq_Contact4Name_t", "string", "");
+	if(selectedDocNumber == "" AND businessGroup == "PSD"){
+		selectedDocNumber = jsonget(headerData, "reconfiguringModelDocumentNumber_t", "string", selectedDocNumber);
+	}
+	transowner = createdBy;
+
+	//CPQ-69 end
+	// Start -Added as part of Project 51951 CPQ-610,CPQ-611.
+	if(takeOffCode == "BUSQSCP"){
+		userRole        = jsonget(headerData, "userRole_t", "string", "");		
+		soldto_num		= jsonget(headerData, "soldToNumber_t", "string", "");
+		//soldto_cust_name= jsonget(headerData, "customerSoldTo_t", "string", "");
+		//soldto_zipcode	= jsonget(headerData, "customerPostalCodeZip_t", "string", "");
+		//soldto_city	= jsonget(headerData, "customerCity_t", "string", "");
+		//soldto_region	= jsonget(headerData, "customerRegion_t", "string", "");
+		//soldto_country 	= jsonget(headerData, "customerCountry_t", "string", "");
+	}
+	// End - Added as part of Project 51951 CPQ-610,CPQ-611.
+	xPathDictionary = dict("string");
+	put(xPathDictionary, "item_id", "//transactionLine/_document_number");
+	put(xPathDictionary, "config_id", "//transactionLine/externalConfigData_l");
+	//put(xPathDictionary, "read_only", "//transactionLine/_document_number");  
+	put(xPathDictionary, "catalog_number", "//transactionLine/qqCatalogNumber_l");
+	put(xPathDictionary, "product_hierarchy", "//transactionLine/productHierarchy_l");
+	put(xPathDictionary, "quantity", "//transactionLine/quantity_l");
+	put(xPathDictionary, "design_status", "//transactionLine/engineeringDesignStatus_l");
+	put(xPathDictionary, "is_placeholder", "//transactionLine/isPlaceholder_l");//0 for normal case, 1 for prelim item
+	put(xPathDictionary, "designation", "//transactionLine/designation_l");
+	put(xPathDictionary, "brand", "//transactionLine/brand_l");
+	put(xPathDictionary, "qqProductType", "//transactionLine/qqProductType_l");
+	put(xPathDictionary, "sequence_number", "//transactionLine/_group_sequence_number");
+	put(xPathDictionary, "lineOwner", "//transactionLine/lineOwner_l");	
+	put(xPathDictionary, "reqconfreviewflag", "//transactionLine/requestConfigReviewFlag_l");
+	put(xPathDictionary, "takeOffModel", "//transactionLine/takeOffModel_l");
+	put(xPathDictionary, "customer_material_number", "//transactionLine/customerPartNumber_l");
+	put(xPathDictionary, "lead_time", "//transactionLine/qqLeadTime_l");
+	
+	if(currentStep <> "draft"){
+		isReadonly = true;
+	}
+	
+	if(bmProcess == "CPQ.OpenView")
+	{
+		if (not isnull(selectedDocNumber)) {		
+			lineDocNum = trim(selectedDocNumber);
+			if (lineDocNum == "-1") {			
+				takeOffCode="";
+				if (searchResult <> "" ) {
+					cfgExtraInfo = split(searchResult, "@");
+					takeOffCode = cfgExtraInfo[1];
+					
+				}
+			}else{
+				
+				takeOffCode="";
+				if (configExtraInfo <> "" ) {
+					cfgExtraInfo = json(configExtraInfo);
+					takeOffCode = jsonget(cfgExtraInfo, "configHeaderId");
+				}
+				//takeOffCode = "ATDERESI";
+				//Temporary condition, needs to be removed once Multiconfig needs to be enabled for all takeoff Models
+				if(takeOffCode == "ATDERESI" OR takeOffCode == "PUSHBUT" OR takeOffCode == "atderesi" OR takeOffCode == "pushbut" )
+				{
+					put(xPathDictionary, "config_id", "//transactionLine/externalConfigData_l"); 
+				}
+								
+				lineData = util.getTransactionLineLevelData(bsId, lineDocNum, xPathDictionary,"");
+				/*print 129;
+				print lineData;
+				print 131;*/
+				if(takeOffCode =="" AND businessGroup == "PSD"){
+					lineData_json = json();
+					jsonput(lineData_json ,"lineData",lineData);
+					takeOffCode = jsonpathgetsingle(lineData_json , "$.lineData[*].takeOffModel","string",takeOffCode);
+					//print takeOffCode;
+				}
+				
+				//Added by Shardul for Residential MultiConfig
+				config_id = "";
+				ConfigId = "";
+				//Temporary condition, needs to be removed once Multiconfig needs to be enabled for all takeoff Models
+				if(takeOffCode == "ATDERESI" OR takeOffCode == "PUSHBUT" OR takeOffCode == "atderesi" OR takeOffCode == "pushbut" )
+				{
+					numOfConfigId = jsonarraysize(lineData);
+					loop = range(numOfConfigId);
+					for i in loop { 
+					    currentModel = jsonarrayget(lineData, i, "json");
+					    config_id = jsonget(currentModel, "config_id", "string", "");
+					}
+					//print 146;
+					//print config_id;
+					if (config_id <> "")
+					{
+						config_id = "<SAP_ConfigurationID>"+config_id+"</SAP_ConfigurationID>";
+						lineData = util.getTransactionLineLevelData(bsId, "", xPathDictionary, config_id);
+						//print 151;
+						//print lineData;
+						//print 153;
+					}
+				}
+				
+			}
+			
+		}
+		//starting - CPQ-4097
+		if(businessGroup == "PSD")
+		{
+		Access = "read-only";
+		print Access;
+		ConfigAccessBidmannRecords = bmql("select Access from ConfigAccessBidmann where SalesOrg =$sales_org and TakeOffModel = $takeOffCode and UserID =$_user_login");
+		print ConfigAccessBidmannRecords ;
+	        for r in ConfigAccessBidmannRecords 
+	        {
+	        Access = get(r,"Access");
+		break;
+		}
+		}
+		//takeOffCode = "PUSHBUT";
+		jsonput(inputJson, "tocode", takeOffCode);
+		if(businessGroup == "BUSSMANN"){
+			jsonput(inputJson, "role", "CBM");
+		}elif(businessGroup == "PSD"){
+			jsonput(inputJson, "role", "PSD");
+		}else{
+			jsonput(inputJson, "role", "CPQ");
+		}
+	}
+	elif(bmProcess == "CPQ.PSD.LPMGet"){
+		lineData = util.getTransactionLineLevelData(bsId, lineDocNum, xPathDictionary,"");
+	}
+	
+	//The below code is to set the brand and product hierarchy in the payload for standard items
+	//In the above, we poplating the line item details using WS call, but some of the standard item information (Brand, Product Hierarchy etc) 
+	//populating from MAT01 table and this information is not aviable in WS call even if we set to attributes.
+	//So, whenever invoking commancalltoBM function form LPM data from Actions, we are passing additionalInfoForLPM
+	if(businessGroup == "PSD" AND containskey(inParams, "additionalInfoForLPM")){
+		additionalInfoForLPMStr	= get(inParams, "additionalInfoForLPM");
+		if(additionalInfoForLPMStr <> "" AND startswith(additionalInfoForLPMStr,"{") AND endswith(additionalInfoForLPMStr,"}")){
+			additionalInfoForLPM = json(additionalInfoForLPMStr);
+			additionalInfoKeys = jsonkeys(additionalInfoForLPM);
+			lineData_json = json();
+			jsonput(lineData_json,"lineData",lineData);
+			if(sizeofarray(additionalInfoKeys)>0){
+				for eachKey in additionalInfoKeys{
+					eachAdditionalInfo = jsonget(additionalInfoForLPM,eachKey,"json",json());
+					prodHierarchy = jsonget(eachAdditionalInfo,"productHierarchy","string","");
+					brandVal = jsonget(eachAdditionalInfo,"brand","string","");
+					prodHierarchyPath = "$.lineData[?(@.item_id =='"+ eachKey + "')].product_hierarchy";
+					brandPath = "$.lineData[?(@.item_id =='"+ eachKey + "')].brand";
+					if(jsonpathcheck(lineData_json,prodHierarchyPath) AND prodHierarchy <> ""){
+						jsonpathset(lineData_json, prodHierarchyPath, prodHierarchy);
+					}
+					if(jsonpathcheck(lineData_json,brandPath) AND brandVal <> ""){
+						jsonpathset(lineData_json, brandPath, brandVal);
+					}
+				}
+			}
+	
+			lineData = jsonget(lineData_json,"lineData","jsonarray");
+		}
+	}
+ 
+ 
+	isloginemail = (upper(company) <> upper(_company_name));
+																																		   
+							 
+						
+  
+							  
+ 
+ 
+  
+ 
+ 
+	jsonput(inputJson, "quote_id", bsId);
+	jsonput(inputJson, "items", lineData);
+	jsonput(inputJson, "model", modelPath);
+	if(isReadonly){
+		//jsonput(inputJson, "ReadOnly", "true");
+		jsonput(inputJson, "read_only", "true");
+		
+	}
+
+	jsonput(inputJson, "sales_org", sales_org);
+	jsonput(inputJson, "dist_channel", dist_channel);
+	jsonput(inputJson, "customer_group", customer_group);
+	jsonput(inputJson, "price_group", price_group);
+	jsonput(inputJson, "soldto_customer", soldto_customer);
+	jsonput(inputJson, "end_user", end_user);
+	jsonput(inputJson, "quote_type", quote_type);
+	jsonput(inputJson, "sales_district", sales_district);
+	jsonput(inputJson, "sales_group", sales_group);
+	jsonput(inputJson, "project_country", project_country);
+	jsonput(inputJson, "project_region", project_region);
+	jsonput(inputJson, "application", application);
+	jsonput(inputJson, "sub_application", sub_appln);
+	jsonput(inputJson, "end_user_segment", endUserSegment);
+	jsonput(inputJson, "end_user_sub_segment", endUserSubSegment);
+	jsonput(inputJson, "sales_office", salesOffice);
+	jsonput(inputJson, "transaction_number", transactionNumber);
+	jsonput(inputJson, "customer_support_contact_name", customerSupportContactName);
+	jsonput(inputJson, "primary_end_customer_name", primaryEndCustomerName);
+	if(businessGroup == "PSD")
+	{
+	jsonput(inputJson, "config_access", Access);
+	}
+	// Start -Added as part of Project 51951 CPQ-610,CPQ-611.
+	if(takeOffCode == "BUSQSCP"){
+		jsonput(inputJson, "user_role", userRole);
+		jsonput(inputJson, "soldto_num", soldto_num);
+		//jsonput(inputJson, "soldto_cust_name", soldto_cust_name);
+		//jsonput(inputJson, "soldto_zipcode", soldto_zipcode);
+		//jsonput(inputJson, "soldto_city", soldto_city);
+		//jsonput(inputJson, "soldto_region", soldto_region);
+		//jsonput(inputJson, "soldto_country", soldto_country);
+	}
+	// End -Added as part of Project 51951 CPQ-610,CPQ-611.
+	
+	jsonput(inputJsonwrapper, "process", bmProcess);
+	jsonput(inputJsonwrapper, "payload", inputJson);
+	
+    print "inputJsonwrapper";
+	print inputJsonwrapper;
+	print "inputJsonwrapper";
+	inputJsonString = jsontostr(inputJsonwrapper);
+	// print "Common call to BM 378*******************************************";
+	// print inputJsonString;
+	//print "*******************************************";
+	//Forming a JSON to pass a parameter to SOA - END
+
+	//SOAP WEB SERVICE CALL START
+	responseD = urldata(envVariable, "POST", headers, inputJsonString);
+	errorMessage = get(responseD, "Error-Message");
+	// print "responseD is";
+	// print responseD ;
+	//SOAP WEB SERVICE CALL END
+
+	if(bmProcess == "CPQ.OpenView"){
+		extIdjsonContenor = json(get(responseD, "Message-Body"));
+		extId = jsonpathgetsingle(extIdjsonContenor, "$..['extid']", "string");
+		url = _site_url + "/bmfsweb/" + company + "/image/ext_cfg/bid_mgr_new.html" + "?isloginemail=" + string(isloginemail) + "&source=cpq" + "&extid=" + extId + "&cpqid=" + bsId;
+		// print "bidman url is";
+		// print url;		
+		url = url + "&bidManagerUrlPrefix=" + bidManagerUrlPrefix;
+		returnStr = url;
+		// print "bidman url is";
+		// print url;
+	}elif(bmProcess == "CPQ.PSD.LPMGet" AND isnull(errorMessage)){
+		jsonLPMContenor = json(get(responseD, "Message-Body"));
+		jsonarr = jsonget(jsonLPMContenor, "payload", "json",json());
+		
+	if(debugMode)
+    {
+        	//print jsonLPMContenor ;
+        	print "123";
+		//print itemarr;
+    }
+		returnStr = jsontostr(jsonarr);
+	}
+
+   if(debugMode)
+   {
+	print "************ BM request payload ***********";
+	print inputJsonString;
+	print "************ BM response payload1 ***********";
+	print responseD;
+	print "************ NEW URL ****************";
+	print returnStr;
+   }
+	
+	return returnStr;
